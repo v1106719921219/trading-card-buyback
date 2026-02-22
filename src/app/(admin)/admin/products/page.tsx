@@ -1,0 +1,733 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { AdminHeader } from '@/components/admin/header'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
+import { Plus, Pencil, Trash2, Search, Upload, ArrowUp, ArrowDown } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
+import Link from 'next/link'
+import type { Category, Product, Subcategory } from '@/types/database'
+
+export default function ProductsPage() {
+  const [products, setProducts] = useState<(Product & { category: Category; subcategory: Subcategory | null })[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([])
+  const [loading, setLoading] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editing, setEditing] = useState<Product | null>(null)
+  const [filterCategory, setFilterCategory] = useState<string>('all')
+  const [search, setSearch] = useState('')
+
+  // Form state
+  const [formName, setFormName] = useState('')
+  const [formCategoryId, setFormCategoryId] = useState('')
+  const [formSubcategoryId, setFormSubcategoryId] = useState('')
+  const [formPrice, setFormPrice] = useState(0)
+
+  // Inline price editing
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
+  const [editingPriceValue, setEditingPriceValue] = useState(0)
+
+  // CSV import
+  const [csvDialogOpen, setCsvDialogOpen] = useState(false)
+  const [csvText, setCsvText] = useState('')
+  const [csvPreview, setCsvPreview] = useState<{ name: string; category: string; categoryId: string; subcategory: string; subcategoryId: string; price: number; isUpdate: boolean; error?: string }[]>([])
+  const [csvImporting, setCsvImporting] = useState(false)
+
+  const supabase = createClient()
+
+  async function fetchData() {
+    const [productsResult, categoriesResult, subcategoriesResult] = await Promise.all([
+      supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').order('sort_order').order('created_at', { ascending: false }),
+      supabase.from('categories').select('*').order('sort_order'),
+      supabase.from('subcategories').select('*').order('sort_order'),
+    ])
+
+    if (productsResult.data) setProducts(productsResult.data as never[])
+    if (categoriesResult.data) setCategories(categoriesResult.data)
+    if (subcategoriesResult.data) setSubcategories(subcategoriesResult.data)
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const filteredProducts = products.filter((p) => {
+    const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory
+    const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
+    return matchesCategory && matchesSearch
+  })
+
+  function openCreate() {
+    setEditing(null)
+    setFormName('')
+    setFormCategoryId(categories[0]?.id || '')
+    setFormSubcategoryId('')
+    setFormPrice(0)
+    setDialogOpen(true)
+  }
+
+  function openEdit(product: Product) {
+    setEditing(product)
+    setFormName(product.name)
+    setFormCategoryId(product.category_id)
+    setFormSubcategoryId(product.subcategory_id || '')
+    setFormPrice(product.price)
+    setDialogOpen(true)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+
+    if (editing) {
+      const updateData: Record<string, unknown> = { name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId || null, price: formPrice }
+      if (formPrice === 0) updateData.show_in_price_list = false
+      const { error } = await supabase
+        .from('products')
+        .update(updateData)
+        .eq('id', editing.id)
+
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+      toast.success('商品を更新しました')
+    } else {
+      const { error } = await supabase
+        .from('products')
+        .insert({ name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId || null, price: formPrice, show_in_price_list: formPrice > 0 })
+
+      if (error) {
+        toast.error(error.code === '23505' ? 'この商品名は既に存在します' : error.message)
+        return
+      }
+      toast.success('商品を作成しました')
+    }
+
+    setDialogOpen(false)
+    fetchData()
+  }
+
+  async function handleDelete(id: string) {
+    const { error } = await supabase.from('products').delete().eq('id', id)
+    if (error) {
+      toast.error('削除に失敗しました')
+      return
+    }
+    toast.success('商品を削除しました')
+    fetchData()
+  }
+
+  async function saveInlinePrice(id: string) {
+    const updateData: Record<string, unknown> = { price: editingPriceValue }
+    if (editingPriceValue === 0) updateData.show_in_price_list = false
+    const { error } = await supabase
+      .from('products')
+      .update(updateData)
+      .eq('id', id)
+
+    if (error) {
+      toast.error('価格の更新に失敗しました')
+      return
+    }
+    toast.success('価格を更新しました')
+    setEditingPriceId(null)
+    fetchData()
+  }
+
+  function parseCsv() {
+    const lines = csvText.trim().split('\n').filter((l) => l.trim())
+    const results: typeof csvPreview = []
+
+    for (const line of lines) {
+      // Support: カテゴリ名,サブカテゴリ名,商品名,価格 or カテゴリ名,商品名,価格 or 商品名,価格
+      const parts = line.split(/[,\t]/).map((s) => s.trim())
+      if (parts.length < 2) {
+        results.push({ name: parts[0] || '', category: '', categoryId: '', subcategory: '', subcategoryId: '', price: 0, isUpdate: false, error: '列が不足しています' })
+        continue
+      }
+
+      let categoryName = '', subcategoryName = '', name = '', priceStr = ''
+
+      if (parts.length >= 4) {
+        // カテゴリ名,サブカテゴリ名,商品名,価格
+        categoryName = parts[0]
+        subcategoryName = parts[1]
+        name = parts[2]
+        priceStr = parts[3]
+      } else if (parts.length === 3) {
+        // カテゴリ名,商品名,価格
+        categoryName = parts[0]
+        name = parts[1]
+        priceStr = parts[2]
+      } else {
+        // 商品名,価格
+        name = parts[0]
+        priceStr = parts[1]
+      }
+
+      const price = priceStr && priceStr.trim() !== '' ? parseInt(priceStr, 10) : 0
+
+      if (!name) { results.push({ name, category: categoryName, categoryId: '', subcategory: subcategoryName, subcategoryId: '', price: 0, isUpdate: false, error: '商品名が空です' }); continue }
+      if (isNaN(price) || price < 0) { results.push({ name, category: categoryName, categoryId: '', subcategory: subcategoryName, subcategoryId: '', price: 0, isUpdate: false, error: '価格が不正です' }); continue }
+
+      // Match category
+      let matchedCat = categories[0]
+      if (categoryName) {
+        const found = categories.find((c) => c.name === categoryName || c.name.includes(categoryName) || categoryName.includes(c.name))
+        if (found) {
+          matchedCat = found
+        } else {
+          results.push({ name, category: categoryName, categoryId: '', subcategory: subcategoryName, subcategoryId: '', price, isUpdate: false, error: `カテゴリ「${categoryName}」が見つかりません` })
+          continue
+        }
+      } else if (filterCategory !== 'all') {
+        matchedCat = categories.find((c) => c.id === filterCategory) || categories[0]
+      }
+
+      // Match subcategory
+      let matchedSubId = ''
+      let matchedSubName = ''
+      if (subcategoryName) {
+        const found = subcategories.find((s) => s.category_id === matchedCat.id && (s.name === subcategoryName || s.name.includes(subcategoryName) || subcategoryName.includes(s.name)))
+        if (found) {
+          matchedSubId = found.id
+          matchedSubName = found.name
+        } else {
+          results.push({ name, category: matchedCat.name, categoryId: matchedCat.id, subcategory: subcategoryName, subcategoryId: '', price, isUpdate: false, error: `サブカテゴリ「${subcategoryName}」が見つかりません` })
+          continue
+        }
+      }
+
+      // Check if product already exists (same name + same category)
+      const existing = products.find((p) => p.name === name && p.category_id === matchedCat.id)
+      const isUpdate = !!existing
+
+      results.push({ name, category: matchedCat.name, categoryId: matchedCat.id, subcategory: matchedSubName, subcategoryId: matchedSubId, price, isUpdate, error: undefined })
+    }
+
+    setCsvPreview(results)
+  }
+
+  async function handleCsvImport() {
+    const validItems = csvPreview.filter((item) => !item.error)
+    if (validItems.length === 0) {
+      toast.error('インポートできる商品がありません')
+      return
+    }
+
+    setCsvImporting(true)
+
+    let insertCount = 0
+    let updateCount = 0
+
+    // Assign sort_order based on CSV row order (per category)
+    const sortOrderMap = new Map<string, number>()
+    for (const item of validItems) {
+      const current = sortOrderMap.get(item.categoryId) ?? 0
+      sortOrderMap.set(item.categoryId, current + 1)
+    }
+    // Reset counters for actual assignment
+    const sortCounters = new Map<string, number>()
+
+    // Process all items in CSV order to preserve sort_order
+    for (const item of validItems) {
+      const counter = sortCounters.get(item.categoryId) ?? 0
+      const sortOrder = counter + 1
+      sortCounters.set(item.categoryId, sortOrder)
+
+      if (item.isUpdate) {
+        const existing = products.find((p) => p.name === item.name && p.category_id === item.categoryId)
+        if (!existing) continue
+        const updateData: Record<string, unknown> = { price: item.price, subcategory_id: item.subcategoryId || null, sort_order: sortOrder }
+        if (item.price === 0) updateData.show_in_price_list = false
+        const { error } = await supabase
+          .from('products')
+          .update(updateData)
+          .eq('id', existing.id)
+        if (error) {
+          toast.error(`「${item.name}」の更新に失敗: ${error.message}`)
+          setCsvImporting(false)
+          return
+        }
+        updateCount++
+      } else {
+        const { error } = await supabase.from('products').insert({
+          name: item.name,
+          category_id: item.categoryId,
+          subcategory_id: item.subcategoryId || null,
+          price: item.price,
+          show_in_price_list: item.price > 0,
+          sort_order: sortOrder,
+        })
+        if (error) {
+          toast.error(`「${item.name}」の追加に失敗: ${error.message}`)
+          setCsvImporting(false)
+          return
+        }
+        insertCount++
+      }
+    }
+
+    setCsvImporting(false)
+
+    const msgs = []
+    if (insertCount > 0) msgs.push(`${insertCount}件新規追加`)
+    if (updateCount > 0) msgs.push(`${updateCount}件更新`)
+    toast.success(msgs.join('、'))
+
+    setCsvDialogOpen(false)
+    setCsvText('')
+    setCsvPreview([])
+    fetchData()
+  }
+
+  async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const text = await file.text()
+    // Skip header row if it looks like a header
+    const lines = text.trim().split('\n')
+    const firstLine = lines[0].toLowerCase()
+    if (firstLine.includes('商品名') || firstLine.includes('name') || firstLine.includes('カテゴリ')) {
+      setCsvText(lines.slice(1).join('\n'))
+    } else {
+      setCsvText(text)
+    }
+  }
+
+  async function toggleActive(product: Product) {
+    const { error } = await supabase
+      .from('products')
+      .update({ is_active: !product.is_active })
+      .eq('id', product.id)
+
+    if (error) {
+      toast.error('更新に失敗しました')
+      return
+    }
+    fetchData()
+  }
+
+  async function togglePriceList(product: Product) {
+    const newValue = !product.show_in_price_list
+    const { error } = await supabase
+      .from('products')
+      .update({ show_in_price_list: newValue })
+      .eq('id', product.id)
+
+    if (error) {
+      toast.error(`価格表の表示設定に失敗しました: ${error.message}`)
+      return
+    }
+    toast.success(`${product.name}を価格表${newValue ? '表示' : '非表示'}にしました`)
+    fetchData()
+  }
+
+  async function moveProduct(product: Product & { category: Category }, direction: 'up' | 'down') {
+    // Find siblings in same category, sorted by sort_order
+    const siblings = products
+      .filter((p) => p.category_id === product.category_id)
+      .sort((a, b) => a.sort_order - b.sort_order)
+    const idx = siblings.findIndex((p) => p.id === product.id)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= siblings.length) return
+
+    const other = siblings[swapIdx]
+    // Swap sort_order values
+    const [{ error: e1 }, { error: e2 }] = await Promise.all([
+      supabase.from('products').update({ sort_order: other.sort_order }).eq('id', product.id),
+      supabase.from('products').update({ sort_order: product.sort_order }).eq('id', other.id),
+    ])
+
+    if (e1 || e2) {
+      toast.error('並び替えに失敗しました')
+      return
+    }
+    fetchData()
+  }
+
+  return (
+    <div className="space-y-6">
+      <AdminHeader
+        title="商品管理"
+        description="買取商品の管理"
+        actions={
+          <div className="flex gap-2">
+            <Dialog open={csvDialogOpen} onOpenChange={(open) => { setCsvDialogOpen(open); if (!open) { setCsvText(''); setCsvPreview([]) } }}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <Upload className="mr-2 h-4 w-4" />
+                  CSVインポート
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+                <DialogHeader>
+                  <DialogTitle>CSVインポート</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
+                  <div>
+                    <Label>CSVファイルを選択、またはテキストを貼り付け</Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      形式: カテゴリ名,サブカテゴリ名,商品名,価格（サブカテゴリ省略可。既存商品は上書き）
+                    </p>
+                    <Input type="file" accept=".csv,.tsv,.txt" onChange={handleCsvFile} className="mb-2" />
+                    <Textarea
+                      value={csvText}
+                      onChange={(e) => setCsvText(e.target.value)}
+                      placeholder={"ポケモンカード,カートン,インフェルノX カートン,140000\nポケモンカード,シュリンク付きBOX,インフェルノX,14400\nポケモンカード,リザードンex SAR,15000"}
+                      rows={6}
+                    />
+                  </div>
+                  <Button variant="outline" onClick={parseCsv} disabled={!csvText.trim()}>
+                    プレビュー
+                  </Button>
+
+                  {csvPreview.length > 0 && (
+                    <div className="max-h-80 overflow-y-auto rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>商品名</TableHead>
+                            <TableHead>カテゴリ</TableHead>
+                            <TableHead>サブカテゴリ</TableHead>
+                            <TableHead className="text-right">価格</TableHead>
+                            <TableHead>状態</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {csvPreview.map((item, i) => (
+                            <TableRow key={i} className={item.error ? 'bg-destructive/5' : item.isUpdate ? 'bg-yellow-50' : ''}>
+                              <TableCell className="text-sm">{item.name}</TableCell>
+                              <TableCell className="text-sm">{item.category}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{item.subcategory || '-'}</TableCell>
+                              <TableCell className="text-right text-sm">{item.price ? `${item.price.toLocaleString()}円` : '-'}</TableCell>
+                              <TableCell>
+                                {item.error ? (
+                                  <span className="text-xs text-destructive">{item.error}</span>
+                                ) : item.isUpdate ? (
+                                  <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-700">上書</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs">新規</Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+
+                {csvPreview.length > 0 && (
+                  <div className="flex items-center justify-between border-t pt-4 shrink-0">
+                    <p className="text-sm text-muted-foreground">
+                      {csvPreview.filter((i) => !i.error).length}件インポート可能
+                      {csvPreview.filter((i) => i.error).length > 0 && (
+                        <span className="text-destructive ml-2">
+                          （{csvPreview.filter((i) => i.error).length}件エラー）
+                        </span>
+                      )}
+                    </p>
+                    <Button
+                      onClick={handleCsvImport}
+                      disabled={csvImporting || csvPreview.filter((i) => !i.error).length === 0}
+                    >
+                      {csvImporting ? 'インポート中...' : 'インポート実行'}
+                    </Button>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+            <Link href="/admin/products/bulk-update">
+              <Button variant="outline">一括価格更新</Button>
+            </Link>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={openCreate}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  新規商品
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>
+                    {editing ? '商品編集' : '新規商品'}
+                  </DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>カテゴリ</Label>
+                    <Select value={formCategoryId} onValueChange={(v) => { setFormCategoryId(v); setFormSubcategoryId('') }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="カテゴリを選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {subcategories.filter((s) => s.category_id === formCategoryId).length > 0 && (
+                    <div className="space-y-2">
+                      <Label>サブカテゴリ</Label>
+                      <Select value={formSubcategoryId} onValueChange={setFormSubcategoryId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="サブカテゴリを選択（任意）" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">なし</SelectItem>
+                          {subcategories.filter((s) => s.category_id === formCategoryId).map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label>商品名</Label>
+                    <Input
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      placeholder="例: リザードンVSTAR SAR"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>買取価格（円）</Label>
+                    <Input
+                      type="number"
+                      value={formPrice}
+                      onChange={(e) => setFormPrice(Number(e.target.value))}
+                      min={0}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" className="w-full">
+                    {editing ? '更新' : '作成'}
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        }
+      />
+
+      {/* Filters */}
+      <div className="flex gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="商品名で検索..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={filterCategory} onValueChange={setFilterCategory}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="全カテゴリ" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全カテゴリ</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-16">順序</TableHead>
+              <TableHead>商品名</TableHead>
+              <TableHead>カテゴリ</TableHead>
+              <TableHead>サブカテゴリ</TableHead>
+              <TableHead className="text-right">買取価格</TableHead>
+              <TableHead className="w-20">状態</TableHead>
+              <TableHead className="w-20">価格表</TableHead>
+              <TableHead className="w-32 text-right">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  読み込み中...
+                </TableCell>
+              </TableRow>
+            ) : filteredProducts.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  商品がありません
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredProducts.map((product) => (
+                <TableRow key={product.id}>
+                  <TableCell>
+                    <div className="flex gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => moveProduct(product, 'up')}
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => moveProduct(product, 'down')}
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-medium">{product.name}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{product.category?.name}</Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {product.subcategory?.name || '-'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {editingPriceId === product.id ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <Input
+                          type="number"
+                          value={editingPriceValue}
+                          onChange={(e) => setEditingPriceValue(Number(e.target.value))}
+                          className="w-24 h-8 text-right"
+                          min={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveInlinePrice(product.id)
+                            if (e.key === 'Escape') setEditingPriceId(null)
+                          }}
+                          autoFocus
+                        />
+                        <span className="text-sm">円</span>
+                      </div>
+                    ) : (
+                      <span
+                        className="cursor-pointer hover:text-primary"
+                        onClick={() => {
+                          setEditingPriceId(product.id)
+                          setEditingPriceValue(product.price)
+                        }}
+                      >
+                        {product.price.toLocaleString()}円
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={product.is_active ? 'default' : 'secondary'}
+                      className="cursor-pointer"
+                      onClick={() => toggleActive(product)}
+                    >
+                      {product.is_active ? '有効' : '無効'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={product.show_in_price_list ? 'default' : 'secondary'}
+                      className="cursor-pointer"
+                      onClick={() => togglePriceList(product)}
+                    >
+                      {product.show_in_price_list ? '表示' : '非表示'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEdit(product)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>商品を削除</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              「{product.name}」を削除しますか？
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(product.id)}>
+                              削除
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        {filteredProducts.length}件の商品（価格をクリックしてインライン編集）
+      </p>
+    </div>
+  )
+}

@@ -1,0 +1,100 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  Package,
+  FolderOpen,
+  CreditCard,
+  ShieldCheck,
+  Users,
+  Settings,
+  LogOut,
+  Building2,
+  Calendar,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
+import type { Profile } from '@/types/database'
+
+const navItems = [
+  { href: '/admin', label: 'ダッシュボード', icon: LayoutDashboard },
+  { href: '/admin/orders', label: '注文管理', icon: ShoppingCart },
+  { href: '/admin/offices', label: '事務所別管理', icon: Building2 },
+  { href: '/admin/arrival-schedule', label: '到着予定', icon: Calendar },
+  { href: '/admin/products', label: '商品管理', icon: Package },
+  { href: '/admin/categories', label: 'カテゴリ管理', icon: FolderOpen },
+  { href: '/admin/payments', label: '振込管理', icon: CreditCard },
+  { href: '/admin/payment-verification', label: '振込確認', icon: ShieldCheck },
+  { href: '/admin/staff', label: 'スタッフ管理', icon: Users, adminOnly: true },
+  { href: '/admin/settings', label: '設定', icon: Settings, adminOnly: true },
+]
+
+export function AdminSidebar({ profile }: { profile: Profile }) {
+  const pathname = usePathname()
+  const router = useRouter()
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
+  const filteredItems = navItems.filter(
+    (item) => !item.adminOnly || profile.role === 'admin'
+  )
+
+  return (
+    <aside className="fixed left-0 top-0 z-30 flex h-screen w-64 flex-col border-r bg-card">
+      <div className="flex h-16 items-center border-b px-6">
+        <Link href="/admin" className="text-lg font-bold">
+          買取スクエア
+        </Link>
+      </div>
+
+      <nav className="flex-1 space-y-1 p-4">
+        {filteredItems.map((item) => {
+          const isActive =
+            item.href === '/admin'
+              ? pathname === '/admin'
+              : pathname.startsWith(item.href)
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
+            </Link>
+          )
+        })}
+      </nav>
+
+      <div className="border-t p-4">
+        <div className="mb-2 px-3">
+          <p className="text-sm font-medium">{profile.display_name}</p>
+          <p className="text-xs text-muted-foreground">{profile.email}</p>
+        </div>
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 text-muted-foreground"
+          onClick={handleLogout}
+        >
+          <LogOut className="h-4 w-4" />
+          ログアウト
+        </Button>
+      </div>
+    </aside>
+  )
+}
