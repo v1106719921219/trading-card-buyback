@@ -290,3 +290,86 @@ export async function updateOrderNotes(orderId: string, notes: string) {
   revalidatePath(`/admin/orders/${orderId}`)
   return { success: true }
 }
+
+export async function getOrderWithItems(orderNumber: string) {
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*, order_items(*)')
+    .eq('order_number', orderNumber)
+    .single()
+
+  if (error || !data) return null
+  return data
+}
+
+export async function updateOrderItems(
+  orderNumber: string,
+  items: { product_id: string; product_name: string; unit_price: number; quantity: number }[]
+) {
+  if (!items || items.length === 0) {
+    return { error: '商品を1つ以上選択してください' }
+  }
+
+  const supabase = createAdminClient()
+
+  // Fetch order
+  const { data: order, error: fetchError } = await supabase
+    .from('orders')
+    .select('id, status')
+    .eq('order_number', orderNumber)
+    .single()
+
+  if (fetchError || !order) {
+    return { error: '注文が見つかりません' }
+  }
+
+  if (order.status !== '申込') {
+    return { error: '申込ステータスの注文のみ編集できます' }
+  }
+
+  // Delete existing order items
+  const { error: deleteError } = await supabase
+    .from('order_items')
+    .delete()
+    .eq('order_id', order.id)
+
+  if (deleteError) {
+    return { error: `明細の削除に失敗しました: ${deleteError.message}` }
+  }
+
+  // Insert new items
+  const orderItems = items.map((item) => ({
+    order_id: order.id,
+    product_id: item.product_id,
+    product_name: item.product_name,
+    unit_price: item.unit_price,
+    quantity: item.quantity,
+  }))
+
+  const { error: insertError } = await supabase
+    .from('order_items')
+    .insert(orderItems)
+
+  if (insertError) {
+    return { error: `明細の作成に失敗しました: ${insertError.message}` }
+  }
+
+  // Recalculate total
+  const total_amount = items.reduce(
+    (sum, item) => sum + item.unit_price * item.quantity,
+    0
+  )
+
+  const { error: updateError } = await supabase
+    .from('orders')
+    .update({ total_amount })
+    .eq('id', order.id)
+
+  if (updateError) {
+    return { error: `合計金額の更新に失敗しました: ${updateError.message}` }
+  }
+
+  return { success: true }
+}
