@@ -309,6 +309,25 @@ export async function getOrderWithItems(orderNumber: string) {
   return data
 }
 
+export async function getOrdersForCSV(year: number, month: number) {
+  const supabase = await createClient()
+
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+  const nextMonth = month === 12 ? 1 : month + 1
+  const nextYear = month === 12 ? year + 1 : year
+  const endDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*, order_items(*), office:offices(name)')
+    .gte('created_at', startDate)
+    .lt('created_at', endDate)
+    .order('created_at', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  return data
+}
+
 export async function updateOrderItems(
   orderNumber: string,
   items: { product_id: string; product_name: string; unit_price: number; quantity: number }[]

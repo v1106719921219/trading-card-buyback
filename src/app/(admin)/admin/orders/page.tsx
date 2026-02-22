@@ -21,10 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, Eye, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { getOrdersForCSV } from '@/actions/orders'
 import { ORDER_STATUSES, STATUS_COLORS, ITEMS_PER_PAGE } from '@/lib/constants'
-import type { Order, OrderStatus } from '@/types/database'
+import type { Order, OrderItem, OrderStatus } from '@/types/database'
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -34,8 +35,139 @@ export default function OrdersPage() {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
+  const [csvLoading, setCsvLoading] = useState(false)
+
+  const now = new Date()
+  const [csvMonth, setCsvMonth] = useState(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  )
 
   const supabase = createClient()
+
+  // Generate past 12 months options
+  const monthOptions = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const y = d.getFullYear()
+    const m = d.getMonth() + 1
+    return {
+      value: `${y}-${String(m).padStart(2, '0')}`,
+      label: `${y}年${String(m).padStart(2, '0')}月`,
+    }
+  })
+
+  function escapeCSVField(value: string): string {
+    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+      return `"${value.replace(/"/g, '""')}"`
+    }
+    return value
+  }
+
+  async function handleCSVDownload() {
+    setCsvLoading(true)
+    try {
+      const [yearStr, monthStr] = csvMonth.split('-')
+      const year = parseInt(yearStr, 10)
+      const month = parseInt(monthStr, 10)
+
+      const data = await getOrdersForCSV(year, month)
+
+      const headers = [
+        '注文番号', 'ステータス', '申込日', '氏名', 'LINE名', '生年月日',
+        '職業', 'メール', '電話番号', '都道府県', '住所', '本人確認方法',
+        '銀行名', '支店名', '口座種別', '口座番号', '口座名義',
+        '追跡番号', '発送先事務所', '商品名', '単価', '数量', '小計',
+        '検品後数量', '返品数量', '見積合計', '検品後合計',
+      ]
+
+      const rows: string[][] = []
+
+      for (const order of data ?? []) {
+        const items = (order.order_items ?? []) as OrderItem[]
+        const officeName = (order.office as { name: string } | null)?.name ?? ''
+
+        if (items.length === 0) {
+          rows.push([
+            order.order_number,
+            order.status,
+            new Date(order.created_at).toLocaleDateString('ja-JP'),
+            order.customer_name,
+            order.customer_line_name ?? '',
+            order.customer_birth_date ?? '',
+            order.customer_occupation ?? '',
+            order.customer_email,
+            order.customer_phone ?? '',
+            order.customer_prefecture ?? '',
+            order.customer_address ?? '',
+            order.customer_identity_method ?? '',
+            order.bank_name ?? '',
+            order.bank_branch ?? '',
+            order.bank_account_type ?? '',
+            order.bank_account_number ?? '',
+            order.bank_account_holder ?? '',
+            order.tracking_number ?? '',
+            officeName,
+            '', '', '', '',
+            '', '',
+            String(order.total_amount),
+            order.inspected_total_amount != null ? String(order.inspected_total_amount) : '',
+          ])
+        } else {
+          for (const item of items) {
+            const subtotal = item.unit_price * item.quantity
+            rows.push([
+              order.order_number,
+              order.status,
+              new Date(order.created_at).toLocaleDateString('ja-JP'),
+              order.customer_name,
+              order.customer_line_name ?? '',
+              order.customer_birth_date ?? '',
+              order.customer_occupation ?? '',
+              order.customer_email,
+              order.customer_phone ?? '',
+              order.customer_prefecture ?? '',
+              order.customer_address ?? '',
+              order.customer_identity_method ?? '',
+              order.bank_name ?? '',
+              order.bank_branch ?? '',
+              order.bank_account_type ?? '',
+              order.bank_account_number ?? '',
+              order.bank_account_holder ?? '',
+              order.tracking_number ?? '',
+              officeName,
+              item.product_name,
+              String(item.unit_price),
+              String(item.quantity),
+              String(subtotal),
+              item.inspected_quantity != null ? String(item.inspected_quantity) : '',
+              item.returned_quantity != null ? String(item.returned_quantity) : '',
+              String(order.total_amount),
+              order.inspected_total_amount != null ? String(order.inspected_total_amount) : '',
+            ])
+          }
+        }
+      }
+
+      const csvContent =
+        headers.map(escapeCSVField).join(',') +
+        '\n' +
+        rows.map((row) => row.map(escapeCSVField).join(',')).join('\n')
+
+      const bom = '\uFEFF'
+      const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `古物台帳_${yearStr}年${String(month).padStart(2, '0')}月.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('CSV download failed:', e)
+    } finally {
+      setCsvLoading(false)
+    }
+  }
 
   async function fetchOrders() {
     setLoading(true)
@@ -83,7 +215,35 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      <AdminHeader title="注文管理" description={`全${total}件`} />
+      <AdminHeader
+        title="注文管理"
+        description={`全${total}件`}
+        actions={
+          <>
+            <Select value={csvMonth} onValueChange={setCsvMonth}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {monthOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCSVDownload}
+              disabled={csvLoading}
+            >
+              <Download className="h-4 w-4 mr-1" />
+              {csvLoading ? '出力中...' : 'CSV出力'}
+            </Button>
+          </>
+        }
+      />
 
       {/* Filters */}
       <div className="flex gap-4 flex-wrap">
