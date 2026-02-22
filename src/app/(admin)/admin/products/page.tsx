@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Pencil, Trash2, Search, Upload, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, Upload, ArrowUp, ArrowDown, Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -65,6 +65,10 @@ export default function ProductsPage() {
   // Inline price editing
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
   const [editingPriceValue, setEditingPriceValue] = useState(0)
+
+  // Bulk price list toggle
+  const [bulkAction, setBulkAction] = useState<'show' | 'hide' | null>(null)
+  const [bulkUpdating, setBulkUpdating] = useState(false)
 
   // CSV import
   const [csvDialogOpen, setCsvDialogOpen] = useState(false)
@@ -372,6 +376,27 @@ export default function ProductsPage() {
     fetchData()
   }
 
+  async function handleBulkTogglePriceList(show: boolean) {
+    const ids = filteredProducts.map((p) => p.id)
+    if (ids.length === 0) return
+
+    setBulkUpdating(true)
+    const { error } = await supabase
+      .from('products')
+      .update({ show_in_price_list: show })
+      .in('id', ids)
+
+    setBulkUpdating(false)
+    setBulkAction(null)
+
+    if (error) {
+      toast.error(`一括更新に失敗しました: ${error.message}`)
+      return
+    }
+    toast.success(`${ids.length}件を価格表${show ? '表示' : '非表示'}にしました`)
+    fetchData()
+  }
+
   async function moveProduct(product: Product & { category: Category }, direction: 'up' | 'down') {
     // Find siblings in same category, sorted by sort_order
     const siblings = products
@@ -590,6 +615,47 @@ export default function ProductsPage() {
             ))}
           </SelectContent>
         </Select>
+        <div className="flex gap-2 ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setBulkAction('show')}
+            disabled={filteredProducts.length === 0}
+          >
+            <Eye className="mr-1 h-4 w-4" />
+            一括：表示
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setBulkAction('hide')}
+            disabled={filteredProducts.length === 0}
+          >
+            <EyeOff className="mr-1 h-4 w-4" />
+            一括：非表示
+          </Button>
+        </div>
+        <AlertDialog open={bulkAction !== null} onOpenChange={(open) => { if (!open) setBulkAction(null) }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                価格表の一括{bulkAction === 'show' ? '表示' : '非表示'}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {filteredProducts.length}件の商品を価格表に{bulkAction === 'show' ? '表示' : '非表示'}にしますか？
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={bulkUpdating}>キャンセル</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => handleBulkTogglePriceList(bulkAction === 'show')}
+                disabled={bulkUpdating}
+              >
+                {bulkUpdating ? '更新中...' : `${filteredProducts.length}件を${bulkAction === 'show' ? '表示' : '非表示'}にする`}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <div className="rounded-md border">
