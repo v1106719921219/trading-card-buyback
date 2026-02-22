@@ -39,7 +39,9 @@ export default async function PricesPage() {
     .order('name')
 
   const productsByCategory = (categories || []).map((cat: { id: string; name: string }) => {
-    const catProducts = (products || []).filter((p: { category_id: string }) => p.category_id === cat.id)
+    const catProducts = (products || [])
+      .filter((p: { category_id: string }) => p.category_id === cat.id)
+      .sort((a: { sort_order: number }, b: { sort_order: number }) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
     const catSubcategories = (subcategories || []).filter((s: { category_id: string }) => s.category_id === cat.id)
 
     if (catSubcategories.length === 0) {

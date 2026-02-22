@@ -100,7 +100,15 @@ export default function ApplyPage() {
         getOffices(),
       ])
       if (catResult.data) setCategories(catResult.data)
-      if (prodResult.data) setProducts(prodResult.data as never[])
+      if (prodResult.data) {
+        const sorted = [...prodResult.data].sort((a: any, b: any) => {
+          const catA = a.category?.sort_order ?? 0
+          const catB = b.category?.sort_order ?? 0
+          if (catA !== catB) return catA - catB
+          return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+        })
+        setProducts(sorted as never[])
+      }
       if (subResult.data) setSubcategories(subResult.data)
       if (officesData.length > 0) {
         setOffices(officesData)
