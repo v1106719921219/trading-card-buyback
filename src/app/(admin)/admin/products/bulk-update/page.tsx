@@ -44,13 +44,19 @@ export default function BulkUpdatePage() {
 
   async function fetchData() {
     const [prodResult, catResult] = await Promise.all([
-      supabase.from('products').select('*, category:categories(*)').eq('is_active', true).order('name'),
+      supabase.from('products').select('*, category:categories(*)').eq('is_active', true).order('sort_order'),
       supabase.from('categories').select('*').order('sort_order'),
     ])
 
     if (prodResult.data) {
+      const sorted = [...prodResult.data].sort((a: any, b: any) => {
+        const catA = a.category?.sort_order ?? 0
+        const catB = b.category?.sort_order ?? 0
+        if (catA !== catB) return catA - catB
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      })
       setProducts(
-        (prodResult.data as (Product & { category: Category })[]).map((p) => ({
+        (sorted as (Product & { category: Category })[]).map((p) => ({
           ...p,
           newPrice: p.price,
           changed: false,
