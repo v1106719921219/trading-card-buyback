@@ -151,6 +151,11 @@ function CompleteContent() {
                     ? '追跡番号を登録して発送済みにする'
                     : '追跡番号を追加する'}
               </Button>
+              {isFirstTracking && (
+                <p className="text-xs text-muted-foreground text-center">
+                  複数の荷物がある場合は、登録後に追加で入力できます
+                </p>
+              )}
             </form>
           )}
 
