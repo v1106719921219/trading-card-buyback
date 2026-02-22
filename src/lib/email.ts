@@ -62,3 +62,55 @@ export async function sendOrderConfirmationEmail(
     console.error('[email] Failed to send order confirmation email:', error)
   }
 }
+
+export async function sendPaymentCompletionEmail(
+  to: string,
+  orderNumber: string,
+  amount: number
+) {
+  if (!resend) {
+    console.log(
+      '[email] RESEND_API_KEY not set, skipping payment completion email for:',
+      orderNumber
+    )
+    return
+  }
+
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@example.com'
+
+  const { error } = await resend.emails.send({
+    from: fromEmail,
+    to,
+    subject: `【振込完了】ご注文番号: ${orderNumber}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2>お振込みが完了しました</h2>
+        <p>この度は買取をご利用いただきありがとうございます。</p>
+        <p>下記の内容でお振込みを完了いたしましたので、ご確認ください。</p>
+
+        <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 16px 0;">
+          <p style="margin: 0 0 4px; color: #666; font-size: 14px;">ご注文番号</p>
+          <p style="margin: 0 0 12px; font-size: 20px; font-weight: bold; font-family: monospace;">${orderNumber}</p>
+          <p style="margin: 0 0 4px; color: #666; font-size: 14px;">お振込金額</p>
+          <p style="margin: 0; font-size: 24px; font-weight: bold;">${amount.toLocaleString()}円</p>
+        </div>
+
+        <p style="font-size: 14px; color: #666;">
+          お振込みの反映までに数日かかる場合がございます。<br>
+          ご不明な点がございましたら、お気軽にお問い合わせください。
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+
+        <p style="font-size: 12px; color: #999;">
+          このメールは振込完了の通知のため自動送信されています。<br>
+          お心当たりのない場合は、このメールを破棄してください。
+        </p>
+      </div>
+    `,
+  })
+
+  if (error) {
+    console.error('[email] Failed to send payment completion email:', error)
+  }
+}

@@ -28,6 +28,7 @@ import {
 import { CreditCard, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { bulkMarkAsPaid } from '@/actions/payments'
 import type { Order } from '@/types/database'
 
 export default function PaymentsPage() {
@@ -84,21 +85,16 @@ export default function PaymentsPage() {
     setProcessing(true)
     const ids = Array.from(selectedIds)
 
-    for (const id of ids) {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: '振込済' })
-        .eq('id', id)
+    const result = await bulkMarkAsPaid(ids)
 
-      if (error) {
-        toast.error(`振込処理に失敗しました: ${error.message}`)
-        setProcessing(false)
-        fetchOrders()
-        return
-      }
+    if (result.error) {
+      toast.error(result.error)
+      setProcessing(false)
+      fetchOrders()
+      return
     }
 
-    toast.success(`${ids.length}件の振込を処理しました`)
+    toast.success(`${ids.length}件の振込を処理しました（お客様にメール通知済み）`)
     setSelectedIds(new Set())
     setProcessing(false)
     fetchOrders()

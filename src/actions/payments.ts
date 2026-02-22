@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { sendPaymentCompletionEmail } from '@/lib/email'
 
 export async function getPaymentQueue() {
   const supabase = await createClient()
@@ -20,7 +21,7 @@ export async function markAsPaid(orderId: string) {
 
   const { data: order, error: fetchError } = await supabase
     .from('orders')
-    .select('status')
+    .select('status, customer_email, order_number, inspected_total_amount, total_amount')
     .eq('id', orderId)
     .single()
 
@@ -38,6 +39,10 @@ export async function markAsPaid(orderId: string) {
     .eq('id', orderId)
 
   if (error) return { error: error.message }
+
+  // 振込完了メールを送信
+  const amount = order.inspected_total_amount ?? order.total_amount
+  await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount)
 
   revalidatePath('/admin/payments')
   revalidatePath('/admin/orders')
