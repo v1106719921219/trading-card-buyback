@@ -123,12 +123,18 @@ export default async function PricesPage() {
           </Card>
         ))}
 
-        <div className="text-center">
+      </div>
+
+      {/* Fixed bottom banner */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-50">
+        <div className="max-w-4xl mx-auto px-4 py-3 text-center">
           <Link href="/apply">
-            <Button size="lg">買取を申し込む</Button>
+            <Button size="lg" className="w-full sm:w-auto">買取を申し込む</Button>
           </Link>
         </div>
       </div>
+      {/* Spacer for fixed banner */}
+      <div className="h-20" />
     </div>
   )
 }
