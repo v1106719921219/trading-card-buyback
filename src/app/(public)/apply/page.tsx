@@ -18,6 +18,7 @@ import { Separator } from '@/components/ui/separator'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Minus, Plus, Trash2, ShoppingCart, User, CheckCircle, Mail, LogOut, MapPin } from 'lucide-react'
 import { Footer } from '@/components/public/footer'
+import { Header } from '@/components/public/header'
 import { createClient } from '@/lib/supabase/client'
 import { createOrder } from '@/actions/orders'
 import { getOffices } from '@/actions/offices'
@@ -311,26 +312,23 @@ export default function ApplyPage() {
     router.push(`/apply/complete?order_number=${result.order_number}&office_id=${result.office_id}`)
   }
 
+  const rightContent = isLoggedIn ? (
+    <div className="flex items-center gap-2">
+      <span className="text-sm text-muted-foreground hidden sm:inline">{customerEmail}</span>
+      <Button variant="ghost" size="sm" onClick={handleLogout}>
+        <LogOut className="h-4 w-4 mr-1" />
+        <span className="hidden sm:inline">ログアウト</span>
+      </Button>
+    </div>
+  ) : undefined
+
   return (
     <div className="min-h-screen bg-muted/50">
-      <header className="bg-white border-b">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">買取スクエア - 買取申込</h1>
-          {isLoggedIn && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">{customerEmail}</span>
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-1" />
-                ログアウト
-              </Button>
-            </div>
-          )}
-        </div>
-      </header>
+      <Header rightContent={rightContent} />
 
       {/* Steps indicator */}
       <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-center gap-4 mb-8">
+        <div className="flex items-center justify-center gap-2 sm:gap-4 mb-8">
           {STEPS.map((s, i) => (
             <div key={i} className="flex items-center gap-2">
               <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
@@ -338,11 +336,11 @@ export default function ApplyPage() {
               }`}>
                 {i + 1}
               </div>
-              <span className={`text-sm ${i <= step ? 'font-medium' : 'text-muted-foreground'}`}>
+              <span className={`text-sm hidden sm:inline ${i <= step ? 'font-medium' : 'text-muted-foreground'}`}>
                 {s.label}
               </span>
               {i < STEPS.length - 1 && (
-                <div className={`w-12 h-0.5 ${i < step ? 'bg-primary' : 'bg-muted'}`} />
+                <div className={`w-8 sm:w-12 h-0.5 ${i < step ? 'bg-primary' : 'bg-muted'}`} />
               )}
             </div>
           ))}
@@ -406,7 +404,7 @@ export default function ApplyPage() {
                   <CardTitle>商品を選択</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Input
                       placeholder="商品名で検索..."
                       value={search}
@@ -414,7 +412,7 @@ export default function ApplyPage() {
                       className="flex-1 min-w-[150px]"
                     />
                     <Select value={selectedCategory} onValueChange={(v) => { setSelectedCategory(v); setSelectedSubcategory('all') }}>
-                      <SelectTrigger className="w-48">
+                      <SelectTrigger className="w-full sm:w-48">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -426,7 +424,7 @@ export default function ApplyPage() {
                     </Select>
                     {filteredSubcategories.length > 0 && (
                       <Select value={selectedSubcategory} onValueChange={setSelectedSubcategory}>
-                        <SelectTrigger className="w-52">
+                        <SelectTrigger className="w-full sm:w-52">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -475,7 +473,7 @@ export default function ApplyPage() {
 
             {/* Cart sidebar */}
             <div>
-              <Card className="sticky top-4">
+              <Card className="md:sticky md:top-20">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <ShoppingCart className="h-5 w-5" />
@@ -509,7 +507,7 @@ export default function ApplyPage() {
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-9 w-9 sm:h-7 sm:w-7"
                               onClick={() => updateQuantity(item.product_id, -1)}
                             >
                               <Minus className="h-3 w-3" />
@@ -518,7 +516,7 @@ export default function ApplyPage() {
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-9 w-9 sm:h-7 sm:w-7"
                               onClick={() => updateQuantity(item.product_id, 1)}
                             >
                               <Plus className="h-3 w-3" />

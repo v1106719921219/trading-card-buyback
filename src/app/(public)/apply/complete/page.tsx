@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { CheckCircle, Minus, Package, Plus, Search, Trash2, Truck } from 'lucide-react'
 import { Footer } from '@/components/public/footer'
+import { Header } from '@/components/public/header'
 import { getOfficeById } from '@/actions/offices'
 import {
   getOrderByOrderNumber,
@@ -232,6 +233,7 @@ function CompleteContent() {
 
   return (
     <div className="min-h-screen bg-muted/50 flex flex-col">
+      <Header />
       <div className="flex-1 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-lg space-y-4">
         <Card className="text-center">
@@ -363,7 +365,7 @@ function CompleteContent() {
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-9 w-9 sm:h-7 sm:w-7"
                           onClick={() => updateQuantity(index, -1)}
                           disabled={item.quantity <= 1}
                         >
@@ -375,7 +377,7 @@ function CompleteContent() {
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-9 w-9 sm:h-7 sm:w-7"
                           onClick={() => updateQuantity(index, 1)}
                           disabled={item.quantity >= 999}
                         >
@@ -384,7 +386,7 @@ function CompleteContent() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          className="h-9 w-9 sm:h-7 sm:w-7 text-destructive hover:text-destructive"
                           onClick={() => removeItem(index)}
                         >
                           <Trash2 className="h-3 w-3" />

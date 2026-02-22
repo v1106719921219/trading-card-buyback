@@ -22,6 +22,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Search } from 'lucide-react'
 import { Footer } from '@/components/public/footer'
+import { Header } from '@/components/public/header'
 import { createClient } from '@/lib/supabase/client'
 import type { Category, Subcategory } from '@/types/database'
 
@@ -100,27 +101,18 @@ export default function PricesPage() {
 
   return (
     <div className="min-h-screen bg-muted/50">
-      <header className="border-b bg-white">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold">
-            買取スクエア
-          </Link>
-          <Link href="/apply">
-            <Button>買取を申し込む</Button>
-          </Link>
-        </div>
-      </header>
+      <Header />
 
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         <div className="text-center">
-          <h2 className="text-3xl font-bold mb-2">買取価格一覧</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-2">買取価格一覧</h2>
           <p className="text-muted-foreground">
             最新の買取価格です。価格は市場状況により変動することがあります。
           </p>
         </div>
 
         {/* Search & Filters */}
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1 min-w-[180px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -131,7 +123,7 @@ export default function PricesPage() {
             />
           </div>
           <Select value={selectedCategory} onValueChange={(v) => { setSelectedCategory(v); setSelectedSubcategory('all') }}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-full sm:w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -143,7 +135,7 @@ export default function PricesPage() {
           </Select>
           {filteredSubcategories.length > 0 && (
             <Select value={selectedSubcategory} onValueChange={setSelectedSubcategory}>
-              <SelectTrigger className="w-52">
+              <SelectTrigger className="w-full sm:w-52">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -173,24 +165,26 @@ export default function PricesPage() {
                       {group.name && (
                         <h3 className="font-medium text-sm text-muted-foreground mb-2">{group.name}</h3>
                       )}
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>商品名</TableHead>
-                            <TableHead className="text-right">買取価格</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {group.products.map((product) => (
-                            <TableRow key={product.id}>
-                              <TableCell className="font-medium">{product.name}</TableCell>
-                              <TableCell className="text-right font-bold text-primary">
-                                {product.price.toLocaleString()}円
-                              </TableCell>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>商品名</TableHead>
+                              <TableHead className="text-right">買取価格</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {group.products.map((product) => (
+                              <TableRow key={product.id}>
+                                <TableCell className="font-medium">{product.name}</TableCell>
+                                <TableCell className="text-right font-bold text-primary">
+                                  {product.price.toLocaleString()}円
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -204,7 +198,7 @@ export default function PricesPage() {
 
       {/* Fixed bottom banner */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-50">
-        <div className="max-w-4xl mx-auto px-4 py-3 text-center">
+        <div className="max-w-4xl mx-auto px-4 py-2 sm:py-3 text-center">
           <Link href="/apply">
             <Button size="lg" className="w-full sm:w-auto">買取を申し込む</Button>
           </Link>

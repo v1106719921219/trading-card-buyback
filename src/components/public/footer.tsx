@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 
 export function Footer() {
   return (
@@ -6,7 +7,10 @@ export function Footer() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
           <div>
-            <h3 className="font-bold mb-3">買取スクエア</h3>
+            <h3 className="font-bold mb-3 flex items-center gap-2">
+              <Image src="/logo.png" alt="買取スクエア" width={24} height={24} className="h-6 w-6" />
+              買取スクエア
+            </h3>
             <p className="text-sm text-muted-foreground">
               古物商許可番号
             </p>

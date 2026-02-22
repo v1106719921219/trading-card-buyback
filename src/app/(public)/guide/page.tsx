@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Footer } from "@/components/public/footer"
+import { Header } from "@/components/public/header"
 import {
   Search,
   ShoppingCart,
@@ -72,30 +73,12 @@ const steps = [
 export default function GuidePage() {
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <header className="border-b bg-white">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/">
-            <h1 className="text-xl font-bold">買取スクエア</h1>
-          </Link>
-          <nav className="flex gap-4 items-center">
-            <Link
-              href="/prices"
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              買取価格一覧
-            </Link>
-            <Link href="/apply">
-              <Button>買取を申し込む</Button>
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <Header />
 
       {/* Page Title */}
-      <section className="bg-gradient-to-b from-primary/5 to-background py-12">
+      <section className="bg-gradient-to-b from-primary/5 to-background py-8 sm:py-12">
         <div className="max-w-4xl mx-auto text-center px-4">
-          <h2 className="text-3xl font-bold tracking-tight mb-2">買取ガイド</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">買取ガイド</h2>
           <p className="text-muted-foreground">
             買取の流れ・注意事項・梱包方法をご案内します
           </p>
@@ -103,12 +86,12 @@ export default function GuidePage() {
       </section>
 
       {/* セクション1: 買取までの流れ */}
-      <section className="py-16">
+      <section className="py-8 sm:py-12 md:py-16">
         <div className="max-w-6xl mx-auto px-4">
-          <h3 className="text-2xl font-bold text-center mb-12">
+          <h3 className="text-xl sm:text-2xl font-bold text-center mb-6 sm:mb-8 md:mb-12">
             買取までの流れ
           </h3>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {steps.map((step, i) => (
               <Card key={i} className="text-center">
                 <CardHeader>
@@ -129,9 +112,9 @@ export default function GuidePage() {
       </section>
 
       {/* セクション2: ご注意事項 */}
-      <section className="py-16 bg-muted/30">
+      <section className="py-8 sm:py-12 md:py-16 bg-muted/30">
         <div className="max-w-4xl mx-auto px-4">
-          <h3 className="text-2xl font-bold text-center mb-12">ご注意事項</h3>
+          <h3 className="text-xl sm:text-2xl font-bold text-center mb-6 sm:mb-8 md:mb-12">ご注意事項</h3>
 
           {/* 商品発送について */}
           <div className="mb-10">
@@ -148,29 +131,31 @@ export default function GuidePage() {
                   <p className="text-sm font-semibold mt-4 mb-2">
                     必要書類について:
                   </p>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-1/3">回数</TableHead>
-                        <TableHead>必要書類</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell className="font-medium">初回</TableCell>
-                        <TableCell>住民票 または 印鑑証明書</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="font-medium">
-                          2回目以降
-                        </TableCell>
-                        <TableCell>
-                          運転免許証 / パスポート / マイナンバーカード
-                          などの身分証コピー
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-1/3">回数</TableHead>
+                          <TableHead>必要書類</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell className="font-medium">初回</TableCell>
+                          <TableCell>住民票 または 印鑑証明書</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell className="font-medium">
+                            2回目以降
+                          </TableCell>
+                          <TableCell>
+                            運転免許証 / パスポート / マイナンバーカード
+                            などの身分証コピー
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
                     <p className="text-sm text-amber-800 flex items-start gap-2">
                       <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
@@ -265,11 +250,11 @@ export default function GuidePage() {
       </section>
 
       {/* セクション3: 梱包方法 */}
-      <section className="py-16">
+      <section className="py-8 sm:py-12 md:py-16">
         <div className="max-w-4xl mx-auto px-4">
-          <h3 className="text-2xl font-bold text-center mb-12">梱包方法</h3>
+          <h3 className="text-xl sm:text-2xl font-bold text-center mb-6 sm:mb-8 md:mb-12">梱包方法</h3>
           <Tabs defaultValue="carton">
-            <TabsList className="mx-auto mb-8">
+            <TabsList className="mx-auto mb-4 sm:mb-8 w-full sm:w-auto">
               <TabsTrigger value="carton">
                 <Box className="h-4 w-4 mr-1" />
                 カートンの場合
@@ -406,9 +391,9 @@ export default function GuidePage() {
       </section>
 
       {/* セクション4: ダンボールサイズの注意 */}
-      <section className="py-16 bg-muted/30">
+      <section className="py-8 sm:py-12 md:py-16 bg-muted/30">
         <div className="max-w-4xl mx-auto px-4">
-          <h3 className="text-2xl font-bold text-center mb-8">
+          <h3 className="text-xl sm:text-2xl font-bold text-center mb-8">
             ダンボールサイズの注意
           </h3>
           <Card>
@@ -433,7 +418,7 @@ export default function GuidePage() {
       </section>
 
       {/* CTA */}
-      <section className="py-16">
+      <section className="py-8 sm:py-12 md:py-16">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h3 className="text-xl font-bold mb-4">
             ガイドをご確認いただけましたか？
@@ -441,12 +426,12 @@ export default function GuidePage() {
           <p className="text-muted-foreground mb-6">
             早速買取を始めましょう
           </p>
-          <div className="flex gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
             <Link href="/apply">
-              <Button size="lg">買取を申し込む</Button>
+              <Button size="lg" className="w-full sm:w-auto">買取を申し込む</Button>
             </Link>
             <Link href="/prices">
-              <Button size="lg" variant="outline">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto">
                 買取価格を見る
               </Button>
             </Link>

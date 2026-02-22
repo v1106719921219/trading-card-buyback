@@ -1,19 +1,13 @@
 import { Footer } from '@/components/public/footer'
-import Link from 'next/link'
+import { Header } from '@/components/public/header'
 
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-muted/50">
-      <header className="border-b bg-white">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold">
-            買取スクエア
-          </Link>
-        </div>
-      </header>
+      <Header />
 
-      <div className="max-w-3xl mx-auto px-4 py-12">
-        <h1 className="text-3xl font-bold mb-8">買取利用規約</h1>
+      <div className="max-w-3xl mx-auto px-4 py-8 sm:py-12">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-8">買取利用規約</h1>
 
         <div className="prose prose-sm max-w-none space-y-8">
           <section>

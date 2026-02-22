@@ -3,29 +3,17 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ShoppingCart, Search, CreditCard, Package, ArrowRight } from 'lucide-react'
 import { Footer } from '@/components/public/footer'
+import { Header } from '@/components/public/header'
 
 export default function HomePage() {
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <header className="border-b bg-white">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">買取スクエア</h1>
-          <nav className="flex gap-4 items-center">
-            <Link href="/prices" className="text-sm text-muted-foreground hover:text-foreground">
-              買取価格一覧
-            </Link>
-            <Link href="/apply">
-              <Button>買取を申し込む</Button>
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <Header />
 
       {/* Hero */}
-      <section className="bg-gradient-to-b from-primary/5 to-background py-20">
+      <section className="bg-gradient-to-b from-primary/5 to-background py-10 sm:py-16 md:py-20">
         <div className="max-w-4xl mx-auto text-center px-4">
-          <h2 className="text-4xl font-bold tracking-tight mb-4">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4">
             トレーディングカード高価買取
           </h2>
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
@@ -33,14 +21,14 @@ export default function HomePage() {
             各種トレーディングカードを高価買取いたします。
             簡単3ステップでお申し込みいただけます。
           </p>
-          <div className="flex gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
             <Link href="/apply">
-              <Button size="lg" className="text-lg px-8">
+              <Button size="lg" className="text-lg px-8 w-full sm:w-auto">
                 買取を申し込む
               </Button>
             </Link>
             <Link href="/prices">
-              <Button size="lg" variant="outline" className="text-lg px-8">
+              <Button size="lg" variant="outline" className="text-lg px-8 w-full sm:w-auto">
                 買取価格を見る
               </Button>
             </Link>
@@ -49,10 +37,10 @@ export default function HomePage() {
       </section>
 
       {/* How it works */}
-      <section className="py-16">
+      <section className="py-8 sm:py-12 md:py-16">
         <div className="max-w-6xl mx-auto px-4">
-          <h3 className="text-2xl font-bold text-center mb-12">買取の流れ</h3>
-          <div className="grid gap-8 md:grid-cols-4">
+          <h3 className="text-xl sm:text-2xl font-bold text-center mb-6 sm:mb-8 md:mb-12">買取の流れ</h3>
+          <div className="grid gap-8 grid-cols-2 md:grid-cols-4">
             {[
               { icon: Search, title: '1. 商品を選択', desc: '買取価格一覧から売りたいカードを選択' },
               { icon: ShoppingCart, title: '2. 申込', desc: '個人情報と振込先を入力して申込' },
