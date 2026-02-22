@@ -19,13 +19,13 @@ export const IDENTITY_METHODS = [
 
 export const customerInfoSchema = z.object({
   customer_name: z.string().min(1, 'お名前を入力してください').max(100),
-  customer_line_name: z.string().max(100).optional().or(z.literal('')),
+  customer_line_name: z.string().min(1, 'LINE登録名を入力してください').max(100),
   customer_email: z.string().email('正しいメールアドレスを入力してください'),
   customer_phone: z.string().regex(/^[0-9-]{10,15}$/, '正しい電話番号を入力してください').optional().or(z.literal('')),
   customer_birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '生年月日を入力してください'),
   customer_occupation: z.string().min(1, '職業を入力してください').max(100),
   customer_prefecture: z.enum(PREFECTURES, { message: '都道府県を選択してください' }),
-  customer_address: z.string().max(500).optional().or(z.literal('')),
+  customer_address: z.string().min(1, '住所を入力してください').max(500),
   customer_not_invoice_issuer: z.literal(true, { message: '確認にチェックしてください' }),
   customer_identity_method: z.enum(IDENTITY_METHODS, { message: '本人確認方法を選択してください' }),
   bank_name: z.string().min(1, '銀行名を入力してください').max(100),

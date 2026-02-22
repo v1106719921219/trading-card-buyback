@@ -22,7 +22,7 @@ import { createOrder } from '@/actions/orders'
 import { getOffices } from '@/actions/offices'
 import { sendMagicLink, getCustomerProfile, upsertCustomerProfile, customerLogout } from '@/actions/customers'
 import { toast } from 'sonner'
-import { PREFECTURES } from '@/lib/constants'
+import { PREFECTURES, BANK_NAMES } from '@/lib/constants'
 import { IDENTITY_METHODS } from '@/lib/validators/order'
 import type { Category, Product, Customer, Office, Subcategory } from '@/types/database'
 
@@ -232,10 +232,12 @@ export default function ApplyPage() {
     if (step === 1) {
       return (
         customerName.trim() &&
+        customerLineName.trim() &&
         customerEmail.trim() &&
         customerBirthDate &&
         customerOccupation.trim() &&
         customerPrefecture &&
+        customerAddress.trim() &&
         customerNotInvoiceIssuer &&
         customerIdentityMethod &&
         bankName.trim() &&
@@ -279,13 +281,13 @@ export default function ApplyPage() {
       })),
       customer: {
         customer_name: customerName,
-        customer_line_name: customerLineName || '',
+        customer_line_name: customerLineName,
         customer_email: customerEmail,
         customer_phone: customerPhone || '',
         customer_birth_date: customerBirthDate,
         customer_occupation: customerOccupation,
         customer_prefecture: customerPrefecture as typeof PREFECTURES[number],
-        customer_address: customerAddress || '',
+        customer_address: customerAddress,
         customer_not_invoice_issuer: customerNotInvoiceIssuer as true,
         customer_identity_method: customerIdentityMethod as typeof IDENTITY_METHODS[number],
         bank_name: bankName,
@@ -614,11 +616,12 @@ export default function ApplyPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>LINE登録名</Label>
+                    <Label>LINE登録名 <span className="text-destructive">*</span></Label>
                     <Input
                       value={customerLineName}
                       onChange={(e) => setCustomerLineName(e.target.value)}
                       placeholder="LINE表示名"
+                      required
                     />
                   </div>
                   <div className="space-y-2">
@@ -675,11 +678,12 @@ export default function ApplyPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>住所</Label>
+                    <Label>住所 <span className="text-destructive">*</span></Label>
                     <Input
                       value={customerAddress}
                       onChange={(e) => setCustomerAddress(e.target.value)}
                       placeholder="渋谷区..."
+                      required
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
@@ -728,7 +732,14 @@ export default function ApplyPage() {
                       onChange={(e) => setBankName(e.target.value)}
                       placeholder="三菱UFJ銀行"
                       required
+                      list="bank-names"
+                      autoComplete="off"
                     />
+                    <datalist id="bank-names">
+                      {BANK_NAMES.map((name) => (
+                        <option key={name} value={name} />
+                      ))}
+                    </datalist>
                   </div>
                   <div className="space-y-2">
                     <Label>支店名 <span className="text-destructive">*</span></Label>
@@ -839,12 +850,8 @@ export default function ApplyPage() {
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
                   <dt className="text-muted-foreground">お名前</dt>
                   <dd>{customerName}</dd>
-                  {customerLineName && (
-                    <>
-                      <dt className="text-muted-foreground">LINE登録名</dt>
-                      <dd>{customerLineName}</dd>
-                    </>
-                  )}
+                  <dt className="text-muted-foreground">LINE登録名</dt>
+                  <dd>{customerLineName}</dd>
                   <dt className="text-muted-foreground">生年月日</dt>
                   <dd>{customerBirthDate}</dd>
                   <dt className="text-muted-foreground">職業</dt>
@@ -863,12 +870,8 @@ export default function ApplyPage() {
                       <dd>{customerPrefecture}</dd>
                     </>
                   )}
-                  {customerAddress && (
-                    <>
-                      <dt className="text-muted-foreground">住所</dt>
-                      <dd>{customerAddress}</dd>
-                    </>
-                  )}
+                  <dt className="text-muted-foreground">住所</dt>
+                  <dd>{customerAddress}</dd>
                   <dt className="text-muted-foreground">適格請求書発行事業者</dt>
                   <dd>該当しない</dd>
                   <dt className="text-muted-foreground">本人確認方法</dt>
