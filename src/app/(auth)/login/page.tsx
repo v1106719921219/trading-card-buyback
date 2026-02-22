@@ -24,7 +24,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      setError(`エラー: ${error.message} (${error.status || 'no status'})`)
+      setError('メールアドレスまたはパスワードが正しくありません')
       setLoading(false)
       return
     }
