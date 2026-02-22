@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ShoppingCart, Search, CreditCard, Package } from 'lucide-react'
+import { ShoppingCart, Search, CreditCard, Package, ArrowRight } from 'lucide-react'
+import { Footer } from '@/components/public/footer'
 
 export default function HomePage() {
   return (
@@ -28,7 +29,7 @@ export default function HomePage() {
             トレーディングカード高価買取
           </h2>
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            ポケモンカード、遊戯王、ワンピースカードなど
+            ポケモンカード、ワンピースカードなど
             各種トレーディングカードを高価買取いたします。
             簡単3ステップでお申し込みいただけます。
           </p>
@@ -71,15 +72,17 @@ export default function HomePage() {
               </Card>
             ))}
           </div>
+          <div className="mt-8 text-center">
+            <Link href="/guide">
+              <Button variant="link" className="text-base">
+                詳しいガイドはこちら <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t py-8">
-        <div className="max-w-6xl mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>買取スクエア</p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   )
 }

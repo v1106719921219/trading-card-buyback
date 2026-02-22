@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { CheckCircle, Minus, Package, Plus, Search, Trash2, Truck } from 'lucide-react'
+import { Footer } from '@/components/public/footer'
 import { getOfficeById } from '@/actions/offices'
 import {
   getOrderByOrderNumber,
@@ -230,7 +231,8 @@ function CompleteContent() {
   const showTrackingInfo = trackingNumbers.length > 0
 
   return (
-    <div className="min-h-screen bg-muted/50 flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen bg-muted/50 flex flex-col">
+      <div className="flex-1 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-lg space-y-4">
         <Card className="text-center">
           <CardHeader>
@@ -484,6 +486,9 @@ function CompleteContent() {
           </DialogContent>
         </Dialog>
       </div>
+      </div>
+
+      <Footer />
     </div>
   )
 }

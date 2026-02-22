@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Minus, Plus, Trash2, ShoppingCart, User, CheckCircle, Mail, LogOut, MapPin } from 'lucide-react'
+import { Footer } from '@/components/public/footer'
 import { createClient } from '@/lib/supabase/client'
 import { createOrder } from '@/actions/orders'
 import { getOffices } from '@/actions/offices'
@@ -920,6 +921,8 @@ export default function ApplyPage() {
           )}
         </div>
       </div>
+
+      <Footer />
     </div>
   )
 }

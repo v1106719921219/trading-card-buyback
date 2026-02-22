@@ -21,6 +21,7 @@ import {
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Search } from 'lucide-react'
+import { Footer } from '@/components/public/footer'
 import { createClient } from '@/lib/supabase/client'
 import type { Category, Subcategory } from '@/types/database'
 
@@ -198,6 +199,8 @@ export default function PricesPage() {
           ))
         )}
       </div>
+
+      <Footer />
 
       {/* Fixed bottom banner */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-50">
