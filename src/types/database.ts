@@ -4,6 +4,8 @@ export type OrderStatus = '申込' | '発送済' | '検品完了' | '振込済' 
 
 export type BankAccountType = '普通' | '当座'
 
+export type ReturnStatus = '返送待ち' | '返送済'
+
 export interface Profile {
   id: string
   email: string
@@ -82,6 +84,8 @@ export interface Order {
   notes: string | null
   customer_id: string | null
   office_id: string | null
+  return_status: ReturnStatus | null
+  return_tracking_number: string | null
   assigned_to: string | null
   created_at: string
   updated_at: string

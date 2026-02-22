@@ -215,10 +215,14 @@ export default function InspectPage() {
       }
     }
 
-    // Update order's inspected_total_amount
+    // Update order's inspected_total_amount and return_status
+    const hasReturns = items.some((item) => item._returned > 0)
     const { error } = await supabase
       .from('orders')
-      .update({ inspected_total_amount: inspectedTotal })
+      .update({
+        inspected_total_amount: inspectedTotal,
+        return_status: hasReturns ? '返送待ち' : null,
+      })
       .eq('id', orderId)
 
     if (error) {

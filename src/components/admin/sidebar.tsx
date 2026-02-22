@@ -9,6 +9,7 @@ import {
   FolderOpen,
   CreditCard,
   ShieldCheck,
+  Undo2,
   Users,
   Settings,
   LogOut,
@@ -30,6 +31,7 @@ const navItems = [
   { href: '/admin/categories', label: 'カテゴリ管理', icon: FolderOpen },
   { href: '/admin/payments', label: '振込管理', icon: CreditCard },
   { href: '/admin/payment-verification', label: '振込確認', icon: ShieldCheck },
+  { href: '/admin/returns', label: '返品管理', icon: Undo2 },
   { href: '/admin/staff', label: 'スタッフ管理', icon: Users, adminOnly: true },
   { href: '/admin/settings', label: '設定', icon: Settings, adminOnly: true },
 ]
