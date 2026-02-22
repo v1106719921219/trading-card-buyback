@@ -81,7 +81,16 @@ export default function ProductsPage() {
       supabase.from('subcategories').select('*').order('sort_order'),
     ])
 
-    if (productsResult.data) setProducts(productsResult.data as never[])
+    if (productsResult.data) {
+      // Sort by category sort_order, then product sort_order
+      const sorted = [...productsResult.data].sort((a: any, b: any) => {
+        const catA = a.category?.sort_order ?? 0
+        const catB = b.category?.sort_order ?? 0
+        if (catA !== catB) return catA - catB
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      })
+      setProducts(sorted as never[])
+    }
     if (categoriesResult.data) setCategories(categoriesResult.data)
     if (subcategoriesResult.data) setSubcategories(subcategoriesResult.data)
     setLoading(false)
