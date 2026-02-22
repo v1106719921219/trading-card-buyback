@@ -47,6 +47,7 @@ interface InspectItem {
   quantity: number
   _inspected: number
   _inspected_price: number
+  _returned: number
   _isNew: boolean
 }
 
@@ -99,6 +100,7 @@ export default function InspectPage() {
         quantity: item.quantity,
         _inspected: item.inspected_quantity ?? item.quantity,
         _inspected_price: item.unit_price,
+        _returned: item.returned_quantity ?? 0,
         _isNew: false,
       }))
     )
@@ -118,7 +120,7 @@ export default function InspectPage() {
     fetchOrder()
   }, [orderId])
 
-  function updateItem(id: string, field: '_inspected' | '_inspected_price', value: number) {
+  function updateItem(id: string, field: '_inspected' | '_inspected_price' | '_returned', value: number) {
     setItems(items.map((item) =>
       item.id === id ? { ...item, [field]: Math.max(0, value) } : item
     ))
@@ -134,6 +136,7 @@ export default function InspectPage() {
       quantity: 0,
       _inspected: 1,
       _inspected_price: 0,
+      _returned: 0,
       _isNew: true,
     }])
   }
@@ -157,7 +160,7 @@ export default function InspectPage() {
     .reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
 
   const inspectedTotal = items.reduce(
-    (sum, item) => sum + item._inspected_price * item._inspected, 0
+    (sum, item) => sum + item._inspected_price * (item._inspected - item._returned), 0
   )
   const difference = inspectedTotal - originalTotal
 
@@ -180,6 +183,7 @@ export default function InspectPage() {
         .update({
           inspected_quantity: item._inspected,
           unit_price: item._inspected_price,
+          returned_quantity: item._returned,
         })
         .eq('id', item.id)
 
@@ -200,6 +204,7 @@ export default function InspectPage() {
         unit_price: item._inspected_price,
         quantity: 0,
         inspected_quantity: item._inspected,
+        returned_quantity: item._returned,
       }))
 
       const { error } = await supabase.from('order_items').insert(inserts)
@@ -280,6 +285,7 @@ export default function InspectPage() {
                 <TableHead className="text-right w-32">検品単価</TableHead>
                 <TableHead className="text-right">申告数量</TableHead>
                 <TableHead className="text-right w-28">検品数量</TableHead>
+                <TableHead className="text-right w-28">返品数量</TableHead>
                 <TableHead className="text-right">検品後小計</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
@@ -339,8 +345,19 @@ export default function InspectPage() {
                         min={0}
                       />
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Input
+                        type="number"
+                        value={item._returned}
+                        onChange={(e) =>
+                          updateItem(item.id, '_returned', Number(e.target.value))
+                        }
+                        className="w-20 text-right ml-auto"
+                        min={0}
+                      />
+                    </TableCell>
                     <TableCell className="text-right font-medium">
-                      {(item._inspected_price * item._inspected).toLocaleString()}円
+                      {(item._inspected_price * (item._inspected - item._returned)).toLocaleString()}円
                     </TableCell>
                     <TableCell>
                       {item._isNew && (

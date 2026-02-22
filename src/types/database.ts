@@ -100,6 +100,7 @@ export interface OrderItem {
   unit_price: number
   quantity: number
   inspected_quantity: number | null
+  returned_quantity: number | null
   created_at: string
 }
 

@@ -193,6 +193,9 @@ export default function OrderDetailPage() {
                     {items.some((i) => i.inspected_quantity != null) && (
                       <TableHead className="text-right">検品数量</TableHead>
                     )}
+                    {items.some((i) => (i.returned_quantity ?? 0) > 0) && (
+                      <TableHead className="text-right">返品数量</TableHead>
+                    )}
                     <TableHead className="text-right">小計</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -213,13 +216,22 @@ export default function OrderDetailPage() {
                           ) : '-'}
                         </TableCell>
                       )}
+                      {items.some((i) => (i.returned_quantity ?? 0) > 0) && (
+                        <TableCell className="text-right">
+                          {(item.returned_quantity ?? 0) > 0 ? (
+                            <span className="text-destructive font-medium">
+                              {item.returned_quantity}
+                            </span>
+                          ) : '-'}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right font-medium">
-                        {(item.unit_price * (item.inspected_quantity ?? item.quantity)).toLocaleString()}円
+                        {(item.unit_price * ((item.inspected_quantity ?? item.quantity) - (item.returned_quantity ?? 0))).toLocaleString()}円
                       </TableCell>
                     </TableRow>
                   ))}
                   <TableRow>
-                    <TableCell colSpan={items.some((i) => i.inspected_quantity != null) ? 4 : 3} className="text-right font-bold">
+                    <TableCell colSpan={3 + (items.some((i) => i.inspected_quantity != null) ? 1 : 0) + (items.some((i) => (i.returned_quantity ?? 0) > 0) ? 1 : 0)} className="text-right font-bold">
                       合計
                     </TableCell>
                     <TableCell className="text-right font-bold text-lg">
@@ -228,7 +240,7 @@ export default function OrderDetailPage() {
                   </TableRow>
                   {order.inspected_total_amount != null && order.inspected_total_amount !== order.total_amount && (
                     <TableRow>
-                      <TableCell colSpan={items.some((i) => i.inspected_quantity != null) ? 4 : 3} className="text-right text-sm text-muted-foreground">
+                      <TableCell colSpan={3 + (items.some((i) => i.inspected_quantity != null) ? 1 : 0) + (items.some((i) => (i.returned_quantity ?? 0) > 0) ? 1 : 0)} className="text-right text-sm text-muted-foreground">
                         申告時合計
                       </TableCell>
                       <TableCell className="text-right text-sm text-muted-foreground line-through">
