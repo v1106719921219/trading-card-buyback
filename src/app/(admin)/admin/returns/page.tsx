@@ -24,9 +24,9 @@ import {
 import { Search, ChevronLeft, ChevronRight, PackageCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { RETURN_STATUSES, RETURN_STATUS_COLORS, ITEMS_PER_PAGE } from '@/lib/constants'
-import type { Order, OrderItem, ReturnStatus } from '@/types/database'
+import type { Office, Order, OrderItem, ReturnStatus } from '@/types/database'
 
-type OrderWithItems = Order & { order_items: OrderItem[] }
+type OrderWithItems = Order & { order_items: OrderItem[]; office: Office | null }
 
 export default function ReturnsPage() {
   const [orders, setOrders] = useState<OrderWithItems[]>([])
@@ -47,7 +47,7 @@ export default function ReturnsPage() {
 
     let query = supabase
       .from('orders')
-      .select('*, order_items(*)', { count: 'exact' })
+      .select('*, order_items(*), office:offices(*)', { count: 'exact' })
       .not('return_status', 'is', null)
       .order('created_at', { ascending: false })
       .range(offset, offset + ITEMS_PER_PAGE - 1)
@@ -186,6 +186,7 @@ export default function ReturnsPage() {
             <TableRow>
               <TableHead>注文番号</TableHead>
               <TableHead>お客様名</TableHead>
+              <TableHead>事務所</TableHead>
               <TableHead>住所</TableHead>
               <TableHead>返品商品</TableHead>
               <TableHead>返送ステータス</TableHead>
@@ -196,13 +197,13 @@ export default function ReturnsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   読み込み中...
                 </TableCell>
               </TableRow>
             ) : orders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   返品のある注文がありません
                 </TableCell>
               </TableRow>
@@ -217,6 +218,13 @@ export default function ReturnsPage() {
                       </Link>
                     </TableCell>
                     <TableCell>{order.customer_name}</TableCell>
+                    <TableCell>
+                      {order.office ? (
+                        <Badge variant="outline">{order.office.name}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm max-w-48 truncate">
                       {order.customer_address || '-'}
                     </TableCell>
