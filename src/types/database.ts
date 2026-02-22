@@ -82,6 +82,11 @@ export interface Order {
   inspected_total_amount: number | null
   tracking_number: string | null
   notes: string | null
+  customer_line_name: string | null
+  customer_birth_date: string | null
+  customer_occupation: string | null
+  customer_not_invoice_issuer: boolean
+  customer_identity_method: string | null
   customer_id: string | null
   office_id: string | null
   return_status: ReturnStatus | null
@@ -131,6 +136,11 @@ export interface Customer {
   bank_account_type: BankAccountType | null
   bank_account_number: string | null
   bank_account_holder: string | null
+  line_name: string | null
+  birth_date: string | null
+  occupation: string | null
+  not_invoice_issuer: boolean
+  identity_method: string | null
   created_at: string
   updated_at: string
 }

@@ -44,6 +44,11 @@ export async function upsertCustomerProfile(profile: {
   email: string
   phone?: string
   address?: string
+  line_name?: string
+  birth_date?: string
+  occupation?: string
+  not_invoice_issuer?: boolean
+  identity_method?: string
   bank_name?: string
   bank_branch?: string
   bank_account_type?: '普通' | '当座'
@@ -66,6 +71,11 @@ export async function upsertCustomerProfile(profile: {
     name: profile.name,
     phone: profile.phone || '',
     address: profile.address || '',
+    line_name: profile.line_name || '',
+    birth_date: profile.birth_date || null,
+    occupation: profile.occupation || '',
+    not_invoice_issuer: profile.not_invoice_issuer || false,
+    identity_method: profile.identity_method || '',
     bank_name: profile.bank_name || '',
     bank_branch: profile.bank_branch || '',
     bank_account_type: profile.bank_account_type || '普通',

@@ -280,12 +280,30 @@ export default function OrderDetailPage() {
               <dl className="grid grid-cols-[120px_1fr] gap-3 text-sm">
                 <dt className="text-muted-foreground">お名前</dt>
                 <dd>{order.customer_name}</dd>
+                {order.customer_line_name && (
+                  <>
+                    <dt className="text-muted-foreground">LINE登録名</dt>
+                    <dd>{order.customer_line_name}</dd>
+                  </>
+                )}
                 <dt className="text-muted-foreground">メール</dt>
                 <dd>{order.customer_email}</dd>
                 {order.customer_phone && (
                   <>
                     <dt className="text-muted-foreground">電話番号</dt>
                     <dd>{order.customer_phone}</dd>
+                  </>
+                )}
+                {order.customer_birth_date && (
+                  <>
+                    <dt className="text-muted-foreground">生年月日</dt>
+                    <dd>{order.customer_birth_date}</dd>
+                  </>
+                )}
+                {order.customer_occupation && (
+                  <>
+                    <dt className="text-muted-foreground">職業</dt>
+                    <dd>{order.customer_occupation}</dd>
                   </>
                 )}
                 {order.customer_prefecture && (
@@ -298,6 +316,14 @@ export default function OrderDetailPage() {
                   <>
                     <dt className="text-muted-foreground">住所</dt>
                     <dd>{order.customer_address}</dd>
+                  </>
+                )}
+                <dt className="text-muted-foreground">適格請求書発行</dt>
+                <dd>{order.customer_not_invoice_issuer ? '該当しない' : '未確認'}</dd>
+                {order.customer_identity_method && (
+                  <>
+                    <dt className="text-muted-foreground">本人確認方法</dt>
+                    <dd>{order.customer_identity_method}</dd>
                   </>
                 )}
               </dl>

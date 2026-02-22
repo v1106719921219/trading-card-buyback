@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Minus, Plus, Trash2, ShoppingCart, User, CheckCircle, Mail, LogOut, MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { createOrder } from '@/actions/orders'
@@ -22,6 +23,7 @@ import { getOffices } from '@/actions/offices'
 import { sendMagicLink, getCustomerProfile, upsertCustomerProfile, customerLogout } from '@/actions/customers'
 import { toast } from 'sonner'
 import { PREFECTURES } from '@/lib/constants'
+import { IDENTITY_METHODS } from '@/lib/validators/order'
 import type { Category, Product, Customer, Office, Subcategory } from '@/types/database'
 
 interface CartItem {
@@ -61,10 +63,15 @@ export default function ApplyPage() {
 
   // Customer form
   const [customerName, setCustomerName] = useState('')
+  const [customerLineName, setCustomerLineName] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
+  const [customerBirthDate, setCustomerBirthDate] = useState('')
+  const [customerOccupation, setCustomerOccupation] = useState('')
   const [customerPrefecture, setCustomerPrefecture] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
+  const [customerNotInvoiceIssuer, setCustomerNotInvoiceIssuer] = useState(false)
+  const [customerIdentityMethod, setCustomerIdentityMethod] = useState('')
   const [bankName, setBankName] = useState('')
   const [bankBranch, setBankBranch] = useState('')
   const [bankAccountType, setBankAccountType] = useState<'普通' | '当座'>('普通')
@@ -120,9 +127,14 @@ export default function ApplyPage() {
 
   function fillCustomerData(customer: Customer) {
     setCustomerName(customer.name || '')
+    setCustomerLineName(customer.line_name || '')
     setCustomerEmail(customer.email || '')
     setCustomerPhone(customer.phone || '')
+    setCustomerBirthDate(customer.birth_date || '')
+    setCustomerOccupation(customer.occupation || '')
     setCustomerAddress(customer.address || '')
+    setCustomerNotInvoiceIssuer(customer.not_invoice_issuer || false)
+    setCustomerIdentityMethod(customer.identity_method || '')
     setBankName(customer.bank_name || '')
     setBankBranch(customer.bank_branch || '')
     setBankAccountType((customer.bank_account_type as '普通' | '当座') || '普通')
@@ -153,10 +165,15 @@ export default function ApplyPage() {
     setIsLoggedIn(false)
     setCustomerId(null)
     setCustomerName('')
+    setCustomerLineName('')
     setCustomerEmail('')
     setCustomerPhone('')
+    setCustomerBirthDate('')
+    setCustomerOccupation('')
     setCustomerPrefecture('')
     setCustomerAddress('')
+    setCustomerNotInvoiceIssuer(false)
+    setCustomerIdentityMethod('')
     setBankName('')
     setBankBranch('')
     setBankAccountType('普通')
@@ -216,7 +233,11 @@ export default function ApplyPage() {
       return (
         customerName.trim() &&
         customerEmail.trim() &&
+        customerBirthDate &&
+        customerOccupation.trim() &&
         customerPrefecture &&
+        customerNotInvoiceIssuer &&
+        customerIdentityMethod &&
         bankName.trim() &&
         bankBranch.trim() &&
         bankAccountNumber.trim() &&
@@ -236,6 +257,11 @@ export default function ApplyPage() {
         email: customerEmail,
         phone: customerPhone,
         address: customerAddress,
+        line_name: customerLineName,
+        birth_date: customerBirthDate,
+        occupation: customerOccupation,
+        not_invoice_issuer: customerNotInvoiceIssuer,
+        identity_method: customerIdentityMethod,
         bank_name: bankName,
         bank_branch: bankBranch,
         bank_account_type: bankAccountType,
@@ -253,10 +279,15 @@ export default function ApplyPage() {
       })),
       customer: {
         customer_name: customerName,
+        customer_line_name: customerLineName || '',
         customer_email: customerEmail,
         customer_phone: customerPhone || '',
+        customer_birth_date: customerBirthDate,
+        customer_occupation: customerOccupation,
         customer_prefecture: customerPrefecture as typeof PREFECTURES[number],
         customer_address: customerAddress || '',
+        customer_not_invoice_issuer: customerNotInvoiceIssuer as true,
+        customer_identity_method: customerIdentityMethod as typeof IDENTITY_METHODS[number],
         bank_name: bankName,
         bank_branch: bankBranch,
         bank_account_type: bankAccountType,
@@ -583,6 +614,32 @@ export default function ApplyPage() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label>LINE登録名</Label>
+                    <Input
+                      value={customerLineName}
+                      onChange={(e) => setCustomerLineName(e.target.value)}
+                      placeholder="LINE表示名"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>生年月日 <span className="text-destructive">*</span></Label>
+                    <Input
+                      type="date"
+                      value={customerBirthDate}
+                      onChange={(e) => setCustomerBirthDate(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>職業 <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={customerOccupation}
+                      onChange={(e) => setCustomerOccupation(e.target.value)}
+                      placeholder="会社員"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <Label>メールアドレス <span className="text-destructive">*</span></Label>
                     <Input
                       type="email"
@@ -617,7 +674,7 @@ export default function ApplyPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2 sm:col-span-2">
+                  <div className="space-y-2">
                     <Label>住所</Label>
                     <Input
                       value={customerAddress}
@@ -625,6 +682,37 @@ export default function ApplyPage() {
                       placeholder="渋谷区..."
                     />
                   </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="not-invoice-issuer"
+                        checked={customerNotInvoiceIssuer}
+                        onCheckedChange={(checked) => setCustomerNotInvoiceIssuer(checked === true)}
+                      />
+                      <Label htmlFor="not-invoice-issuer" className="cursor-pointer">
+                        適格請求書発行事業者ではありません <span className="text-destructive">*</span>
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator className="my-4" />
+
+                <div className="space-y-4">
+                  <h3 className="font-medium">本人確認方法 <span className="text-destructive">*</span></h3>
+                  <Select
+                    value={customerIdentityMethod}
+                    onValueChange={setCustomerIdentityMethod}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="本人確認方法を選択してください" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IDENTITY_METHODS.map((method) => (
+                        <SelectItem key={method} value={method}>{method}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -751,6 +839,16 @@ export default function ApplyPage() {
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
                   <dt className="text-muted-foreground">お名前</dt>
                   <dd>{customerName}</dd>
+                  {customerLineName && (
+                    <>
+                      <dt className="text-muted-foreground">LINE登録名</dt>
+                      <dd>{customerLineName}</dd>
+                    </>
+                  )}
+                  <dt className="text-muted-foreground">生年月日</dt>
+                  <dd>{customerBirthDate}</dd>
+                  <dt className="text-muted-foreground">職業</dt>
+                  <dd>{customerOccupation}</dd>
                   <dt className="text-muted-foreground">メール</dt>
                   <dd>{customerEmail}</dd>
                   {customerPhone && (
@@ -771,6 +869,10 @@ export default function ApplyPage() {
                       <dd>{customerAddress}</dd>
                     </>
                   )}
+                  <dt className="text-muted-foreground">適格請求書発行事業者</dt>
+                  <dd>該当しない</dd>
+                  <dt className="text-muted-foreground">本人確認方法</dt>
+                  <dd>{customerIdentityMethod}</dd>
                 </dl>
               </div>
 
