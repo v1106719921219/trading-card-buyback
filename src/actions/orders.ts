@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createOrderSchema, type CreateOrderInput } from '@/lib/validators/order'
 import { STATUS_TRANSITIONS } from '@/lib/constants'
 import type { OrderStatus } from '@/types/database'
+import { sendOrderConfirmationEmail } from '@/lib/email'
 
 export async function createOrder(input: CreateOrderInput) {
   const parsed = createOrderSchema.safeParse(input)
@@ -68,6 +69,15 @@ export async function createOrder(input: CreateOrderInput) {
     await supabase.from('orders').delete().eq('id', order.id)
     return { error: `注文明細の作成に失敗しました: ${itemsError.message}` }
   }
+
+  // Send confirmation email (non-blocking, failure does not affect order)
+  sendOrderConfirmationEmail(
+    customer.customer_email,
+    order.order_number,
+    office_id
+  ).catch((err) => {
+    console.error('[createOrder] Email send error:', err)
+  })
 
   return { success: true, order_number: order.order_number, office_id }
 }
@@ -189,7 +199,7 @@ export async function submitTrackingNumber(orderNumber: string, trackingNumber: 
   // Find order by order_number
   const { data: order, error: fetchError } = await supabase
     .from('orders')
-    .select('id, status')
+    .select('id, status, tracking_number')
     .eq('order_number', orderNumber)
     .single()
 
@@ -197,23 +207,74 @@ export async function submitTrackingNumber(orderNumber: string, trackingNumber: 
     return { error: '注文が見つかりません' }
   }
 
-  if (order.status !== '申込') {
-    return { error: 'この注文は既に発送済みまたは処理中です' }
+  if (order.status === '申込') {
+    // First tracking number: set status to 発送済
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({
+        tracking_number: trackingNumber,
+        status: '発送済',
+      })
+      .eq('id', order.id)
+
+    if (updateError) {
+      return { error: `更新に失敗しました: ${updateError.message}` }
+    }
+    return { success: true }
   }
 
-  // Update tracking number and status
+  // Already shipped: append tracking number
+  if (order.tracking_number) {
+    const existing = order.tracking_number as string
+    const newValue = `${existing}\n${trackingNumber}`
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({ tracking_number: newValue })
+      .eq('id', order.id)
+
+    if (updateError) {
+      return { error: `更新に失敗しました: ${updateError.message}` }
+    }
+    return { success: true }
+  }
+
+  return { error: 'この注文には追跡番号を追加できません' }
+}
+
+export async function addTrackingNumber(orderNumber: string, trackingNumber: string) {
+  if (!orderNumber || !trackingNumber) {
+    return { error: '注文番号と追跡番号を入力してください' }
+  }
+
+  const supabase = createAdminClient()
+
+  const { data: order, error: fetchError } = await supabase
+    .from('orders')
+    .select('id, status, tracking_number')
+    .eq('order_number', orderNumber)
+    .single()
+
+  if (fetchError || !order) {
+    return { error: '注文が見つかりません' }
+  }
+
+  if (order.status === '申込') {
+    return { error: 'この注文はまだ発送されていません' }
+  }
+
+  const existing = (order.tracking_number as string) || ''
+  const newValue = existing ? `${existing}\n${trackingNumber}` : trackingNumber
+
   const { error: updateError } = await supabase
     .from('orders')
-    .update({
-      tracking_number: trackingNumber,
-      status: '発送済',
-    })
+    .update({ tracking_number: newValue })
     .eq('id', order.id)
 
   if (updateError) {
     return { error: `更新に失敗しました: ${updateError.message}` }
   }
 
+  revalidatePath(`/admin/orders/${order.id}`)
   return { success: true }
 }
 

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -36,6 +37,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink } from 'lucide-react'
+import { addTrackingNumber } from '@/actions/orders'
 import { createClient } from '@/lib/supabase/client'
 import { STATUS_TRANSITIONS, STATUS_COLORS } from '@/lib/constants'
 import { toast } from 'sonner'
@@ -54,6 +56,8 @@ export default function OrderDetailPage() {
   const [newStatus, setNewStatus] = useState<string>('')
   const [notes, setNotes] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
+  const [newTrackingNumber, setNewTrackingNumber] = useState('')
+  const [addingTracking, setAddingTracking] = useState(false)
 
   const supabase = createClient()
 
@@ -131,6 +135,20 @@ export default function OrderDetailPage() {
       return
     }
     toast.success('メモを保存しました')
+  }
+
+  async function handleAddTrackingNumber() {
+    if (!order || !newTrackingNumber.trim()) return
+    setAddingTracking(true)
+    const result = await addTrackingNumber(order.order_number, newTrackingNumber.trim())
+    setAddingTracking(false)
+    if (result.error) {
+      toast.error(result.error)
+      return
+    }
+    toast.success('追跡番号を追加しました')
+    setNewTrackingNumber('')
+    fetchOrder()
   }
 
   if (loading || !order) {
@@ -308,7 +326,7 @@ export default function OrderDetailPage() {
           </Card>
 
           {/* Tracking number */}
-          {order.tracking_number && (
+          {(order.tracking_number || order.status !== '申込') && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -316,19 +334,42 @@ export default function OrderDetailPage() {
                   追跡番号
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-3">
-                  <p className="font-mono text-lg">{order.tracking_number}</p>
-                  <a
-                    href={`https://member.kms.kuronekoyamato.co.jp/parcel/detail?pno=${order.tracking_number}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    ヤマト追跡
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
+              <CardContent className="space-y-4">
+                {order.tracking_number && (
+                  <div className="space-y-2">
+                    {order.tracking_number.split('\n').filter(Boolean).map((tn, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <p className="font-mono text-lg">{tn}</p>
+                        <a
+                          href={`https://member.kms.kuronekoyamato.co.jp/parcel/detail?pno=${tn}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                        >
+                          ヤマト追跡
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {order.status !== '申込' && (
+                  <div className="flex gap-2">
+                    <Input
+                      value={newTrackingNumber}
+                      onChange={(e) => setNewTrackingNumber(e.target.value)}
+                      placeholder="追跡番号を追加"
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={handleAddTrackingNumber}
+                      disabled={addingTracking || !newTrackingNumber.trim()}
+                      size="sm"
+                    >
+                      {addingTracking ? '追加中...' : '追加'}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

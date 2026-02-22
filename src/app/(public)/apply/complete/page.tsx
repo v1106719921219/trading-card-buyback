@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CheckCircle, Package, Truck } from 'lucide-react'
 import { getOfficeById } from '@/actions/offices'
-import { getOrderByOrderNumber, submitTrackingNumber } from '@/actions/orders'
+import { getOrderByOrderNumber, submitTrackingNumber, addTrackingNumber } from '@/actions/orders'
 import type { Office } from '@/types/database'
 
 function CompleteContent() {
@@ -48,6 +48,10 @@ function CompleteContent() {
     }
   }, [orderNumber, officeId])
 
+  const trackingNumbers = existingTrackingNumber
+    ? existingTrackingNumber.split('\n').filter(Boolean)
+    : []
+
   async function handleSubmitTracking(e: React.FormEvent) {
     e.preventDefault()
     if (!orderNumber || !trackingNumber.trim()) return
@@ -55,7 +59,10 @@ function CompleteContent() {
     setSubmitting(true)
     setError('')
 
-    const result = await submitTrackingNumber(orderNumber, trackingNumber.trim())
+    const isFirst = orderStatus === '申込' && trackingNumbers.length === 0
+    const result = isFirst
+      ? await submitTrackingNumber(orderNumber, trackingNumber.trim())
+      : await addTrackingNumber(orderNumber, trackingNumber.trim())
 
     setSubmitting(false)
 
@@ -64,13 +71,22 @@ function CompleteContent() {
       return
     }
 
-    setSubmitted(true)
-    setOrderStatus('発送済')
-    setExistingTrackingNumber(trackingNumber.trim())
+    if (isFirst) {
+      setSubmitted(true)
+      setOrderStatus('発送済')
+    }
+
+    // Append new tracking number to existing
+    const updated = existingTrackingNumber
+      ? `${existingTrackingNumber}\n${trackingNumber.trim()}`
+      : trackingNumber.trim()
+    setExistingTrackingNumber(updated)
+    setTrackingNumber('')
   }
 
-  const showTrackingForm = orderStatus === '申込' && !submitted
-  const showTrackingInfo = existingTrackingNumber && (orderStatus !== '申込' || submitted)
+  const isFirstTracking = orderStatus === '申込' && trackingNumbers.length === 0
+  const showTrackingForm = isFirstTracking || (orderStatus === '発送済')
+  const showTrackingInfo = trackingNumbers.length > 0
 
   return (
     <div className="min-h-screen bg-muted/50 flex items-center justify-center px-4">
@@ -97,17 +113,20 @@ function CompleteContent() {
                 <Truck className="h-5 w-5 text-green-600" />
                 <p className="font-medium text-green-800">発送済みとして登録されました</p>
               </div>
-              <p className="text-sm text-green-700">追跡番号: {existingTrackingNumber}</p>
             </div>
           )}
 
-          {showTrackingInfo && !submitted && (
+          {showTrackingInfo && (
             <div className="bg-muted p-4 rounded-md">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <Package className="h-5 w-5 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">登録済み追跡番号</p>
               </div>
-              <p className="font-bold font-mono">{existingTrackingNumber}</p>
+              <ul className="space-y-1">
+                {trackingNumbers.map((tn, i) => (
+                  <li key={i} className="font-bold font-mono">{tn}</li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -126,7 +145,11 @@ function CompleteContent() {
                 <p className="text-sm text-destructive">{error}</p>
               )}
               <Button type="submit" className="w-full" disabled={submitting || !trackingNumber.trim()}>
-                {submitting ? '送信中...' : '追跡番号を登録して発送済みにする'}
+                {submitting
+                  ? '送信中...'
+                  : isFirstTracking
+                    ? '追跡番号を登録して発送済みにする'
+                    : '追跡番号を追加する'}
               </Button>
             </form>
           )}
