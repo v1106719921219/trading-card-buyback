@@ -103,7 +103,13 @@ export default function InspectPage() {
       }))
     )
     if (productResult.data) {
-      setProducts(productResult.data as (Product & { category: Category })[])
+      const sorted = [...productResult.data].sort((a: any, b: any) => {
+        const catA = a.category?.sort_order ?? 0
+        const catB = b.category?.sort_order ?? 0
+        if (catA !== catB) return catA - catB
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      })
+      setProducts(sorted as (Product & { category: Category })[])
     }
     setLoading(false)
   }
