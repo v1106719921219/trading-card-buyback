@@ -1,5 +1,3 @@
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
@@ -414,28 +412,6 @@ export default function GuidePage() {
               </ul>
             </CardContent>
           </Card>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-8 sm:py-12 md:py-16">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h3 className="text-xl font-bold mb-4">
-            ガイドをご確認いただけましたか？
-          </h3>
-          <p className="text-muted-foreground mb-6">
-            早速買取を始めましょう
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-            <Link href="/apply">
-              <Button size="lg" className="w-full sm:w-auto">買取を申し込む</Button>
-            </Link>
-            <Link href="/prices">
-              <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                買取価格を見る
-              </Button>
-            </Link>
-          </div>
         </div>
       </section>
 
