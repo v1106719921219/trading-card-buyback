@@ -114,7 +114,7 @@ export default function PaymentsPage() {
       />
 
       {/* Summary */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">振込待ち</p>
@@ -181,10 +181,10 @@ export default function PaymentsPage() {
               </TableHead>
               <TableHead>注文番号</TableHead>
               <TableHead>お客様名</TableHead>
-              <TableHead>振込先</TableHead>
+              <TableHead className="hidden md:table-cell">振込先</TableHead>
               <TableHead className="w-20 text-center">口座確認</TableHead>
               <TableHead className="text-right">振込金額</TableHead>
-              <TableHead>検品完了日</TableHead>
+              <TableHead className="hidden sm:table-cell">検品完了日</TableHead>
               <TableHead className="w-12"></TableHead>
             </TableRow>
           </TableHeader>
@@ -214,7 +214,7 @@ export default function PaymentsPage() {
                     {order.order_number}
                   </TableCell>
                   <TableCell>{order.customer_name}</TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-sm hidden md:table-cell">
                     {order.bank_name} {order.bank_branch}
                     <br />
                     <span className="text-muted-foreground">
@@ -232,7 +232,7 @@ export default function PaymentsPage() {
                   <TableCell className="text-right font-medium">
                     {(order.inspected_total_amount ?? order.total_amount).toLocaleString()}円
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
                     {new Date(order.updated_at).toLocaleDateString('ja-JP')}
                   </TableCell>
                   <TableCell>

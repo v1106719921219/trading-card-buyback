@@ -592,8 +592,8 @@ export default function ProductsPage() {
       />
 
       {/* Filters */}
-      <div className="flex gap-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+        <div className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="商品名で検索..."
@@ -603,7 +603,7 @@ export default function ProductsPage() {
           />
         </div>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="全カテゴリ" />
           </SelectTrigger>
           <SelectContent>
@@ -615,7 +615,7 @@ export default function ProductsPage() {
             ))}
           </SelectContent>
         </Select>
-        <div className="flex gap-2 ml-auto">
+        <div className="flex gap-2 sm:ml-auto">
           <Button
             variant="outline"
             size="sm"
@@ -662,14 +662,14 @@ export default function ProductsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-16">順序</TableHead>
+              <TableHead className="w-16 hidden md:table-cell">順序</TableHead>
               <TableHead>商品名</TableHead>
-              <TableHead>カテゴリ</TableHead>
-              <TableHead>サブカテゴリ</TableHead>
+              <TableHead className="hidden sm:table-cell">カテゴリ</TableHead>
+              <TableHead className="hidden lg:table-cell">サブカテゴリ</TableHead>
               <TableHead className="text-right">買取価格</TableHead>
-              <TableHead className="w-20">状態</TableHead>
+              <TableHead className="w-20 hidden md:table-cell">状態</TableHead>
               <TableHead className="w-20">価格表</TableHead>
-              <TableHead className="w-32 text-right">操作</TableHead>
+              <TableHead className="w-20 sm:w-32 text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -688,7 +688,7 @@ export default function ProductsPage() {
             ) : (
               filteredProducts.map((product) => (
                 <TableRow key={product.id}>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <div className="flex gap-0.5">
                       <Button
                         variant="ghost"
@@ -709,10 +709,10 @@ export default function ProductsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="font-medium">{product.name}</TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <Badge variant="outline">{product.category?.name}</Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
                     {product.subcategory?.name || '-'}
                   </TableCell>
                   <TableCell className="text-right">
@@ -744,7 +744,7 @@ export default function ProductsPage() {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <Badge
                       variant={product.is_active ? 'default' : 'secondary'}
                       className="cursor-pointer"

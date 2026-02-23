@@ -150,8 +150,8 @@ export default function ReturnsPage() {
       <AdminHeader title="返品管理" description={`全${total}件`} />
 
       {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <form onSubmit={handleSearch} className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+        <form onSubmit={handleSearch} className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="注文番号・お客様名で検索..."
@@ -167,7 +167,7 @@ export default function ReturnsPage() {
             setPage(1)
           }}
         >
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-full sm:w-40">
             <SelectValue placeholder="全ステータス" />
           </SelectTrigger>
           <SelectContent>
@@ -186,12 +186,12 @@ export default function ReturnsPage() {
             <TableRow>
               <TableHead>注文番号</TableHead>
               <TableHead>お客様名</TableHead>
-              <TableHead>事務所</TableHead>
-              <TableHead>住所</TableHead>
-              <TableHead>返品商品</TableHead>
-              <TableHead>返送ステータス</TableHead>
-              <TableHead>返送追跡番号</TableHead>
-              <TableHead className="w-36">操作</TableHead>
+              <TableHead className="hidden md:table-cell">事務所</TableHead>
+              <TableHead className="hidden lg:table-cell">住所</TableHead>
+              <TableHead className="hidden sm:table-cell">返品商品</TableHead>
+              <TableHead>ステータス</TableHead>
+              <TableHead>追跡番号</TableHead>
+              <TableHead className="w-28 sm:w-36">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -218,17 +218,17 @@ export default function ReturnsPage() {
                       </Link>
                     </TableCell>
                     <TableCell>{order.customer_name}</TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {order.office ? (
                         <Badge variant="outline">{order.office.name}</Badge>
                       ) : (
                         <span className="text-muted-foreground text-sm">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm max-w-48 truncate">
+                    <TableCell className="text-sm max-w-48 truncate hidden lg:table-cell">
                       {order.customer_address || '-'}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <div className="space-y-1">
                         {returnedItems.map((item) => (
                           <div key={item.id} className="text-sm">
@@ -256,7 +256,7 @@ export default function ReturnsPage() {
                             }))
                           }
                           placeholder="追跡番号"
-                          className="w-40 text-sm"
+                          className="w-28 sm:w-40 text-sm"
                           disabled={order.return_status === '返送済'}
                         />
                         {order.return_status !== '返送済' && (

@@ -337,8 +337,8 @@ export default function OrdersPage() {
       />
 
       {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <form onSubmit={handleSearch} className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+        <form onSubmit={handleSearch} className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="注文番号・お名前・メールで検索..."
@@ -354,7 +354,7 @@ export default function OrdersPage() {
             setPage(1)
           }}
         >
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-full sm:w-40">
             <SelectValue placeholder="全ステータス" />
           </SelectTrigger>
           <SelectContent>
@@ -375,8 +375,8 @@ export default function OrdersPage() {
               <TableHead>ステータス</TableHead>
               <TableHead>お客様名</TableHead>
               <TableHead className="text-right">合計金額</TableHead>
-              <TableHead>申込日</TableHead>
-              <TableHead className="w-16"></TableHead>
+              <TableHead className="hidden sm:table-cell">申込日</TableHead>
+              <TableHead className="w-12 sm:w-16"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -422,7 +422,7 @@ export default function OrdersPage() {
                       <span>{order.total_amount.toLocaleString()}円</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
                     {new Date(order.created_at).toLocaleDateString('ja-JP')}
                   </TableCell>
                   <TableCell>
