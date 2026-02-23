@@ -104,7 +104,7 @@ export default function ApplyPage() {
 
       const [catResult, prodResult, subResult, officesData] = await Promise.all([
         supabase.from('categories').select('*').eq('is_active', true).order('sort_order'),
-        supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('is_active', true).order('sort_order').order('name'),
+        supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('is_active', true).eq('show_in_price_list', true).order('sort_order').order('name'),
         supabase.from('subcategories').select('*').eq('is_active', true).order('sort_order'),
         getOffices(),
       ])
