@@ -71,7 +71,7 @@ const steps = [
 export default function GuidePage() {
   return (
     <div className="min-h-screen">
-      <Header />
+      <Header hideApplyButton />
 
       {/* Page Title */}
       <section className="bg-gradient-to-b from-primary/5 to-background py-8 sm:py-12">

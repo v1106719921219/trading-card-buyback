@@ -15,9 +15,10 @@ import { useState } from 'react'
 
 interface HeaderProps {
   rightContent?: React.ReactNode
+  hideApplyButton?: boolean
 }
 
-export function Header({ rightContent }: HeaderProps) {
+export function Header({ rightContent, hideApplyButton }: HeaderProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -36,11 +37,11 @@ export function Header({ rightContent }: HeaderProps) {
           <Link href="/prices" className="text-sm text-muted-foreground hover:text-foreground">
             買取価格一覧
           </Link>
-          {rightContent || (
+          {rightContent || (!hideApplyButton && (
             <Link href="/apply">
               <Button>買取を申し込む</Button>
             </Link>
-          )}
+          ))}
         </nav>
 
         {/* Mobile hamburger */}
@@ -89,11 +90,13 @@ export function Header({ rightContent }: HeaderProps) {
                 >
                   プライバシーポリシー
                 </Link>
-                <div className="pt-3">
-                  <Link href="/apply" onClick={() => setOpen(false)}>
-                    <Button className="w-full">買取を申し込む</Button>
-                  </Link>
-                </div>
+                {!hideApplyButton && (
+                  <div className="pt-3">
+                    <Link href="/apply" onClick={() => setOpen(false)}>
+                      <Button className="w-full">買取を申し込む</Button>
+                    </Link>
+                  </div>
+                )}
               </nav>
             </SheetContent>
           </Sheet>
