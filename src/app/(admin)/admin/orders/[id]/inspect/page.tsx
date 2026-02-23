@@ -6,16 +6,9 @@ import Link from 'next/link'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   Select,
   SelectContent,
@@ -259,163 +252,157 @@ export default function InspectPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
+    <div className="space-y-6 max-w-3xl mx-auto">
+      <div className="flex items-center gap-3">
         <Link href={`/admin/orders/${orderId}`}>
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
         <AdminHeader
-          title={`検品 - ${order.order_number}`}
+          title={`検品 - ${order.order_number.replace(/^BB-\d{8}-/, 'BB-')}`}
           description={`${order.customer_name} 様`}
         />
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>検品入力</CardTitle>
-          <Button variant="outline" size="sm" onClick={addItem}>
-            <Plus className="mr-2 h-4 w-4" />
-            商品追加
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>商品名</TableHead>
-                <TableHead className="text-right">申告単価</TableHead>
-                <TableHead className="text-right w-32">検品単価</TableHead>
-                <TableHead className="text-right">申告数量</TableHead>
-                <TableHead className="text-right w-28">検品数量</TableHead>
-                <TableHead className="text-right w-28">返品数量</TableHead>
-                <TableHead className="text-right">検品後小計</TableHead>
-                <TableHead className="w-10"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => {
-                const priceDiff = item._inspected_price - item.unit_price
-                return (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">
-                      {item._isNew ? (
-                        <Select onValueChange={(v) => selectProduct(item.id, v)}>
-                          <SelectTrigger className="w-48">
-                            <SelectValue placeholder="商品を選択" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        item.product_name
-                      )}
-                      {item._isNew && (
-                        <Badge variant="outline" className="ml-2">追加</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {item._isNew ? '-' : `${item.unit_price.toLocaleString()}円`}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        type="number"
-                        value={item._inspected_price}
-                        onChange={(e) =>
-                          updateItem(item.id, '_inspected_price', Number(e.target.value))
-                        }
-                        className="w-24 text-right ml-auto"
-                        min={0}
-                        step={100}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {item._isNew ? '-' : item.quantity}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        type="number"
-                        value={item._inspected}
-                        onChange={(e) =>
-                          updateItem(item.id, '_inspected', Number(e.target.value))
-                        }
-                        className="w-20 text-right ml-auto"
-                        min={0}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Input
-                        type="number"
-                        value={item._returned}
-                        onChange={(e) =>
-                          updateItem(item.id, '_returned', Number(e.target.value))
-                        }
-                        className="w-20 text-right ml-auto"
-                        min={0}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {(item._inspected_price * (item._inspected - item._returned)).toLocaleString()}円
-                    </TableCell>
-                    <TableCell>
-                      {item._isNew && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => removeNewItem(item.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Item cards */}
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold">商品一覧（{items.length}件）</h3>
+        <Button variant="outline" size="sm" onClick={addItem}>
+          <Plus className="mr-1 h-4 w-4" />
+          商品追加
+        </Button>
+      </div>
+
+      <div className="space-y-4">
+        {items.map((item, index) => {
+          const subtotal = item._inspected_price * (item._inspected - item._returned)
+          return (
+            <Card key={item.id}>
+              <CardContent className="pt-5 pb-4 space-y-4">
+                {/* Product name */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    {item._isNew ? (
+                      <Select onValueChange={(v) => selectProduct(item.id, v)}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="商品を選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="font-medium text-base">{item.product_name}</p>
+                    )}
+                    {item._isNew && (
+                      <Badge variant="outline" className="mt-1">追加</Badge>
+                    )}
+                    {!item._isNew && (
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        申告: {item.unit_price.toLocaleString()}円 x {item.quantity}個
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-lg font-bold">{subtotal.toLocaleString()}円</p>
+                    <p className="text-xs text-muted-foreground">検品後小計</p>
+                  </div>
+                  {item._isNew && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => removeNewItem(item.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Input fields - grid layout for touch */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">検品単価</Label>
+                    <Input
+                      type="number"
+                      value={item._inspected_price}
+                      onChange={(e) =>
+                        updateItem(item.id, '_inspected_price', Number(e.target.value))
+                      }
+                      className="text-right h-12 text-base"
+                      min={0}
+                      step={100}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">検品数量</Label>
+                    <Input
+                      type="number"
+                      value={item._inspected}
+                      onChange={(e) =>
+                        updateItem(item.id, '_inspected', Number(e.target.value))
+                      }
+                      className="text-right h-12 text-base"
+                      min={0}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1 block">返品数量</Label>
+                    <Input
+                      type="number"
+                      value={item._returned}
+                      onChange={(e) =>
+                        updateItem(item.id, '_returned', Number(e.target.value))
+                      }
+                      className="text-right h-12 text-base"
+                      min={0}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
 
       {/* Summary */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-3">
         <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">申告合計</p>
-            <p className="text-2xl font-bold">{originalTotal.toLocaleString()}円</p>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">申告合計</p>
+            <p className="text-lg sm:text-2xl font-bold">{originalTotal.toLocaleString()}円</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">検品後合計</p>
-            <p className="text-2xl font-bold">{inspectedTotal.toLocaleString()}円</p>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">検品後合計</p>
+            <p className="text-lg sm:text-2xl font-bold">{inspectedTotal.toLocaleString()}円</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">差額</p>
-            <p className={`text-2xl font-bold ${difference < 0 ? 'text-destructive' : difference > 0 ? 'text-green-600' : ''}`}>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">差額</p>
+            <p className={`text-lg sm:text-2xl font-bold ${difference < 0 ? 'text-destructive' : difference > 0 ? 'text-green-600' : ''}`}>
               {difference > 0 ? '+' : ''}{difference.toLocaleString()}円
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Actions */}
-      <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={handleSave} disabled={saving}>
+      {/* Actions - sticky bottom for iPad */}
+      <div className="sticky bottom-0 bg-background border-t py-4 -mx-4 px-4 md:-mx-8 md:px-8 flex justify-end gap-3">
+        <Button variant="outline" size="lg" onClick={handleSave} disabled={saving}>
           <Save className="mr-2 h-4 w-4" />
           一時保存
         </Button>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button>検品完了にする</Button>
+            <Button size="lg">検品完了にする</Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
