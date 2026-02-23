@@ -396,8 +396,8 @@ export default function OrdersPage() {
               orders.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-mono text-sm">
-                    <Link href={`/admin/orders/${order.id}`} className="text-primary hover:underline">
-                      {order.order_number}
+                    <Link href={`/admin/orders/${order.id}`} className="text-primary hover:underline" title={order.order_number}>
+                      {order.order_number.replace(/^BB-\d{8}-/, 'BB-')}
                     </Link>
                   </TableCell>
                   <TableCell>
