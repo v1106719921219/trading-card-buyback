@@ -36,6 +36,7 @@ export default function OrdersPage() {
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
   const [csvLoading, setCsvLoading] = useState(false)
+  const [summaryLoading, setSummaryLoading] = useState(false)
 
   const now = new Date()
   const [csvMonth, setCsvMonth] = useState(
@@ -169,6 +170,90 @@ export default function OrdersPage() {
     }
   }
 
+  async function handleSummaryCSVDownload() {
+    setSummaryLoading(true)
+    try {
+      const [yearStr, monthStr] = csvMonth.split('-')
+      const year = parseInt(yearStr, 10)
+      const month = parseInt(monthStr, 10)
+
+      const data = await getOrdersForCSV(year, month)
+
+      // お客様別に集計
+      const customerMap = new Map<string, {
+        name: string
+        email: string
+        orderCount: number
+        totalAmount: number
+        inspectedTotalAmount: number
+        firstDate: string
+        lastDate: string
+      }>()
+
+      for (const order of data ?? []) {
+        const key = order.customer_email
+        const existing = customerMap.get(key)
+        const amount = order.inspected_total_amount ?? order.total_amount
+        const date = new Date(order.created_at).toLocaleDateString('ja-JP')
+
+        if (existing) {
+          existing.orderCount++
+          existing.totalAmount += order.total_amount
+          existing.inspectedTotalAmount += amount
+          existing.lastDate = date
+        } else {
+          customerMap.set(key, {
+            name: order.customer_name,
+            email: order.customer_email,
+            orderCount: 1,
+            totalAmount: order.total_amount,
+            inspectedTotalAmount: amount,
+            firstDate: date,
+            lastDate: date,
+          })
+        }
+      }
+
+      const headers = [
+        'お客様名', 'メール', '注文件数', '初回申込日', '最終申込日',
+        '見積合計', '検品後合計',
+      ]
+
+      const rows: string[][] = []
+      for (const customer of customerMap.values()) {
+        rows.push([
+          customer.name,
+          customer.email,
+          String(customer.orderCount),
+          customer.firstDate,
+          customer.lastDate,
+          String(customer.totalAmount),
+          String(customer.inspectedTotalAmount),
+        ])
+      }
+
+      const csvContent =
+        headers.map(escapeCSVField).join(',') +
+        '\n' +
+        rows.map((row) => row.map(escapeCSVField).join(',')).join('\n')
+
+      const bom = '\uFEFF'
+      const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `月次集計_${yearStr}年${String(month).padStart(2, '0')}月.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Summary CSV download failed:', e)
+    } finally {
+      setSummaryLoading(false)
+    }
+  }
+
   async function fetchOrders() {
     setLoading(true)
     const offset = (page - 1) * ITEMS_PER_PAGE
@@ -240,6 +325,15 @@ export default function OrdersPage() {
             >
               <Download className="h-4 w-4 mr-1" />
               {csvLoading ? '出力中...' : 'CSV出力'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSummaryCSVDownload}
+              disabled={summaryLoading}
+            >
+              <Download className="h-4 w-4 mr-1" />
+              {summaryLoading ? '出力中...' : '月次集計'}
             </Button>
           </>
         }
