@@ -186,8 +186,7 @@ export default function OrdersPage() {
         orderCount: number
         totalAmount: number
         inspectedTotalAmount: number
-        firstDate: string
-        lastDate: string
+        dates: string[]
       }>()
 
       for (const order of data ?? []) {
@@ -200,7 +199,7 @@ export default function OrdersPage() {
           existing.orderCount++
           existing.totalAmount += order.total_amount
           existing.inspectedTotalAmount += amount
-          existing.lastDate = date
+          existing.dates.push(date)
         } else {
           customerMap.set(key, {
             name: order.customer_name,
@@ -208,14 +207,13 @@ export default function OrdersPage() {
             orderCount: 1,
             totalAmount: order.total_amount,
             inspectedTotalAmount: amount,
-            firstDate: date,
-            lastDate: date,
+            dates: [date],
           })
         }
       }
 
       const headers = [
-        'お客様名', 'メール', '注文件数', '初回申込日', '最終申込日',
+        'お客様名', 'メール', '注文件数', '申込日',
         '見積合計', '検品後合計',
       ]
 
@@ -225,8 +223,7 @@ export default function OrdersPage() {
           customer.name,
           customer.email,
           String(customer.orderCount),
-          customer.firstDate,
-          customer.lastDate,
+          customer.dates.join(' / '),
           String(customer.totalAmount),
           String(customer.inspectedTotalAmount),
         ])
