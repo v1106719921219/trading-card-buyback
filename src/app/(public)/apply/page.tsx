@@ -240,7 +240,6 @@ export default function ApplyPage() {
         customerOccupation.trim() &&
         customerPrefecture &&
         customerAddress.trim() &&
-        customerNotInvoiceIssuer &&
         customerIdentityMethod &&
         bankName.trim() &&
         bankBranch.trim() &&
@@ -290,7 +289,7 @@ export default function ApplyPage() {
         customer_occupation: customerOccupation,
         customer_prefecture: customerPrefecture as typeof PREFECTURES[number],
         customer_address: customerAddress,
-        customer_not_invoice_issuer: customerNotInvoiceIssuer as true,
+        customer_not_invoice_issuer: customerNotInvoiceIssuer,
         customer_identity_method: customerIdentityMethod as typeof IDENTITY_METHODS[number],
         bank_name: bankName,
         bank_branch: bankBranch,
@@ -693,7 +692,7 @@ export default function ApplyPage() {
                         onCheckedChange={(checked) => setCustomerNotInvoiceIssuer(checked === true)}
                       />
                       <Label htmlFor="not-invoice-issuer" className="cursor-pointer">
-                        適格請求書発行事業者ではありません <span className="text-destructive">*</span>
+                        適格請求書発行事業者ではありません
                       </Label>
                     </div>
                   </div>
