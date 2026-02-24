@@ -54,6 +54,7 @@ export default function ProductsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const [filterCategory, setFilterCategory] = useState<string>('all')
+  const [filterSubcategory, setFilterSubcategory] = useState<string>('all')
   const [search, setSearch] = useState('')
 
   // Form state
@@ -104,10 +105,15 @@ export default function ProductsPage() {
     fetchData()
   }, [])
 
+  const filteredSubcategories = subcategories.filter((s) =>
+    filterCategory === 'all' ? true : s.category_id === filterCategory
+  )
+
   const filteredProducts = products.filter((p) => {
     const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory
+    const matchesSubcategory = filterSubcategory === 'all' || p.subcategory_id === filterSubcategory
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
-    return matchesCategory && matchesSearch
+    return matchesCategory && matchesSubcategory && matchesSearch
   })
 
   function openCreate() {
@@ -602,7 +608,7 @@ export default function ProductsPage() {
             className="pl-9"
           />
         </div>
-        <Select value={filterCategory} onValueChange={setFilterCategory}>
+        <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setFilterSubcategory('all') }}>
           <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="全カテゴリ" />
           </SelectTrigger>
@@ -615,6 +621,21 @@ export default function ProductsPage() {
             ))}
           </SelectContent>
         </Select>
+        {filteredSubcategories.length > 0 && (
+          <Select value={filterSubcategory} onValueChange={setFilterSubcategory}>
+            <SelectTrigger className="w-full sm:w-52">
+              <SelectValue placeholder="全サブカテゴリ" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全サブカテゴリ</SelectItem>
+              {filteredSubcategories.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <div className="flex gap-2 sm:ml-auto">
           <Button
             variant="outline"
