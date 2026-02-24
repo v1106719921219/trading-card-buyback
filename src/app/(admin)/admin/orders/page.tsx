@@ -77,20 +77,33 @@ export default function OrdersPage() {
         '職業', 'メール', '電話番号', '都道府県', '住所', '本人確認方法',
         '銀行名', '支店名', '口座種別', '口座番号', '口座名義',
         '追跡番号', '発送先事務所', '商品名', '単価', '数量', '小計',
-        '検品後数量', '返品数量', '見積合計', '検品後合計',
+        '検品後数量', '返品数量', '見積合計', '検品後合計', '日次集計',
       ]
+
+      // 日次集計を算出（注文単位で1回だけカウント）
+      const dailyTotalMap = new Map<string, number>()
+      const seenOrders = new Set<string>()
+      for (const order of data ?? []) {
+        if (seenOrders.has(order.id)) continue
+        seenOrders.add(order.id)
+        const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
+        const amount = order.inspected_total_amount ?? order.total_amount
+        dailyTotalMap.set(dateKey, (dailyTotalMap.get(dateKey) ?? 0) + amount)
+      }
 
       const rows: string[][] = []
 
       for (const order of data ?? []) {
         const items = (order.order_items ?? []) as OrderItem[]
         const officeName = (order.office as { name: string } | null)?.name ?? ''
+        const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
+        const dailyTotal = String(dailyTotalMap.get(dateKey) ?? 0)
 
         if (items.length === 0) {
           rows.push([
             order.order_number,
             order.status,
-            new Date(order.created_at).toLocaleDateString('ja-JP'),
+            dateKey,
             order.customer_name,
             order.customer_line_name ?? '',
             order.customer_birth_date ?? '',
@@ -111,6 +124,7 @@ export default function OrdersPage() {
             '', '',
             String(order.total_amount),
             order.inspected_total_amount != null ? String(order.inspected_total_amount) : '',
+            dailyTotal,
           ])
         } else {
           for (const item of items) {
@@ -118,7 +132,7 @@ export default function OrdersPage() {
             rows.push([
               order.order_number,
               order.status,
-              new Date(order.created_at).toLocaleDateString('ja-JP'),
+              dateKey,
               order.customer_name,
               order.customer_line_name ?? '',
               order.customer_birth_date ?? '',
@@ -143,6 +157,7 @@ export default function OrdersPage() {
               item.returned_quantity != null ? String(item.returned_quantity) : '',
               String(order.total_amount),
               order.inspected_total_amount != null ? String(order.inspected_total_amount) : '',
+              dailyTotal,
             ])
           }
         }
