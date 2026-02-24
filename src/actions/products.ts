@@ -84,9 +84,16 @@ export async function updateProduct(formData: FormData) {
   }
 
   const { id, ...data } = parsed.data
+
+  // 価格が0円の場合は自動的に価格表を非表示にする
+  const updateData: Record<string, unknown> = { ...data }
+  if (data.price === 0) {
+    updateData.show_in_price_list = false
+  }
+
   const { error } = await supabase
     .from('products')
-    .update(data)
+    .update(updateData)
     .eq('id', id)
 
   if (error) return { error: error.message }
@@ -103,9 +110,15 @@ export async function updateProductPrice(id: string, price: number) {
     return { error: parsed.error.issues[0].message }
   }
 
+  // 価格が0円の場合は自動的に価格表を非表示にする
+  const updateData: Record<string, unknown> = { price: parsed.data.price }
+  if (parsed.data.price === 0) {
+    updateData.show_in_price_list = false
+  }
+
   const { error } = await supabase
     .from('products')
-    .update({ price: parsed.data.price })
+    .update(updateData)
     .eq('id', parsed.data.id)
 
   if (error) return { error: error.message }
@@ -130,9 +143,15 @@ export async function bulkUpdatePrices(
   const errors: string[] = []
 
   for (const update of updates) {
+    // 価格が0円の場合は自動的に価格表を非表示にする
+    const updateData: Record<string, unknown> = { price: update.price }
+    if (update.price === 0) {
+      updateData.show_in_price_list = false
+    }
+
     const { error } = await supabase
       .from('products')
-      .update({ price: update.price })
+      .update(updateData)
       .eq('id', update.id)
 
     if (error) errors.push(`${update.id}: ${error.message}`)

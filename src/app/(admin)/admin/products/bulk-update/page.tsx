@@ -103,9 +103,15 @@ export default function BulkUpdatePage() {
     setSaving(true)
 
     for (const product of changedProducts) {
+      // 価格が0円の場合は自動的に価格表を非表示にする
+      const updateData: Record<string, unknown> = { price: product.newPrice }
+      if (product.newPrice === 0) {
+        updateData.show_in_price_list = false
+      }
+
       const { error } = await supabase
         .from('products')
-        .update({ price: product.newPrice })
+        .update(updateData)
         .eq('id', product.id)
 
       if (error) {
