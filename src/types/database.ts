@@ -80,6 +80,8 @@ export interface Order {
   bank_account_holder: string | null
   total_amount: number
   inspected_total_amount: number | null
+  inspection_discount: number
+  inspection_notes: string | null
   tracking_number: string | null
   notes: string | null
   customer_line_name: string | null

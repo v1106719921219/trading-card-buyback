@@ -256,6 +256,16 @@ export default function OrderDetailPage() {
                       {(order.inspected_total_amount ?? order.total_amount).toLocaleString()}円
                     </TableCell>
                   </TableRow>
+                  {order.inspection_discount > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3 + (items.some((i) => i.inspected_quantity != null) ? 1 : 0) + (items.some((i) => (i.returned_quantity ?? 0) > 0) ? 1 : 0)} className="text-right text-sm text-muted-foreground">
+                        減額
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-destructive">
+                        -{order.inspection_discount.toLocaleString()}円
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {order.inspected_total_amount != null && order.inspected_total_amount !== order.total_amount && (
                     <TableRow>
                       <TableCell colSpan={3 + (items.some((i) => i.inspected_quantity != null) ? 1 : 0) + (items.some((i) => (i.returned_quantity ?? 0) > 0) ? 1 : 0)} className="text-right text-sm text-muted-foreground">
@@ -263,6 +273,13 @@ export default function OrderDetailPage() {
                       </TableCell>
                       <TableCell className="text-right text-sm text-muted-foreground line-through">
                         {order.total_amount.toLocaleString()}円
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {order.inspection_notes && (
+                    <TableRow>
+                      <TableCell colSpan={4 + (items.some((i) => i.inspected_quantity != null) ? 1 : 0) + (items.some((i) => (i.returned_quantity ?? 0) > 0) ? 1 : 0)} className="text-sm text-muted-foreground">
+                        検品メモ: {order.inspection_notes}
                       </TableCell>
                     </TableRow>
                   )}

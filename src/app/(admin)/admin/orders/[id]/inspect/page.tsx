@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -53,6 +54,8 @@ export default function InspectPage() {
   const [items, setItems] = useState<InspectItem[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [discount, setDiscount] = useState(0)
+  const [inspectionNotes, setInspectionNotes] = useState('')
   const [products, setProducts] = useState<(Product & { category: Category })[]>([])
 
   const supabase = createClient()
@@ -83,7 +86,10 @@ export default function InspectPage() {
       return
     }
 
-    setOrder(orderResult.data as Order)
+    const orderData = orderResult.data as Order
+    setOrder(orderData)
+    setDiscount(orderData.inspection_discount ?? 0)
+    setInspectionNotes(orderData.inspection_notes ?? '')
     setItems(
       ((orderResult.data as Order).order_items || []).map((item) => ({
         id: item.id,
@@ -152,9 +158,10 @@ export default function InspectPage() {
     .filter((i) => !i._isNew)
     .reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
 
-  const inspectedTotal = items.reduce(
+  const inspectedSubtotal = items.reduce(
     (sum, item) => sum + item._inspected_price * (item._inspected - item._returned), 0
   )
+  const inspectedTotal = inspectedSubtotal - discount
   const difference = inspectedTotal - originalTotal
 
   async function handleSave() {
@@ -208,12 +215,14 @@ export default function InspectPage() {
       }
     }
 
-    // Update order's inspected_total_amount and return_status
+    // Update order's inspected_total_amount, discount, notes, and return_status
     const hasReturns = items.some((item) => item._returned > 0)
     const { error } = await supabase
       .from('orders')
       .update({
         inspected_total_amount: inspectedTotal,
+        inspection_discount: discount,
+        inspection_notes: inspectionNotes || null,
         return_status: hasReturns ? '返送待ち' : null,
       })
       .eq('id', orderId)
@@ -370,8 +379,35 @@ export default function InspectPage() {
         })}
       </div>
 
+      {/* Discount & Notes */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+        <div>
+          <Label className="text-sm font-medium mb-1 block">減額</Label>
+          <Input
+            type="number"
+            value={discount}
+            onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
+            className="h-12 text-base text-right"
+            min={0}
+            step={100}
+            placeholder="0"
+          />
+          <p className="text-xs text-muted-foreground mt-1">検品後合計から差し引かれます</p>
+        </div>
+        <div>
+          <Label className="text-sm font-medium mb-1 block">検品メモ</Label>
+          <Textarea
+            value={inspectionNotes}
+            onChange={(e) => setInspectionNotes(e.target.value)}
+            className="min-h-[48px] text-base resize-none"
+            placeholder="減額理由など..."
+            rows={2}
+          />
+        </div>
+      </div>
+
       {/* Summary */}
-      <div className="grid gap-4 grid-cols-3">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         <Card>
           <CardContent className="pt-5 pb-4">
             <p className="text-xs sm:text-sm text-muted-foreground">申告合計</p>
@@ -380,16 +416,29 @@ export default function InspectPage() {
         </Card>
         <Card>
           <CardContent className="pt-5 pb-4">
-            <p className="text-xs sm:text-sm text-muted-foreground">検品後合計</p>
-            <p className="text-lg sm:text-2xl font-bold">{inspectedTotal.toLocaleString()}円</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">検品小計</p>
+            <p className="text-lg sm:text-2xl font-bold">{inspectedSubtotal.toLocaleString()}円</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-5 pb-4">
-            <p className="text-xs sm:text-sm text-muted-foreground">差額</p>
-            <p className={`text-lg sm:text-2xl font-bold ${difference < 0 ? 'text-destructive' : difference > 0 ? 'text-green-600' : ''}`}>
-              {difference > 0 ? '+' : ''}{difference.toLocaleString()}円
+            <p className="text-xs sm:text-sm text-muted-foreground">減額</p>
+            <p className="text-lg sm:text-2xl font-bold text-destructive">
+              {discount > 0 ? `-${discount.toLocaleString()}` : '0'}円
             </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">検品後合計</p>
+            <p className={`text-lg sm:text-2xl font-bold ${difference < 0 ? 'text-destructive' : ''}`}>
+              {inspectedTotal.toLocaleString()}円
+            </p>
+            {difference !== 0 && (
+              <p className={`text-xs ${difference < 0 ? 'text-destructive' : 'text-green-600'}`}>
+                申告比 {difference > 0 ? '+' : ''}{difference.toLocaleString()}円
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
