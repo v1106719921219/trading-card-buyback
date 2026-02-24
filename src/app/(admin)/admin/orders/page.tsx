@@ -212,14 +212,70 @@ export default function OrdersPage() {
         }
       }
 
-      const headers = [
+      // 日別に集計
+      const dailyMap = new Map<string, {
+        date: string
+        orderCount: number
+        totalAmount: number
+        inspectedTotalAmount: number
+      }>()
+
+      for (const order of data ?? []) {
+        const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
+        const amount = order.inspected_total_amount ?? order.total_amount
+        const existing = dailyMap.get(dateKey)
+
+        if (existing) {
+          existing.orderCount++
+          existing.totalAmount += order.total_amount
+          existing.inspectedTotalAmount += amount
+        } else {
+          dailyMap.set(dateKey, {
+            date: dateKey,
+            orderCount: 1,
+            totalAmount: order.total_amount,
+            inspectedTotalAmount: amount,
+          })
+        }
+      }
+
+      // 日別集計セクション
+      const dailyHeaders = ['日付', '件数', '見積合計', '検品後合計']
+      const dailyRows: string[][] = []
+      let monthTotal = 0
+      let monthInspected = 0
+      let monthCount = 0
+
+      // 日付順にソート
+      const sortedDays = [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date))
+      for (const day of sortedDays) {
+        dailyRows.push([
+          day.date,
+          String(day.orderCount),
+          String(day.totalAmount),
+          String(day.inspectedTotalAmount),
+        ])
+        monthTotal += day.totalAmount
+        monthInspected += day.inspectedTotalAmount
+        monthCount += day.orderCount
+      }
+      // 月合計行
+      dailyRows.push([
+        '合計',
+        String(monthCount),
+        String(monthTotal),
+        String(monthInspected),
+      ])
+
+      // お客様別集計セクション
+      const customerHeaders = [
         'お客様名', 'メール', '注文件数', '申込日',
         '見積合計', '検品後合計',
       ]
 
-      const rows: string[][] = []
+      const customerRows: string[][] = []
       for (const customer of customerMap.values()) {
-        rows.push([
+        customerRows.push([
           customer.name,
           customer.email,
           String(customer.orderCount),
@@ -229,10 +285,15 @@ export default function OrdersPage() {
         ])
       }
 
+      // 日別集計 + 空行 + お客様別集計
       const csvContent =
-        headers.map(escapeCSVField).join(',') +
-        '\n' +
-        rows.map((row) => row.map(escapeCSVField).join(',')).join('\n')
+        ['【日別集計】'].join(',') + '\n' +
+        dailyHeaders.map(escapeCSVField).join(',') + '\n' +
+        dailyRows.map((row) => row.map(escapeCSVField).join(',')).join('\n') +
+        '\n\n' +
+        ['【お客様別集計】'].join(',') + '\n' +
+        customerHeaders.map(escapeCSVField).join(',') + '\n' +
+        customerRows.map((row) => row.map(escapeCSVField).join(',')).join('\n')
 
       const bom = '\uFEFF'
       const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' })
