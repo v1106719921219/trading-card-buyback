@@ -207,6 +207,7 @@ export default function OrdersPage() {
       const customerMap = new Map<string, {
         name: string
         email: string
+        address: string
         orderCount: number
         totalAmount: number
         inspectedTotalAmount: number
@@ -228,6 +229,7 @@ export default function OrdersPage() {
           customerMap.set(key, {
             name: order.customer_name,
             email: order.customer_email,
+            address: `${order.customer_prefecture ?? ''}${order.customer_address ?? ''}`,
             orderCount: 1,
             totalAmount: order.total_amount,
             inspectedTotalAmount: amount,
@@ -293,7 +295,7 @@ export default function OrdersPage() {
 
       // お客様別集計セクション
       const customerHeaders = [
-        'お客様名', 'メール', '注文件数', '申込日',
+        'お客様名', 'メール', '住所', '注文件数', '申込日',
         '見積合計', '検品後合計',
       ]
 
@@ -302,6 +304,7 @@ export default function OrdersPage() {
         customerRows.push([
           customer.name,
           customer.email,
+          customer.address,
           String(customer.orderCount),
           customer.dates.join(' / '),
           String(customer.totalAmount),
