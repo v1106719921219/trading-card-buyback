@@ -113,7 +113,7 @@ export default function BulkUpdatePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <Link href="/admin/products">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
@@ -135,8 +135,8 @@ export default function BulkUpdatePage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+        <div className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="商品名で検索..."
@@ -146,7 +146,7 @@ export default function BulkUpdatePage() {
           />
         </div>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-full sm:w-48">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -163,10 +163,10 @@ export default function BulkUpdatePage() {
           <TableHeader>
             <TableRow>
               <TableHead>商品名</TableHead>
-              <TableHead>カテゴリ</TableHead>
+              <TableHead className="hidden sm:table-cell">カテゴリ</TableHead>
               <TableHead className="text-right">現在価格</TableHead>
-              <TableHead className="text-right w-40">新価格</TableHead>
-              <TableHead className="text-right">差額</TableHead>
+              <TableHead className="text-right w-28 sm:w-40">新価格</TableHead>
+              <TableHead className="text-right hidden sm:table-cell">差額</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -182,7 +182,7 @@ export default function BulkUpdatePage() {
                 return (
                   <TableRow key={product.id} className={product.changed ? 'bg-yellow-50' : ''}>
                     <TableCell className="font-medium">{product.name}</TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <Badge variant="outline">{product.category?.name}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -197,7 +197,7 @@ export default function BulkUpdatePage() {
                         min={0}
                       />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right hidden sm:table-cell">
                       {product.changed && (
                         <Badge variant={diff < 0 ? 'destructive' : 'default'}>
                           {diff > 0 ? '+' : ''}{diff.toLocaleString()}円
