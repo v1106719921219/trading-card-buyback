@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
@@ -295,6 +295,21 @@ export default function OrdersPage() {
 
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE)
 
+  // 申込日ごとの合計金額を算出
+  const dailyTotals = new Map<string, { total: number; inspected: number; count: number }>()
+  for (const order of orders) {
+    const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
+    const existing = dailyTotals.get(dateKey)
+    const amount = order.inspected_total_amount ?? order.total_amount
+    if (existing) {
+      existing.total += order.total_amount
+      existing.inspected += amount
+      existing.count++
+    } else {
+      dailyTotals.set(dateKey, { total: order.total_amount, inspected: amount, count: 1 })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <AdminHeader
@@ -393,47 +408,75 @@ export default function OrdersPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              orders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell className="font-mono text-sm">
-                    <Link href={`/admin/orders/${order.id}`} className="text-primary hover:underline" title={order.order_number}>
-                      {order.order_number.replace(/^BB-\d{8}-/, 'BB-')}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={STATUS_COLORS[order.status as OrderStatus]}>
-                      {order.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{order.customer_name}</TableCell>
-                  <TableCell className="text-right">
-                    {order.inspected_total_amount != null ? (
-                      <div>
-                        <span className="font-medium">
-                          {order.inspected_total_amount.toLocaleString()}円
-                        </span>
-                        {order.inspected_total_amount !== order.total_amount && (
-                          <span className="text-xs text-muted-foreground line-through ml-2">
-                            {order.total_amount.toLocaleString()}円
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span>{order.total_amount.toLocaleString()}円</span>
+              orders.map((order, index) => {
+                const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
+                const prevDateKey = index > 0
+                  ? new Date(orders[index - 1].created_at).toLocaleDateString('ja-JP')
+                  : null
+                const isNewDate = dateKey !== prevDateKey
+                const daily = dailyTotals.get(dateKey)
+
+                return (
+                  <Fragment key={order.id}>
+                    {isNewDate && daily && (
+                      <TableRow className="bg-muted/50">
+                        <TableCell colSpan={3} className="font-semibold text-sm py-2">
+                          {dateKey}（{daily.count}件）
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-sm py-2">
+                          {daily.inspected.toLocaleString()}円
+                          {daily.inspected !== daily.total && (
+                            <span className="text-xs text-muted-foreground line-through ml-2">
+                              {daily.total.toLocaleString()}円
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell py-2" />
+                        <TableCell className="py-2" />
+                      </TableRow>
                     )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
-                    {new Date(order.created_at).toLocaleDateString('ja-JP')}
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/admin/orders/${order.id}`}>
-                      <Button variant="ghost" size="icon">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))
+                    <TableRow>
+                      <TableCell className="font-mono text-sm">
+                        <Link href={`/admin/orders/${order.id}`} className="text-primary hover:underline" title={order.order_number}>
+                          {order.order_number.replace(/^BB-\d{8}-/, 'BB-')}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={STATUS_COLORS[order.status as OrderStatus]}>
+                          {order.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{order.customer_name}</TableCell>
+                      <TableCell className="text-right">
+                        {order.inspected_total_amount != null ? (
+                          <div>
+                            <span className="font-medium">
+                              {order.inspected_total_amount.toLocaleString()}円
+                            </span>
+                            {order.inspected_total_amount !== order.total_amount && (
+                              <span className="text-xs text-muted-foreground line-through ml-2">
+                                {order.total_amount.toLocaleString()}円
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span>{order.total_amount.toLocaleString()}円</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
+                        {dateKey}
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/admin/orders/${order.id}`}>
+                          <Button variant="ghost" size="icon">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  </Fragment>
+                )
+              })
             )}
           </TableBody>
         </Table>
