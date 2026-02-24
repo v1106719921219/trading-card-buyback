@@ -97,7 +97,6 @@ export default function OrdersPage() {
         const items = (order.order_items ?? []) as OrderItem[]
         const officeName = (order.office as { name: string } | null)?.name ?? ''
         const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
-        const dailyTotal = String(dailyTotalMap.get(dateKey) ?? 0)
 
         if (items.length === 0) {
           rows.push([
@@ -124,7 +123,7 @@ export default function OrdersPage() {
             '', '',
             String(order.total_amount),
             order.inspected_total_amount != null ? String(order.inspected_total_amount) : '',
-            dailyTotal,
+            '',
           ])
         } else {
           for (const item of items) {
@@ -157,9 +156,19 @@ export default function OrdersPage() {
               item.returned_quantity != null ? String(item.returned_quantity) : '',
               String(order.total_amount),
               order.inspected_total_amount != null ? String(order.inspected_total_amount) : '',
-              dailyTotal,
+              '',
             ])
           }
+        }
+      }
+
+      // 同じ日付の最後の行にだけ日次集計を入れる（申込日は列index=2）
+      const dailyColIndex = headers.length - 1
+      for (let i = rows.length - 1; i >= 0; i--) {
+        const dateVal = rows[i][2]
+        const nextDate = i < rows.length - 1 ? rows[i + 1][2] : null
+        if (dateVal !== nextDate) {
+          rows[i][dailyColIndex] = String(dailyTotalMap.get(dateVal) ?? '')
         }
       }
 
