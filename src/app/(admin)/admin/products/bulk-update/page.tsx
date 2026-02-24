@@ -24,7 +24,7 @@ import {
 import { ArrowLeft, Save, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Category, Product } from '@/types/database'
+import type { Category, Product, Subcategory } from '@/types/database'
 
 interface EditableProduct extends Product {
   category: Category
@@ -35,17 +35,20 @@ interface EditableProduct extends Product {
 export default function BulkUpdatePage() {
   const [products, setProducts] = useState<EditableProduct[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [filterCategory, setFilterCategory] = useState<string>('all')
+  const [filterSubcategory, setFilterSubcategory] = useState<string>('all')
   const [search, setSearch] = useState('')
 
   const supabase = createClient()
 
   async function fetchData() {
-    const [prodResult, catResult] = await Promise.all([
-      supabase.from('products').select('*, category:categories(*)').eq('is_active', true).order('sort_order'),
+    const [prodResult, catResult, subResult] = await Promise.all([
+      supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('is_active', true).order('sort_order'),
       supabase.from('categories').select('*').order('sort_order'),
+      supabase.from('subcategories').select('*').eq('is_active', true).order('sort_order'),
     ])
 
     if (prodResult.data) {
@@ -56,7 +59,7 @@ export default function BulkUpdatePage() {
         return (a.sort_order ?? 0) - (b.sort_order ?? 0)
       })
       setProducts(
-        (sorted as (Product & { category: Category })[]).map((p) => ({
+        (sorted as (Product & { category: Category; subcategory: Subcategory | null })[]).map((p) => ({
           ...p,
           newPrice: p.price,
           changed: false,
@@ -64,6 +67,7 @@ export default function BulkUpdatePage() {
       )
     }
     if (catResult.data) setCategories(catResult.data)
+    if (subResult.data) setSubcategories(subResult.data)
     setLoading(false)
   }
 
@@ -83,10 +87,15 @@ export default function BulkUpdatePage() {
 
   const changedProducts = products.filter((p) => p.changed)
 
+  const filteredSubcategories = subcategories.filter((s) =>
+    filterCategory === 'all' ? true : s.category_id === filterCategory
+  )
+
   const filteredProducts = products.filter((p) => {
     const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory
+    const matchesSubcategory = filterSubcategory === 'all' || p.subcategory_id === filterSubcategory
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
-    return matchesCategory && matchesSearch
+    return matchesCategory && matchesSubcategory && matchesSearch
   })
 
   async function handleSave() {
@@ -145,7 +154,7 @@ export default function BulkUpdatePage() {
             className="pl-9"
           />
         </div>
-        <Select value={filterCategory} onValueChange={setFilterCategory}>
+        <Select value={filterCategory} onValueChange={(v) => { setFilterCategory(v); setFilterSubcategory('all') }}>
           <SelectTrigger className="w-full sm:w-48">
             <SelectValue />
           </SelectTrigger>
@@ -156,6 +165,19 @@ export default function BulkUpdatePage() {
             ))}
           </SelectContent>
         </Select>
+        {filteredSubcategories.length > 0 && (
+          <Select value={filterSubcategory} onValueChange={setFilterSubcategory}>
+            <SelectTrigger className="w-full sm:w-52">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全サブカテゴリ</SelectItem>
+              {filteredSubcategories.map((s) => (
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="rounded-md border">
