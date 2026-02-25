@@ -392,12 +392,6 @@ export default function ApplyPage() {
                             </div>
                             <div className="flex-1">
                               <p className="font-medium">{office.name}</p>
-                              <p className="text-sm text-muted-foreground mt-1">
-                                〒{office.postal_code}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {office.address}
-                              </p>
                             </div>
                           </div>
                         </div>
