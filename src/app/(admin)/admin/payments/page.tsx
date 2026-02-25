@@ -47,19 +47,30 @@ export default function PaymentsPage() {
 
   const supabase = createClient()
 
+  function sortByOrderNumber(orders: Order[]) {
+    return [...orders].sort((a, b) => {
+      const numA = parseInt(a.order_number.slice(-4), 10)
+      const numB = parseInt(b.order_number.slice(-4), 10)
+      return numA - numB
+    })
+  }
+
   async function fetchOrders() {
     setLoading(true)
     const { data, error } = await supabase
       .from('orders')
       .select('*')
       .eq('status', '検品完了')
-      .order('updated_at', { ascending: true })
 
     if (error) {
       toast.error('データの取得に失敗しました')
       return
     }
-    setOrders(data || [])
+    const sorted = sortByOrderNumber(data || [])
+    setOrders(sorted)
+    // DBに保存されたチェック状態を復元
+    const checked = sorted.filter((o) => o.payment_checked).map((o) => o.id)
+    setSelectedIds(new Set(checked))
     setLoading(false)
   }
 
@@ -69,13 +80,12 @@ export default function PaymentsPage() {
       .from('orders')
       .select('*')
       .eq('status', '発送済')
-      .order('created_at', { ascending: true })
 
     if (error) {
       toast.error('データの取得に失敗しました')
       return
     }
-    setShippedOrders(data || [])
+    setShippedOrders(sortByOrderNumber(data || []))
     setShippedLoading(false)
   }
 
@@ -84,11 +94,20 @@ export default function PaymentsPage() {
     fetchShippedOrders()
   }, [])
 
-  function toggleSelect(id: string) {
+  async function toggleSelect(id: string) {
     const next = new Set(selectedIds)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
+    const newChecked = !next.has(id)
+    if (newChecked) next.add(id)
+    else next.delete(id)
     setSelectedIds(next)
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ payment_checked: newChecked })
+      .eq('id', id)
+    if (error) {
+      toast.error('チェック状態の保存に失敗しました')
+    }
   }
 
   async function toggleVerified(id: string) {
@@ -106,11 +125,22 @@ export default function PaymentsPage() {
     setOrders(orders.map((o) => o.id === id ? { ...o, bank_verified: newValue } : o))
   }
 
-  function toggleAll() {
-    if (selectedIds.size === orders.length) {
+  async function toggleAll() {
+    const allSelected = selectedIds.size === orders.length
+    const ids = orders.map((o) => o.id)
+
+    if (allSelected) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(orders.map((o) => o.id)))
+      setSelectedIds(new Set(ids))
+    }
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ payment_checked: !allSelected })
+      .in('id', ids)
+    if (error) {
+      toast.error('チェック状態の保存に失敗しました')
     }
   }
 
