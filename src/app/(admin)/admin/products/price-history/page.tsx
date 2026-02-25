@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,7 +34,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import type { Category, Subcategory, ProductPriceHistory } from '@/types/database'
+import type { Category, Subcategory, Product, ProductPriceHistory } from '@/types/database'
 
 type HistoryWithRelations = ProductPriceHistory & {
   product: {
@@ -47,6 +47,11 @@ type HistoryWithRelations = ProductPriceHistory & {
   }
 }
 
+type ProductWithRelations = Product & {
+  category: Category
+  subcategory: Subcategory | null
+}
+
 const LINE_COLORS = [
   '#2563eb', '#dc2626', '#16a34a', '#ca8a04', '#9333ea',
   '#0891b2', '#e11d48', '#65a30d', '#c026d3', '#ea580c',
@@ -54,6 +59,7 @@ const LINE_COLORS = [
 
 export default function PriceHistoryPage() {
   const [history, setHistory] = useState<HistoryWithRelations[]>([])
+  const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,11 +76,16 @@ export default function PriceHistoryPage() {
   async function fetchData() {
     setLoading(true)
     try {
-      const [historyRes, categoriesRes, subcategoriesRes] = await Promise.all([
+      const [historyRes, productsRes, categoriesRes, subcategoriesRes] = await Promise.all([
         supabase
           .from('product_price_history')
           .select('*, product:products(id, name, category_id, subcategory_id, category:categories(*), subcategory:subcategories(*))')
           .order('changed_at', { ascending: false }),
+        supabase
+          .from('products')
+          .select('*, category:categories(*), subcategory:subcategories(*)')
+          .eq('is_active', true)
+          .order('sort_order'),
         supabase
           .from('categories')
           .select('*')
@@ -86,10 +97,12 @@ export default function PriceHistoryPage() {
       ])
 
       if (historyRes.error) throw historyRes.error
+      if (productsRes.error) throw productsRes.error
       if (categoriesRes.error) throw categoriesRes.error
       if (subcategoriesRes.error) throw subcategoriesRes.error
 
       setHistory(historyRes.data as unknown as HistoryWithRelations[])
+      setProducts(productsRes.data as unknown as ProductWithRelations[])
       setCategories(categoriesRes.data)
       setSubcategories(subcategoriesRes.data)
     } catch (error) {
@@ -112,7 +125,33 @@ export default function PriceHistoryPage() {
     setFilterSubcategory('all')
   }
 
-  // フィルタ済み履歴
+  // フィルタ済み全商品
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      if (filterCategory !== 'all' && p.category_id !== filterCategory) return false
+      if (filterSubcategory !== 'all' && p.subcategory_id !== filterSubcategory) return false
+      if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
+      return true
+    })
+  }, [products, filterCategory, filterSubcategory, search])
+
+  // カテゴリ別にグルーピング
+  const groupedProducts = useMemo(() => {
+    const groups = new Map<string, { category: Category; items: ProductWithRelations[] }>()
+    for (const p of filteredProducts) {
+      const catId = p.category_id
+      if (!groups.has(catId)) {
+        groups.set(catId, { category: p.category, items: [] })
+      }
+      groups.get(catId)!.items.push(p)
+    }
+    // カテゴリの sort_order 順
+    return Array.from(groups.values()).sort(
+      (a, b) => (a.category.sort_order ?? 0) - (b.category.sort_order ?? 0)
+    )
+  }, [filteredProducts])
+
+  // フィルタ済み履歴（グラフ用）
   const filteredHistory = useMemo(() => {
     return history.filter((h) => {
       if (!h.product) return false
@@ -125,11 +164,9 @@ export default function PriceHistoryPage() {
 
   // グラフ用データ: 商品ごとに価格推移をまとめる
   const chartData = useMemo(() => {
-    // フィルタ済みの商品IDを収集（最大10商品）
     const productIds = [...new Set(filteredHistory.map((h) => h.product?.id).filter(Boolean))]
     const topProductIds = productIds.slice(0, 10)
 
-    // 商品名マップ
     const productNameMap = new Map<string, string>()
     filteredHistory.forEach((h) => {
       if (h.product && topProductIds.includes(h.product.id)) {
@@ -137,10 +174,8 @@ export default function PriceHistoryPage() {
       }
     })
 
-    // 日付ごとにデータをまとめる
     const dateMap = new Map<string, Record<string, number>>()
 
-    // 古い順にソートして処理
     const sorted = filteredHistory
       .filter((h) => h.product && topProductIds.includes(h.product.id))
       .sort((a, b) => new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime())
@@ -156,7 +191,6 @@ export default function PriceHistoryPage() {
         dateMap.set(date, {})
       }
       const entry = dateMap.get(date)!
-      // 変更前の値がなければ旧価格をセット、変更後の新価格で上書き
       if (!(productName in entry)) {
         entry[productName] = h.old_price
       }
@@ -174,57 +208,23 @@ export default function PriceHistoryPage() {
     }
   }, [filteredHistory])
 
-  function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleString('ja-JP', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-
-  function formatDateOnly(dateStr: string) {
-    return new Date(dateStr).toLocaleDateString('ja-JP', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    })
-  }
-
   function formatPrice(price: number) {
     return price.toLocaleString('ja-JP')
   }
 
-  // 日付ごとにグルーピング
-  const groupedByDate = useMemo(() => {
-    const groups = new Map<string, HistoryWithRelations[]>()
-    for (const h of filteredHistory) {
-      const dateKey = formatDateOnly(h.changed_at)
-      if (!groups.has(dateKey)) {
-        groups.set(dateKey, [])
-      }
-      groups.get(dateKey)!.push(h)
-    }
-    return Array.from(groups.entries()).map(([date, items]) => ({ date, items }))
-  }, [filteredHistory])
-
-  // CSVエクスポート
+  // CSVエクスポート（全商品の現在価格）
   const handleCsvExport = useCallback(() => {
-    if (filteredHistory.length === 0) {
+    if (filteredProducts.length === 0) {
       toast.error('エクスポートするデータがありません')
       return
     }
 
-    const header = ['変更日時', '商品名', 'カテゴリ', 'サブカテゴリ', '旧価格', '新価格', '差額']
-    const rows = filteredHistory.map((h) => [
-      formatDate(h.changed_at),
-      h.product?.name ?? '(削除済み)',
-      h.product?.category?.name ?? '',
-      h.product?.subcategory?.name ?? '',
-      h.old_price.toString(),
-      h.new_price.toString(),
-      (h.new_price - h.old_price).toString(),
+    const header = ['商品名', 'カテゴリ', 'サブカテゴリ', '買取価格']
+    const rows = filteredProducts.map((p) => [
+      p.name,
+      p.category?.name ?? '',
+      p.subcategory?.name ?? '',
+      p.price.toString(),
     ])
 
     const csvContent = [header, ...rows]
@@ -238,15 +238,15 @@ export default function PriceHistoryPage() {
     link.href = url
     const now = new Date()
     const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
-    link.download = `価格履歴_${dateStr}.csv`
+    link.download = `買取価格一覧_${dateStr}.csv`
     link.click()
     URL.revokeObjectURL(url)
-  }, [filteredHistory])
+  }, [filteredProducts])
 
   if (loading) {
     return (
       <div className="space-y-6">
-        <AdminHeader title="価格履歴" description="商品の買取価格の変更履歴を確認できます" />
+        <AdminHeader title="価格履歴" description="全商品の買取価格一覧と価格推移を確認できます" />
         <div className="flex items-center justify-center py-12">
           <p className="text-muted-foreground">読み込み中...</p>
         </div>
@@ -256,7 +256,7 @@ export default function PriceHistoryPage() {
 
   return (
     <div className="space-y-6">
-      <AdminHeader title="価格履歴" description="商品の買取価格の変更履歴を確認できます" />
+      <AdminHeader title="価格履歴" description="全商品の買取価格一覧と価格推移を確認できます" />
 
       {/* フィルタ */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -332,79 +332,60 @@ export default function PriceHistoryPage() {
         </Card>
       )}
 
-      {/* 一覧テーブル */}
+      {/* 全商品買取価格一覧 */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">変更履歴一覧</CardTitle>
-          <Button variant="outline" size="sm" onClick={handleCsvExport} disabled={filteredHistory.length === 0}>
+          <CardTitle className="text-base">
+            買取価格一覧
+            <span className="text-muted-foreground font-normal text-sm ml-2">
+              （{filteredProducts.length}商品）
+            </span>
+          </CardTitle>
+          <Button variant="outline" size="sm" onClick={handleCsvExport} disabled={filteredProducts.length === 0}>
             <Download className="mr-1 h-4 w-4" />
             CSVエクスポート
           </Button>
         </CardHeader>
         <CardContent>
-          {filteredHistory.length === 0 ? (
+          {filteredProducts.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
-              価格変更の履歴がありません
+              商品がありません
             </p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>時刻</TableHead>
                     <TableHead>商品名</TableHead>
-                    <TableHead>カテゴリ</TableHead>
-                    <TableHead className="text-right">旧価格</TableHead>
-                    <TableHead className="text-right">新価格</TableHead>
-                    <TableHead className="text-right">差額</TableHead>
+                    <TableHead>サブカテゴリ</TableHead>
+                    <TableHead className="text-right">買取価格</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {groupedByDate.map((group) => (
-                    <Fragment key={group.date}>
-                      <TableRow>
-                        <TableCell colSpan={6} className="bg-muted/50 py-2 px-4 font-medium text-sm">
-                          {group.date}
+                  {groupedProducts.map((group) => (
+                    <>
+                      <TableRow key={`cat-${group.category.id}`}>
+                        <TableCell colSpan={3} className="bg-muted/50 py-2 px-4 font-medium text-sm">
+                          {group.category.name}
                           <span className="text-muted-foreground font-normal ml-2">
                             （{group.items.length}件）
                           </span>
                         </TableCell>
                       </TableRow>
-                      {group.items.map((h) => {
-                        const diff = h.new_price - h.old_price
-                        return (
-                          <TableRow key={h.id}>
-                            <TableCell className="whitespace-nowrap text-sm">
-                              {new Date(h.changed_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {h.product?.name ?? '(削除済み)'}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {h.product?.category && (
-                                  <Badge variant="outline">{h.product.category.name}</Badge>
-                                )}
-                                {h.product?.subcategory && (
-                                  <Badge variant="secondary">{h.product.subcategory.name}</Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              ¥{formatPrice(h.old_price)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              ¥{formatPrice(h.new_price)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              <span className={diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : ''}>
-                                {diff > 0 ? '+' : ''}{formatPrice(diff)}円
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </Fragment>
+                      {group.items.map((p) => (
+                        <TableRow key={p.id}>
+                          <TableCell className="font-medium">{p.name}</TableCell>
+                          <TableCell>
+                            {p.subcategory && (
+                              <Badge variant="secondary">{p.subcategory.name}</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">
+                            ¥{formatPrice(p.price)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </>
                   ))}
                 </TableBody>
               </Table>
