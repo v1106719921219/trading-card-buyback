@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Pencil, Trash2, Search, Upload, ArrowUp, ArrowDown, Eye, EyeOff } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, Upload, Download, ArrowUp, ArrowDown, Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -115,6 +115,40 @@ export default function ProductsPage() {
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
     return matchesCategory && matchesSubcategory && matchesSearch
   })
+
+  function handleCsvExport() {
+    const headers = ['カテゴリ', 'サブカテゴリ', '商品名', '買取価格', '価格表', '状態']
+    const rows = filteredProducts.map((p) => [
+      p.category?.name ?? '',
+      p.subcategory?.name ?? '',
+      p.name,
+      String(p.price),
+      p.show_in_price_list ? '表示' : '非表示',
+      p.is_active ? '有効' : '無効',
+    ])
+
+    const escapeField = (v: string) => {
+      if (v.includes(',') || v.includes('"') || v.includes('\n')) {
+        return `"${v.replace(/"/g, '""')}"`
+      }
+      return v
+    }
+
+    const csvContent =
+      headers.map(escapeField).join(',') + '\n' +
+      rows.map((row) => row.map(escapeField).join(',')).join('\n')
+
+    const bom = '\uFEFF'
+    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `商品一覧_${new Date().toLocaleDateString('ja-JP').replace(/\//g, '')}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 
   function openCreate() {
     setEditing(null)
@@ -432,7 +466,11 @@ export default function ProductsPage() {
         title="商品管理"
         description="買取商品の管理"
         actions={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" onClick={handleCsvExport}>
+              <Download className="mr-2 h-4 w-4" />
+              CSVエクスポート
+            </Button>
             <Dialog open={csvDialogOpen} onOpenChange={(open) => { setCsvDialogOpen(open); if (!open) { setCsvText(''); setCsvPreview([]) } }}>
               <DialogTrigger asChild>
                 <Button variant="outline">
