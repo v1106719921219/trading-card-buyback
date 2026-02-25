@@ -43,7 +43,6 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true)
   const [shippedLoading, setShippedLoading] = useState(true)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [verifiedIds, setVerifiedIds] = useState<Set<string>>(new Set())
   const [processing, setProcessing] = useState(false)
 
   const supabase = createClient()
@@ -92,11 +91,19 @@ export default function PaymentsPage() {
     setSelectedIds(next)
   }
 
-  function toggleVerified(id: string) {
-    const next = new Set(verifiedIds)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    setVerifiedIds(next)
+  async function toggleVerified(id: string) {
+    const order = orders.find((o) => o.id === id)
+    if (!order) return
+    const newValue = !order.bank_verified
+    const { error } = await supabase
+      .from('orders')
+      .update({ bank_verified: newValue })
+      .eq('id', id)
+    if (error) {
+      toast.error('口座確認の更新に失敗しました')
+      return
+    }
+    setOrders(orders.map((o) => o.id === id ? { ...o, bank_verified: newValue } : o))
   }
 
   function toggleAll() {
@@ -126,7 +133,10 @@ export default function PaymentsPage() {
     fetchOrders()
   }
 
-  const unverifiedSelected = [...selectedIds].filter((id) => !verifiedIds.has(id))
+  const unverifiedSelected = [...selectedIds].filter((id) => {
+    const order = orders.find((o) => o.id === id)
+    return order && !order.bank_verified
+  })
 
   const totalAmount = orders
     .filter((o) => selectedIds.has(o.id))
@@ -267,7 +277,7 @@ export default function PaymentsPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <Checkbox
-                          checked={verifiedIds.has(order.id)}
+                          checked={order.bank_verified}
                           onCheckedChange={() => toggleVerified(order.id)}
                         />
                       </TableCell>

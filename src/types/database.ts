@@ -78,6 +78,7 @@ export interface Order {
   bank_account_type: BankAccountType | null
   bank_account_number: string | null
   bank_account_holder: string | null
+  bank_verified: boolean
   total_amount: number
   inspected_total_amount: number | null
   inspection_discount: number
