@@ -62,10 +62,13 @@ export default function OfficeOrdersPage() {
     setLoading(true)
     const offset = (page - 1) * ITEMS_PER_PAGE
 
+    const excludedStatuses = ['キャンセル', '振込済', '振込確認済']
+
     let query = supabase
       .from('orders')
       .select('*', { count: 'exact' })
       .eq('office_id', officeId)
+      .not('status', 'in', `(${excludedStatuses.join(',')})`)
       .order('created_at', { ascending: false })
       .range(offset, offset + ITEMS_PER_PAGE - 1)
 
@@ -290,7 +293,7 @@ export default function OfficeOrdersPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全ステータス</SelectItem>
-            {ORDER_STATUSES.map((s) => (
+            {ORDER_STATUSES.filter((s) => !['キャンセル', '振込済', '振込確認済'].includes(s)).map((s) => (
               <SelectItem key={s} value={s}>{s}</SelectItem>
             ))}
           </SelectContent>
