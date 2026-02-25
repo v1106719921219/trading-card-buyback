@@ -225,7 +225,7 @@ export default function ApplyPage() {
   }
 
   function setQuantity(productId: string, qty: number) {
-    const val = Math.max(1, Math.min(999, qty))
+    const val = Math.max(1, Math.min(9999, qty))
     setCart(cart.map((item) =>
       item.product_id === productId ? { ...item, quantity: val } : item
     ))

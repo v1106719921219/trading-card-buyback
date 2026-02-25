@@ -5,7 +5,7 @@ export const orderItemSchema = z.object({
   product_id: z.string().uuid(),
   product_name: z.string().min(1),
   unit_price: z.number().int().min(0),
-  quantity: z.number().int().min(1).max(999),
+  quantity: z.number().int().min(1).max(9999),
 })
 
 export const IDENTITY_METHODS = [
