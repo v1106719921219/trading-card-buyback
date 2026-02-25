@@ -313,6 +313,7 @@ export default function PaymentsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>注文番号</TableHead>
                   <TableHead>お客様名</TableHead>
                   <TableHead className="hidden md:table-cell">振込先</TableHead>
                   <TableHead className="text-right">振込予定金額</TableHead>
@@ -323,19 +324,24 @@ export default function PaymentsPage() {
               <TableBody>
                 {shippedLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       読み込み中...
                     </TableCell>
                   </TableRow>
                 ) : shippedOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       発送済の注文はありません
                     </TableCell>
                   </TableRow>
                 ) : (
                   shippedOrders.map((order) => (
                     <TableRow key={order.id}>
+                      <TableCell className="font-mono text-sm">
+                        <Link href={`/admin/orders/${order.id}`} className="text-primary hover:underline" title={order.order_number}>
+                          {order.order_number.replace(/^BB-\d{8}-/, 'BB-')}
+                        </Link>
+                      </TableCell>
                       <TableCell className="font-medium">{order.customer_name}</TableCell>
                       <TableCell className="text-sm hidden md:table-cell">
                         {order.bank_name && order.bank_branch ? (
