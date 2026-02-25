@@ -160,11 +160,9 @@ export default function OrderDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/admin/orders">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
         <AdminHeader
           title={order.order_number}
           actions={
