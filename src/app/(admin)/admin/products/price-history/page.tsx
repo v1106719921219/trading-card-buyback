@@ -24,16 +24,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Search, Download } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts'
 import type { Category, Subcategory, Product, ProductPriceHistory } from '@/types/database'
 
 type HistoryWithRelations = ProductPriceHistory & {
@@ -51,11 +41,6 @@ type ProductWithRelations = Product & {
   category: Category
   subcategory: Subcategory | null
 }
-
-const LINE_COLORS = [
-  '#2563eb', '#dc2626', '#16a34a', '#ca8a04', '#9333ea',
-  '#0891b2', '#e11d48', '#65a30d', '#c026d3', '#ea580c',
-]
 
 export default function PriceHistoryPage() {
   const [history, setHistory] = useState<HistoryWithRelations[]>([])
@@ -138,33 +123,28 @@ export default function PriceHistoryPage() {
 
   // 選択日時点の各商品の価格を計算
   const priceAtDate = useMemo(() => {
-    if (isToday) return null // 今日なら現在価格をそのまま使う
+    if (isToday) return null
 
     const targetEnd = new Date(selectedDate + 'T23:59:59')
     const priceMap = new Map<string, number>()
 
     for (const p of products) {
-      // この商品の履歴を日時順（古い順）に取得
       const productHistory = history
         .filter((h) => h.product?.id === p.id)
         .sort((a, b) => new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime())
 
       if (productHistory.length === 0) {
-        // 変更履歴なし → 現在価格がずっと同じ
         priceMap.set(p.id, p.price)
         continue
       }
 
-      // 選択日以前の最後の変更を探す
       const beforeOrOn = productHistory.filter(
         (h) => new Date(h.changed_at) <= targetEnd
       )
 
       if (beforeOrOn.length > 0) {
-        // 選択日以前に変更あり → 最後の変更の new_price
         priceMap.set(p.id, beforeOrOn[beforeOrOn.length - 1].new_price)
       } else {
-        // 選択日以前に変更なし → 最初の変更の old_price（変更前の価格）
         priceMap.set(p.id, productHistory[0].old_price)
       }
     }
@@ -172,7 +152,6 @@ export default function PriceHistoryPage() {
     return priceMap
   }, [products, history, selectedDate, isToday])
 
-  // 商品の表示価格を取得
   function getDisplayPrice(p: ProductWithRelations): number {
     if (isToday || !priceAtDate) return p.price
     return priceAtDate.get(p.id) ?? p.price
@@ -198,68 +177,10 @@ export default function PriceHistoryPage() {
       }
       groups.get(catId)!.items.push(p)
     }
-    // カテゴリの sort_order 順
     return Array.from(groups.values()).sort(
       (a, b) => (a.category.sort_order ?? 0) - (b.category.sort_order ?? 0)
     )
   }, [filteredProducts])
-
-  // フィルタ済み履歴（グラフ用）
-  const filteredHistory = useMemo(() => {
-    return history.filter((h) => {
-      if (!h.product) return false
-      if (filterCategory !== 'all' && h.product.category_id !== filterCategory) return false
-      if (filterSubcategory !== 'all' && h.product.subcategory_id !== filterSubcategory) return false
-      if (search && !h.product.name.toLowerCase().includes(search.toLowerCase())) return false
-      return true
-    })
-  }, [history, filterCategory, filterSubcategory, search])
-
-  // グラフ用データ: 商品ごとに価格推移をまとめる
-  const chartData = useMemo(() => {
-    const productIds = [...new Set(filteredHistory.map((h) => h.product?.id).filter(Boolean))]
-    const topProductIds = productIds.slice(0, 10)
-
-    const productNameMap = new Map<string, string>()
-    filteredHistory.forEach((h) => {
-      if (h.product && topProductIds.includes(h.product.id)) {
-        productNameMap.set(h.product.id, h.product.name)
-      }
-    })
-
-    const dateMap = new Map<string, Record<string, number>>()
-
-    const sorted = filteredHistory
-      .filter((h) => h.product && topProductIds.includes(h.product.id))
-      .sort((a, b) => new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime())
-
-    sorted.forEach((h) => {
-      const date = new Date(h.changed_at).toLocaleDateString('ja-JP', {
-        month: 'short',
-        day: 'numeric',
-      })
-      const productName = h.product!.name
-
-      if (!dateMap.has(date)) {
-        dateMap.set(date, {})
-      }
-      const entry = dateMap.get(date)!
-      if (!(productName in entry)) {
-        entry[productName] = h.old_price
-      }
-      entry[productName] = h.new_price
-    })
-
-    const result = Array.from(dateMap.entries()).map(([date, prices]) => ({
-      date,
-      ...prices,
-    }))
-
-    return {
-      data: result,
-      productNames: Array.from(productNameMap.values()),
-    }
-  }, [filteredHistory])
 
   function formatPrice(price: number) {
     return price.toLocaleString('ja-JP')
@@ -272,7 +193,6 @@ export default function PriceHistoryPage() {
       return
     }
 
-    const dateLabel = selectedDate.replace(/-/g, '/')
     const header = ['商品名', 'カテゴリ', 'サブカテゴリ', '買取価格']
     const rows = filteredProducts.map((p) => [
       p.name,
@@ -299,7 +219,7 @@ export default function PriceHistoryPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <AdminHeader title="価格履歴" description="全商品の買取価格一覧と価格推移を確認できます" />
+        <AdminHeader title="買取価格一覧" description="全商品の買取価格を確認・エクスポートできます" />
         <div className="flex items-center justify-center py-12">
           <p className="text-muted-foreground">読み込み中...</p>
         </div>
@@ -309,7 +229,7 @@ export default function PriceHistoryPage() {
 
   return (
     <div className="space-y-6">
-      <AdminHeader title="価格履歴" description="全商品の買取価格一覧と価格推移を確認できます" />
+      <AdminHeader title="買取価格一覧" description="全商品の買取価格を確認・エクスポートできます" />
 
       {/* フィルタ */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -354,43 +274,6 @@ export default function PriceHistoryPage() {
           />
         </div>
       </div>
-
-      {/* グラフ */}
-      {chartData.data.length > 0 && chartData.productNames.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">価格推移グラフ</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={chartData.data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" fontSize={12} />
-                <YAxis
-                  fontSize={12}
-                  tickFormatter={(v) => `¥${v.toLocaleString()}`}
-                />
-                <Tooltip
-                  formatter={(value: number | undefined) => [`¥${(value ?? 0).toLocaleString()}`, '']}
-                  labelFormatter={(label) => `日付: ${label}`}
-                />
-                <Legend />
-                {chartData.productNames.map((name, i) => (
-                  <Line
-                    key={name}
-                    type="monotone"
-                    dataKey={name}
-                    stroke={LINE_COLORS[i % LINE_COLORS.length]}
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                    connectNulls
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
 
       {/* 全商品買取価格一覧 */}
       <Card>
