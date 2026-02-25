@@ -84,6 +84,7 @@ export interface Order {
   inspected_total_amount: number | null
   inspection_discount: number
   inspection_notes: string | null
+  shipped_date: string | null
   tracking_number: string | null
   notes: string | null
   customer_line_name: string | null

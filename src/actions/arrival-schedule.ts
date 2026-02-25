@@ -26,7 +26,7 @@ export async function getArrivalSchedule(): Promise<ArrivalSchedule[]> {
   // 発送済の注文を取得（order_itemsも一緒に）
   const { data: orders, error: ordersError } = await supabase
     .from('orders')
-    .select('id, customer_prefecture, office_id, order_items(product_name, quantity)')
+    .select('id, customer_prefecture, office_id, shipped_date, order_items(product_name, quantity)')
     .eq('status', '発送済')
 
   if (ordersError || !orders || orders.length === 0) {
@@ -78,15 +78,16 @@ export async function getArrivalSchedule(): Promise<ArrivalSchedule[]> {
     const dateProductMap = new Map<string, Map<string, number>>()
 
     for (const order of officeOrders) {
-      const shippedAt = shippedAtMap.get(order.id)
-      if (!shippedAt) continue
+      // shipped_date（お客様入力）を優先、なければステータス変更日をフォールバック
+      const shippedDateStr = (order as { shipped_date?: string }).shipped_date || shippedAtMap.get(order.id)
+      if (!shippedDateStr) continue
 
       let arrivalDate: string | null = null
       const customerPref = order.customer_prefecture
       if (customerPref && officePrefecture) {
         const days = getDeliveryDays(customerPref, officePrefecture)
         if (days !== null) {
-          const arrival = calculateArrivalDate(new Date(shippedAt), days)
+          const arrival = calculateArrivalDate(new Date(shippedDateStr), days)
           arrivalDate = formatDateJST(arrival)
         }
       }

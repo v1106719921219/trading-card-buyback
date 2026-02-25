@@ -129,10 +129,10 @@ export default function OfficeOrdersPage() {
     setSearch(searchInput)
   }
 
-  // 到着日を計算
+  // 到着日を計算（shipped_date を優先、なければステータス変更日をフォールバック）
   function getArrivalDate(order: Order): string | null {
     if (order.status !== '発送済') return null
-    const shippedAt = shippedAtMap.get(order.id)
+    const shippedAt = order.shipped_date || shippedAtMap.get(order.id)
     if (!shippedAt || !office) return null
 
     const customerPref = order.customer_prefecture

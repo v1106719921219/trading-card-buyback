@@ -17,7 +17,7 @@ export async function createOrder(input: CreateOrderInput) {
   // Use admin client for public form submission (bypasses RLS)
   const supabase = createAdminClient()
 
-  const { items, customer, customer_id, office_id } = parsed.data
+  const { items, customer, customer_id, office_id, shipped_date } = parsed.data
 
   // Calculate total
   const total_amount = items.reduce(
@@ -48,6 +48,7 @@ export async function createOrder(input: CreateOrderInput) {
       total_amount,
       customer_id: customer_id || null,
       office_id,
+      shipped_date: shipped_date || null,
     })
     .select('id, order_number')
     .single()

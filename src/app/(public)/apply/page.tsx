@@ -55,6 +55,7 @@ export default function ApplyPage() {
   const [search, setSearch] = useState('')
   const [offices, setOffices] = useState<Office[]>([])
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>('')
+  const [shippedDate, setShippedDate] = useState<string>('')
 
   // Auth state
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -306,6 +307,7 @@ export default function ApplyPage() {
       },
       customer_id: customerId || undefined,
       office_id: selectedOfficeId,
+      shipped_date: shippedDate || undefined,
     })
 
     setLoading(false)
@@ -402,6 +404,22 @@ export default function ApplyPage() {
                       ))}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+
+              {/* 発送日 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>発送日</CardTitle>
+                  <CardDescription>商品を発送する日（または発送した日）を入力してください</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Input
+                    type="date"
+                    value={shippedDate}
+                    onChange={(e) => setShippedDate(e.target.value)}
+                    className="w-full sm:w-56"
+                  />
                 </CardContent>
               </Card>
 
@@ -853,6 +871,9 @@ export default function ApplyPage() {
                     </div>
                   ) : null
                 })()}
+                {shippedDate && (
+                  <p className="text-sm mt-2">発送日: <span className="font-medium">{shippedDate}</span></p>
+                )}
               </div>
 
               <Separator />
