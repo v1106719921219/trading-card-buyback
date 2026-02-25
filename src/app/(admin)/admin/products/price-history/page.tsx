@@ -66,6 +66,10 @@ export default function PriceHistoryPage() {
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterSubcategory, setFilterSubcategory] = useState<string>('all')
   const [search, setSearch] = useState('')
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  })
 
   const supabase = createClient()
 
@@ -123,6 +127,55 @@ export default function PriceHistoryPage() {
   function handleCategoryChange(value: string) {
     setFilterCategory(value)
     setFilterSubcategory('all')
+  }
+
+  // 選択日が今日かどうか
+  const isToday = useMemo(() => {
+    const now = new Date()
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    return selectedDate === todayStr
+  }, [selectedDate])
+
+  // 選択日時点の各商品の価格を計算
+  const priceAtDate = useMemo(() => {
+    if (isToday) return null // 今日なら現在価格をそのまま使う
+
+    const targetEnd = new Date(selectedDate + 'T23:59:59')
+    const priceMap = new Map<string, number>()
+
+    for (const p of products) {
+      // この商品の履歴を日時順（古い順）に取得
+      const productHistory = history
+        .filter((h) => h.product?.id === p.id)
+        .sort((a, b) => new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime())
+
+      if (productHistory.length === 0) {
+        // 変更履歴なし → 現在価格がずっと同じ
+        priceMap.set(p.id, p.price)
+        continue
+      }
+
+      // 選択日以前の最後の変更を探す
+      const beforeOrOn = productHistory.filter(
+        (h) => new Date(h.changed_at) <= targetEnd
+      )
+
+      if (beforeOrOn.length > 0) {
+        // 選択日以前に変更あり → 最後の変更の new_price
+        priceMap.set(p.id, beforeOrOn[beforeOrOn.length - 1].new_price)
+      } else {
+        // 選択日以前に変更なし → 最初の変更の old_price（変更前の価格）
+        priceMap.set(p.id, productHistory[0].old_price)
+      }
+    }
+
+    return priceMap
+  }, [products, history, selectedDate, isToday])
+
+  // 商品の表示価格を取得
+  function getDisplayPrice(p: ProductWithRelations): number {
+    if (isToday || !priceAtDate) return p.price
+    return priceAtDate.get(p.id) ?? p.price
   }
 
   // フィルタ済み全商品
@@ -212,19 +265,20 @@ export default function PriceHistoryPage() {
     return price.toLocaleString('ja-JP')
   }
 
-  // CSVエクスポート（全商品の現在価格）
+  // CSVエクスポート（選択日時点の全商品価格）
   const handleCsvExport = useCallback(() => {
     if (filteredProducts.length === 0) {
       toast.error('エクスポートするデータがありません')
       return
     }
 
+    const dateLabel = selectedDate.replace(/-/g, '/')
     const header = ['商品名', 'カテゴリ', 'サブカテゴリ', '買取価格']
     const rows = filteredProducts.map((p) => [
       p.name,
       p.category?.name ?? '',
       p.subcategory?.name ?? '',
-      p.price.toString(),
+      getDisplayPrice(p).toString(),
     ])
 
     const csvContent = [header, ...rows]
@@ -236,12 +290,11 @@ export default function PriceHistoryPage() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    const now = new Date()
-    const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
-    link.download = `買取価格一覧_${dateStr}.csv`
+    const fileDateStr = selectedDate.replace(/-/g, '')
+    link.download = `買取価格一覧_${fileDateStr}.csv`
     link.click()
     URL.revokeObjectURL(url)
-  }, [filteredProducts])
+  }, [filteredProducts, selectedDate, priceAtDate, isToday])
 
   if (loading) {
     return (
@@ -260,6 +313,13 @@ export default function PriceHistoryPage() {
 
       {/* フィルタ */}
       <div className="flex flex-col sm:flex-row gap-3">
+        <Input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="w-full sm:w-[180px]"
+        />
+
         <Select value={filterCategory} onValueChange={handleCategoryChange}>
           <SelectTrigger className="w-full sm:w-[200px]">
             <SelectValue placeholder="カテゴリ" />
@@ -337,6 +397,11 @@ export default function PriceHistoryPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">
             買取価格一覧
+            {!isToday && (
+              <span className="text-primary text-sm ml-2">
+                {selectedDate.replace(/-/g, '/')} 時点
+              </span>
+            )}
             <span className="text-muted-foreground font-normal text-sm ml-2">
               （{filteredProducts.length}商品）
             </span>
@@ -381,7 +446,7 @@ export default function PriceHistoryPage() {
                             )}
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-medium">
-                            ¥{formatPrice(p.price)}
+                            ¥{formatPrice(getDisplayPrice(p))}
                           </TableCell>
                         </TableRow>
                       ))}
