@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { Fragment, useEffect, useState, useMemo, useCallback } from 'react'
 import { AdminHeader } from '@/components/admin/header'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Table,
@@ -20,7 +21,7 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Search } from 'lucide-react'
+import { Search, Download } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import {
@@ -183,9 +184,64 @@ export default function PriceHistoryPage() {
     })
   }
 
+  function formatDateOnly(dateStr: string) {
+    return new Date(dateStr).toLocaleDateString('ja-JP', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+  }
+
   function formatPrice(price: number) {
     return price.toLocaleString('ja-JP')
   }
+
+  // 日付ごとにグルーピング
+  const groupedByDate = useMemo(() => {
+    const groups = new Map<string, HistoryWithRelations[]>()
+    for (const h of filteredHistory) {
+      const dateKey = formatDateOnly(h.changed_at)
+      if (!groups.has(dateKey)) {
+        groups.set(dateKey, [])
+      }
+      groups.get(dateKey)!.push(h)
+    }
+    return Array.from(groups.entries()).map(([date, items]) => ({ date, items }))
+  }, [filteredHistory])
+
+  // CSVエクスポート
+  const handleCsvExport = useCallback(() => {
+    if (filteredHistory.length === 0) {
+      toast.error('エクスポートするデータがありません')
+      return
+    }
+
+    const header = ['変更日時', '商品名', 'カテゴリ', 'サブカテゴリ', '旧価格', '新価格', '差額']
+    const rows = filteredHistory.map((h) => [
+      formatDate(h.changed_at),
+      h.product?.name ?? '(削除済み)',
+      h.product?.category?.name ?? '',
+      h.product?.subcategory?.name ?? '',
+      h.old_price.toString(),
+      h.new_price.toString(),
+      (h.new_price - h.old_price).toString(),
+    ])
+
+    const csvContent = [header, ...rows]
+      .map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+
+    const bom = '\uFEFF'
+    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+    link.download = `価格履歴_${dateStr}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }, [filteredHistory])
 
   if (loading) {
     return (
@@ -278,8 +334,12 @@ export default function PriceHistoryPage() {
 
       {/* 一覧テーブル */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">変更履歴一覧</CardTitle>
+          <Button variant="outline" size="sm" onClick={handleCsvExport} disabled={filteredHistory.length === 0}>
+            <Download className="mr-1 h-4 w-4" />
+            CSVエクスポート
+          </Button>
         </CardHeader>
         <CardContent>
           {filteredHistory.length === 0 ? (
@@ -291,7 +351,7 @@ export default function PriceHistoryPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>変更日時</TableHead>
+                    <TableHead>時刻</TableHead>
                     <TableHead>商品名</TableHead>
                     <TableHead>カテゴリ</TableHead>
                     <TableHead className="text-right">旧価格</TableHead>
@@ -300,40 +360,52 @@ export default function PriceHistoryPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredHistory.map((h) => {
-                    const diff = h.new_price - h.old_price
-                    return (
-                      <TableRow key={h.id}>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {formatDate(h.changed_at)}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {h.product?.name ?? '(削除済み)'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {h.product?.category && (
-                              <Badge variant="outline">{h.product.category.name}</Badge>
-                            )}
-                            {h.product?.subcategory && (
-                              <Badge variant="secondary">{h.product.subcategory.name}</Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          ¥{formatPrice(h.old_price)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          ¥{formatPrice(h.new_price)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          <span className={diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : ''}>
-                            {diff > 0 ? '+' : ''}{formatPrice(diff)}円
+                  {groupedByDate.map((group) => (
+                    <Fragment key={group.date}>
+                      <TableRow>
+                        <TableCell colSpan={6} className="bg-muted/50 py-2 px-4 font-medium text-sm">
+                          {group.date}
+                          <span className="text-muted-foreground font-normal ml-2">
+                            （{group.items.length}件）
                           </span>
                         </TableCell>
                       </TableRow>
-                    )
-                  })}
+                      {group.items.map((h) => {
+                        const diff = h.new_price - h.old_price
+                        return (
+                          <TableRow key={h.id}>
+                            <TableCell className="whitespace-nowrap text-sm">
+                              {new Date(h.changed_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {h.product?.name ?? '(削除済み)'}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {h.product?.category && (
+                                  <Badge variant="outline">{h.product.category.name}</Badge>
+                                )}
+                                {h.product?.subcategory && (
+                                  <Badge variant="secondary">{h.product.subcategory.name}</Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              ¥{formatPrice(h.old_price)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              ¥{formatPrice(h.new_price)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              <span className={diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : ''}>
+                                {diff > 0 ? '+' : ''}{formatPrice(diff)}円
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </Fragment>
+                  ))}
                 </TableBody>
               </Table>
             </div>
