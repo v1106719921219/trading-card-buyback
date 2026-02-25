@@ -66,7 +66,8 @@ export async function sendOrderConfirmationEmail(
 export async function sendPaymentCompletionEmail(
   to: string,
   orderNumber: string,
-  amount: number
+  amount: number,
+  pdfBuffer?: Buffer
 ) {
   if (!resend) {
     console.log(
@@ -78,10 +79,15 @@ export async function sendPaymentCompletionEmail(
 
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@example.com'
 
+  const attachments = pdfBuffer
+    ? [{ filename: `査定結果_${orderNumber}.pdf`, content: pdfBuffer }]
+    : undefined
+
   const { error } = await resend.emails.send({
     from: fromEmail,
     to,
     subject: `【振込完了】ご注文番号: ${orderNumber}`,
+    attachments,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2>お振込みが完了しました</h2>

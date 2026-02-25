@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { sendPaymentCompletionEmail } from '@/lib/email'
+import { generateInspectionPdf } from '@/lib/pdf'
 
 export async function getPaymentQueue() {
   const supabase = await createClient()
@@ -21,7 +22,7 @@ export async function markAsPaid(orderId: string) {
 
   const { data: order, error: fetchError } = await supabase
     .from('orders')
-    .select('status, customer_email, order_number, inspected_total_amount, total_amount')
+    .select('*, order_items(*)')
     .eq('id', orderId)
     .single()
 
@@ -40,14 +41,36 @@ export async function markAsPaid(orderId: string) {
 
   if (error) return { error: error.message }
 
-  // 振込完了メールを送信
+  // PDF生成 → 振込完了メール送信
   const amount = order.inspected_total_amount ?? order.total_amount
-  await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount)
+  const pdfBuffer = generateInspectionPdf(order, order.order_items ?? [])
+  await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount, pdfBuffer)
 
   revalidatePath('/admin/payments')
   revalidatePath('/admin/orders')
   revalidatePath('/admin')
   return { success: true }
+}
+
+export async function downloadInspectionPdf(orderId: string) {
+  const supabase = await createClient()
+
+  const { data: order, error: fetchError } = await supabase
+    .from('orders')
+    .select('*, order_items(*)')
+    .eq('id', orderId)
+    .single()
+
+  if (fetchError || !order) {
+    return { error: '注文が見つかりません' }
+  }
+
+  const pdfBuffer = generateInspectionPdf(order, order.order_items ?? [])
+  // base64に変換してクライアントに返す
+  return {
+    data: pdfBuffer.toString('base64'),
+    filename: `査定結果_${order.order_number}.pdf`,
+  }
 }
 
 export async function bulkMarkAsPaid(orderIds: string[]) {

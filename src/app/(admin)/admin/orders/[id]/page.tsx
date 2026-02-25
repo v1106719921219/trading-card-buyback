@@ -36,8 +36,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink } from 'lucide-react'
+import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown } from 'lucide-react'
 import { addTrackingNumber } from '@/actions/orders'
+import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
 import { STATUS_TRANSITIONS, STATUS_COLORS } from '@/lib/constants'
 import { toast } from 'sonner'
@@ -151,6 +152,22 @@ export default function OrderDetailPage() {
     fetchOrder()
   }
 
+  async function handleDownloadPdf() {
+    const result = await downloadInspectionPdf(orderId)
+    if (result.error || !result.data) {
+      toast.error(result.error ?? 'PDF生成に失敗しました')
+      return
+    }
+    const byteArray = Uint8Array.from(atob(result.data), (c) => c.charCodeAt(0))
+    const blob = new Blob([byteArray], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = result.filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (loading || !order) {
     return <div className="p-8 text-center text-muted-foreground">読み込み中...</div>
   }
@@ -182,6 +199,12 @@ export default function OrderDetailPage() {
                     検品確認
                   </Button>
                 </Link>
+              )}
+              {(['検品完了', '振込済', '振込確認済'] as OrderStatus[]).includes(order.status as OrderStatus) && (
+                <Button variant="outline" onClick={handleDownloadPdf}>
+                  <FileDown className="mr-2 h-4 w-4" />
+                  査定結果PDF
+                </Button>
               )}
               <Badge className={`text-sm px-3 py-1 ${STATUS_COLORS[order.status as OrderStatus]}`}>
                 {order.status}
