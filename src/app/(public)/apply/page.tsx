@@ -223,6 +223,13 @@ export default function ApplyPage() {
     }))
   }
 
+  function setQuantity(productId: string, qty: number) {
+    const val = Math.max(1, Math.min(999, qty))
+    setCart(cart.map((item) =>
+      item.product_id === productId ? { ...item, quantity: val } : item
+    ))
+  }
+
   function removeFromCart(productId: string) {
     setCart(cart.filter((item) => item.product_id !== productId))
   }
@@ -511,7 +518,14 @@ export default function ApplyPage() {
                             >
                               <Minus className="h-3 w-3" />
                             </Button>
-                            <span className="w-8 text-center text-sm">{item.quantity}</span>
+                            <Input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => setQuantity(item.product_id, Number(e.target.value))}
+                              className="w-16 h-9 sm:h-7 text-center text-sm"
+                              min={1}
+                              max={999}
+                            />
                             <Button
                               variant="outline"
                               size="icon"
