@@ -391,7 +391,7 @@ export default function ApplyPage() {
                               )}
                             </div>
                             <div className="flex-1">
-                              <p className="font-medium">{office.name}</p>
+                              <p className="font-medium">{office.address.match(/^.+?[都道府県]/)?.[0] ?? office.name}</p>
                             </div>
                           </div>
                         </div>
