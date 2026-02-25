@@ -60,7 +60,7 @@ export default function ProductsPage() {
   // Form state
   const [formName, setFormName] = useState('')
   const [formCategoryId, setFormCategoryId] = useState('')
-  const [formSubcategoryId, setFormSubcategoryId] = useState('')
+  const [formSubcategoryId, setFormSubcategoryId] = useState('none')
   const [formPrice, setFormPrice] = useState(0)
 
   // Inline price editing
@@ -154,7 +154,7 @@ export default function ProductsPage() {
     setEditing(null)
     setFormName('')
     setFormCategoryId(categories[0]?.id || '')
-    setFormSubcategoryId('')
+    setFormSubcategoryId('none')
     setFormPrice(0)
     setDialogOpen(true)
   }
@@ -163,7 +163,7 @@ export default function ProductsPage() {
     setEditing(product)
     setFormName(product.name)
     setFormCategoryId(product.category_id)
-    setFormSubcategoryId(product.subcategory_id || '')
+    setFormSubcategoryId(product.subcategory_id || 'none')
     setFormPrice(product.price)
     setDialogOpen(true)
   }
@@ -172,7 +172,7 @@ export default function ProductsPage() {
     e.preventDefault()
 
     if (editing) {
-      const updateData: Record<string, unknown> = { name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId || null, price: formPrice }
+      const updateData: Record<string, unknown> = { name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice }
       if (formPrice === 0) updateData.show_in_price_list = false
       const { error } = await supabase
         .from('products')
@@ -187,7 +187,7 @@ export default function ProductsPage() {
     } else {
       const { error } = await supabase
         .from('products')
-        .insert({ name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId || null, price: formPrice, show_in_price_list: formPrice > 0 })
+        .insert({ name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, show_in_price_list: formPrice > 0 })
 
       if (error) {
         toast.error(error.code === '23505' ? 'この商品名は既に存在します' : error.message)
@@ -575,7 +575,7 @@ export default function ProductsPage() {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
                     <Label>カテゴリ</Label>
-                    <Select value={formCategoryId} onValueChange={(v) => { setFormCategoryId(v); setFormSubcategoryId('') }}>
+                    <Select value={formCategoryId} onValueChange={(v) => { setFormCategoryId(v); setFormSubcategoryId('none') }}>
                       <SelectTrigger>
                         <SelectValue placeholder="カテゴリを選択" />
                       </SelectTrigger>
@@ -596,7 +596,7 @@ export default function ProductsPage() {
                           <SelectValue placeholder="サブカテゴリを選択（任意）" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">なし</SelectItem>
+                          <SelectItem value="none">なし</SelectItem>
                           {subcategories.filter((s) => s.category_id === formCategoryId).map((s) => (
                             <SelectItem key={s.id} value={s.id}>
                               {s.name}

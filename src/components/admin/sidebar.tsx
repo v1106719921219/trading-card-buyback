@@ -16,6 +16,7 @@ import {
   Building2,
   Calendar,
   Menu,
+  TrendingUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,7 @@ const navItems = [
   { href: '/admin/offices', label: '事務所別管理', icon: Building2 },
   { href: '/admin/arrival-schedule', label: '到着予定', icon: Calendar },
   { href: '/admin/products', label: '商品管理', icon: Package },
+  { href: '/admin/products/price-history', label: '価格履歴', icon: TrendingUp },
   { href: '/admin/categories', label: 'カテゴリ管理', icon: FolderOpen },
   { href: '/admin/payments', label: '振込管理', icon: CreditCard },
   { href: '/admin/payment-verification', label: '振込確認', icon: ShieldCheck },
@@ -58,7 +60,9 @@ function NavLinks({ profile, onNavigate }: { profile: Profile; onNavigate?: () =
         const isActive =
           item.href === '/admin'
             ? pathname === '/admin'
-            : pathname.startsWith(item.href)
+            : item.href === '/admin/products'
+              ? pathname === '/admin/products'
+              : pathname.startsWith(item.href)
         return (
           <Link
             key={item.href}
