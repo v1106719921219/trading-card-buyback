@@ -229,7 +229,7 @@ export async function getOrderByOrderNumber(orderNumber: string) {
 
   const { data, error } = await supabase
     .from('orders')
-    .select('id, order_number, status, tracking_number, office_id')
+    .select('id, order_number, status, tracking_number, office_id, customer_identity_method')
     .eq('order_number', orderNumber)
     .single()
 

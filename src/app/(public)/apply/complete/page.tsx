@@ -45,6 +45,7 @@ function CompleteContent() {
   const [error, setError] = useState('')
   const [orderStatus, setOrderStatus] = useState<string | null>(null)
   const [existingTrackingNumber, setExistingTrackingNumber] = useState<string | null>(null)
+  const [identityMethod, setIdentityMethod] = useState<string | null>(null)
 
   // Order items state
   const [orderItems, setOrderItems] = useState<EditableItem[]>([])
@@ -74,6 +75,7 @@ function CompleteContent() {
         if (order) {
           setOrderStatus(order.status)
           setExistingTrackingNumber(order.tracking_number)
+          setIdentityMethod(order.customer_identity_method ?? null)
           if (!officeId && order.office_id) {
             getOfficeById(order.office_id).then((data) => {
               if (data) setOffice(data)
@@ -310,6 +312,16 @@ function CompleteContent() {
                 <p className="text-sm text-muted-foreground">
                   商品を下記住所までお送りください。到着後、検品を行い、結果をメールにてお知らせいたします。
                 </p>
+
+                {identityMethod && (
+                  <div className="bg-amber-50 border border-amber-200 p-4 rounded-md text-sm text-left">
+                    <p className="font-medium text-amber-800 mb-1">本人確認書類について</p>
+                    <p className="text-amber-700">
+                      <span className="font-medium">{identityMethod}</span>のコピーを商品と同梱の上、お送りください。
+                    </p>
+                  </div>
+                )}
+
                 <div className="bg-muted p-4 rounded-md text-sm text-left">
                   <p className="font-medium mb-1">送付先</p>
                   {office ? (
