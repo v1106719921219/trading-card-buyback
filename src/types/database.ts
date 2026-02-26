@@ -91,6 +91,7 @@ export interface Order {
   customer_birth_date: string | null
   customer_occupation: string | null
   customer_not_invoice_issuer: boolean
+  invoice_issuer_number: string | null
   customer_identity_method: string | null
   customer_id: string | null
   office_id: string | null
@@ -145,6 +146,7 @@ export interface Customer {
   birth_date: string | null
   occupation: string | null
   not_invoice_issuer: boolean
+  invoice_issuer_number: string | null
   identity_method: string | null
   created_at: string
   updated_at: string

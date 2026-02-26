@@ -117,14 +117,13 @@ export default function ProductsPage() {
   })
 
   function handleCsvExport() {
-    const headers = ['カテゴリ', 'サブカテゴリ', '商品名', '買取価格', '価格表', '状態']
+    const headers = ['カテゴリ', 'サブカテゴリ', '商品名', '買取価格', '価格表']
     const rows = filteredProducts.map((p) => [
       p.category?.name ?? '',
       p.subcategory?.name ?? '',
       p.name,
       String(p.price),
       p.show_in_price_list ? '表示' : '非表示',
-      p.is_active ? '有効' : '無効',
     ])
 
     const escapeField = (v: string) => {
@@ -388,19 +387,6 @@ export default function ProductsPage() {
     }
   }
 
-  async function toggleActive(product: Product) {
-    const { error } = await supabase
-      .from('products')
-      .update({ is_active: !product.is_active })
-      .eq('id', product.id)
-
-    if (error) {
-      toast.error('更新に失敗しました')
-      return
-    }
-    fetchData()
-  }
-
   async function togglePriceList(product: Product) {
     const newValue = !product.show_in_price_list
     const { error } = await supabase
@@ -417,7 +403,11 @@ export default function ProductsPage() {
   }
 
   async function handleBulkTogglePriceList(show: boolean) {
-    const ids = filteredProducts.map((p) => p.id)
+    // 表示にする場合、0円の商品は除外する
+    const targets = show
+      ? filteredProducts.filter((p) => p.price > 0)
+      : filteredProducts
+    const ids = targets.map((p) => p.id)
     if (ids.length === 0) return
 
     setBulkUpdating(true)
@@ -433,7 +423,9 @@ export default function ProductsPage() {
       toast.error(`一括更新に失敗しました: ${error.message}`)
       return
     }
-    toast.success(`${ids.length}件を価格表${show ? '表示' : '非表示'}にしました`)
+    const skipped = show ? filteredProducts.length - ids.length : 0
+    const msg = `${ids.length}件を価格表${show ? '表示' : '非表示'}にしました`
+    toast.success(skipped > 0 ? `${msg}（0円の${skipped}件は非表示のまま）` : msg)
     fetchData()
   }
 
@@ -726,7 +718,6 @@ export default function ProductsPage() {
               <TableHead className="hidden sm:table-cell">カテゴリ</TableHead>
               <TableHead className="hidden lg:table-cell">サブカテゴリ</TableHead>
               <TableHead className="text-right">買取価格</TableHead>
-              <TableHead className="w-20 hidden md:table-cell">状態</TableHead>
               <TableHead className="w-20">価格表</TableHead>
               <TableHead className="w-20 sm:w-32 text-right">操作</TableHead>
             </TableRow>
@@ -734,13 +725,13 @@ export default function ProductsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   読み込み中...
                 </TableCell>
               </TableRow>
             ) : filteredProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   商品がありません
                 </TableCell>
               </TableRow>
@@ -802,15 +793,6 @@ export default function ProductsPage() {
                         {product.price.toLocaleString()}円
                       </span>
                     )}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <Badge
-                      variant={product.is_active ? 'default' : 'secondary'}
-                      className="cursor-pointer"
-                      onClick={() => toggleActive(product)}
-                    >
-                      {product.is_active ? '有効' : '無効'}
-                    </Badge>
                   </TableCell>
                   <TableCell>
                     <Badge

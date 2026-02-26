@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { AdminHeader } from '@/components/admin/header'
+
+export const dynamic = 'force-dynamic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ShoppingCart, Package, CreditCard, CheckCircle } from 'lucide-react'
 import { ORDER_STATUSES, STATUS_COLORS } from '@/lib/constants'

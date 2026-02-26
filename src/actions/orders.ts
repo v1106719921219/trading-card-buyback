@@ -7,6 +7,8 @@ import { createOrderSchema, type CreateOrderInput } from '@/lib/validators/order
 import { STATUS_TRANSITIONS } from '@/lib/constants'
 import type { OrderStatus } from '@/types/database'
 import { sendOrderConfirmationEmail } from '@/lib/email'
+import { appendOrderToSheet } from '@/lib/google-sheets'
+
 
 export async function createOrder(input: CreateOrderInput) {
   const parsed = createOrderSchema.safeParse(input)
@@ -39,6 +41,7 @@ export async function createOrder(input: CreateOrderInput) {
       customer_prefecture: customer.customer_prefecture,
       customer_address: customer.customer_address || null,
       customer_not_invoice_issuer: customer.customer_not_invoice_issuer,
+      invoice_issuer_number: customer.invoice_issuer_number || null,
       customer_identity_method: customer.customer_identity_method,
       bank_name: customer.bank_name,
       bank_branch: customer.bank_branch,
@@ -84,6 +87,45 @@ export async function createOrder(input: CreateOrderInput) {
   ).catch((err) => {
     console.error('[createOrder] Email send error:', err)
   })
+
+  // Google Sheets backup
+  try {
+    const { data: office } = await supabase
+      .from('offices')
+      .select('name')
+      .eq('id', office_id)
+      .single()
+
+    await appendOrderToSheet({
+      order_number: order.order_number,
+      customer_name: customer.customer_name,
+      customer_line_name: customer.customer_line_name || null,
+      customer_email: customer.customer_email,
+      customer_phone: customer.customer_phone || null,
+      customer_birth_date: customer.customer_birth_date,
+      customer_occupation: customer.customer_occupation,
+      customer_prefecture: customer.customer_prefecture,
+      customer_address: customer.customer_address || null,
+      customer_not_invoice_issuer: customer.customer_not_invoice_issuer,
+      invoice_issuer_number: customer.invoice_issuer_number || null,
+      customer_identity_method: customer.customer_identity_method,
+      bank_name: customer.bank_name,
+      bank_branch: customer.bank_branch,
+      bank_account_type: customer.bank_account_type,
+      bank_account_number: customer.bank_account_number,
+      bank_account_holder: customer.bank_account_holder,
+      total_amount,
+      office_name: office?.name || '',
+      shipped_date: shipped_date || null,
+      items: items.map((i) => ({
+        product_name: i.product_name,
+        unit_price: i.unit_price,
+        quantity: i.quantity,
+      })),
+    })
+  } catch (err) {
+    console.error('[createOrder] Google Sheets backup error:', err)
+  }
 
   return { success: true, order_number: order.order_number, office_id }
 }

@@ -43,8 +43,14 @@ export async function markAsPaid(orderId: string) {
 
   // PDF生成 → 振込完了メール送信
   const amount = order.inspected_total_amount ?? order.total_amount
-  const pdfBuffer = generateInspectionPdf(order, order.order_items ?? [])
-  await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount, pdfBuffer)
+  try {
+    const pdfBuffer = await generateInspectionPdf(order, order.order_items ?? [])
+    await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount, pdfBuffer)
+  } catch (err) {
+    console.error('[markAsPaid] PDF/Email error:', err)
+    // PDF失敗時もメール送信を試みる（PDF添付なし）
+    await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount).catch(() => {})
+  }
 
   revalidatePath('/admin/payments')
   revalidatePath('/admin/orders')
@@ -65,7 +71,7 @@ export async function downloadInspectionPdf(orderId: string) {
     return { error: '注文が見つかりません' }
   }
 
-  const pdfBuffer = generateInspectionPdf(order, order.order_items ?? [])
+  const pdfBuffer = await generateInspectionPdf(order, order.order_items ?? [])
   // base64に変換してクライアントに返す
   return {
     data: pdfBuffer.toString('base64'),

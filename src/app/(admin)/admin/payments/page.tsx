@@ -31,6 +31,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
 import { CreditCard, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -295,7 +296,16 @@ export default function PaymentsPage() {
                       <TableCell className="font-mono text-sm">
                         {order.order_number.replace(/^BB-\d{8}-/, 'BB-')}
                       </TableCell>
-                      <TableCell>{order.customer_name}</TableCell>
+                      <TableCell>
+                        <span className="flex items-center gap-1.5">
+                          {order.customer_name}
+                          {!order.customer_not_invoice_issuer && (
+                            <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-[10px] px-1.5 py-0">
+                              適格
+                            </Badge>
+                          )}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-sm hidden md:table-cell">
                         {order.bank_name} {order.bank_branch}
                         <br />
@@ -382,7 +392,16 @@ export default function PaymentsPage() {
                           {order.order_number.replace(/^BB-\d{8}-/, 'BB-')}
                         </Link>
                       </TableCell>
-                      <TableCell className="font-medium">{order.customer_name}</TableCell>
+                      <TableCell className="font-medium">
+                        <span className="flex items-center gap-1.5">
+                          {order.customer_name}
+                          {!order.customer_not_invoice_issuer && (
+                            <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-[10px] px-1.5 py-0">
+                              適格
+                            </Badge>
+                          )}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-sm hidden md:table-cell">
                         {order.bank_name && order.bank_branch ? (
                           <>

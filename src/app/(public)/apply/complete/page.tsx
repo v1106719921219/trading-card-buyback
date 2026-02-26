@@ -316,7 +316,7 @@ function CompleteContent() {
                     <>
                       <p>〒{office.postal_code}</p>
                       <p>{office.address}</p>
-                      <p>{office.name} 宛</p>
+                      <p>買取スクエア 宛</p>
                       {office.phone && <p>TEL: {office.phone}</p>}
                     </>
                   ) : (

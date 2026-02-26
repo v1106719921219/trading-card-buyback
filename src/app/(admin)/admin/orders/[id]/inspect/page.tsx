@@ -150,7 +150,14 @@ export default function InspectPage() {
     ))
   }
 
-  function removeNewItem(id: string) {
+  async function removeItem(id: string, isNew: boolean) {
+    if (!isNew) {
+      const { error } = await supabase.from('order_items').delete().eq('id', id)
+      if (error) {
+        toast.error(`商品の削除に失敗しました: ${error.message}`)
+        return
+      }
+    }
     setItems(items.filter((item) => item.id !== id))
   }
 
@@ -321,16 +328,14 @@ export default function InspectPage() {
                     <p className="text-lg font-bold">{subtotal.toLocaleString()}円</p>
                     <p className="text-xs text-muted-foreground">検品後小計</p>
                   </div>
-                  {item._isNew && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0"
-                      onClick={() => removeNewItem(item.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={() => removeItem(item.id, item._isNew)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </div>
 
                 {/* Input fields - grid layout for touch */}

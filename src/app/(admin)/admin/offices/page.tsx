@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import { AdminHeader } from '@/components/admin/header'
+
+export const dynamic = 'force-dynamic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MapPin } from 'lucide-react'

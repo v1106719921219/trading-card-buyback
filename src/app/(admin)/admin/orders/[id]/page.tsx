@@ -357,7 +357,12 @@ export default function OrderDetailPage() {
                   </>
                 )}
                 <dt className="text-muted-foreground">適格請求書発行</dt>
-                <dd>{order.customer_not_invoice_issuer ? '該当しない' : '未確認'}</dd>
+                <dd>
+                  {order.customer_not_invoice_issuer ? 'なし' : 'あり'}
+                  {order.invoice_issuer_number && (
+                    <span className="ml-1 font-mono text-xs">({order.invoice_issuer_number})</span>
+                  )}
+                </dd>
                 {order.customer_identity_method && (
                   <>
                     <dt className="text-muted-foreground">本人確認方法</dt>

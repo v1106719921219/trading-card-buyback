@@ -27,6 +27,7 @@ export const customerInfoSchema = z.object({
   customer_prefecture: z.enum(PREFECTURES, { message: '都道府県を選択してください' }),
   customer_address: z.string().min(1, '住所を入力してください').max(500),
   customer_not_invoice_issuer: z.boolean(),
+  invoice_issuer_number: z.string().regex(/^T\d{13}$/, 'T+13桁の数字で入力してください').optional().or(z.literal('')).transform(v => v || null),
   customer_identity_method: z.enum(IDENTITY_METHODS, { message: '本人確認方法を選択してください' }),
   bank_name: z.string().min(1, '銀行名を入力してください').max(100),
   bank_branch: z.string().min(1, '支店名を入力してください').max(100),
