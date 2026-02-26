@@ -721,7 +721,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                       value={bankAccountNumber}
                       onChange={(e) => setBankAccountNumber(e.target.value)}
                       placeholder="1234567"
-                      maxLength={7}
+                      maxLength={8}
                       required
                     />
                   </div>

@@ -32,7 +32,7 @@ export const customerInfoSchema = z.object({
   bank_name: z.string().min(1, '銀行名を入力してください').max(100),
   bank_branch: z.string().min(1, '支店名を入力してください').max(100),
   bank_account_type: z.enum(['普通', '当座']),
-  bank_account_number: z.string().regex(/^[0-9]{7}$/, '口座番号は7桁の数字で入力してください'),
+  bank_account_number: z.string().regex(/^[0-9]{7,8}$/, '口座番号は7桁または8桁の数字で入力してください'),
   bank_account_holder: z.string().min(1, '口座名義を入力してください').max(100),
 })
 
