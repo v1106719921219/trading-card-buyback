@@ -644,7 +644,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                           placeholder="T1234567890123"
                           maxLength={14}
                         />
-                        <p className="text-xs text-muted-foreground">任意入力</p>
+                        <p className="text-xs text-muted-foreground">T + 13桁の数字で入力してください</p>
                       </div>
                     )}
                   </div>
