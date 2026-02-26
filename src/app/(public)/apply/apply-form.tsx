@@ -184,7 +184,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         customerPrefecture &&
         customerAddress.trim() &&
         customerIdentityMethod &&
-        (customerNotInvoiceIssuer || /^T\d{13}$/.test(invoiceIssuerNumber)) &&
         bankName.trim() &&
         bankBranch.trim() &&
         bankAccountNumber.trim() &&
@@ -638,7 +637,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                     </div>
                     {!customerNotInvoiceIssuer && (
                       <div className="space-y-2">
-                        <Label>事業者番号 <span className="text-destructive">*</span></Label>
+                        <Label>事業者番号</Label>
                         <Input
                           value={invoiceIssuerNumber}
                           onChange={(e) => setInvoiceIssuerNumber(e.target.value)}
