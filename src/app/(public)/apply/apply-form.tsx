@@ -16,11 +16,13 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Minus, Plus, Trash2, ShoppingCart, User, CheckCircle, Mail, MapPin, Search } from 'lucide-react'
+import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, Mail, MapPin, Search } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
 import { createOrder } from '@/actions/orders'
 import { lookupCustomerByEmail } from '@/actions/customers'
+import { parseOrderText } from '@/actions/ai-parse-order'
 import { toast } from 'sonner'
 import { PREFECTURES, BANK_NAMES } from '@/lib/constants'
 import { IDENTITY_METHODS } from '@/lib/validators/order'
@@ -57,6 +59,8 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [search, setSearch] = useState('')
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>(initialOffices[0]?.id ?? '')
   const [shippedDate, setShippedDate] = useState<string>('')
+  const [aiText, setAiText] = useState('')
+  const [aiParsing, setAiParsing] = useState(false)
 
   // Repeater lookup state
   const [lookupEmail, setLookupEmail] = useState('')
@@ -172,6 +176,47 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
 
   const totalAmount = cart.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
   const cartRef = useRef<HTMLDivElement>(null)
+
+  async function handleAiParse() {
+    if (!aiText.trim() || aiParsing) return
+    setAiParsing(true)
+    try {
+      const result = await parseOrderText(
+        aiText,
+        products.map((p) => ({ id: p.id, name: p.name, price: p.price }))
+      )
+      if (result.error) {
+        toast.error(result.error)
+        setAiParsing(false)
+        return
+      }
+      if (result.items.length === 0) {
+        toast.error('商品を認識できませんでした。商品名を確認してください。')
+        setAiParsing(false)
+        return
+      }
+      // Merge into cart
+      const newCart = [...cart]
+      for (const item of result.items) {
+        const existing = newCart.find((c) => c.product_id === item.product_id)
+        if (existing) {
+          existing.quantity += item.quantity
+        } else {
+          const product = products.find((p) => p.id === item.product_id)
+          newCart.push({
+            ...item,
+            category_name: product?.category?.name || '',
+          })
+        }
+      }
+      setCart(newCart)
+      setAiText('')
+      toast.success(`${result.items.length}件の商品をカートに追加しました`)
+    } catch {
+      toast.error('解析に失敗しました')
+    }
+    setAiParsing(false)
+  }
 
   function canProceed() {
     if (step === 0) return cart.length > 0 && !!selectedOfficeId
@@ -329,9 +374,50 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                 </CardContent>
               </Card>
 
+              {/* AI auto-input */}
+              <Card className="border-primary/30 bg-primary/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    AIで自動入力
+                  </CardTitle>
+                  <CardDescription>
+                    LINEの申込内容をコピペするだけで、商品と数量を自動でカートに追加します
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    placeholder={"例:\nイーブイヒーローズ 3箱\n25thアニバーサリー 2箱\nシャイニースターV 1箱"}
+                    value={aiText}
+                    onChange={(e) => setAiText(e.target.value)}
+                    className="min-h-[100px] bg-background"
+                    disabled={aiParsing}
+                  />
+                  <Button
+                    type="button"
+                    className="w-full mt-3"
+                    onClick={handleAiParse}
+                    disabled={!aiText.trim() || aiParsing}
+                  >
+                    {aiParsing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        解析中...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        カートに自動追加
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle>商品を選択</CardTitle>
+                  <CardDescription>手動で商品を選択・検索することもできます</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-col sm:flex-row gap-2">
