@@ -358,6 +358,11 @@ function CompleteContent() {
                   </span>
                 )}
               </CardTitle>
+              {isEditable && (
+                <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                  ※ 追跡番号の登録前まで商品の修正が可能です。数量に誤りがある場合は訂正してください。LINEでのお申込内容と異なる場合は、LINEにてご連絡の上修正をお願いします。
+                </p>
+              )}
             </CardHeader>
             <CardContent className="space-y-3">
               {orderItems.map((item, index) => (

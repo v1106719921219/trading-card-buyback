@@ -19,6 +19,9 @@ export default async function ApplyPage() {
     const catA = a.category?.sort_order ?? 0
     const catB = b.category?.sort_order ?? 0
     if (catA !== catB) return catA - catB
+    const subA = a.subcategory?.sort_order ?? 0
+    const subB = b.subcategory?.sort_order ?? 0
+    if (subA !== subB) return subA - subB
     return (a.sort_order ?? 0) - (b.sort_order ?? 0)
   }) as (Product & { category: Category; subcategory: Subcategory | null })[]
   const subcategories = (subResult.data ?? []) as Subcategory[]
