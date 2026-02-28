@@ -163,18 +163,18 @@ export default function PricesPage() {
                       {group.name && (
                         <h3 className="font-medium text-sm text-muted-foreground mb-2">{group.name}</h3>
                       )}
-                      <Table className="table-fixed w-full">
+                      <Table className="w-full">
                         <TableHeader>
                           <TableRow>
                             <TableHead>商品名</TableHead>
-                            <TableHead className="text-right w-24 sm:w-32">買取価格</TableHead>
+                            <TableHead className="text-right whitespace-nowrap pl-4">買取価格</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {group.products.map((product) => (
                             <TableRow key={product.id}>
-                              <TableCell className="font-medium break-words">{product.name}</TableCell>
-                              <TableCell className="text-right font-bold text-primary whitespace-nowrap">
+                              <TableCell className="font-medium">{product.name}</TableCell>
+                              <TableCell className="text-right font-bold text-primary whitespace-nowrap pl-4">
                                 {product.price.toLocaleString()}円
                               </TableCell>
                             </TableRow>
