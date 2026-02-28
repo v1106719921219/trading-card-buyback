@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -171,6 +171,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   }
 
   const totalAmount = cart.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
+  const cartRef = useRef<HTMLDivElement>(null)
 
   function canProceed() {
     if (step === 0) return cart.length > 0 && !!selectedOfficeId
@@ -401,7 +402,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
             </div>
 
             {/* Cart sidebar */}
-            <div>
+            <div ref={cartRef}>
               <Card className="md:sticky md:top-20">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -473,6 +474,27 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                 </CardContent>
               </Card>
             </div>
+          </div>
+
+        )}
+
+        {/* Mobile floating cart bar (Step 0 only) */}
+        {step === 0 && cart.length > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 md:hidden bg-background border-t shadow-lg z-50 px-4 py-3">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between"
+              onClick={() => cartRef.current?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              <div className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5 text-primary" />
+                <span className="font-medium">{cart.length}件選択中</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="font-bold text-primary">{totalAmount.toLocaleString()}円</span>
+                <span className="text-xs text-muted-foreground">▼ 数量変更</span>
+              </div>
+            </button>
           </div>
         )}
 
