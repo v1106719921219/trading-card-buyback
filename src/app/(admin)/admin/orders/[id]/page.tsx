@@ -449,13 +449,13 @@ export default function OrderDetailPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
-                  発送先事務所
+                  宛先
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <dl className="grid grid-cols-[120px_1fr] gap-3 text-sm">
-                  <dt className="text-muted-foreground">事務所名</dt>
-                  <dd>{office.name}</dd>
+                  <dt className="text-muted-foreground">宛名</dt>
+                  <dd>買取スクエア</dd>
                   <dt className="text-muted-foreground">郵便番号</dt>
                   <dd>〒{office.postal_code}</dd>
                   <dt className="text-muted-foreground">住所</dt>

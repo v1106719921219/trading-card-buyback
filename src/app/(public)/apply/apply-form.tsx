@@ -777,7 +777,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
               <Separator />
 
               <div>
-                <h3 className="font-medium mb-3">発送先事務所</h3>
+                <h3 className="font-medium mb-3">宛先</h3>
                 {(() => {
                   const selectedOffice = offices.find((o) => o.id === selectedOfficeId)
                   return selectedOffice ? (
