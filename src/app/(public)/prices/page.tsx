@@ -163,26 +163,24 @@ export default function PricesPage() {
                       {group.name && (
                         <h3 className="font-medium text-sm text-muted-foreground mb-2">{group.name}</h3>
                       )}
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>商品名</TableHead>
-                              <TableHead className="text-right">買取価格</TableHead>
+                      <Table className="table-fixed w-full">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>商品名</TableHead>
+                            <TableHead className="text-right w-24 sm:w-32">買取価格</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {group.products.map((product) => (
+                            <TableRow key={product.id}>
+                              <TableCell className="font-medium break-words">{product.name}</TableCell>
+                              <TableCell className="text-right font-bold text-primary whitespace-nowrap">
+                                {product.price.toLocaleString()}円
+                              </TableCell>
                             </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {group.products.map((product) => (
-                              <TableRow key={product.id}>
-                                <TableCell className="font-medium">{product.name}</TableCell>
-                                <TableCell className="text-right font-bold text-primary">
-                                  {product.price.toLocaleString()}円
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
                   ))}
                 </div>
