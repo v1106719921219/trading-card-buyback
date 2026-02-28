@@ -446,6 +446,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                               type="number"
                               value={item.quantity}
                               onChange={(e) => setQuantity(item.product_id, Number(e.target.value))}
+                              onFocus={(e) => e.target.select()}
                               className="w-16 h-9 sm:h-7 text-center text-sm"
                               min={1}
                               max={999}
