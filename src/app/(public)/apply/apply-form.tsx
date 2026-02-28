@@ -443,13 +443,16 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                               <Minus className="h-3 w-3" />
                             </Button>
                             <Input
-                              type="number"
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               value={item.quantity}
-                              onChange={(e) => setQuantity(item.product_id, Number(e.target.value))}
+                              onChange={(e) => {
+                                const v = e.target.value.replace(/[^0-9]/g, '')
+                                if (v) setQuantity(item.product_id, Number(v))
+                              }}
                               onFocus={(e) => e.target.select()}
                               className="w-16 h-9 sm:h-7 text-center text-sm"
-                              min={1}
-                              max={999}
                             />
                             <Button
                               variant="outline"
@@ -481,19 +484,19 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
 
         {/* Mobile floating cart bar (Step 0 only) */}
         {step === 0 && cart.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 md:hidden bg-background border-t shadow-lg z-50 px-4 py-3">
+          <div className="fixed bottom-0 left-0 right-0 md:hidden bg-primary text-primary-foreground shadow-lg z-50 px-5 py-4">
             <button
               type="button"
               className="w-full flex items-center justify-between"
               onClick={() => cartRef.current?.scrollIntoView({ behavior: 'smooth' })}
             >
-              <div className="flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5 text-primary" />
-                <span className="font-medium">{cart.length}件選択中</span>
+              <div className="flex items-center gap-3">
+                <ShoppingCart className="h-6 w-6" />
+                <span className="text-base font-bold">{cart.length}件選択中</span>
               </div>
               <div className="flex items-center gap-3">
-                <span className="font-bold text-primary">{totalAmount.toLocaleString()}円</span>
-                <span className="text-xs text-muted-foreground">▼ 数量変更</span>
+                <span className="text-lg font-bold">{totalAmount.toLocaleString()}円</span>
+                <span className="text-xs opacity-80">▼ 数量変更</span>
               </div>
             </button>
           </div>
