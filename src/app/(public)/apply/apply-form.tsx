@@ -367,7 +367,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                     )}
                   </div>
 
-                  <div className="max-h-96 overflow-y-auto space-y-1">
+                  <div className="max-h-56 sm:max-h-96 overflow-y-auto space-y-1">
                     {filteredProducts.map((product) => (
                       <div
                         key={product.id}
