@@ -4,7 +4,7 @@ import { Header } from '@/components/public/header'
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-muted/50">
-      <Header />
+      <Header hideApplyButton />
 
       <div className="max-w-3xl mx-auto px-4 py-8 sm:py-12">
         <h1 className="text-2xl sm:text-3xl font-bold mb-2">プライバシーポリシー</h1>
