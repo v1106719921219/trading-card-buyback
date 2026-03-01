@@ -74,7 +74,7 @@ export default function ProductsPage() {
   // CSV import
   const [csvDialogOpen, setCsvDialogOpen] = useState(false)
   const [csvText, setCsvText] = useState('')
-  const [csvPreview, setCsvPreview] = useState<{ name: string; category: string; categoryId: string; subcategory: string; subcategoryId: string; price: number; isUpdate: boolean; error?: string }[]>([])
+  const [csvPreview, setCsvPreview] = useState<{ name: string; category: string; categoryId: string; subcategory: string; subcategoryId: string; price: number; showInPriceList?: boolean; isActive?: boolean; isUpdate: boolean; error?: string }[]>([])
   const [csvImporting, setCsvImporting] = useState(false)
 
   const supabase = createClient()
@@ -227,11 +227,16 @@ export default function ProductsPage() {
   }
 
   function parseCsv() {
-    const lines = csvText.trim().split('\n').filter((l) => l.trim())
+    let lines = csvText.trim().split('\n').filter((l) => l.trim())
     const results: typeof csvPreview = []
 
+    // Skip header row
+    if (lines.length > 0 && (lines[0].includes('商品名') || lines[0].includes('カテゴリ') || lines[0].includes('価格'))) {
+      lines = lines.slice(1)
+    }
+
     for (const line of lines) {
-      // Support: カテゴリ名,サブカテゴリ名,商品名,価格 or カテゴリ名,商品名,価格 or 商品名,価格
+      // Support: カテゴリ名,サブカテゴリ名,商品名,価格[,価格表,状態] or カテゴリ名,商品名,価格 or 商品名,価格
       const parts = line.split(/[,\t]/).map((s) => s.trim())
       if (parts.length < 2) {
         results.push({ name: parts[0] || '', category: '', categoryId: '', subcategory: '', subcategoryId: '', price: 0, isUpdate: false, error: '列が不足しています' })
@@ -241,7 +246,7 @@ export default function ProductsPage() {
       let categoryName = '', subcategoryName = '', name = '', priceStr = ''
 
       if (parts.length >= 4) {
-        // カテゴリ名,サブカテゴリ名,商品名,価格
+        // カテゴリ名,サブカテゴリ名,商品名,価格[,価格表,状態]
         categoryName = parts[0]
         subcategoryName = parts[1]
         name = parts[2]
@@ -290,11 +295,15 @@ export default function ProductsPage() {
         }
       }
 
+      // Parse optional columns: 価格表 (column 5), 状態 (column 6)
+      const showInPriceList = parts[4] ? parts[4] !== '非表示' : undefined
+      const isActive = parts[5] ? parts[5] !== '無効' : undefined
+
       // Check if product already exists (same name + same category)
       const existing = products.find((p) => p.name === name && p.category_id === matchedCat.id)
       const isUpdate = !!existing
 
-      results.push({ name, category: matchedCat.name, categoryId: matchedCat.id, subcategory: matchedSubName, subcategoryId: matchedSubId, price, isUpdate, error: undefined })
+      results.push({ name, category: matchedCat.name, categoryId: matchedCat.id, subcategory: matchedSubName, subcategoryId: matchedSubId, price, showInPriceList, isActive, isUpdate, error: undefined })
     }
 
     setCsvPreview(results)
@@ -331,7 +340,9 @@ export default function ProductsPage() {
         const existing = products.find((p) => p.name === item.name && p.category_id === item.categoryId)
         if (!existing) continue
         const updateData: Record<string, unknown> = { price: item.price, subcategory_id: item.subcategoryId || null, sort_order: sortOrder }
-        if (item.price === 0) updateData.show_in_price_list = false
+        if (item.showInPriceList !== undefined) updateData.show_in_price_list = item.showInPriceList
+        else if (item.price === 0) updateData.show_in_price_list = false
+        if (item.isActive !== undefined) updateData.is_active = item.isActive
         const { error } = await supabase
           .from('products')
           .update(updateData)
@@ -348,7 +359,8 @@ export default function ProductsPage() {
           category_id: item.categoryId,
           subcategory_id: item.subcategoryId || null,
           price: item.price,
-          show_in_price_list: item.price > 0,
+          show_in_price_list: item.showInPriceList ?? item.price > 0,
+          is_active: item.isActive ?? true,
           sort_order: sortOrder,
         })
         if (error) {
