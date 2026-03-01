@@ -66,7 +66,7 @@ export default function PrivacyPage() {
               <p className="font-medium">【個人情報についてのお問い合わせ窓口】</p>
               <p>買取スクエア</p>
               <p>E-mail：<a href="mailto:email@kaitorisquare.com" className="text-primary hover:underline">email@kaitorisquare.com</a></p>
-              <p>古物許可番号：山口県公安委員会許可 第741091000629号</p>
+              <p>古物許可番号：{process.env.NEXT_PUBLIC_KOBUTSU_LICENSE || '山口県公安委員会許可 第741091000629号'}</p>
             </div>
           </section>
         </div>

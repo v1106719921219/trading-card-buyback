@@ -2,6 +2,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 export function Footer() {
+  const licenseText = process.env.NEXT_PUBLIC_KOBUTSU_LICENSE || '山口県公安委員会許可 第741091000629号'
+
   return (
     <footer className="border-t bg-white">
       <div className="max-w-6xl mx-auto px-4 py-8">
@@ -15,7 +17,7 @@ export function Footer() {
               古物商許可番号
             </p>
             <p className="text-sm text-muted-foreground">
-              山口県公安委員会許可 第741091000629号
+              {licenseText}
             </p>
           </div>
 
