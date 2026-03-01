@@ -36,13 +36,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown } from 'lucide-react'
-import { addTrackingNumber } from '@/actions/orders'
+import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle } from 'lucide-react'
+import { addTrackingNumber, deleteOrder } from '@/actions/orders'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
 import { STATUS_TRANSITIONS, STATUS_COLORS } from '@/lib/constants'
 import { toast } from 'sonner'
-import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office } from '@/types/database'
+import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole } from '@/types/database'
 
 export default function OrderDetailPage() {
   const params = useParams()
@@ -59,10 +59,25 @@ export default function OrderDetailPage() {
   const [savingNotes, setSavingNotes] = useState(false)
   const [newTrackingNumber, setNewTrackingNumber] = useState('')
   const [addingTracking, setAddingTracking] = useState(false)
+  const [changingStatus, setChangingStatus] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [userRole, setUserRole] = useState<UserRole | null>(null)
+  const [duplicateOrders, setDuplicateOrders] = useState<{ id: string; order_number: string; status: string; created_at: string; total_amount: number }[]>([])
 
   const supabase = createClient()
 
   async function fetchOrder() {
+    // ユーザーロール取得
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      if (profile) setUserRole(profile.role as UserRole)
+    }
+
     const [orderResult, historyResult] = await Promise.all([
       supabase
         .from('orders')
@@ -88,6 +103,17 @@ export default function OrderDetailPage() {
     setNotes(orderResult.data.notes || '')
     setHistory((historyResult.data || []) as OrderStatusHistory[])
 
+    // 重複注文チェック: 同じ顧客名＋同じ合計金額の別注文を検索
+    const { data: dupes } = await supabase
+      .from('orders')
+      .select('id, order_number, status, created_at, total_amount')
+      .eq('customer_name', orderData.customer_name)
+      .eq('total_amount', orderData.total_amount)
+      .neq('id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(10)
+    setDuplicateOrders(dupes || [])
+
     // Fetch office if order has office_id
     if (orderData.office_id) {
       const { data: officeData } = await supabase
@@ -106,13 +132,15 @@ export default function OrderDetailPage() {
   }, [orderId])
 
   async function handleStatusChange() {
-    if (!newStatus || !order) return
+    if (!newStatus || !order || changingStatus) return
+    setChangingStatus(true)
 
     const { error } = await supabase
       .from('orders')
       .update({ status: newStatus })
       .eq('id', orderId)
 
+    setChangingStatus(false)
     if (error) {
       toast.error(`ステータス変更に失敗しました: ${error.message}`)
       return
@@ -121,6 +149,19 @@ export default function OrderDetailPage() {
     toast.success(`ステータスを「${newStatus}」に変更しました`)
     setNewStatus('')
     fetchOrder()
+  }
+
+  async function handleDelete() {
+    if (!order || deleting) return
+    setDeleting(true)
+    const result = await deleteOrder(orderId)
+    if (result.error) {
+      toast.error(result.error)
+      setDeleting(false)
+      return
+    }
+    toast.success('注文を削除しました')
+    router.push('/admin/orders')
   }
 
   async function handleSaveNotes() {
@@ -213,6 +254,40 @@ export default function OrderDetailPage() {
           }
         />
       </div>
+
+      {/* 重複注文アラート */}
+      {duplicateOrders.length > 0 && (
+        <div className="rounded-lg border border-orange-300 bg-orange-50 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />
+            <div className="space-y-2">
+              <p className="font-medium text-orange-800">
+                重複の可能性がある注文が {duplicateOrders.length} 件あります
+              </p>
+              <p className="text-sm text-orange-700">
+                同じ顧客名・同じ合計金額の注文です。重複振込にご注意ください。
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {duplicateOrders.map((d) => (
+                  <Link
+                    key={d.id}
+                    href={`/admin/orders/${d.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-orange-300 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-100 transition-colors"
+                  >
+                    {d.order_number}
+                    <Badge variant="outline" className="text-xs">
+                      {d.status}
+                    </Badge>
+                    <span className="text-xs text-orange-600">
+                      ({new Date(d.created_at).toLocaleDateString('ja-JP')})
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main content */}
@@ -493,8 +568,8 @@ export default function OrderDetailPage() {
                 </Select>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button className="w-full" disabled={!newStatus}>
-                      ステータスを変更
+                    <Button className="w-full" disabled={!newStatus || changingStatus}>
+                      {changingStatus ? '変更中...' : 'ステータスを変更'}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
@@ -580,6 +655,36 @@ export default function OrderDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* 削除ボタン（admin/managerのみ） */}
+          {userRole && ['admin', 'manager'].includes(userRole) && (
+            <Card className="border-destructive/50">
+              <CardContent className="pt-6">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" className="w-full" disabled={deleting}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      {deleting ? '削除中...' : 'この注文を削除'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>注文を削除しますか？</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        注文「{order.order_number}」を完全に削除します。この操作は取り消せません。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        削除する
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 

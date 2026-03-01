@@ -176,6 +176,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
 
   const totalAmount = cart.reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
   const cartRef = useRef<HTMLDivElement>(null)
+  const submittingRef = useRef(false)
 
   async function handleAiParse() {
     if (!aiText.trim() || aiParsing) return
@@ -240,6 +241,8 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   }
 
   async function handleSubmit() {
+    if (submittingRef.current) return
+    submittingRef.current = true
     setLoading(true)
 
     const result = await createOrder({
@@ -274,6 +277,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     setLoading(false)
 
     if (result.error) {
+      submittingRef.current = false
       toast.error(result.error)
       return
     }

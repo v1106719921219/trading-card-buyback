@@ -20,26 +20,21 @@ export async function getPaymentQueue() {
 export async function markAsPaid(orderId: string) {
   const supabase = await createClient()
 
-  const { data: order, error: fetchError } = await supabase
-    .from('orders')
-    .select('*, order_items(*)')
-    .eq('id', orderId)
-    .single()
-
-  if (fetchError || !order) {
-    return { error: '注文が見つかりません' }
-  }
-
-  if (order.status !== '検品完了') {
-    return { error: '検品完了の注文のみ振込済に変更できます' }
-  }
-
-  const { error } = await supabase
+  // Atomic update: WHERE status = '検品完了' で TOCTOU 防止
+  const { data: updated, error: updateError } = await supabase
     .from('orders')
     .update({ status: '振込済' })
     .eq('id', orderId)
+    .eq('status', '検品完了')
+    .select('*, order_items(*)')
 
-  if (error) return { error: error.message }
+  if (updateError) return { error: updateError.message }
+
+  if (!updated || updated.length === 0) {
+    return { error: '検品完了の注文のみ振込済に変更できます（既に変更済みの可能性があります）' }
+  }
+
+  const order = updated[0]
 
   // PDF生成 → 振込完了メール送信
   const amount = order.inspected_total_amount ?? order.total_amount

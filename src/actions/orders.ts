@@ -8,6 +8,7 @@ import { STATUS_TRANSITIONS } from '@/lib/constants'
 import type { OrderStatus } from '@/types/database'
 import { sendOrderConfirmationEmail } from '@/lib/email'
 import { appendOrderToSheet } from '@/lib/google-sheets'
+import { getCurrentUser } from '@/actions/auth'
 
 
 export async function createOrder(input: CreateOrderInput) {
@@ -20,6 +21,22 @@ export async function createOrder(input: CreateOrderInput) {
   const supabase = createAdminClient()
 
   const { items, customer, customer_id, office_id, shipped_date } = parsed.data
+
+  // 重複チェック: 同一メールアドレスで2分以内の申込があれば既存注文を返す
+  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+  const { data: existingOrder } = await supabase
+    .from('orders')
+    .select('order_number')
+    .eq('customer_email', customer.customer_email)
+    .eq('status', '申込')
+    .gte('created_at', twoMinutesAgo)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (existingOrder) {
+    return { success: true, order_number: existingOrder.order_number, office_id }
+  }
 
   // Calculate total
   const total_amount = items.reduce(
@@ -438,5 +455,27 @@ export async function updateOrderItems(
     return { error: `合計金額の更新に失敗しました: ${updateError.message}` }
   }
 
+  return { success: true }
+}
+
+export async function deleteOrder(orderId: string) {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || !['admin', 'manager'].includes(currentUser.role)) {
+    return { error: '管理者またはマネージャー権限が必要です' }
+  }
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('orders')
+    .delete()
+    .eq('id', orderId)
+
+  if (error) {
+    return { error: `削除に失敗しました: ${error.message}` }
+  }
+
+  revalidatePath('/admin/orders')
+  revalidatePath('/admin')
   return { success: true }
 }
