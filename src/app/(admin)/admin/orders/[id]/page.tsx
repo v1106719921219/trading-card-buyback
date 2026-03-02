@@ -36,8 +36,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle } from 'lucide-react'
-import { addTrackingNumber, deleteOrder } from '@/actions/orders'
+import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil } from 'lucide-react'
+import { addTrackingNumber, deleteOrder, updateOrderItemQuantities } from '@/actions/orders'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
 import { STATUS_TRANSITIONS, STATUS_COLORS } from '@/lib/constants'
@@ -63,6 +63,9 @@ export default function OrderDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [duplicateOrders, setDuplicateOrders] = useState<{ id: string; order_number: string; status: string; created_at: string; total_amount: number }[]>([])
+  const [editingQuantities, setEditingQuantities] = useState(false)
+  const [editItems, setEditItems] = useState<{ id: string; quantity: number }[]>([])
+  const [savingQuantities, setSavingQuantities] = useState(false)
 
   const supabase = createClient()
 
@@ -209,6 +212,30 @@ export default function OrderDetailPage() {
     URL.revokeObjectURL(url)
   }
 
+  function handleStartEditQuantities() {
+    setEditItems(items.map((item) => ({ id: item.id, quantity: item.quantity })))
+    setEditingQuantities(true)
+  }
+
+  function handleCancelEditQuantities() {
+    setEditingQuantities(false)
+    setEditItems([])
+  }
+
+  async function handleSaveQuantities() {
+    setSavingQuantities(true)
+    const result = await updateOrderItemQuantities(orderId, editItems)
+    setSavingQuantities(false)
+    if (result.error) {
+      toast.error(result.error)
+      return
+    }
+    toast.success('申告数量を更新しました')
+    setEditingQuantities(false)
+    setEditItems([])
+    fetchOrder()
+  }
+
   if (loading || !order) {
     return <div className="p-8 text-center text-muted-foreground">読み込み中...</div>
   }
@@ -296,6 +323,19 @@ export default function OrderDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle>注文明細</CardTitle>
+              {!editingQuantities && (() => {
+                const postInspectionStatuses: OrderStatus[] = ['検品完了', '振込済', '振込確認済']
+                const isPostInspection = postInspectionStatuses.includes(order.status as OrderStatus)
+                const canEdit = !isPostInspection || (userRole && ['admin', 'manager'].includes(userRole))
+                return canEdit ? (
+                  <div data-slot="card-action">
+                    <Button variant="outline" size="sm" onClick={handleStartEditQuantities}>
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                      編集
+                    </Button>
+                  </div>
+                ) : null
+              })()}
             </CardHeader>
             <CardContent>
               <Table>
@@ -320,7 +360,26 @@ export default function OrderDetailPage() {
                       <TableCell className="text-right">
                         {item.unit_price.toLocaleString()}円
                       </TableCell>
-                      <TableCell className="text-right">{item.quantity}</TableCell>
+                      <TableCell className="text-right">
+                        {editingQuantities ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            className="w-20 ml-auto text-right"
+                            value={editItems.find((e) => e.id === item.id)?.quantity ?? item.quantity}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10)
+                              setEditItems((prev) =>
+                                prev.map((ei) =>
+                                  ei.id === item.id ? { ...ei, quantity: isNaN(val) ? 0 : val } : ei
+                                )
+                              )
+                            }}
+                          />
+                        ) : (
+                          item.quantity
+                        )}
+                      </TableCell>
                       {items.some((i) => i.inspected_quantity != null) && (
                         <TableCell className="text-right">
                           {item.inspected_quantity != null ? (
@@ -381,6 +440,16 @@ export default function OrderDetailPage() {
                   )}
                 </TableBody>
               </Table>
+              {editingQuantities && (
+                <div className="flex justify-end gap-2 mt-4">
+                  <Button variant="outline" onClick={handleCancelEditQuantities} disabled={savingQuantities}>
+                    キャンセル
+                  </Button>
+                  <Button onClick={handleSaveQuantities} disabled={savingQuantities}>
+                    {savingQuantities ? '保存中...' : '保存'}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 

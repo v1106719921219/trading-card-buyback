@@ -458,6 +458,53 @@ export async function updateOrderItems(
   return { success: true }
 }
 
+export async function updateOrderItemQuantities(
+  orderId: string,
+  items: { id: string; quantity: number }[]
+) {
+  const supabase = await createClient()
+
+  // 各order_itemのquantityを更新
+  for (const item of items) {
+    const { error } = await supabase
+      .from('order_items')
+      .update({ quantity: item.quantity })
+      .eq('id', item.id)
+      .eq('order_id', orderId)
+
+    if (error) {
+      return { error: `数量の更新に失敗しました: ${error.message}` }
+    }
+  }
+
+  // 合計金額を再計算
+  const { data: orderItems, error: fetchError } = await supabase
+    .from('order_items')
+    .select('unit_price, quantity')
+    .eq('order_id', orderId)
+
+  if (fetchError || !orderItems) {
+    return { error: '明細の取得に失敗しました' }
+  }
+
+  const total_amount = orderItems.reduce(
+    (sum, item) => sum + item.unit_price * item.quantity,
+    0
+  )
+
+  const { error: updateError } = await supabase
+    .from('orders')
+    .update({ total_amount })
+    .eq('id', orderId)
+
+  if (updateError) {
+    return { error: `合計金額の更新に失敗しました: ${updateError.message}` }
+  }
+
+  revalidatePath(`/admin/orders/${orderId}`)
+  return { success: true }
+}
+
 export async function deleteOrder(orderId: string) {
   const currentUser = await getCurrentUser()
   if (!currentUser || !['admin', 'manager'].includes(currentUser.role)) {
