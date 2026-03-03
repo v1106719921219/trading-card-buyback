@@ -24,8 +24,8 @@ import {
 import { Search, Eye, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getOrdersForCSV } from '@/actions/orders'
-import { ORDER_STATUSES, STATUS_COLORS, ITEMS_PER_PAGE } from '@/lib/constants'
-import type { Order, OrderItem, OrderStatus } from '@/types/database'
+import { ORDER_STATUSES, STATUS_COLORS, ITEMS_PER_PAGE, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS } from '@/lib/constants'
+import type { Order, OrderItem, OrderStatus, BuybackType } from '@/types/database'
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -73,7 +73,7 @@ export default function OrdersPage() {
       const data = await getOrdersForCSV(year, month)
 
       const headers = [
-        '注文番号', 'ステータス', '申込日', '氏名', 'LINE名', '生年月日',
+        '注文番号', 'ステータス', '買取種別', '申込日', '氏名', 'LINE名', '生年月日',
         '職業', 'メール', '電話番号', '都道府県', '住所', '本人確認方法',
         '銀行名', '支店名', '口座種別', '口座番号', '口座名義',
         '追跡番号', '宛先', '商品名', '単価', '数量', '小計',
@@ -98,10 +98,15 @@ export default function OrdersPage() {
         const officeName = (order.office as { name: string } | null)?.name ?? ''
         const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
 
+        const buybackTypeLabel = order.buyback_type
+          ? (BUYBACK_TYPE_LABELS as Record<string, string>)[order.buyback_type] ?? ''
+          : ''
+
         if (items.length === 0) {
           rows.push([
             order.order_number,
             order.status,
+            buybackTypeLabel,
             dateKey,
             order.customer_name,
             order.customer_line_name ?? '',
@@ -131,6 +136,7 @@ export default function OrdersPage() {
             rows.push([
               order.order_number,
               order.status,
+              buybackTypeLabel,
               dateKey,
               order.customer_name,
               order.customer_line_name ?? '',
@@ -162,11 +168,11 @@ export default function OrdersPage() {
         }
       }
 
-      // 同じ日付の最後の行にだけ日次集計を入れる（申込日は列index=2）
+      // 同じ日付の最後の行にだけ日次集計を入れる（申込日は列index=3）
       const dailyColIndex = headers.length - 1
       for (let i = rows.length - 1; i >= 0; i--) {
-        const dateVal = rows[i][2]
-        const nextDate = i < rows.length - 1 ? rows[i + 1][2] : null
+        const dateVal = rows[i][3]
+        const nextDate = i < rows.length - 1 ? rows[i + 1][3] : null
         if (dateVal !== nextDate) {
           rows[i][dailyColIndex] = String(dailyTotalMap.get(dateVal) ?? '')
         }
@@ -530,9 +536,16 @@ export default function OrdersPage() {
                         </Link>
                       </TableCell>
                       <TableCell>
-                        <Badge className={STATUS_COLORS[order.status as OrderStatus]}>
-                          {order.status}
-                        </Badge>
+                        <div className="flex items-center gap-1.5">
+                          <Badge className={STATUS_COLORS[order.status as OrderStatus]}>
+                            {order.status}
+                          </Badge>
+                          {order.buyback_type && (
+                            <Badge className={BUYBACK_TYPE_COLORS[order.buyback_type as BuybackType]}>
+                              {BUYBACK_TYPE_LABELS[order.buyback_type as BuybackType]}
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{order.customer_name}</TableCell>
                       <TableCell className="text-right">

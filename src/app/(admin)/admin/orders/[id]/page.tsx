@@ -37,12 +37,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil } from 'lucide-react'
-import { addTrackingNumber, deleteOrder, updateOrderItemQuantities } from '@/actions/orders'
+import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType } from '@/actions/orders'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
-import { STATUS_TRANSITIONS, STATUS_COLORS } from '@/lib/constants'
+import { STATUS_TRANSITIONS, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS } from '@/lib/constants'
 import { toast } from 'sonner'
-import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole } from '@/types/database'
+import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole, BuybackType } from '@/types/database'
 
 export default function OrderDetailPage() {
   const params = useParams()
@@ -66,6 +66,7 @@ export default function OrderDetailPage() {
   const [editingQuantities, setEditingQuantities] = useState(false)
   const [editItems, setEditItems] = useState<{ id: string; quantity: number }[]>([])
   const [savingQuantities, setSavingQuantities] = useState(false)
+  const [savingBuybackType, setSavingBuybackType] = useState(false)
 
   const supabase = createClient()
 
@@ -236,6 +237,19 @@ export default function OrderDetailPage() {
     fetchOrder()
   }
 
+  async function handleBuybackTypeChange(value: string) {
+    setSavingBuybackType(true)
+    const buybackType = value === 'none' ? null : (value as BuybackType)
+    const result = await updateBuybackType(orderId, buybackType)
+    setSavingBuybackType(false)
+    if (result.error) {
+      toast.error(`買取種別の変更に失敗しました: ${result.error}`)
+      return
+    }
+    toast.success('買取種別を変更しました')
+    fetchOrder()
+  }
+
   if (loading || !order) {
     return <div className="p-8 text-center text-muted-foreground">読み込み中...</div>
   }
@@ -273,6 +287,11 @@ export default function OrderDetailPage() {
                   <FileDown className="mr-2 h-4 w-4" />
                   査定結果PDF
                 </Button>
+              )}
+              {order.buyback_type && (
+                <Badge className={`text-sm px-3 py-1 ${BUYBACK_TYPE_COLORS[order.buyback_type]}`}>
+                  {BUYBACK_TYPE_LABELS[order.buyback_type]}
+                </Badge>
               )}
               <Badge className={`text-sm px-3 py-1 ${STATUS_COLORS[order.status as OrderStatus]}`}>
                 {order.status}
@@ -659,6 +678,29 @@ export default function OrderDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* 買取種別 */}
+          <Card>
+            <CardHeader>
+              <CardTitle>買取種別</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select
+                value={order.buyback_type ?? 'none'}
+                onValueChange={handleBuybackTypeChange}
+                disabled={savingBuybackType}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="未設定" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">未設定</SelectItem>
+                  <SelectItem value="ar_quality">AR美品</SelectItem>
+                  <SelectItem value="minimum_guarantee">最低保証</SelectItem>
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
 
           {/* Notes */}
           <Card>

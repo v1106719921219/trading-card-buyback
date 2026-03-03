@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createOrderSchema, type CreateOrderInput } from '@/lib/validators/order'
 import { STATUS_TRANSITIONS } from '@/lib/constants'
-import type { OrderStatus } from '@/types/database'
+import type { OrderStatus, BuybackType } from '@/types/database'
 import { sendOrderConfirmationEmail } from '@/lib/email'
 import { appendOrderToSheet } from '@/lib/google-sheets'
 import { getCurrentUser } from '@/actions/auth'
@@ -502,6 +502,21 @@ export async function updateOrderItemQuantities(
   }
 
   revalidatePath(`/admin/orders/${orderId}`)
+  return { success: true }
+}
+
+export async function updateBuybackType(orderId: string, buybackType: BuybackType | null) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('orders')
+    .update({ buyback_type: buybackType })
+    .eq('id', orderId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/admin/orders/${orderId}`)
+  revalidatePath('/admin/orders')
   return { success: true }
 }
 
