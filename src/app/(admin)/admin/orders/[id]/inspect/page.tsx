@@ -348,37 +348,43 @@ export default function InspectPage() {
                     <Label className="text-xs text-muted-foreground mb-1 block">検品単価</Label>
                     <Input
                       type="number"
-                      value={item._inspected_price}
+                      value={item._inspected_price || ''}
                       onChange={(e) =>
                         updateItem(item.id, '_inspected_price', Number(e.target.value))
                       }
+                      onFocus={(e) => e.target.select()}
                       className="text-right h-12 text-base"
                       min={0}
                       step={100}
+                      placeholder="0"
                     />
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1 block">検品数量</Label>
                     <Input
                       type="number"
-                      value={item._inspected}
+                      value={item._inspected || ''}
                       onChange={(e) =>
                         updateItem(item.id, '_inspected', Number(e.target.value))
                       }
+                      onFocus={(e) => e.target.select()}
                       className="text-right h-12 text-base"
                       min={0}
+                      placeholder="0"
                     />
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1 block">返品数量</Label>
                     <Input
                       type="number"
-                      value={item._returned}
+                      value={item._returned || ''}
                       onChange={(e) =>
                         updateItem(item.id, '_returned', Number(e.target.value))
                       }
+                      onFocus={(e) => e.target.select()}
                       className="text-right h-12 text-base"
                       min={0}
+                      placeholder="0"
                     />
                   </div>
                 </div>
@@ -412,8 +418,9 @@ export default function InspectPage() {
           <Label className="text-sm font-medium mb-1 block">減額</Label>
           <Input
             type="number"
-            value={discount}
+            value={discount || ''}
             onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
+            onFocus={(e) => e.target.select()}
             className="h-12 text-base text-right"
             min={0}
             step={100}
