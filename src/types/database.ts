@@ -6,6 +6,8 @@ export type BankAccountType = '普通' | '当座'
 
 export type ReturnStatus = '返送待ち' | '返送済'
 
+export type InspectionStatus = '個数確認済み' | '減額確認待ち'
+
 export type BuybackType = 'ar_quality' | 'minimum_guarantee'
 
 export interface Profile {
@@ -99,6 +101,7 @@ export interface Order {
   office_id: string | null
   return_status: ReturnStatus | null
   return_tracking_number: string | null
+  inspection_status: InspectionStatus | null
   buyback_type: BuybackType | null
   assigned_to: string | null
   created_at: string

@@ -1,4 +1,4 @@
-import { OrderStatus, ReturnStatus, BuybackType } from '@/types/database'
+import { OrderStatus, ReturnStatus, BuybackType, InspectionStatus } from '@/types/database'
 
 export const ORDER_STATUSES: OrderStatus[] = [
   '申込',
@@ -26,6 +26,13 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   '振込済': 'bg-orange-100 text-orange-800',
   '振込確認済': 'bg-gray-100 text-gray-800',
   'キャンセル': 'bg-red-100 text-red-800',
+}
+
+export const INSPECTION_STATUSES: InspectionStatus[] = ['個数確認済み', '減額確認待ち']
+
+export const INSPECTION_STATUS_COLORS: Record<InspectionStatus, string> = {
+  '個数確認済み': 'bg-cyan-100 text-cyan-800',
+  '減額確認待ち': 'bg-amber-100 text-amber-800',
 }
 
 export const RETURN_STATUSES: ReturnStatus[] = ['返送待ち', '返送済']

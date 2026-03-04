@@ -40,9 +40,9 @@ import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalL
 import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType } from '@/actions/orders'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
-import { STATUS_TRANSITIONS, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS } from '@/lib/constants'
+import { STATUS_TRANSITIONS, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
 import { toast } from 'sonner'
-import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole, BuybackType } from '@/types/database'
+import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole, BuybackType, InspectionStatus } from '@/types/database'
 
 export default function OrderDetailPage() {
   const params = useParams()
@@ -296,6 +296,11 @@ export default function OrderDetailPage() {
               <Badge className={`text-sm px-3 py-1 ${STATUS_COLORS[order.status as OrderStatus]}`}>
                 {order.status}
               </Badge>
+              {order.inspection_status && (
+                <Badge className={`text-sm px-3 py-1 ${INSPECTION_STATUS_COLORS[order.inspection_status as InspectionStatus]}`}>
+                  {order.inspection_status}
+                </Badge>
+              )}
             </div>
           }
         />

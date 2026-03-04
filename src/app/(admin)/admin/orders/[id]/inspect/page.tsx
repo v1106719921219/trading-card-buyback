@@ -31,7 +31,8 @@ import {
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import type { Order, OrderItem, Product, Category } from '@/types/database'
+import type { Order, OrderItem, Product, Category, InspectionStatus } from '@/types/database'
+import { INSPECTION_STATUSES } from '@/lib/constants'
 
 interface InspectItem {
   id: string
@@ -57,6 +58,7 @@ export default function InspectPage() {
   const [discount, setDiscount] = useState(0)
   const [inspectionNotes, setInspectionNotes] = useState('')
   const [products, setProducts] = useState<(Product & { category: Category })[]>([])
+  const [inspectionStatus, setInspectionStatus] = useState<InspectionStatus | ''>('')
 
   const supabase = createClient()
 
@@ -90,6 +92,7 @@ export default function InspectPage() {
     setOrder(orderData)
     setDiscount(orderData.inspection_discount ?? 0)
     setInspectionNotes(orderData.inspection_notes ?? '')
+    setInspectionStatus(orderData.inspection_status ?? '')
     setItems(
       ((orderResult.data as Order).order_items || []).map((item) => ({
         id: item.id,
@@ -230,6 +233,7 @@ export default function InspectPage() {
         inspected_total_amount: inspectedTotal,
         inspection_discount: discount,
         inspection_notes: inspectionNotes || null,
+        inspection_status: inspectionStatus || null,
         return_status: hasReturns ? '返送待ち' : null,
       })
       .eq('id', orderId)
@@ -251,7 +255,7 @@ export default function InspectPage() {
 
     const { error } = await supabase
       .from('orders')
-      .update({ status: '検品完了' })
+      .update({ status: '検品完了', inspection_status: null })
       .eq('id', orderId)
 
     if (error) {
@@ -384,8 +388,26 @@ export default function InspectPage() {
         })}
       </div>
 
-      {/* Discount & Notes */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      {/* Inspection Status, Discount & Notes */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        <div>
+          <Label className="text-sm font-medium mb-1 block">検品進捗</Label>
+          <Select
+            value={inspectionStatus}
+            onValueChange={(v) => setInspectionStatus(v === 'none' ? '' : v as InspectionStatus)}
+          >
+            <SelectTrigger className="h-12 text-base">
+              <SelectValue placeholder="未設定" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">未設定</SelectItem>
+              {INSPECTION_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1">一時保存時に記録されます</p>
+        </div>
         <div>
           <Label className="text-sm font-medium mb-1 block">減額</Label>
           <Input

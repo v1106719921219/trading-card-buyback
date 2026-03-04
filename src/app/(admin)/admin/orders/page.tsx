@@ -24,8 +24,8 @@ import {
 import { Search, Eye, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getOrdersForCSV } from '@/actions/orders'
-import { ORDER_STATUSES, STATUS_COLORS, ITEMS_PER_PAGE, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS } from '@/lib/constants'
-import type { Order, OrderItem, OrderStatus, BuybackType } from '@/types/database'
+import { ORDER_STATUSES, STATUS_COLORS, ITEMS_PER_PAGE, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
+import type { Order, OrderItem, OrderStatus, BuybackType, InspectionStatus } from '@/types/database'
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -540,6 +540,11 @@ export default function OrdersPage() {
                           <Badge className={STATUS_COLORS[order.status as OrderStatus]}>
                             {order.status}
                           </Badge>
+                          {order.inspection_status && (
+                            <Badge className={INSPECTION_STATUS_COLORS[order.inspection_status as InspectionStatus]}>
+                              {order.inspection_status}
+                            </Badge>
+                          )}
                           {order.buyback_type && (
                             <Badge className={BUYBACK_TYPE_COLORS[order.buyback_type as BuybackType]}>
                               {BUYBACK_TYPE_LABELS[order.buyback_type as BuybackType]}
