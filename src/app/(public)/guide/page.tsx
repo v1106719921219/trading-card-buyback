@@ -1,3 +1,4 @@
+import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
@@ -274,40 +275,56 @@ export default function GuidePage() {
                     num: 1,
                     title: "梱包ダンボールの底面に緩衝材を敷く",
                     desc: "梱包ダンボールの底面にプチプチ等の緩衝材を敷いてください。",
+                    image: "/images/guide/carton-step1.jpg",
                   },
                   {
                     num: 2,
                     title: "カートンサイズに合ったダンボールを使用",
                     desc: "カートンサイズに合ったダンボールを使用してください。",
+                    image: "/images/guide/carton-step2.jpg",
                   },
                   {
                     num: 3,
                     title: "隙間を埋める",
                     desc: "ダンボールの中身が動かないよう、プチプチ・新聞紙・雑紙等でボックスの隙間を埋めてください。※封をした後、ダンボールを揺すり中身が動かないか必ず確認をお願い致します。",
+                    image: "/images/guide/carton-step3.jpg",
                   },
                   {
                     num: 4,
                     title: "梱包ダンボールはカートンより高さのあるものを使用",
                     desc: "梱包ダンボールはカートンより高さのあるものを使用してください。",
+                    image: "/images/guide/carton-step4.jpg",
                   },
                   {
                     num: 5,
                     title: "配送会社への伝達",
                     desc: "荷物の発送に伴う手続き時に必ず「こわれもの注意」の旨を配送会社へ伝達してください。",
+                    image: "/images/guide/carton-step5.jpg",
                   },
                 ].map((item) => (
                   <Card key={item.num}>
-                    <CardContent className="pt-6 flex items-start gap-4">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <span className="text-sm font-bold text-primary">
-                          {item.num}
-                        </span>
+                    <CardContent className="pt-6 flex flex-col sm:flex-row items-start gap-4">
+                      <div className="w-full sm:w-48 shrink-0 rounded-lg overflow-hidden border">
+                        <Image
+                          src={item.image}
+                          alt={item.title}
+                          width={400}
+                          height={300}
+                          className="w-full h-auto object-cover"
+                        />
                       </div>
-                      <div>
-                        <p className="font-semibold text-sm">{item.title}</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {item.desc}
-                        </p>
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <span className="text-sm font-bold text-primary">
+                            {item.num}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">{item.title}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {item.desc}
+                          </p>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -326,27 +343,32 @@ export default function GuidePage() {
                     num: 1,
                     title: "ボックスはペリペリ面を下にダンボールへ入れる",
                     desc: "ボックスはペリペリ面を下にしてダンボールへ入れてください。",
+                    image: "/images/guide/box-step1.jpg",
                   },
                   {
                     num: 2,
                     title: "隙間を埋める",
                     desc: "ダンボールの中身が動かないよう、プチプチ・新聞紙・雑紙等でボックスの隙間を埋めてください。※封をした後、ダンボールを揺すり中身が動かないか必ず確認をお願い致します。",
+                    image: "/images/guide/box-step2.jpg",
                   },
                   {
                     num: 3,
                     title: "梱包ダンボールはボックスより高さのあるものを使用",
                     desc: "梱包ダンボールはボックスより高さのあるものを使用してください。",
+                    image: "/images/guide/box-step3.jpg",
                   },
                   {
                     num: 4,
                     title: "薄いダンボールは基本NG",
                     desc: "AmazonやSNDK等の薄いダンボールは基本NGです。どうしても薄い段ボールしか無い場合は、内側に切ったダンボール片を内面に沿って立て、ダンボールを二重にしてください。",
+                    image: "/images/guide/box-step4.jpg",
                     isWarning: true,
                   },
                   {
                     num: 5,
                     title: "配送会社への伝達",
                     desc: "荷物の発送に伴う手続き時に必ず「こわれもの注意」の旨を配送会社へ伝達してください。",
+                    image: "/images/guide/box-step5.jpg",
                   },
                 ].map((item) => (
                   <Card
@@ -357,27 +379,38 @@ export default function GuidePage() {
                         : ""
                     }
                   >
-                    <CardContent className="pt-6 flex items-start gap-4">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                          "isWarning" in item && item.isWarning
-                            ? "bg-amber-50"
-                            : "bg-primary/10"
-                        }`}
-                      >
-                        {"isWarning" in item && item.isWarning ? (
-                          <AlertTriangle className="h-4 w-4 text-amber-500" />
-                        ) : (
-                          <span className="text-sm font-bold text-primary">
-                            {item.num}
-                          </span>
-                        )}
+                    <CardContent className="pt-6 flex flex-col sm:flex-row items-start gap-4">
+                      <div className="w-full sm:w-48 shrink-0 rounded-lg overflow-hidden border">
+                        <Image
+                          src={item.image}
+                          alt={item.title}
+                          width={400}
+                          height={300}
+                          className="w-full h-auto object-cover"
+                        />
                       </div>
-                      <div>
-                        <p className="font-semibold text-sm">{item.title}</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {item.desc}
-                        </p>
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                            "isWarning" in item && item.isWarning
+                              ? "bg-amber-50"
+                              : "bg-primary/10"
+                          }`}
+                        >
+                          {"isWarning" in item && item.isWarning ? (
+                            <AlertTriangle className="h-4 w-4 text-amber-500" />
+                          ) : (
+                            <span className="text-sm font-bold text-primary">
+                              {item.num}
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">{item.title}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {item.desc}
+                          </p>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
