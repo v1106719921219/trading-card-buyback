@@ -209,39 +209,31 @@ export default function OrdersPage() {
 
       const data = await getOrdersForCSV(year, month)
 
-      // お客様別に集計
+      // 注文単位で集計
       const customerMap = new Map<string, {
+        orderNumber: string
         name: string
         email: string
         address: string
-        orderCount: number
         totalAmount: number
         inspectedTotalAmount: number
-        dates: string[]
+        date: string
       }>()
 
       for (const order of data ?? []) {
-        const key = order.customer_email
-        const existing = customerMap.get(key)
+        const key = order.id
         const amount = order.inspected_total_amount ?? order.total_amount
         const date = new Date(order.created_at).toLocaleDateString('ja-JP')
 
-        if (existing) {
-          existing.orderCount++
-          existing.totalAmount += order.total_amount
-          existing.inspectedTotalAmount += amount
-          existing.dates.push(date)
-        } else {
-          customerMap.set(key, {
-            name: order.customer_name,
-            email: order.customer_email,
-            address: `${order.customer_prefecture ?? ''}${order.customer_address ?? ''}`,
-            orderCount: 1,
-            totalAmount: order.total_amount,
-            inspectedTotalAmount: amount,
-            dates: [date],
-          })
-        }
+        customerMap.set(key, {
+          orderNumber: order.order_number,
+          name: order.customer_name,
+          email: order.customer_email,
+          address: `${order.customer_prefecture ?? ''}${order.customer_address ?? ''}`,
+          totalAmount: order.total_amount,
+          inspectedTotalAmount: amount,
+          date,
+        })
       }
 
       // 日別に集計
@@ -299,20 +291,20 @@ export default function OrdersPage() {
         String(monthInspected),
       ])
 
-      // お客様別集計セクション
+      // 注文別集計セクション
       const customerHeaders = [
-        'お客様名', 'メール', '住所', '注文件数', '申込日',
+        '注文番号', 'お客様名', 'メール', '住所', '申込日',
         '見積合計', '検品後合計',
       ]
 
       const customerRows: string[][] = []
       for (const customer of customerMap.values()) {
         customerRows.push([
+          customer.orderNumber,
           customer.name,
           customer.email,
           customer.address,
-          String(customer.orderCount),
-          customer.dates.join(' / '),
+          customer.date,
           String(customer.totalAmount),
           String(customer.inspectedTotalAmount),
         ])
@@ -324,7 +316,7 @@ export default function OrdersPage() {
         dailyHeaders.map(escapeCSVField).join(',') + '\n' +
         dailyRows.map((row) => row.map(escapeCSVField).join(',')).join('\n') +
         '\n\n' +
-        ['【お客様別集計】'].join(',') + '\n' +
+        ['【注文別集計】'].join(',') + '\n' +
         customerHeaders.map(escapeCSVField).join(',') + '\n' +
         customerRows.map((row) => row.map(escapeCSVField).join(',')).join('\n')
 
