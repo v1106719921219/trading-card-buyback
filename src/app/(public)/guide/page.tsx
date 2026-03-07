@@ -75,7 +75,7 @@ export default function GuidePage() {
       <Header hideApplyButton />
 
       {/* Page Title */}
-      <section className="bg-gradient-to-b from-primary/5 to-background py-8 sm:py-12">
+      <section className="bg-gradient-to-b from-orange-50 to-background py-8 sm:py-12">
         <div className="max-w-4xl mx-auto text-center px-4">
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">買取ガイド</h2>
           <p className="text-muted-foreground">

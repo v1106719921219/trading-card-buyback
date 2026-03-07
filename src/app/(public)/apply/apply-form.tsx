@@ -16,7 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, Mail, MapPin, Search } from 'lucide-react'
+import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, Mail, MapPin, Search, ArrowRight, ArrowLeft, Check, Send } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
@@ -291,22 +291,49 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
 
       {/* Steps indicator */}
       <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-center gap-2 sm:gap-4 mb-8">
-          {STEPS.map((s, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
-                i <= step ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-              }`}>
-                {i + 1}
+        <div className="flex items-center justify-center gap-2 sm:gap-4 mb-4">
+          {STEPS.map((s, i) => {
+            const Icon = s.icon
+            return (
+              <div key={i} className="flex items-center gap-2">
+                <div className={`flex items-center justify-center w-10 h-10 rounded-full text-sm font-bold transition-colors ${
+                  i < step
+                    ? 'bg-primary text-primary-foreground'
+                    : i === step
+                    ? 'bg-primary text-primary-foreground ring-4 ring-primary/20'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  {i < step ? (
+                    <Check className="h-5 w-5" />
+                  ) : i === step ? (
+                    <Icon className="h-5 w-5" />
+                  ) : (
+                    i + 1
+                  )}
+                </div>
+                <span className={`text-sm hidden sm:inline ${i <= step ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
+                  {s.label}
+                </span>
+                {i < STEPS.length - 1 && (
+                  <div className={`w-8 sm:w-16 h-1 rounded-full transition-colors ${i < step ? 'bg-primary' : 'bg-muted'}`} />
+                )}
               </div>
-              <span className={`text-sm hidden sm:inline ${i <= step ? 'font-medium' : 'text-muted-foreground'}`}>
-                {s.label}
-              </span>
-              {i < STEPS.length - 1 && (
-                <div className={`w-8 sm:w-12 h-0.5 ${i < step ? 'bg-primary' : 'bg-muted'}`} />
-              )}
-            </div>
-          ))}
+            )
+          })}
+        </div>
+
+        {/* セクションヘッダー */}
+        <div className="text-center mb-8">
+          <h2 className="text-xl font-bold">
+            {step === 0 && '商品を選択してください'}
+            {step === 1 && 'お客様情報を入力してください'}
+            {step === 2 && '申込内容をご確認ください'}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {step === 0 && '買取を希望する商品を選んでカートに追加してください'}
+            {step === 1 && '買取に必要なお客様情報をご入力ください'}
+            {step === 2 && '内容に問題がなければ「申込を確定する」を押してください'}
+          </p>
         </div>
 
         {/* Step 1: Product Selection */}
@@ -975,18 +1002,31 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
             onClick={() => setStep(step - 1)}
             disabled={step === 0}
           >
+            <ArrowLeft className="h-4 w-4 mr-1" />
             戻る
           </Button>
           {step < 2 ? (
             <Button
               onClick={() => setStep(step + 1)}
               disabled={!canProceed()}
+              size="lg"
             >
               次へ
+              <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={loading}>
-              {loading ? '送信中...' : '申込を確定する'}
+            <Button onClick={handleSubmit} disabled={loading} size="lg" className="text-base px-8">
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  送信中...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  申込を確定する
+                </>
+              )}
             </Button>
           )}
         </div>

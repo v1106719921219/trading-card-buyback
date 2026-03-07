@@ -22,19 +22,19 @@ export function Header({ rightContent, hideApplyButton }: HeaderProps) {
   const [open, setOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-white">
+    <header className="sticky top-0 z-40 bg-gray-950 shadow-lg border-b-[3px] border-primary">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <Image src="/logo.png" alt="買取スクエア" width={32} height={32} className="h-8 w-8" />
-          <span className="text-xl font-bold">買取スクエア</span>
+          <span className="text-xl font-bold text-white">買取スクエア</span>
         </Link>
 
         {/* Desktop nav */}
         <nav className="hidden sm:flex gap-4 items-center">
-          <Link href="/guide" className="text-sm text-muted-foreground hover:text-foreground">
+          <Link href="/guide" className="text-sm text-gray-300 hover:text-white">
             買取ガイド
           </Link>
-          <Link href="/prices" className="text-sm text-muted-foreground hover:text-foreground">
+          <Link href="/prices" className="text-sm text-gray-300 hover:text-white">
             買取価格一覧
           </Link>
           {rightContent || (!hideApplyButton && (
@@ -49,7 +49,7 @@ export function Header({ rightContent, hideApplyButton }: HeaderProps) {
           {rightContent}
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="text-white hover:text-white hover:bg-gray-900">
                 <Menu className="h-5 w-5" />
                 <span className="sr-only">メニュー</span>
               </Button>

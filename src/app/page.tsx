@@ -11,24 +11,25 @@ export default function HomePage() {
       <Header />
 
       {/* Hero */}
-      <section className="bg-gradient-to-b from-primary/5 to-background py-10 sm:py-16 md:py-20">
+      <section className="bg-gradient-to-b from-orange-50 to-background py-12 sm:py-20 md:py-24">
         <div className="max-w-4xl mx-auto text-center px-4">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-4">
-            トレーディングカード高価買取
+          <p className="text-sm font-semibold text-primary mb-3 tracking-wide">トレカ高価買取専門</p>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight mb-5">
+            トレーディングカード<br className="sm:hidden" />高価買取
           </h2>
-          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+          <p className="text-lg text-muted-foreground mb-10 max-w-2xl mx-auto">
             ポケモンカード、ワンピースカードなど
             各種トレーディングカードを高価買取いたします。
             簡単3ステップでお申し込みいただけます。
           </p>
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
             <Link href="/apply">
-              <Button size="lg" className="text-lg px-8 w-full sm:w-auto">
+              <Button size="lg" className="text-lg px-10 py-6 w-full sm:w-auto shadow-md">
                 買取を申し込む
               </Button>
             </Link>
             <Link href="/prices">
-              <Button size="lg" variant="outline" className="text-lg px-8 w-full sm:w-auto">
+              <Button size="lg" variant="outline" className="text-lg px-10 py-6 w-full sm:w-auto border-primary/50 text-primary hover:bg-primary/10">
                 買取価格を見る
               </Button>
             </Link>
@@ -47,7 +48,7 @@ export default function HomePage() {
               { icon: Package, title: '3. 発送', desc: 'カードを梱包して指定の住所に発送' },
               { icon: CreditCard, title: '4. 振込', desc: '検品完了後、指定口座にお振込み' },
             ].map((step, i) => (
-              <Card key={i} className="text-center">
+              <Card key={i} className="text-center border-t-2 border-primary">
                 <CardHeader>
                   <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
                     <step.icon className="h-6 w-6 text-primary" />

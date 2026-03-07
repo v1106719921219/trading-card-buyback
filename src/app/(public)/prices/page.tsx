@@ -101,14 +101,16 @@ export default function PricesPage() {
     <div className="min-h-screen bg-muted/50">
       <Header hideApplyButton />
 
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold mb-2">買取価格一覧</h2>
+      <section className="bg-gradient-to-b from-orange-50 to-muted/50 py-8 sm:py-12">
+        <div className="max-w-4xl mx-auto text-center px-4">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">買取価格一覧</h2>
           <p className="text-muted-foreground">
             最新の買取価格です。価格は市場状況により変動することがあります。
           </p>
         </div>
+      </section>
 
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         {/* Search & Filters */}
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1 min-w-[180px]">
