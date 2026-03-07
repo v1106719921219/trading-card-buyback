@@ -1,24 +1,92 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
+import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 
 export async function middleware(request: NextRequest) {
-  // サブドメインからテナントslugを解決してヘッダーに追加
+  const { pathname } = request.nextUrl
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    ?? request.headers.get('x-real-ip')
+    ?? 'unknown'
+
+  // ============================================================================
+  // 1. Rate Limiting
+  // ============================================================================
+
+  // ログインページへのブルートフォース対策
+  if (pathname === '/login' && request.method === 'POST') {
+    const result = rateLimit(`login:${ip}`, RATE_LIMITS.login)
+    if (!result.success) {
+      return new NextResponse(
+        JSON.stringify({ error: 'リクエストが多すぎます。しばらくしてからお試しください' }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': String(Math.ceil((result.resetAt - Date.now()) / 1000)),
+          },
+        }
+      )
+    }
+  }
+
+  // 申込フォームへのスパム対策
+  if (pathname.startsWith('/apply') && request.method === 'POST') {
+    const result = rateLimit(`apply:${ip}`, RATE_LIMITS.applyForm)
+    if (!result.success) {
+      return new NextResponse(
+        JSON.stringify({ error: '申込が多すぎます。しばらくしてからお試しください' }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': String(Math.ceil((result.resetAt - Date.now()) / 1000)),
+          },
+        }
+      )
+    }
+  }
+
+  // ============================================================================
+  // 2. テナントSlug解決（サブドメインから）
+  // ============================================================================
+
   const hostname = request.headers.get('host') || ''
-  const url = request.nextUrl
+  const tenantSlug = resolveTenantSlug(hostname, request.nextUrl)
 
-  // 本番: quadra.yourdomain.com → slug = quadra
-  // 開発: localhost:3000 → slug = デフォルト or クエリパラメータで指定
-  const tenantSlug = resolveTenantSlug(hostname, url)
-
-  // テナントslugをリクエストヘッダーに付与（Server Components / Server Actionsで参照）
   const requestHeaders = new Headers(request.headers)
   if (tenantSlug) {
     requestHeaders.set('x-tenant-slug', tenantSlug)
   }
+  // IPをヘッダーに付与（Server Actions内でのRate Limit用）
+  requestHeaders.set('x-real-ip', ip)
+
+  // ============================================================================
+  // 3. セッション更新（Supabase Auth）
+  // ============================================================================
 
   const response = await updateSession(
     new Request(request, { headers: requestHeaders })
   )
+
+  // ============================================================================
+  // 4. セキュリティヘッダー付与
+  // ============================================================================
+
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('X-XSS-Protection', '1; mode=block')
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=()'
+  )
+  // 本番環境のみHSTSを設定
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains'
+    )
+  }
 
   return response
 }
@@ -38,7 +106,6 @@ function resolveTenantSlug(hostname: string, url: URL): string | null {
   }
 
   // 本番: サブドメインを抽出
-  // quadra.buyback.jp → quadra
   if (hostname.endsWith(`.${rootDomain}`)) {
     return hostname.replace(`.${rootDomain}`, '')
   }

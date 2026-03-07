@@ -10,6 +10,7 @@ import { sendOrderConfirmationEmail } from '@/lib/email'
 import { appendOrderToSheet } from '@/lib/google-sheets'
 import { getCurrentUser } from '@/actions/auth'
 import { requireTenantId } from '@/lib/tenant'
+import { requireRole, assertBelongsToTenant, sanitizeError } from '@/lib/security'
 
 
 export async function createOrder(input: CreateOrderInput) {
@@ -248,12 +249,15 @@ export async function updateOrderStatus(
 }
 
 export async function getOrderByOrderNumber(orderNumber: string) {
+  // 公開追跡ページ用：テナント絞り込みを行う
+  const tenantId = await requireTenantId()
   const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('orders')
     .select('id, order_number, status, tracking_number, office_id, customer_identity_method')
     .eq('order_number', orderNumber)
+    .eq('tenant_id', tenantId)  // テナント境界を強制
     .single()
 
   if (error || !data) return null
@@ -265,13 +269,19 @@ export async function submitTrackingNumber(orderNumber: string, trackingNumber: 
     return { error: '注文番号と追跡番号を入力してください' }
   }
 
+  // 認証チェック
+  const { error: authErr } = await requireRole(['admin', 'manager', 'staff'])
+  if (authErr) return { error: authErr }
+
+  const tenantId = await requireTenantId()
   const supabase = createAdminClient()
 
-  // Find order by order_number
+  // テナント絞り込みで検索
   const { data: order, error: fetchError } = await supabase
     .from('orders')
     .select('id, status, tracking_number')
     .eq('order_number', orderNumber)
+    .eq('tenant_id', tenantId)  // テナント境界
     .single()
 
   if (fetchError || !order) {
@@ -279,7 +289,6 @@ export async function submitTrackingNumber(orderNumber: string, trackingNumber: 
   }
 
   if (order.status === '申込') {
-    // First tracking number: set status to 発送済
     const { error: updateError } = await supabase
       .from('orders')
       .update({
@@ -287,14 +296,14 @@ export async function submitTrackingNumber(orderNumber: string, trackingNumber: 
         status: '発送済',
       })
       .eq('id', order.id)
+      .eq('tenant_id', tenantId)  // 念のため二重チェック
 
     if (updateError) {
-      return { error: `更新に失敗しました: ${updateError.message}` }
+      return { error: sanitizeError(updateError) }
     }
     return { success: true }
   }
 
-  // Already shipped: append tracking number
   if (order.tracking_number) {
     const existing = order.tracking_number as string
     const newValue = `${existing}\n${trackingNumber}`
@@ -302,9 +311,10 @@ export async function submitTrackingNumber(orderNumber: string, trackingNumber: 
       .from('orders')
       .update({ tracking_number: newValue })
       .eq('id', order.id)
+      .eq('tenant_id', tenantId)
 
     if (updateError) {
-      return { error: `更新に失敗しました: ${updateError.message}` }
+      return { error: sanitizeError(updateError) }
     }
     return { success: true }
   }
@@ -363,12 +373,15 @@ export async function updateOrderNotes(orderId: string, notes: string) {
 }
 
 export async function getOrderWithItems(orderNumber: string) {
+  // 公開ページ（配送状況確認等）: テナント境界で絞り込む
+  const tenantId = await requireTenantId()
   const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items(*)')
     .eq('order_number', orderNumber)
+    .eq('tenant_id', tenantId)  // テナント境界
     .single()
 
   if (error || !data) return null

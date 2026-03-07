@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireRole, sanitizeError } from '@/lib/security'
+import { requireTenantId } from '@/lib/tenant'
 import type { UserRole } from '@/types/database'
 
 export async function login(formData: FormData) {
@@ -35,29 +37,30 @@ export async function createStaff(data: {
   display_name: string
   role: UserRole
 }) {
-  // Check current user is admin
-  const currentUser = await getCurrentUser()
-  if (!currentUser || currentUser.role !== 'admin') {
-    return { error: '管理者権限が必要です' }
-  }
+  // admin のみ実行可能
+  const { error: authError } = await requireRole(['admin'])
+  if (authError) return { error: authError }
+
+  // 現在のテナントIDを取得（スタッフは同テナントに所属させる）
+  const tenantId = await requireTenantId()
 
   const supabase = createAdminClient()
 
   // Create auth user
-  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+  const { data: authData, error: createError } = await supabase.auth.admin.createUser({
     email: data.email,
     password: data.password,
     email_confirm: true,
   })
 
-  if (authError) {
-    if (authError.message.includes('already been registered')) {
+  if (createError) {
+    if (createError.message.includes('already been registered')) {
       return { error: 'このメールアドレスは既に登録されています' }
     }
-    return { error: `ユーザー作成に失敗しました: ${authError.message}` }
+    return { error: 'ユーザー作成に失敗しました' }
   }
 
-  // Create profile
+  // Create profile（tenant_idを必ず付与）
   const { error: profileError } = await supabase
     .from('profiles')
     .insert({
@@ -65,12 +68,14 @@ export async function createStaff(data: {
       email: data.email,
       display_name: data.display_name,
       role: data.role,
+      tenant_id: tenantId,
     })
 
   if (profileError) {
     // Rollback: delete auth user
     await supabase.auth.admin.deleteUser(authData.user.id)
-    return { error: `プロフィール作成に失敗しました: ${profileError.message}` }
+    console.error('[createStaff] profile insert failed:', profileError)
+    return { error: 'スタッフ登録に失敗しました' }
   }
 
   return { error: null }
