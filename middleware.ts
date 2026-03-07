@@ -53,24 +53,22 @@ export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || ''
   const tenantSlug = resolveTenantSlug(hostname, request.nextUrl)
 
-  const requestHeaders = new Headers(request.headers)
-  if (tenantSlug) {
-    requestHeaders.set('x-tenant-slug', tenantSlug)
-  }
-  // IPをヘッダーに付与（Server Actions内でのRate Limit用）
-  requestHeaders.set('x-real-ip', ip)
+  // ヘッダーは後でレスポンスに付与する
 
   // ============================================================================
   // 3. セッション更新（Supabase Auth）
   // ============================================================================
 
-  // NextRequestに新しいヘッダーを適用してセッション更新
-  const modifiedRequest = new NextRequest(request.url, {
-    headers: requestHeaders,
-    method: request.method,
-    body: request.body,
-  })
-  const response = await updateSession(modifiedRequest)
+  // テナントslugとIPをリクエストに付与してセッション更新
+  // ※ updateSessionはNextRequestを受け取るため、元のrequestをそのまま渡す
+  // ヘッダーはレスポンス経由でServer Componentsに伝達
+  const response = await updateSession(request)
+
+  // テナントslugとIPをレスポンスヘッダーに付与（Server Componentsで参照可能）
+  if (tenantSlug) {
+    response.headers.set('x-tenant-slug', tenantSlug)
+  }
+  response.headers.set('x-real-ip', ip)
 
   // ============================================================================
   // 4. セキュリティヘッダー付与
