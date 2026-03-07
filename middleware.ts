@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 
@@ -64,9 +64,13 @@ export async function middleware(request: NextRequest) {
   // 3. セッション更新（Supabase Auth）
   // ============================================================================
 
-  const response = await updateSession(
-    new Request(request, { headers: requestHeaders })
-  )
+  // NextRequestに新しいヘッダーを適用してセッション更新
+  const modifiedRequest = new NextRequest(request.url, {
+    headers: requestHeaders,
+    method: request.method,
+    body: request.body,
+  })
+  const response = await updateSession(modifiedRequest)
 
   // ============================================================================
   // 4. セキュリティヘッダー付与

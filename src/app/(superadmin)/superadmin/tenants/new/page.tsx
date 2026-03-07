@@ -99,10 +99,11 @@ export default function NewTenantPage() {
             <select
               name="plan"
               required
+              defaultValue="standard"
               className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
             >
               <option value="starter">Starter（¥9,800/月）</option>
-              <option value="standard" selected>Standard（¥19,800/月）</option>
+              <option value="standard">Standard（¥19,800/月）</option>
               <option value="pro">Pro（¥39,800/月）</option>
             </select>
           </div>
