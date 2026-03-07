@@ -48,5 +48,17 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // /superadmin は認証確認をlayout.tsxに委ねる（専用セッション）
+  // ログインページ自体はprotectしない
+  if (
+    request.nextUrl.pathname.startsWith('/superadmin') &&
+    !request.nextUrl.pathname.startsWith('/superadmin/login') &&
+    !user
+  ) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/superadmin/login'
+    return NextResponse.redirect(url)
+  }
+
   return supabaseResponse
 }
