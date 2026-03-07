@@ -9,6 +9,7 @@ import type { OrderStatus, BuybackType } from '@/types/database'
 import { sendOrderConfirmationEmail } from '@/lib/email'
 import { appendOrderToSheet } from '@/lib/google-sheets'
 import { getCurrentUser } from '@/actions/auth'
+import { requireTenantId } from '@/lib/tenant'
 
 
 export async function createOrder(input: CreateOrderInput) {
@@ -17,16 +18,20 @@ export async function createOrder(input: CreateOrderInput) {
     return { error: parsed.error.issues[0].message }
   }
 
+  // テナントID取得（公開申込フォームからのリクエスト）
+  const tenantId = await requireTenantId()
+
   // Use admin client for public form submission (bypasses RLS)
   const supabase = createAdminClient()
 
   const { items, customer, customer_id, office_id, shipped_date } = parsed.data
 
-  // 重複チェック: 同一メールアドレスで2分以内の申込があれば既存注文を返す
+  // 重複チェック: 同一テナント・メールアドレスで2分以内の申込があれば既存注文を返す
   const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
   const { data: existingOrder } = await supabase
     .from('orders')
     .select('order_number')
+    .eq('tenant_id', tenantId)
     .eq('customer_email', customer.customer_email)
     .eq('status', '申込')
     .gte('created_at', twoMinutesAgo)
@@ -69,6 +74,7 @@ export async function createOrder(input: CreateOrderInput) {
       customer_id: customer_id || null,
       office_id,
       shipped_date: shipped_date || null,
+      tenant_id: tenantId,
     })
     .select('id, order_number')
     .single()
