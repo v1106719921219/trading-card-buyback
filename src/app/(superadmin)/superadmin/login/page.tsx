@@ -35,7 +35,7 @@ export default function SuperAdminLoginPage() {
     if (!result.isSuperAdmin) {
       await supabase.auth.signOut()
       setLoading(false)
-      setError('スーパー管理者権限がありません')
+      setError(`スーパー管理者権限がありません [${result.debug ?? ''}]`)
       return
     }
 
