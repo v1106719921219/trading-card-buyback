@@ -20,6 +20,12 @@ CREATE TRIGGER trg_super_admins_updated_at
     BEFORE UPDATE ON super_admins
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+-- テーブル権限付与
+GRANT ALL ON TABLE public.super_admins TO postgres;
+GRANT ALL ON TABLE public.super_admins TO service_role;
+GRANT ALL ON TABLE public.super_admins TO authenticated;
+GRANT ALL ON TABLE public.super_admins TO anon;
+
 -- RLS
 ALTER TABLE super_admins ENABLE ROW LEVEL SECURITY;
 
