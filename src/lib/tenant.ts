@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { cache } from 'react'
 
 export interface Tenant {
@@ -17,14 +18,19 @@ export interface Tenant {
 /**
  * 現在のリクエストのテナントを取得する（Server Components / Server Actions用）
  * middleware.tsが x-tenant-slug ヘッダーを付与している前提
+ * ヘッダーが取得できない場合はDEFAULT_TENANT_SLUGにフォールバック
  */
 export const getTenant = cache(async (): Promise<Tenant | null> => {
   const headersList = await headers()
-  const slug = headersList.get('x-tenant-slug')
+  let slug = headersList.get('x-tenant-slug')
 
-  if (!slug) return null
+  // ミドルウェアからヘッダーが届かない場合のフォールバック
+  if (!slug) {
+    slug = process.env.DEFAULT_TENANT_SLUG || 'quadra'
+  }
 
-  const supabase = await createClient()
+  // RLSをバイパスして確実にテナント情報を取得
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('tenants')
     .select('*')
