@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { verifySuperAdmin } from './actions'
 
 export default function SuperAdminLoginPage() {
   const router = useRouter()
@@ -18,6 +19,7 @@ export default function SuperAdminLoginPage() {
     const email = form.get('email') as string
     const password = form.get('password') as string
 
+    // Step 1: ログイン
     const supabase = createClient()
     const { data: signInData, error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
@@ -27,14 +29,10 @@ export default function SuperAdminLoginPage() {
       return
     }
 
-    // super_adminかどうか確認（ユーザーIDを明示的に指定）
-    const { data: superAdmin } = await supabase
-      .from('super_admins')
-      .select('id')
-      .eq('id', signInData.user.id)
-      .single()
+    // Step 2: Server Action経由でsuper_admin確認（adminクライアント使用）
+    const result = await verifySuperAdmin(signInData.user.id)
 
-    if (!superAdmin) {
+    if (!result.isSuperAdmin) {
       await supabase.auth.signOut()
       setLoading(false)
       setError('スーパー管理者権限がありません')
