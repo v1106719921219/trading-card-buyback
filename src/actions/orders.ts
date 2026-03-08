@@ -20,7 +20,12 @@ export async function createOrder(input: CreateOrderInput) {
   }
 
   // テナントID取得（公開申込フォームからのリクエスト）
-  const tenantId = await requireTenantId()
+  let tenantId: string
+  try {
+    tenantId = await requireTenantId()
+  } catch {
+    return { error: 'テナント情報の取得に失敗しました。ページを再読み込みしてお試しください。' }
+  }
 
   // Use admin client for public form submission (bypasses RLS)
   const supabase = createAdminClient()

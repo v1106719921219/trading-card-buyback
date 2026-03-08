@@ -53,18 +53,19 @@ export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || ''
   const tenantSlug = resolveTenantSlug(hostname, request.nextUrl)
 
-  // ヘッダーは後でレスポンスに付与する
+  // リクエストヘッダーに付与（Server Components / Server Actions で headers() 経由で参照可能）
+  if (tenantSlug) {
+    request.headers.set('x-tenant-slug', tenantSlug)
+  }
+  request.headers.set('x-real-ip', ip)
 
   // ============================================================================
   // 3. セッション更新（Supabase Auth）
   // ============================================================================
 
-  // テナントslugとIPをリクエストに付与してセッション更新
-  // ※ updateSessionはNextRequestを受け取るため、元のrequestをそのまま渡す
-  // ヘッダーはレスポンス経由でServer Componentsに伝達
   const response = await updateSession(request)
 
-  // テナントslugとIPをレスポンスヘッダーに付与（Server Componentsで参照可能）
+  // レスポンスヘッダーにも付与（ブラウザ側での参照用）
   if (tenantSlug) {
     response.headers.set('x-tenant-slug', tenantSlug)
   }

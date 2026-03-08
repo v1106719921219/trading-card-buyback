@@ -245,44 +245,50 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     submittingRef.current = true
     setLoading(true)
 
-    const result = await createOrder({
-      items: cart.map(({ product_id, product_name, unit_price, quantity }) => ({
-        product_id,
-        product_name,
-        unit_price,
-        quantity,
-      })),
-      customer: {
-        customer_name: customerName,
-        customer_line_name: customerLineName,
-        customer_email: customerEmail,
-        customer_phone: customerPhone || '',
-        customer_birth_date: customerBirthDate,
-        customer_occupation: customerOccupation,
-        customer_prefecture: customerPrefecture as typeof PREFECTURES[number],
-        customer_address: customerAddress,
-        customer_not_invoice_issuer: customerNotInvoiceIssuer,
-        invoice_issuer_number: customerNotInvoiceIssuer ? '' : invoiceIssuerNumber,
-        customer_identity_method: customerIdentityMethod as typeof IDENTITY_METHODS[number],
-        bank_name: bankName,
-        bank_branch: bankBranch,
-        bank_account_type: bankAccountType,
-        bank_account_number: bankAccountNumber,
-        bank_account_holder: bankAccountHolder,
-      },
-      office_id: selectedOfficeId,
-      shipped_date: shippedDate || undefined,
-    })
+    try {
+      const result = await createOrder({
+        items: cart.map(({ product_id, product_name, unit_price, quantity }) => ({
+          product_id,
+          product_name,
+          unit_price,
+          quantity,
+        })),
+        customer: {
+          customer_name: customerName,
+          customer_line_name: customerLineName,
+          customer_email: customerEmail,
+          customer_phone: customerPhone || '',
+          customer_birth_date: customerBirthDate,
+          customer_occupation: customerOccupation,
+          customer_prefecture: customerPrefecture as typeof PREFECTURES[number],
+          customer_address: customerAddress,
+          customer_not_invoice_issuer: customerNotInvoiceIssuer,
+          invoice_issuer_number: customerNotInvoiceIssuer ? '' : invoiceIssuerNumber,
+          customer_identity_method: customerIdentityMethod as typeof IDENTITY_METHODS[number],
+          bank_name: bankName,
+          bank_branch: bankBranch,
+          bank_account_type: bankAccountType,
+          bank_account_number: bankAccountNumber,
+          bank_account_holder: bankAccountHolder,
+        },
+        office_id: selectedOfficeId,
+        shipped_date: shippedDate || undefined,
+      })
 
-    setLoading(false)
+      setLoading(false)
 
-    if (result.error) {
+      if (result.error) {
+        submittingRef.current = false
+        toast.error(result.error)
+        return
+      }
+
+      router.push(`/apply/complete?order_number=${result.order_number}&office_id=${result.office_id}`)
+    } catch {
+      setLoading(false)
       submittingRef.current = false
-      toast.error(result.error)
-      return
+      toast.error('送信中にエラーが発生しました。ページを再読み込みしてお試しください。')
     }
-
-    router.push(`/apply/complete?order_number=${result.order_number}&office_id=${result.office_id}`)
   }
 
   return (
