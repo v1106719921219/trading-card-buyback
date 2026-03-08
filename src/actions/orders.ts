@@ -23,8 +23,9 @@ export async function createOrder(input: CreateOrderInput) {
   let tenantId: string
   try {
     tenantId = await requireTenantId()
-  } catch {
-    return { error: 'テナント情報の取得に失敗しました。ページを再読み込みしてお試しください。' }
+  } catch (e) {
+    console.error('[createOrder] テナント取得エラー:', e)
+    return { error: `テナント情報の取得に失敗しました: ${e instanceof Error ? e.message : '不明'}` }
   }
 
   // Use admin client for public form submission (bypasses RLS)

@@ -61,6 +61,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [shippedDate, setShippedDate] = useState<string>('')
   const [aiText, setAiText] = useState('')
   const [aiParsing, setAiParsing] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   // Repeater lookup state
   const [lookupEmail, setLookupEmail] = useState('')
@@ -244,6 +245,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     if (submittingRef.current) return
     submittingRef.current = true
     setLoading(true)
+    setSubmitError(null)
 
     try {
       const result = await createOrder({
@@ -279,15 +281,18 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
 
       if (result.error) {
         submittingRef.current = false
+        setSubmitError(result.error)
         toast.error(result.error)
         return
       }
 
       router.push(`/apply/complete?order_number=${result.order_number}&office_id=${result.office_id}`)
-    } catch {
+    } catch (e) {
       setLoading(false)
       submittingRef.current = false
-      toast.error('送信中にエラーが発生しました。ページを再読み込みしてお試しください。')
+      const msg = e instanceof Error ? e.message : '不明なエラー'
+      setSubmitError(msg)
+      toast.error(msg)
     }
   }
 
@@ -999,6 +1004,14 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
 
             </CardContent>
           </Card>
+        )}
+
+        {/* Error display */}
+        {submitError && (
+          <div className="max-w-2xl mx-auto mt-4 p-4 bg-red-50 border border-red-300 rounded-lg text-red-800 text-sm">
+            <p className="font-bold">エラーが発生しました:</p>
+            <p className="mt-1">{submitError}</p>
+          </div>
         )}
 
         {/* Navigation */}
