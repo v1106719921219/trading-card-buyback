@@ -91,6 +91,7 @@ export async function createOrder(input: CreateOrderInput) {
     product_name: item.product_name,
     unit_price: item.unit_price,
     quantity: item.quantity,
+    tenant_id: tenantId,
   }))
 
   const { error: itemsError } = await supabase
@@ -420,7 +421,7 @@ export async function updateOrderItems(
   // Fetch order
   const { data: order, error: fetchError } = await supabase
     .from('orders')
-    .select('id, status')
+    .select('id, status, tenant_id')
     .eq('order_number', orderNumber)
     .single()
 
@@ -449,6 +450,7 @@ export async function updateOrderItems(
     product_name: item.product_name,
     unit_price: item.unit_price,
     quantity: item.quantity,
+    tenant_id: order.tenant_id,
   }))
 
   const { error: insertError } = await supabase
