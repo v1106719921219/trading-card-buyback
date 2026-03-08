@@ -112,12 +112,9 @@ function resolveTenantSlug(hostname: string, url: URL): string | null {
     return hostname.replace(`.${rootDomain}`, '')
   }
 
-  // ルートドメインそのもの（マーケティングサイト等）
-  if (hostname === rootDomain) {
-    return null
-  }
-
-  return null
+  // ルートドメインそのもの、またはカスタムドメイン
+  // → デフォルトテナントを返す
+  return process.env.DEFAULT_TENANT_SLUG || 'quadra'
 }
 
 export const config = {
