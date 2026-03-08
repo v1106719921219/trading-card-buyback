@@ -19,18 +19,19 @@ export default function SuperAdminLoginPage() {
     const password = form.get('password') as string
 
     const supabase = createClient()
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    const { data: signInData, error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
-    if (authError) {
+    if (authError || !signInData.user) {
       setLoading(false)
       setError('メールアドレスまたはパスワードが正しくありません')
       return
     }
 
-    // super_adminかどうか確認
+    // super_adminかどうか確認（ユーザーIDを明示的に指定）
     const { data: superAdmin } = await supabase
       .from('super_admins')
       .select('id')
+      .eq('id', signInData.user.id)
       .single()
 
     if (!superAdmin) {
