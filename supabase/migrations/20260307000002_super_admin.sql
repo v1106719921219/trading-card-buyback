@@ -85,3 +85,16 @@ CREATE POLICY "tenants_service_role_all"
     WITH CHECK (true);
 
 COMMIT;
+
+-- 全テーブルへのGRANT（service_role / authenticated / anon）
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOR t IN
+    SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+  LOOP
+    EXECUTE format('GRANT ALL ON TABLE public.%I TO postgres, service_role, authenticated, anon', t);
+  END LOOP;
+END;
+$$;
