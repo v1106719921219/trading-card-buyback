@@ -240,7 +240,7 @@ export default function InspectPage() {
       .eq('id', orderId)
 
     if (error) {
-      toast.error('検品合計の更新に失敗しました')
+      toast.error(`検品合計の更新に失敗しました: ${error.message}`)
       setSaving(false)
       return
     }
@@ -260,7 +260,7 @@ export default function InspectPage() {
       .eq('id', orderId)
 
     if (error) {
-      toast.error('ステータスの変更に失敗しました')
+      toast.error(`ステータスの変更に失敗しました: ${error.message}`)
       return
     }
 
