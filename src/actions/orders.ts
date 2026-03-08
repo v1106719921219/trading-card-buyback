@@ -276,11 +276,13 @@ export async function submitTrackingNumber(orderNumber: string, trackingNumber: 
     return { error: '注文番号と追跡番号を入力してください' }
   }
 
-  // 認証チェック
-  const { error: authErr } = await requireRole(['admin', 'manager', 'staff'])
-  if (authErr) return { error: authErr }
-
-  const tenantId = await requireTenantId()
+  // 公開ページ（申込完了ページ）からお客様が利用するため認証不要
+  let tenantId: string
+  try {
+    tenantId = await requireTenantId()
+  } catch {
+    return { error: 'テナント情報の取得に失敗しました' }
+  }
   const supabase = createAdminClient()
 
   // テナント絞り込みで検索
