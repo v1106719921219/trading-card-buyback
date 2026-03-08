@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Helvetica Neue', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+  width: 794px; height: 1123px; overflow: hidden;
+}
+.page {
+  width: 794px; height: 1123px;
+  background: #fff;
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  grid-template-rows: 1fr auto;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 左列 */
+.left {
+  grid-column: 1;
+  grid-row: 1;
+  padding: 56px 40px 48px 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  border-right: 1px solid #f1f5f9;
+}
+.logo { font-size:10px; letter-spacing:6px; color:#2563eb; font-weight:700; text-transform:uppercase; margin-bottom: auto; }
+.top-content { margin-bottom: auto; }
+.eyebrow { font-size:11px; color:#94a3b8; letter-spacing:4px; text-transform:uppercase; margin-bottom:20px; }
+.headline { font-size:46px; font-weight:900; line-height:1.1; color:#0f172a; letter-spacing:-1px; }
+.headline em { font-style:normal; color:#2563eb; }
+.divider { width:48px; height:3px; background:#2563eb; margin: 36px 0; }
+.desc { font-size:15px; color:#64748b; line-height:1.8; margin-bottom:28px; }
+.desc strong { color:#0f172a; font-weight:700; }
+.btn { display:inline-block; background:#2563eb; color:#fff; font-size:16px; font-weight:800; padding:16px 36px; border-radius:8px; }
+.note { margin-top:14px; font-size:11px; color:#94a3b8; line-height:1.6; }
+
+/* 右列 */
+.right {
+  grid-column: 2;
+  grid-row: 1;
+  background: #f8faff;
+  padding: 64px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  justify-content: center;
+}
+.fcard {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 20px 20px;
+}
+.fcard:first-child {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+.fcard-icon { font-size:22px; margin-bottom:10px; }
+.fcard-lbl { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#94a3b8; margin-bottom:5px; }
+.fcard:first-child .fcard-lbl { color:rgba(255,255,255,0.6); }
+.fcard-val { font-size:14px; font-weight:700; color:#1e40af; line-height:1.4; }
+.fcard:first-child .fcard-val { color:#fff; }
+
+/* フッター */
+.footer {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  border-top: 1px solid #f1f5f9;
+  padding: 18px 64px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.fl { font-size:11px; color:#d1d5db; }
+.fr { font-size:10px; color:#2563eb; letter-spacing:2px; font-weight:700; text-transform:uppercase; }
+
+/* 上部アクセントライン */
+.accent { position:absolute; top:0; left:0; right:0; height:5px; background:#2563eb; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="accent"></div>
+
+  <!-- 左列 -->
+  <div class="left">
+    <div class="logo">Kaitori Cloud — カイトリクラウド</div>
+
+    <div class="top-content">
+      <div class="eyebrow">BOX買取専門店のためのシステム</div>
+      <div class="headline">
+        買取店が、<br>
+        買取店のために<br>
+        <em>作ったシステム。</em>
+      </div>
+      <div class="divider"></div>
+      <div class="desc">
+        BOX発送型買取店の業務に完全対応。<br>
+        申込・査定・発送、全部ひとつに。<br>
+        <strong>現役買取店「買取スクエア」が開発・稼働中。</strong>
+      </div>
+      <div class="btn">まずは無料相談 →</div>
+      <div class="note">
+        デモをすぐご覧いただけます<br>
+        無理な営業は一切しません
+      </div>
+    </div>
+  </div>
+
+  <!-- 右列 -->
+  <div class="right">
+    <div class="fcard">
+      <div class="fcard-icon">📦</div>
+      <div class="fcard-lbl">注文管理</div>
+      <div class="fcard-val">申込〜発送<br>一元化</div>
+    </div>
+    <div class="fcard">
+      <div class="fcard-icon">💰</div>
+      <div class="fcard-lbl">価格管理</div>
+      <div class="fcard-val">リアルタイム<br>更新</div>
+    </div>
+    <div class="fcard">
+      <div class="fcard-icon">🌐</div>
+      <div class="fcard-lbl">独自ドメイン</div>
+      <div class="fcard-val">自社サイトとして<br>展開</div>
+    </div>
+    <div class="fcard">
+      <div class="fcard-icon">⚡</div>
+      <div class="fcard-lbl">LINE連携</div>
+      <div class="fcard-val">貼るだけで<br>申込完了</div>
+    </div>
+  </div>
+
+  <!-- フッター -->
+  <div class="footer">
+    <div class="fl">合同会社クアドラ（カイトリクラウド事業）　LINE / DM からお気軽にどうぞ</div>
+    <div class="fr">Free Consultation　buyback.shipord.jp</div>
+  </div>
+</div>
+</body>
+</html>
