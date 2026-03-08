@@ -215,6 +215,7 @@ export default function InspectPage() {
         quantity: 0,
         inspected_quantity: item._inspected,
         returned_quantity: item._returned,
+        tenant_id: order?.tenant_id,
       }))
 
       const { error } = await supabase.from('order_items').insert(inserts)

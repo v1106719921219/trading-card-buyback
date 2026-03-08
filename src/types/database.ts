@@ -104,6 +104,7 @@ export interface Order {
   inspection_status: InspectionStatus | null
   buyback_type: BuybackType | null
   assigned_to: string | null
+  tenant_id: string
   created_at: string
   updated_at: string
   // joined

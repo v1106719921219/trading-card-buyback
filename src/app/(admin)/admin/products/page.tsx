@@ -78,6 +78,17 @@ export default function ProductsPage() {
   const [csvImporting, setCsvImporting] = useState(false)
 
   const supabase = createClient()
+  const [tenantId, setTenantId] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        supabase.from('profiles').select('tenant_id').eq('id', data.user.id).single().then(({ data: profile }) => {
+          if (profile) setTenantId(profile.tenant_id)
+        })
+      }
+    })
+  }, [])
 
   async function fetchData() {
     const [productsResult, categoriesResult, subcategoriesResult] = await Promise.all([
@@ -186,7 +197,7 @@ export default function ProductsPage() {
     } else {
       const { error } = await supabase
         .from('products')
-        .insert({ name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, show_in_price_list: formPrice > 0 })
+        .insert({ name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, show_in_price_list: formPrice > 0, tenant_id: tenantId })
 
       if (error) {
         toast.error(error.code === '23505' ? 'この商品名は既に存在します' : error.message)
@@ -362,6 +373,7 @@ export default function ProductsPage() {
           show_in_price_list: item.showInPriceList ?? item.price > 0,
           is_active: item.isActive ?? true,
           sort_order: sortOrder,
+          tenant_id: tenantId,
         })
         if (error) {
           toast.error(`「${item.name}」の追加に失敗: ${error.message}`)

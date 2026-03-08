@@ -7,6 +7,7 @@ import {
   updateProductSchema,
   updateProductPriceSchema,
 } from '@/lib/validators/product'
+import { requireTenantId } from '@/lib/tenant'
 
 export async function getProducts(categoryId?: string, search?: string) {
   const supabase = await createClient()
@@ -55,7 +56,8 @@ export async function createProduct(formData: FormData) {
     return { error: parsed.error.issues[0].message }
   }
 
-  const { error } = await supabase.from('products').insert(parsed.data)
+  const tenantId = await requireTenantId()
+  const { error } = await supabase.from('products').insert({ ...parsed.data, tenant_id: tenantId })
 
   if (error) {
     if (error.code === '23505') return { error: 'この商品名は既に存在します' }

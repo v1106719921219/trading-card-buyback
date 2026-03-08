@@ -46,6 +46,17 @@ export default function CategoriesPage() {
   const [sortOrder, setSortOrder] = useState(0)
 
   const supabase = createClient()
+  const [tenantId, setTenantId] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        supabase.from('profiles').select('tenant_id').eq('id', data.user.id).single().then(({ data: profile }) => {
+          if (profile) setTenantId(profile.tenant_id)
+        })
+      }
+    })
+  }, [])
 
   async function fetchCategories() {
     const { data, error } = await supabase
@@ -97,7 +108,7 @@ export default function CategoriesPage() {
     } else {
       const { error } = await supabase
         .from('categories')
-        .insert({ name, sort_order: sortOrder })
+        .insert({ name, sort_order: sortOrder, tenant_id: tenantId })
 
       if (error) {
         toast.error(error.code === '23505' ? 'このカテゴリ名は既に存在します' : error.message)

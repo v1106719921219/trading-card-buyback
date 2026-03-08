@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createCategorySchema, updateCategorySchema } from '@/lib/validators/category'
+import { requireTenantId } from '@/lib/tenant'
 
 export async function getCategories() {
   const supabase = await createClient()
@@ -28,7 +29,8 @@ export async function createCategory(formData: FormData) {
     return { error: parsed.error.issues[0].message }
   }
 
-  const { error } = await supabase.from('categories').insert(parsed.data)
+  const tenantId = await requireTenantId()
+  const { error } = await supabase.from('categories').insert({ ...parsed.data, tenant_id: tenantId })
 
   if (error) {
     if (error.code === '23505') return { error: 'このカテゴリ名は既に存在します' }
