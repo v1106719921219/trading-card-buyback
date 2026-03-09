@@ -26,6 +26,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getOrdersForCSV } from '@/actions/orders'
 import { ORDER_STATUSES, STATUS_COLORS, ITEMS_PER_PAGE, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
 import type { Order, OrderItem, OrderStatus, BuybackType, InspectionStatus } from '@/types/database'
+import { useTenant } from '@/lib/tenant-context'
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -37,6 +38,9 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1)
   const [csvLoading, setCsvLoading] = useState(false)
   const [summaryLoading, setSummaryLoading] = useState(false)
+
+  const tenant = useTenant()
+  const isChiba = tenant.slug === 'chiba'
 
   const now = new Date()
   const [csvMonth, setCsvMonth] = useState(
@@ -72,13 +76,16 @@ export default function OrdersPage() {
 
       const data = await getOrdersForCSV(year, month)
 
-      const headers = [
+      const baseHeaders = [
         '注文番号', 'ステータス', '買取種別', '申込日', '氏名', 'LINE名', '生年月日',
         '職業', 'メール', '電話番号', '都道府県', '住所', '本人確認方法',
         '銀行名', '支店名', '口座種別', '口座番号', '口座名義',
         '追跡番号', '宛先', '商品名', '単価', '数量', '小計',
-        '検品後数量', '返品数量', '見積合計', '検品後合計', '日次集計',
+        '検品後数量', '返品数量', '見積合計', '検品後合計',
       ]
+      const headers = isChiba
+        ? [...baseHeaders, '到着日', '日次集計']
+        : [...baseHeaders, '日次集計']
 
       // 日次集計を算出（注文単位で1回だけカウント）
       const dailyTotalMap = new Map<string, number>()
@@ -87,7 +94,7 @@ export default function OrdersPage() {
         if (seenOrders.has(order.id)) continue
         seenOrders.add(order.id)
         const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
-        const amount = order.inspected_total_amount ?? order.total_amount
+        const amount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
         dailyTotalMap.set(dateKey, (dailyTotalMap.get(dateKey) ?? 0) + amount)
       }
 
@@ -103,7 +110,7 @@ export default function OrdersPage() {
           : ''
 
         if (items.length === 0) {
-          rows.push([
+          const row = [
             order.order_number,
             order.status,
             buybackTypeLabel,
@@ -128,12 +135,14 @@ export default function OrdersPage() {
             '', '',
             String(order.total_amount),
             order.inspected_total_amount != null ? String(order.inspected_total_amount) : '',
-            '',
-          ])
+          ]
+          if (isChiba) row.push(order.arrival_date ?? '')
+          row.push('')  // 日次集計
+          rows.push(row)
         } else {
           for (const item of items) {
             const subtotal = item.unit_price * item.quantity
-            rows.push([
+            const row = [
               order.order_number,
               order.status,
               buybackTypeLabel,
@@ -162,8 +171,10 @@ export default function OrdersPage() {
               item.returned_quantity != null ? String(item.returned_quantity) : '',
               String(order.total_amount),
               order.inspected_total_amount != null ? String(order.inspected_total_amount) : '',
-              '',
-            ])
+            ]
+            if (isChiba) row.push(order.arrival_date ?? '')
+            row.push('')  // 日次集計
+            rows.push(row)
           }
         }
       }
@@ -218,11 +229,12 @@ export default function OrdersPage() {
         totalAmount: number
         inspectedTotalAmount: number
         date: string
+        arrivalDate: string
       }>()
 
       for (const order of data ?? []) {
         const key = order.id
-        const amount = order.inspected_total_amount ?? order.total_amount
+        const amount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
         const date = new Date(order.created_at).toLocaleDateString('ja-JP')
 
         customerMap.set(key, {
@@ -233,6 +245,7 @@ export default function OrdersPage() {
           totalAmount: order.total_amount,
           inspectedTotalAmount: amount,
           date,
+          arrivalDate: order.arrival_date ?? '',
         })
       }
 
@@ -246,7 +259,7 @@ export default function OrdersPage() {
 
       for (const order of data ?? []) {
         const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
-        const amount = order.inspected_total_amount ?? order.total_amount
+        const amount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
         const existing = dailyMap.get(dateKey)
 
         if (existing) {
@@ -292,14 +305,17 @@ export default function OrdersPage() {
       ])
 
       // 注文別集計セクション
-      const customerHeaders = [
+      const customerBaseHeaders = [
         '注文番号', 'お客様名', 'メール', '住所', '申込日',
         '見積合計', '検品後合計',
       ]
+      const customerHeaders = isChiba
+        ? [...customerBaseHeaders, '到着日']
+        : customerBaseHeaders
 
       const customerRows: string[][] = []
       for (const customer of customerMap.values()) {
-        customerRows.push([
+        const row = [
           customer.orderNumber,
           customer.name,
           customer.email,
@@ -307,7 +323,9 @@ export default function OrdersPage() {
           customer.date,
           String(customer.totalAmount),
           String(customer.inspectedTotalAmount),
-        ])
+        ]
+        if (isChiba) row.push(customer.arrivalDate)
+        customerRows.push(row)
       }
 
       // 日別集計 + 空行 + お客様別集計
@@ -386,7 +404,7 @@ export default function OrdersPage() {
   for (const order of orders) {
     const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
     const existing = dailyTotals.get(dateKey)
-    const amount = order.inspected_total_amount ?? order.total_amount
+    const amount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
     if (existing) {
       existing.total += order.total_amount
       existing.inspected += amount
@@ -549,9 +567,9 @@ export default function OrdersPage() {
                         {order.inspected_total_amount != null ? (
                           <div>
                             <span className="font-medium">
-                              {order.inspected_total_amount.toLocaleString()}円
+                              {((order.inspected_total_amount) - (order.inspection_discount ?? 0)).toLocaleString()}円
                             </span>
-                            {order.inspected_total_amount !== order.total_amount && (
+                            {(order.inspected_total_amount - (order.inspection_discount ?? 0)) !== order.total_amount && (
                               <span className="text-xs text-muted-foreground line-through ml-2">
                                 {order.total_amount.toLocaleString()}円
                               </span>

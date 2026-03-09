@@ -33,6 +33,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Order, OrderItem, Product, Category, InspectionStatus } from '@/types/database'
 import { INSPECTION_STATUSES } from '@/lib/constants'
+import { useTenant } from '@/lib/tenant-context'
 
 interface InspectItem {
   id: string
@@ -59,7 +60,10 @@ export default function InspectPage() {
   const [inspectionNotes, setInspectionNotes] = useState('')
   const [products, setProducts] = useState<(Product & { category: Category })[]>([])
   const [inspectionStatus, setInspectionStatus] = useState<InspectionStatus | ''>('')
+  const [arrivalDate, setArrivalDate] = useState('')
 
+  const tenant = useTenant()
+  const isChiba = tenant.slug === 'chiba'
   const supabase = createClient()
 
   async function fetchOrder() {
@@ -93,6 +97,7 @@ export default function InspectPage() {
     setDiscount(orderData.inspection_discount ?? 0)
     setInspectionNotes(orderData.inspection_notes ?? '')
     setInspectionStatus(orderData.inspection_status ?? '')
+    setArrivalDate(orderData.arrival_date ?? '')
     setItems(
       ((orderResult.data as Order).order_items || []).map((item) => ({
         id: item.id,
@@ -174,12 +179,12 @@ export default function InspectPage() {
   const inspectedTotal = inspectedSubtotal - discount
   const difference = inspectedTotal - originalTotal
 
-  async function handleSave() {
+  async function handleSave(): Promise<boolean> {
     // Validate new items
     for (const item of items) {
       if (item._isNew && (!item.product_name || item._inspected_price <= 0)) {
         toast.error('追加商品の商品名と単価を入力してください')
-        return
+        return false
       }
     }
 
@@ -200,7 +205,7 @@ export default function InspectPage() {
       if (error) {
         toast.error(`検品数量の更新に失敗しました: ${error.message}`)
         setSaving(false)
-        return
+        return false
       }
     }
 
@@ -222,37 +227,41 @@ export default function InspectPage() {
       if (error) {
         toast.error(`追加商品の保存に失敗しました: ${error.message}`)
         setSaving(false)
-        return
+        return false
       }
     }
 
     // Update order's inspected_total_amount, discount, notes, and return_status
+    // inspected_total_amount は減額前の小計を保存（表示時に inspection_discount を引く）
     const hasReturns = items.some((item) => item._returned > 0)
     const { error } = await supabase
       .from('orders')
       .update({
-        inspected_total_amount: inspectedTotal,
+        inspected_total_amount: inspectedSubtotal,
         inspection_discount: discount,
         inspection_notes: inspectionNotes || null,
         inspection_status: inspectionStatus || null,
         return_status: hasReturns ? '返送待ち' : null,
+        ...(isChiba ? { arrival_date: arrivalDate || null } : {}),
       })
       .eq('id', orderId)
 
     if (error) {
       toast.error(`検品合計の更新に失敗しました: ${error.message}`)
       setSaving(false)
-      return
+      return false
     }
 
     toast.success('検品結果を保存しました')
     setSaving(false)
     // Re-fetch to get inserted items with proper IDs
     fetchOrder()
+    return true
   }
 
   async function handleComplete() {
-    await handleSave()
+    const saved = await handleSave()
+    if (saved === false) return
 
     const { error } = await supabase
       .from('orders')
@@ -396,7 +405,7 @@ export default function InspectPage() {
       </div>
 
       {/* Inspection Status, Discount & Notes */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+      <div className={`grid gap-4 grid-cols-1 ${isChiba ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
         <div>
           <Label className="text-sm font-medium mb-1 block">検品進捗</Label>
           <Select
@@ -439,6 +448,18 @@ export default function InspectPage() {
             rows={2}
           />
         </div>
+        {isChiba && (
+          <div>
+            <Label className="text-sm font-medium mb-1 block">到着日</Label>
+            <Input
+              type="date"
+              value={arrivalDate}
+              onChange={(e) => setArrivalDate(e.target.value)}
+              className="h-12 text-base"
+            />
+            <p className="text-xs text-muted-foreground mt-1">荷物の到着日を記録</p>
+          </div>
+        )}
       </div>
 
       {/* Summary */}

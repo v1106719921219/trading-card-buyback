@@ -103,6 +103,7 @@ export interface Order {
   return_tracking_number: string | null
   inspection_status: InspectionStatus | null
   buyback_type: BuybackType | null
+  arrival_date: string | null
   assigned_to: string | null
   tenant_id: string
   created_at: string
