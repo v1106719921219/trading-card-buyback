@@ -33,7 +33,6 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Order, OrderItem, Product, Category, InspectionStatus } from '@/types/database'
 import { INSPECTION_STATUSES } from '@/lib/constants'
-import { useTenant } from '@/lib/tenant-context'
 
 interface InspectItem {
   id: string
@@ -62,8 +61,7 @@ export default function InspectPage() {
   const [inspectionStatus, setInspectionStatus] = useState<InspectionStatus | ''>('')
   const [arrivalDate, setArrivalDate] = useState('')
 
-  const tenant = useTenant()
-  const isChiba = tenant.slug === 'chiba'
+  const isChiba = (process.env.NEXT_PUBLIC_SITE_URL ?? '').includes('chiba')
   const supabase = createClient()
 
   async function fetchOrder() {

@@ -26,7 +26,6 @@ import { createClient } from '@/lib/supabase/client'
 import { getOrdersForCSV } from '@/actions/orders'
 import { ORDER_STATUSES, STATUS_COLORS, ITEMS_PER_PAGE, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
 import type { Order, OrderItem, OrderStatus, BuybackType, InspectionStatus } from '@/types/database'
-import { useTenant } from '@/lib/tenant-context'
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -39,8 +38,7 @@ export default function OrdersPage() {
   const [csvLoading, setCsvLoading] = useState(false)
   const [summaryLoading, setSummaryLoading] = useState(false)
 
-  const tenant = useTenant()
-  const isChiba = tenant.slug === 'chiba'
+  const isChiba = (process.env.NEXT_PUBLIC_SITE_URL ?? '').includes('chiba')
 
   const now = new Date()
   const [csvMonth, setCsvMonth] = useState(
