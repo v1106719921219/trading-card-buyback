@@ -19,13 +19,14 @@ interface InspectionIssuePayload {
  * 検品「問題あり」時にDiscordへ通知する
  * 環境変数 DISCORD_INSPECTION_WEBHOOK_URL が設定されている必要がある
  */
-export async function notifyDiscordInspectionIssue(data: InspectionIssuePayload): Promise<void> {
+export async function notifyDiscordInspectionIssue(data: InspectionIssuePayload): Promise<{ success: boolean; error?: string }> {
   const webhookUrl = data.officeKey === '東京'
     ? process.env.DISCORD_INSPECTION_WEBHOOK_URL_TOKYO
     : process.env.DISCORD_INSPECTION_WEBHOOK_URL_YAMAGUCHI
   if (!webhookUrl) {
-    console.warn(`[Discord] Webhook URL が設定されていません (事務所: ${data.officeKey ?? 'デフォルト'})`)
-    return
+    const msg = `Webhook URL が設定されていません (事務所: ${data.officeKey ?? 'デフォルト'})`
+    console.warn(`[Discord] ${msg}`)
+    return { success: false, error: msg }
   }
 
   const message = [
@@ -46,17 +47,21 @@ export async function notifyDiscordInspectionIssue(data: InspectionIssuePayload)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         content: message,
-        // スレッド名を指定（Webhookがフォーラムチャンネルの場合に有効）
         thread_name: `[問題あり] ${data.orderNumber} - ${data.customerName}`,
       }),
     })
 
     if (!res.ok) {
-      console.error('[Discord] Webhook送信失敗:', res.status, await res.text())
-    } else {
-      console.log('[Discord] 検品問題通知を送信しました:', data.orderNumber)
+      const body = await res.text()
+      console.error('[Discord] Webhook送信失敗:', res.status, body)
+      return { success: false, error: `HTTP ${res.status}: ${body}` }
     }
+
+    console.log('[Discord] 検品問題通知を送信しました:', data.orderNumber)
+    return { success: true }
   } catch (err) {
-    console.error('[Discord] Webhook送信エラー:', err)
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[Discord] Webhook送信エラー:', msg)
+    return { success: false, error: msg }
   }
 }

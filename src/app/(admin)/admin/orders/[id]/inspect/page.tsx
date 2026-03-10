@@ -256,7 +256,7 @@ export default function InspectPage() {
 
     // 問題ありステータスになったらDiscordに自動通知
     if (inspectionStatus === '問題あり' && order) {
-      await notifyDiscordInspectionIssue({
+      const result = await notifyDiscordInspectionIssue({
         orderId,
         orderNumber: order.order_number,
         customerName: order.customer_name,
@@ -264,7 +264,11 @@ export default function InspectPage() {
         totalAmount: inspectedTotal,
         officeKey: order.office?.name ?? undefined,
       })
-      toast.info('Discordに検品問題を通知しました 📸')
+      if (result.success) {
+        toast.info('Discordに検品問題を通知しました 📸')
+      } else {
+        toast.error(`Discord通知失敗: ${result.error}`)
+      }
     }
 
     // Re-fetch to get inserted items with proper IDs
