@@ -74,7 +74,7 @@ export default function PaymentVerificationPage() {
   }
 
   function getAmount(order: Order): number {
-    return (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
+    return order.inspected_total_amount ?? order.total_amount
   }
 
   const totalAmount = orders

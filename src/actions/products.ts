@@ -30,13 +30,11 @@ export async function getProducts(categoryId?: string, search?: string) {
 }
 
 export async function getActiveProducts() {
-  const tenantId = await requireTenantId()
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('products')
     .select('*, category:categories(*)')
     .eq('is_active', true)
-    .eq('tenant_id', tenantId)
     .eq('categories.is_active', true)
     .order('name')
 

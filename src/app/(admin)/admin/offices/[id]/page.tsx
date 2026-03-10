@@ -228,9 +228,9 @@ export default function OfficeOrdersPage() {
           {order.inspected_total_amount != null ? (
             <div>
               <span className="font-medium">
-                {((order.inspected_total_amount) - (order.inspection_discount ?? 0)).toLocaleString()}円
+                {order.inspected_total_amount.toLocaleString()}円
               </span>
-              {(order.inspected_total_amount - (order.inspection_discount ?? 0)) !== order.total_amount && (
+              {order.inspected_total_amount !== order.total_amount && (
                 <span className="text-xs text-muted-foreground line-through ml-2">
                   {order.total_amount.toLocaleString()}円
                 </span>

@@ -31,12 +31,12 @@ export default async function AdminDashboard() {
 
   const { data: todayCompleted } = await supabase
     .from('orders')
-    .select('inspected_total_amount, inspection_discount')
+    .select('inspected_total_amount')
     .eq('status', '振込済')
     .gte('updated_at', `${today}T00:00:00`)
 
   const todayTotalAmount = todayCompleted?.reduce(
-    (sum, o) => sum + (o.inspected_total_amount || 0) - (o.inspection_discount || 0),
+    (sum, o) => sum + (o.inspected_total_amount || 0),
     0
   ) || 0
 

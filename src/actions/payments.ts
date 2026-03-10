@@ -37,7 +37,7 @@ export async function markAsPaid(orderId: string) {
   const order = updated[0]
 
   // PDF生成 → 振込完了メール送信
-  const amount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
+  const amount = order.inspected_total_amount ?? order.total_amount
   try {
     const pdfBuffer = await generateInspectionPdf(order, order.order_items ?? [])
     await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount, pdfBuffer)

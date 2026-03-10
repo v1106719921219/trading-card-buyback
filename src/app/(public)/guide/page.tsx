@@ -25,16 +25,10 @@ import {
   XCircle,
   Box,
 } from "lucide-react"
-import { getTenant } from "@/lib/tenant"
-import type { Metadata } from "next"
 
-export async function generateMetadata(): Promise<Metadata> {
-  const tenant = await getTenant()
-  const siteName = tenant?.site_name || tenant?.display_name || 'カイトリクラウド'
-  return {
-    title: `買取ガイド | ${siteName}`,
-    description: "トレーディングカード買取の流れ・注意事項・梱包方法をご案内します。",
-  }
+export const metadata = {
+  title: "買取ガイド | 買取スクエア",
+  description: "トレーディングカード買取の流れ・注意事項・梱包方法をご案内します。",
 }
 
 const steps = [

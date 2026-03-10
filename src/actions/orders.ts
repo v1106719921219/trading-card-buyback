@@ -336,14 +336,12 @@ export async function addTrackingNumber(orderNumber: string, trackingNumber: str
     return { error: '注文番号と追跡番号を入力してください' }
   }
 
-  const tenantId = await requireTenantId()
   const supabase = createAdminClient()
 
   const { data: order, error: fetchError } = await supabase
     .from('orders')
     .select('id, status, tracking_number')
     .eq('order_number', orderNumber)
-    .eq('tenant_id', tenantId)
     .single()
 
   if (fetchError || !order) {
@@ -361,7 +359,6 @@ export async function addTrackingNumber(orderNumber: string, trackingNumber: str
     .from('orders')
     .update({ tracking_number: newValue })
     .eq('id', order.id)
-    .eq('tenant_id', tenantId)
 
   if (updateError) {
     return { error: `更新に失敗しました: ${updateError.message}` }
@@ -429,19 +426,11 @@ export async function updateOrderItems(
 
   const supabase = createAdminClient()
 
-  // Fetch order with tenant isolation
-  let tenantId: string
-  try {
-    tenantId = await requireTenantId()
-  } catch {
-    return { error: 'テナント情報の取得に失敗しました' }
-  }
-
+  // Fetch order
   const { data: order, error: fetchError } = await supabase
     .from('orders')
     .select('id, status, tenant_id')
     .eq('order_number', orderNumber)
-    .eq('tenant_id', tenantId)
     .single()
 
   if (fetchError || !order) {

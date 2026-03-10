@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/sheet'
 import { Menu } from 'lucide-react'
 import { useState } from 'react'
-import { useTenant } from '@/lib/tenant-context'
 
 interface HeaderProps {
   rightContent?: React.ReactNode
@@ -21,14 +20,13 @@ interface HeaderProps {
 
 export function Header({ rightContent, hideApplyButton }: HeaderProps) {
   const [open, setOpen] = useState(false)
-  const tenant = useTenant()
 
   return (
     <header className="sticky top-0 z-40 bg-gray-950 shadow-lg border-b-[3px] border-primary">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
-          <Image src="/logo.png" alt={tenant.siteName} width={32} height={32} className="h-8 w-8" />
-          <span className="text-xl font-bold text-white">{tenant.siteName}</span>
+          <Image src="/logo.png" alt="買取スクエア" width={32} height={32} className="h-8 w-8" />
+          <span className="text-xl font-bold text-white">買取スクエア</span>
         </Link>
 
         {/* Desktop nav */}
@@ -59,8 +57,8 @@ export function Header({ rightContent, hideApplyButton }: HeaderProps) {
             <SheetContent side="right" className="w-72">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
-                  <Image src="/logo.png" alt={tenant.siteName} width={24} height={24} className="h-6 w-6" />
-                  {tenant.siteName}
+                  <Image src="/logo.png" alt="買取スクエア" width={24} height={24} className="h-6 w-6" />
+                  買取スクエア
                 </SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col gap-1 px-4">

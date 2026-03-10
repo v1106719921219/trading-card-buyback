@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useTenant } from '@/lib/tenant-context'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -15,7 +14,6 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const tenant = useTenant()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -42,7 +40,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">{tenant.siteName}</CardTitle>
+          <CardTitle className="text-2xl">買取スクエア</CardTitle>
           <CardDescription>スタッフログイン</CardDescription>
         </CardHeader>
         <CardContent>
