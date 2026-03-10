@@ -1,6 +1,9 @@
+'use server'
+
 /**
  * Discord Webhook 通知ライブラリ
  * 検品問題発生時にDiscordチャンネルへ自動通知し、スレッドを起動する
+ * Server Action としてサーバー側で実行される（環境変数へのアクセスが必要なため）
  */
 
 interface InspectionIssuePayload {
