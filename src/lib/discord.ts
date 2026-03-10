@@ -47,7 +47,6 @@ export async function notifyDiscordInspectionIssue(data: InspectionIssuePayload)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         content: message,
-        thread_name: `[問題あり] ${data.orderNumber} - ${data.customerName}`,
       }),
     })
 
