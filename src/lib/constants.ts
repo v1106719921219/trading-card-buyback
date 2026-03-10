@@ -28,11 +28,10 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   'キャンセル': 'bg-red-100 text-red-800',
 }
 
-export const INSPECTION_STATUSES: InspectionStatus[] = ['個数確認済み', '減額確認待ち']
+export const INSPECTION_STATUSES: InspectionStatus[] = ['問題あり']
 
 export const INSPECTION_STATUS_COLORS: Record<InspectionStatus, string> = {
-  '個数確認済み': 'bg-cyan-100 text-cyan-800',
-  '減額確認待ち': 'bg-amber-100 text-amber-800',
+  '問題あり': 'bg-red-100 text-red-800',
 }
 
 export const RETURN_STATUSES: ReturnStatus[] = ['返送待ち', '返送済']
