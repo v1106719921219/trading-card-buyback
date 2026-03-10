@@ -6,7 +6,7 @@ export type BankAccountType = '普通' | '当座'
 
 export type ReturnStatus = '返送待ち' | '返送済'
 
-export type InspectionStatus = '個数確認済み' | '減額確認待ち'
+export type InspectionStatus = '問題あり'
 
 export type BuybackType = 'ar_quality' | 'minimum_guarantee'
 

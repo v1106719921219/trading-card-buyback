@@ -31,6 +31,7 @@ import {
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { notifyDiscordInspectionIssue } from '@/lib/discord'
 import type { Order, OrderItem, Product, Category, InspectionStatus } from '@/types/database'
 import { INSPECTION_STATUSES } from '@/lib/constants'
 
@@ -252,6 +253,19 @@ export default function InspectPage() {
 
     toast.success('検品結果を保存しました')
     setSaving(false)
+
+    // 問題ありステータスになったらDiscordに自動通知
+    if (inspectionStatus === '問題あり') {
+      await notifyDiscordInspectionIssue({
+        orderId,
+        orderNumber: order.order_number,
+        customerName: order.customer_name,
+        notes: inspectionNotes,
+        totalAmount: inspectedTotal,
+      })
+      toast.info('Discordに検品問題を通知しました 📸')
+    }
+
     // Re-fetch to get inserted items with proper IDs
     fetchOrder()
     return true
