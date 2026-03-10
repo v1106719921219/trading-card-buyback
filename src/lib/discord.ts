@@ -9,6 +9,7 @@ interface InspectionIssuePayload {
   customerName: string
   notes: string
   totalAmount?: number
+  officeKey?: string // '山口' | '東京' など
 }
 
 /**
@@ -16,9 +17,11 @@ interface InspectionIssuePayload {
  * 環境変数 DISCORD_INSPECTION_WEBHOOK_URL が設定されている必要がある
  */
 export async function notifyDiscordInspectionIssue(data: InspectionIssuePayload): Promise<void> {
-  const webhookUrl = process.env.DISCORD_INSPECTION_WEBHOOK_URL
+  const webhookUrl = data.officeKey === '東京'
+    ? process.env.DISCORD_INSPECTION_WEBHOOK_URL_TOKYO
+    : process.env.DISCORD_INSPECTION_WEBHOOK_URL_YAMAGUCHI
   if (!webhookUrl) {
-    console.warn('[Discord] DISCORD_INSPECTION_WEBHOOK_URL が設定されていません')
+    console.warn(`[Discord] Webhook URL が設定されていません (事務所: ${data.officeKey ?? 'デフォルト'})`)
     return
   }
 

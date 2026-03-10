@@ -69,7 +69,7 @@ export default function InspectPage() {
     const [orderResult, productResult] = await Promise.all([
       supabase
         .from('orders')
-        .select('*, order_items(*)')
+        .select('*, order_items(*), office:offices(name)')
         .eq('id', orderId)
         .single(),
       supabase
@@ -255,13 +255,14 @@ export default function InspectPage() {
     setSaving(false)
 
     // 問題ありステータスになったらDiscordに自動通知
-    if (inspectionStatus === '問題あり') {
+    if (inspectionStatus === '問題あり' && order) {
       await notifyDiscordInspectionIssue({
         orderId,
         orderNumber: order.order_number,
         customerName: order.customer_name,
         notes: inspectionNotes,
         totalAmount: inspectedTotal,
+        officeKey: order.office?.name ?? undefined,
       })
       toast.info('Discordに検品問題を通知しました 📸')
     }
