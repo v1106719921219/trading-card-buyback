@@ -1,8 +1,11 @@
+'use client'
+
 import Link from 'next/link'
 import Image from 'next/image'
+import { useTenant } from '@/lib/tenant-context'
 
 export function Footer() {
-  const licenseText = process.env.NEXT_PUBLIC_KOBUTSU_LICENSE || '山口県公安委員会許可 第741091000629号'
+  const tenant = useTenant()
 
   return (
     <footer className="bg-gray-950 border-t-[3px] border-primary">
@@ -10,15 +13,19 @@ export function Footer() {
         <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
           <div>
             <h3 className="font-bold mb-3 text-white flex items-center gap-2">
-              <Image src="/logo.png" alt="買取スクエア" width={24} height={24} className="h-6 w-6" />
-              買取スクエア
+              <Image src="/logo.png" alt={tenant.siteName} width={24} height={24} className="h-6 w-6" />
+              {tenant.siteName}
             </h3>
-            <p className="text-sm text-gray-400">
-              古物商許可番号
-            </p>
-            <p className="text-sm text-gray-400">
-              {licenseText}
-            </p>
+            {tenant.ancientDealerNumber && (
+              <>
+                <p className="text-sm text-gray-400">
+                  古物商許可番号
+                </p>
+                <p className="text-sm text-gray-400">
+                  {tenant.ancientDealerNumber}
+                </p>
+              </>
+            )}
           </div>
 
           <div>
@@ -49,16 +56,18 @@ export function Footer() {
 
           <div>
             <h3 className="font-bold mb-3 text-white">お問い合わせ</h3>
-            <p className="text-sm text-gray-400">
-              <a href="mailto:email@kaitorisquare.com" className="hover:text-primary">
-                email@kaitorisquare.com
-              </a>
-            </p>
+            {tenant.contactEmail && (
+              <p className="text-sm text-gray-400">
+                <a href={`mailto:${tenant.contactEmail}`} className="hover:text-primary">
+                  {tenant.contactEmail}
+                </a>
+              </p>
+            )}
           </div>
         </div>
 
         <div className="mt-8 pt-4 border-t border-gray-800 text-center text-sm text-gray-500">
-          <p>&copy; {new Date().getFullYear()} 買取スクエア. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} {tenant.siteName}. All rights reserved.</p>
         </div>
       </div>
     </footer>

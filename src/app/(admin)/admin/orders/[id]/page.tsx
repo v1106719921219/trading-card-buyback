@@ -42,6 +42,7 @@ import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
 import { STATUS_TRANSITIONS, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
 import { toast } from 'sonner'
+import { useTenant } from '@/lib/tenant-context'
 import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole, BuybackType, InspectionStatus } from '@/types/database'
 
 export default function OrderDetailPage() {
@@ -67,6 +68,7 @@ export default function OrderDetailPage() {
   const [editItems, setEditItems] = useState<{ id: string; quantity: number }[]>([])
   const [savingQuantities, setSavingQuantities] = useState(false)
   const [savingBuybackType, setSavingBuybackType] = useState(false)
+  const tenant = useTenant()
 
   const supabase = createClient()
 
@@ -436,16 +438,26 @@ export default function OrderDetailPage() {
                     </TableCell>
                   </TableRow>
                   {order.inspection_discount > 0 && (
-                    <TableRow>
-                      <TableCell colSpan={3 + (items.some((i) => i.inspected_quantity != null) ? 1 : 0) + (items.some((i) => (i.returned_quantity ?? 0) > 0) ? 1 : 0)} className="text-right text-sm text-muted-foreground">
-                        減額
-                      </TableCell>
-                      <TableCell className="text-right text-sm text-destructive">
-                        -{order.inspection_discount.toLocaleString()}円
-                      </TableCell>
-                    </TableRow>
+                    <>
+                      <TableRow>
+                        <TableCell colSpan={3 + (items.some((i) => i.inspected_quantity != null) ? 1 : 0) + (items.some((i) => (i.returned_quantity ?? 0) > 0) ? 1 : 0)} className="text-right text-sm text-muted-foreground">
+                          減額
+                        </TableCell>
+                        <TableCell className="text-right text-sm text-destructive">
+                          -{order.inspection_discount.toLocaleString()}円
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell colSpan={3 + (items.some((i) => i.inspected_quantity != null) ? 1 : 0) + (items.some((i) => (i.returned_quantity ?? 0) > 0) ? 1 : 0)} className="text-right font-bold">
+                          振込金額
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-lg text-primary">
+                          {((order.inspected_total_amount ?? order.total_amount) - order.inspection_discount).toLocaleString()}円
+                        </TableCell>
+                      </TableRow>
+                    </>
                   )}
-                  {order.inspected_total_amount != null && order.inspected_total_amount !== order.total_amount && (
+                  {order.inspected_total_amount != null && ((order.inspected_total_amount - (order.inspection_discount ?? 0)) !== order.total_amount) && (
                     <TableRow>
                       <TableCell colSpan={3 + (items.some((i) => i.inspected_quantity != null) ? 1 : 0) + (items.some((i) => (i.returned_quantity ?? 0) > 0) ? 1 : 0)} className="text-right text-sm text-muted-foreground">
                         申告時合計
@@ -623,7 +635,7 @@ export default function OrderDetailPage() {
               <CardContent>
                 <dl className="grid grid-cols-[120px_1fr] gap-3 text-sm">
                   <dt className="text-muted-foreground">宛名</dt>
-                  <dd>買取スクエア</dd>
+                  <dd>{tenant.siteName}</dd>
                   <dt className="text-muted-foreground">郵便番号</dt>
                   <dd>〒{office.postal_code}</dd>
                   <dt className="text-muted-foreground">住所</dt>

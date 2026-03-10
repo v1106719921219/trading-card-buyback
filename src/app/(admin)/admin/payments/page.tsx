@@ -171,7 +171,7 @@ export default function PaymentsPage() {
 
   const totalAmount = orders
     .filter((o) => selectedIds.has(o.id))
-    .reduce((sum, o) => sum + (o.inspected_total_amount ?? o.total_amount), 0)
+    .reduce((sum, o) => sum + (o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount ?? 0), 0)
 
   const shippedTotalAmount = shippedOrders.reduce(
     (sum, o) => sum + o.total_amount, 0
@@ -322,7 +322,7 @@ export default function PaymentsPage() {
                         />
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {(order.inspected_total_amount ?? order.total_amount).toLocaleString()}円
+                        {((order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)).toLocaleString()}円
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
                         {new Date(order.updated_at).toLocaleDateString('ja-JP')}

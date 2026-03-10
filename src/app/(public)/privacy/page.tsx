@@ -1,7 +1,13 @@
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
+import { getTenant } from '@/lib/tenant'
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const tenant = await getTenant()
+  const siteName = tenant?.site_name || tenant?.display_name || 'カイトリクラウド'
+  const contactEmail = tenant?.contact_email || ''
+  const licenseText = tenant?.ancient_dealer_number || ''
+
   return (
     <div className="min-h-screen bg-muted/50">
       <Header hideApplyButton />
@@ -64,9 +70,13 @@ export default function PrivacyPage() {
             </p>
             <div className="bg-white rounded-lg border p-4 text-sm space-y-1">
               <p className="font-medium">【個人情報についてのお問い合わせ窓口】</p>
-              <p>買取スクエア</p>
-              <p>E-mail：<a href="mailto:email@kaitorisquare.com" className="text-primary hover:underline">email@kaitorisquare.com</a></p>
-              <p>古物許可番号：{process.env.NEXT_PUBLIC_KOBUTSU_LICENSE || '山口県公安委員会許可 第741091000629号'}</p>
+              <p>{siteName}</p>
+              {contactEmail && (
+                <p>E-mail：<a href={`mailto:${contactEmail}`} className="text-primary hover:underline">{contactEmail}</a></p>
+              )}
+              {licenseText && (
+                <p>古物許可番号：{licenseText}</p>
+              )}
             </div>
           </section>
         </div>
