@@ -30,7 +30,6 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { useTenant } from '@/lib/tenant-context'
 import type { Profile } from '@/types/database'
 
 const navItems = [
@@ -107,7 +106,6 @@ function UserFooter({ profile, onLogout }: { profile: Profile; onLogout: () => v
 export function AdminSidebar({ profile }: { profile: Profile }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const tenant = useTenant()
 
   async function handleLogout() {
     const supabase = createClient()
@@ -120,17 +118,9 @@ export function AdminSidebar({ profile }: { profile: Profile }) {
     <>
       {/* Desktop sidebar */}
       <aside className="fixed left-0 top-0 z-30 hidden md:flex h-screen w-64 flex-col border-r bg-card">
-        {tenant.primaryColor && (
-          <div
-            className="px-6 py-2 text-sm font-bold text-white text-center"
-            style={{ backgroundColor: tenant.primaryColor }}
-          >
-            {tenant.siteName}
-          </div>
-        )}
         <div className="flex h-16 items-center border-b px-6">
           <Link href="/admin" className="text-lg font-bold">
-            {tenant.siteName}
+            買取スクエア
           </Link>
         </div>
         <NavLinks profile={profile} />
@@ -138,16 +128,7 @@ export function AdminSidebar({ profile }: { profile: Profile }) {
       </aside>
 
       {/* Mobile header + hamburger */}
-      <div className="fixed top-0 left-0 right-0 z-30 flex md:hidden flex-col">
-        {tenant.primaryColor && (
-          <div
-            className="px-4 py-1 text-xs font-bold text-white text-center"
-            style={{ backgroundColor: tenant.primaryColor }}
-          >
-            {tenant.siteName}
-          </div>
-        )}
-        <div className="flex h-14 items-center border-b bg-card px-4 gap-3">
+      <div className="fixed top-0 left-0 right-0 z-30 flex md:hidden h-14 items-center border-b bg-card px-4 gap-3">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="shrink-0">
@@ -155,25 +136,16 @@ export function AdminSidebar({ profile }: { profile: Profile }) {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-72 p-0 flex flex-col">
-            {tenant.primaryColor && (
-              <div
-                className="px-6 py-2 text-sm font-bold text-white text-center"
-                style={{ backgroundColor: tenant.primaryColor }}
-              >
-                {tenant.siteName}
-              </div>
-            )}
             <SheetHeader className="border-b px-6 py-4">
-              <SheetTitle>{tenant.siteName}</SheetTitle>
+              <SheetTitle>買取スクエア</SheetTitle>
             </SheetHeader>
             <NavLinks profile={profile} onNavigate={() => setOpen(false)} />
             <UserFooter profile={profile} onLogout={handleLogout} />
           </SheetContent>
         </Sheet>
         <Link href="/admin" className="text-lg font-bold">
-          {tenant.siteName}
+          買取スクエア
         </Link>
-        </div>
       </div>
     </>
   )

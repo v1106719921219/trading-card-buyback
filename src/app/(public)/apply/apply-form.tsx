@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
   Select,
@@ -14,16 +15,17 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, MapPin, ArrowRight, ArrowLeft, Check, Send } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, Mail, MapPin, Search, ArrowRight, ArrowLeft, Check, Send } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
 import { createOrder } from '@/actions/orders'
+import { lookupCustomerByEmail } from '@/actions/customers'
 import { parseOrderText } from '@/actions/ai-parse-order'
 import { toast } from 'sonner'
-import { useTenant } from '@/lib/tenant-context'
-import { CustomerInfoForm } from './customer-info-form'
-import type { CustomerInfoInput } from '@/lib/validators/order'
+import { PREFECTURES, BANK_NAMES } from '@/lib/constants'
+import { IDENTITY_METHODS } from '@/lib/validators/order'
 import type { Category, Product, Office, Subcategory } from '@/types/database'
 
 interface CartItem {
@@ -49,7 +51,6 @@ interface ApplyFormProps {
 
 export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices }: ApplyFormProps) {
   const router = useRouter()
-  const tenant = useTenant()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
@@ -62,13 +63,67 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [aiParsing, setAiParsing] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  // 顧客情報（CustomerInfoFormから受け取る）
-  const [validCustomerData, setValidCustomerData] = useState<CustomerInfoInput | null>(null)
+  // Repeater lookup state
+  const [lookupEmail, setLookupEmail] = useState('')
+  const [lookingUp, setLookingUp] = useState(false)
+  const [customerLoaded, setCustomerLoaded] = useState(false)
+
+  // Customer form
+  const [customerName, setCustomerName] = useState('')
+  const [customerLineName, setCustomerLineName] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [customerBirthDate, setCustomerBirthDate] = useState('')
+  const [customerOccupation, setCustomerOccupation] = useState('')
+  const [customerPrefecture, setCustomerPrefecture] = useState('')
+  const [customerAddress, setCustomerAddress] = useState('')
+  const [customerNotInvoiceIssuer, setCustomerNotInvoiceIssuer] = useState(true)
+  const [invoiceIssuerNumber, setInvoiceIssuerNumber] = useState('')
+  const [customerIdentityMethod, setCustomerIdentityMethod] = useState('')
+  const [bankName, setBankName] = useState('')
+  const [bankBranch, setBankBranch] = useState('')
+  const [bankAccountType, setBankAccountType] = useState<'普通' | '当座'>('普通')
+  const [bankAccountNumber, setBankAccountNumber] = useState('')
+  const [bankAccountHolder, setBankAccountHolder] = useState('')
 
   const categories = initialCategories
   const products = initialProducts
   const subcategories = initialSubcategories
   const offices = initialOffices
+
+  async function handleLookupCustomer() {
+    if (!lookupEmail.trim()) {
+      toast.error('メールアドレスを入力してください')
+      return
+    }
+    setLookingUp(true)
+    const data = await lookupCustomerByEmail(lookupEmail.trim())
+    setLookingUp(false)
+
+    if (!data) {
+      toast.error('該当する注文が見つかりませんでした')
+      return
+    }
+
+    setCustomerName(data.customer_name || '')
+    setCustomerLineName(data.customer_line_name || '')
+    setCustomerEmail(data.customer_email || '')
+    setCustomerPhone(data.customer_phone || '')
+    setCustomerBirthDate(data.customer_birth_date || '')
+    setCustomerOccupation(data.customer_occupation || '')
+    setCustomerPrefecture(data.customer_prefecture || '')
+    setCustomerAddress(data.customer_address || '')
+    setCustomerNotInvoiceIssuer(data.customer_not_invoice_issuer ?? true)
+    setInvoiceIssuerNumber(data.invoice_issuer_number || '')
+    setCustomerIdentityMethod(data.customer_identity_method || '')
+    setBankName(data.bank_name || '')
+    setBankBranch(data.bank_branch || '')
+    setBankAccountType((data.bank_account_type as '普通' | '当座') || '普通')
+    setBankAccountNumber(data.bank_account_number || '')
+    setBankAccountHolder(data.bank_account_holder || '')
+    setCustomerLoaded(true)
+    toast.success('前回の情報を読み込みました')
+  }
 
   const filteredSubcategories = subcategories.filter((s) => selectedCategory !== 'all' ? s.category_id === selectedCategory : true)
 
@@ -167,7 +222,22 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
 
   function canProceed() {
     if (step === 0) return cart.length > 0 && !!selectedOfficeId
-    if (step === 1) return validCustomerData !== null
+    if (step === 1) {
+      return (
+        customerName.trim() &&
+        customerLineName.trim() &&
+        customerEmail.trim() &&
+        customerBirthDate &&
+        customerOccupation.trim() &&
+        customerPrefecture &&
+        customerAddress.trim() &&
+        customerIdentityMethod &&
+        bankName.trim() &&
+        bankBranch.trim() &&
+        bankAccountNumber.trim() &&
+        bankAccountHolder.trim()
+      )
+    }
     return true
   }
 
@@ -178,13 +248,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     setSubmitError(null)
 
     try {
-      if (!validCustomerData) {
-        toast.error('顧客情報を入力してください')
-        setLoading(false)
-        submittingRef.current = false
-        return
-      }
-
       const result = await createOrder({
         items: cart.map(({ product_id, product_name, unit_price, quantity }) => ({
           product_id,
@@ -193,8 +256,22 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
           quantity,
         })),
         customer: {
-          ...validCustomerData,
-          invoice_issuer_number: validCustomerData.customer_not_invoice_issuer ? '' : (validCustomerData.invoice_issuer_number || ''),
+          customer_name: customerName,
+          customer_line_name: customerLineName,
+          customer_email: customerEmail,
+          customer_phone: customerPhone || '',
+          customer_birth_date: customerBirthDate,
+          customer_occupation: customerOccupation,
+          customer_prefecture: customerPrefecture as typeof PREFECTURES[number],
+          customer_address: customerAddress,
+          customer_not_invoice_issuer: customerNotInvoiceIssuer,
+          invoice_issuer_number: customerNotInvoiceIssuer ? '' : invoiceIssuerNumber,
+          customer_identity_method: customerIdentityMethod as typeof IDENTITY_METHODS[number],
+          bank_name: bankName,
+          bank_branch: bankBranch,
+          bank_account_type: bankAccountType,
+          bank_account_number: bankAccountNumber,
+          bank_account_holder: bankAccountHolder,
         },
         office_id: selectedOfficeId,
         shipped_date: shippedDate || undefined,
@@ -555,10 +632,267 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
 
         {/* Step 2: Customer Info */}
         {step === 1 && (
-          <CustomerInfoForm
-            defaultValues={validCustomerData}
-            onValidChange={setValidCustomerData}
-          />
+          <Card className="max-w-2xl mx-auto">
+            <CardHeader>
+              <CardTitle>お客様情報</CardTitle>
+              <CardDescription>
+                以前ご利用いただいた方は、メールアドレスで前回の情報を読み込めます
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {!customerLoaded ? (
+                <>
+                  <div className="rounded-lg border bg-blue-50 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-5 w-5 text-blue-600" />
+                      <h3 className="font-medium text-blue-900">リピーターの方</h3>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        type="email"
+                        placeholder="前回申込時のメールアドレスを入力"
+                        value={lookupEmail}
+                        onChange={(e) => setLookupEmail(e.target.value)}
+                        className="flex-1 bg-white"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleLookupCustomer()
+                        }}
+                      />
+                      <Button
+                        onClick={handleLookupCustomer}
+                        disabled={lookingUp}
+                        variant="outline"
+                        className="bg-white"
+                      >
+                        <Search className="h-4 w-4 mr-1" />
+                        {lookingUp ? '検索中...' : '情報を読み込む'}
+                      </Button>
+                    </div>
+                  </div>
+                  <Separator />
+                </>
+              ) : (
+                <>
+                  <div className="rounded-lg border bg-green-50 p-3 flex items-center gap-2 text-green-800">
+                    <CheckCircle className="h-5 w-5" />
+                    <span className="text-sm font-medium">前回の情報を読み込みました</span>
+                  </div>
+                </>
+              )}
+
+              <div className="space-y-4">
+                <h3 className="font-medium">基本情報</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>お名前 <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="山田 太郎"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>LINE登録名 <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={customerLineName}
+                      onChange={(e) => setCustomerLineName(e.target.value)}
+                      placeholder="LINE表示名"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>生年月日 <span className="text-destructive">*</span></Label>
+                    <Input
+                      type="date"
+                      value={customerBirthDate}
+                      onChange={(e) => setCustomerBirthDate(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>職業 <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={customerOccupation}
+                      onChange={(e) => setCustomerOccupation(e.target.value)}
+                      placeholder="会社員"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>メールアドレス <span className="text-destructive">*</span></Label>
+                    <Input
+                      type="email"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      placeholder="taro@example.com"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      ※ キャリアメール（au・docomo・softbank等）はメールが届かない場合があります。Gmail等のフリーメールを推奨します。
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>電話番号</Label>
+                    <Input
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="090-1234-5678"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>都道府県 <span className="text-destructive">*</span></Label>
+                    <Select
+                      value={customerPrefecture}
+                      onValueChange={setCustomerPrefecture}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="選択してください" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PREFECTURES.map((pref) => (
+                          <SelectItem key={pref} value={pref}>{pref}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>住所 <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                      placeholder="渋谷区..."
+                      required
+                    />
+                  </div>
+                  <div className="space-y-3 sm:col-span-2">
+                    <Label>適格請求書発行事業者ですか？ <span className="text-destructive">*</span></Label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="invoice-issuer"
+                          checked={customerNotInvoiceIssuer}
+                          onChange={() => { setCustomerNotInvoiceIssuer(true); setInvoiceIssuerNumber('') }}
+                          className="accent-primary"
+                        />
+                        <span>ない</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="invoice-issuer"
+                          checked={!customerNotInvoiceIssuer}
+                          onChange={() => setCustomerNotInvoiceIssuer(false)}
+                          className="accent-primary"
+                        />
+                        <span>ある</span>
+                      </label>
+                    </div>
+                    {!customerNotInvoiceIssuer && (
+                      <div className="space-y-2">
+                        <Label>事業者番号</Label>
+                        <Input
+                          value={invoiceIssuerNumber}
+                          onChange={(e) => setInvoiceIssuerNumber(e.target.value)}
+                          placeholder="T1234567890123"
+                          maxLength={14}
+                        />
+                        <p className="text-xs text-muted-foreground">T + 13桁の数字で入力してください</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Separator className="my-4" />
+
+                <div className="space-y-4">
+                  <h3 className="font-medium">本人確認方法 <span className="text-destructive">*</span></h3>
+                  <Select
+                    value={customerIdentityMethod}
+                    onValueChange={setCustomerIdentityMethod}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="本人確認方法を選択してください" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IDENTITY_METHODS.map((method) => (
+                        <SelectItem key={method} value={method}>{method}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <h3 className="font-medium">振込先口座情報 <span className="text-destructive">*</span></h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>銀行名 <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      placeholder="三菱UFJ銀行"
+                      required
+                      list="bank-names"
+                      autoComplete="off"
+                    />
+                    <datalist id="bank-names">
+                      {BANK_NAMES.map((name) => (
+                        <option key={name} value={name} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>支店名 <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={bankBranch}
+                      onChange={(e) => setBankBranch(e.target.value)}
+                      placeholder="渋谷支店"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>口座種別 <span className="text-destructive">*</span></Label>
+                    <Select
+                      value={bankAccountType}
+                      onValueChange={(v) => setBankAccountType(v as '普通' | '当座')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="普通">普通</SelectItem>
+                        <SelectItem value="当座">当座</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>口座番号 <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={bankAccountNumber}
+                      onChange={(e) => setBankAccountNumber(e.target.value)}
+                      placeholder="1234567"
+                      maxLength={8}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label>口座名義（カタカナ） <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={bankAccountHolder}
+                      onChange={(e) => setBankAccountHolder(e.target.value)}
+                      placeholder="ヤマダ タロウ"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+            </CardContent>
+          </Card>
         )}
 
         {/* Step 3: Confirmation */}
@@ -602,7 +936,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                   const selectedOffice = offices.find((o) => o.id === selectedOfficeId)
                   return selectedOffice ? (
                     <div className="text-sm space-y-1">
-                      <p className="font-medium">{tenant.siteName}</p>
+                      <p className="font-medium">買取スクエア</p>
                       <p className="text-muted-foreground">〒{selectedOffice.postal_code}</p>
                       <p className="text-muted-foreground">{selectedOffice.address}</p>
                       {selectedOffice.phone && (
@@ -618,55 +952,55 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
 
               <Separator />
 
-              {validCustomerData && (
-                <>
-                  <div>
-                    <h3 className="font-medium mb-3">お客様情報</h3>
-                    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-                      <dt className="text-muted-foreground">お名前</dt>
-                      <dd>{validCustomerData.customer_name}</dd>
-                      <dt className="text-muted-foreground">LINE登録名</dt>
-                      <dd>{validCustomerData.customer_line_name}</dd>
-                      <dt className="text-muted-foreground">生年月日</dt>
-                      <dd>{validCustomerData.customer_birth_date}</dd>
-                      <dt className="text-muted-foreground">職業</dt>
-                      <dd>{validCustomerData.customer_occupation}</dd>
-                      <dt className="text-muted-foreground">メール</dt>
-                      <dd>{validCustomerData.customer_email}</dd>
-                      {validCustomerData.customer_phone && (
-                        <>
-                          <dt className="text-muted-foreground">電話番号</dt>
-                          <dd>{validCustomerData.customer_phone}</dd>
-                        </>
-                      )}
+              <div>
+                <h3 className="font-medium mb-3">お客様情報</h3>
+                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                  <dt className="text-muted-foreground">お名前</dt>
+                  <dd>{customerName}</dd>
+                  <dt className="text-muted-foreground">LINE登録名</dt>
+                  <dd>{customerLineName}</dd>
+                  <dt className="text-muted-foreground">生年月日</dt>
+                  <dd>{customerBirthDate}</dd>
+                  <dt className="text-muted-foreground">職業</dt>
+                  <dd>{customerOccupation}</dd>
+                  <dt className="text-muted-foreground">メール</dt>
+                  <dd>{customerEmail}</dd>
+                  {customerPhone && (
+                    <>
+                      <dt className="text-muted-foreground">電話番号</dt>
+                      <dd>{customerPhone}</dd>
+                    </>
+                  )}
+                  {customerPrefecture && (
+                    <>
                       <dt className="text-muted-foreground">都道府県</dt>
-                      <dd>{validCustomerData.customer_prefecture}</dd>
-                      <dt className="text-muted-foreground">住所</dt>
-                      <dd>{validCustomerData.customer_address}</dd>
-                      <dt className="text-muted-foreground">適格請求書発行事業者</dt>
-                      <dd>
-                        {validCustomerData.customer_not_invoice_issuer ? 'なし' : `あり (${validCustomerData.invoice_issuer_number})`}
-                      </dd>
-                      <dt className="text-muted-foreground">本人確認方法</dt>
-                      <dd>{validCustomerData.customer_identity_method}</dd>
-                    </dl>
-                  </div>
+                      <dd>{customerPrefecture}</dd>
+                    </>
+                  )}
+                  <dt className="text-muted-foreground">住所</dt>
+                  <dd>{customerAddress}</dd>
+                  <dt className="text-muted-foreground">適格請求書発行事業者</dt>
+                  <dd>
+                    {customerNotInvoiceIssuer ? 'なし' : `あり (${invoiceIssuerNumber})`}
+                  </dd>
+                  <dt className="text-muted-foreground">本人確認方法</dt>
+                  <dd>{customerIdentityMethod}</dd>
+                </dl>
+              </div>
 
-                  <Separator />
+              <Separator />
 
-                  <div>
-                    <h3 className="font-medium mb-3">振込先口座</h3>
-                    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-                      <dt className="text-muted-foreground">銀行名</dt>
-                      <dd>{validCustomerData.bank_name} {validCustomerData.bank_branch}</dd>
-                      <dt className="text-muted-foreground">口座</dt>
-                      <dd>{validCustomerData.bank_account_type} {validCustomerData.bank_account_number}</dd>
-                      <dt className="text-muted-foreground">名義</dt>
-                      <dd>{validCustomerData.bank_account_holder}</dd>
-                    </dl>
-                  </div>
-                </>
-              )}
+              <div>
+                <h3 className="font-medium mb-3">振込先口座</h3>
+                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                  <dt className="text-muted-foreground">銀行名</dt>
+                  <dd>{bankName} {bankBranch}</dd>
+                  <dt className="text-muted-foreground">口座</dt>
+                  <dd>{bankAccountType} {bankAccountNumber}</dd>
+                  <dt className="text-muted-foreground">名義</dt>
+                  <dd>{bankAccountHolder}</dd>
+                </dl>
+              </div>
 
             </CardContent>
           </Card>

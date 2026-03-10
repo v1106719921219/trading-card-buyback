@@ -1,25 +1,11 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ShoppingCart, Search, CreditCard, Package, ArrowRight, Tag } from 'lucide-react'
+import { ShoppingCart, Search, CreditCard, Package, ArrowRight } from 'lucide-react'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
-import { requireTenantId } from '@/lib/tenant'
-import { createAdminClient } from '@/lib/supabase/admin'
 
-export const dynamic = 'force-dynamic'
-
-export default async function HomePage() {
-  const tenantId = await requireTenantId()
-  const supabase = createAdminClient()
-
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('id, name, sort_order')
-    .eq('is_active', true)
-    .eq('tenant_id', tenantId)
-    .order('sort_order')
-
+export default function HomePage() {
   return (
     <div className="min-h-screen">
       <Header />
@@ -82,50 +68,6 @@ export default async function HomePage() {
               </Button>
             </Link>
           </div>
-        </div>
-      </section>
-
-      {/* Categories */}
-      {categories && categories.length > 0 && (
-        <section className="py-8 sm:py-12 md:py-16 bg-muted/30">
-          <div className="max-w-6xl mx-auto px-4">
-            <h3 className="text-xl sm:text-2xl font-bold text-center mb-6 sm:mb-8 md:mb-12">取扱カテゴリ</h3>
-            <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
-              {categories.map((cat) => (
-                <Link key={cat.id} href={`/prices?category=${cat.id}`}>
-                  <Card className="text-center hover:shadow-md transition-shadow cursor-pointer h-full">
-                    <CardContent className="flex items-center justify-center gap-2 py-6">
-                      <Tag className="h-4 w-4 text-primary shrink-0" />
-                      <span className="font-medium text-sm">{cat.name}</span>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-            <div className="mt-6 text-center">
-              <Link href="/prices">
-                <Button variant="outline" className="text-base">
-                  買取価格一覧を見る <ArrowRight className="h-4 w-4 ml-1" />
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* CTA */}
-      <section className="py-12 sm:py-16 md:py-20 bg-primary text-primary-foreground">
-        <div className="max-w-3xl mx-auto text-center px-4">
-          <h3 className="text-2xl sm:text-3xl font-bold mb-4">今すぐ買取を申し込む</h3>
-          <p className="text-primary-foreground/80 mb-8 text-lg">
-            簡単なフォーム入力で買取申込が完了します。<br className="hidden sm:block" />
-            まずはお気軽にお申し込みください。
-          </p>
-          <Link href="/apply">
-            <Button size="lg" variant="secondary" className="text-lg px-10 py-6 shadow-md">
-              買取申込フォームへ <ArrowRight className="h-5 w-5 ml-2" />
-            </Button>
-          </Link>
         </div>
       </section>
 
