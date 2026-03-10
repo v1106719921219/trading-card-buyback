@@ -47,6 +47,8 @@ export async function notifyDiscordInspectionIssue(data: InspectionIssuePayload)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         content: message,
+        // フォーラムチャンネル用: 自動でスレッドを作成
+        thread_name: `[検品問題] ${data.orderNumber} - ${data.customerName}`,
       }),
     })
 
