@@ -60,7 +60,7 @@ export async function generateInspectionPdf(
   doc.text(`注文番号: ${order.order_number}`, 14, 48)
   doc.text(`お客様名: ${order.customer_name}`, 14, 55)
 
-  const paymentAmount = order.inspected_total_amount ?? order.total_amount
+  const paymentAmount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
 
   // 商品明細テーブル
   const tableData = orderItems.map((item) => {

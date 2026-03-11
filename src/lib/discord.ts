@@ -20,7 +20,7 @@ interface InspectionIssuePayload {
  * 環境変数 DISCORD_INSPECTION_WEBHOOK_URL が設定されている必要がある
  */
 export async function notifyDiscordInspectionIssue(data: InspectionIssuePayload): Promise<{ success: boolean; error?: string }> {
-  const webhookUrl = data.officeKey === '東京'
+  const webhookUrl = data.officeKey?.includes('東京')
     ? process.env.DISCORD_INSPECTION_WEBHOOK_URL_TOKYO
     : process.env.DISCORD_INSPECTION_WEBHOOK_URL_YAMAGUCHI
   if (!webhookUrl) {

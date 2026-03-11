@@ -37,7 +37,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil } from 'lucide-react'
-import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType } from '@/actions/orders'
+import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice } from '@/actions/orders'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
 import { STATUS_TRANSITIONS, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
@@ -67,6 +67,8 @@ export default function OrderDetailPage() {
   const [editItems, setEditItems] = useState<{ id: string; quantity: number }[]>([])
   const [savingQuantities, setSavingQuantities] = useState(false)
   const [savingBuybackType, setSavingBuybackType] = useState(false)
+  const [offices, setOffices] = useState<Office[]>([])
+  const [savingOffice, setSavingOffice] = useState(false)
 
   const supabase = createClient()
 
@@ -118,14 +120,17 @@ export default function OrderDetailPage() {
       .limit(10)
     setDuplicateOrders(dupes || [])
 
-    // Fetch office if order has office_id
+    // Fetch offices list and current office
+    const { data: allOffices } = await supabase
+      .from('offices')
+      .select('*')
+      .eq('is_active', true)
+      .order('name')
+    if (allOffices) setOffices(allOffices as Office[])
+
     if (orderData.office_id) {
-      const { data: officeData } = await supabase
-        .from('offices')
-        .select('*')
-        .eq('id', orderData.office_id)
-        .single()
-      if (officeData) setOffice(officeData as Office)
+      const currentOffice = (allOffices || []).find((o: Office) => o.id === orderData.office_id)
+      if (currentOffice) setOffice(currentOffice as Office)
     }
 
     setLoading(false)
@@ -234,6 +239,18 @@ export default function OrderDetailPage() {
     toast.success('申告数量を更新しました')
     setEditingQuantities(false)
     setEditItems([])
+    fetchOrder()
+  }
+
+  async function handleOfficeChange(value: string) {
+    setSavingOffice(true)
+    const result = await updateOrderOffice(orderId, value)
+    setSavingOffice(false)
+    if (result.error) {
+      toast.error(`事務所の変更に失敗しました: ${result.error}`)
+      return
+    }
+    toast.success('到着事務所を変更しました')
     fetchOrder()
   }
 
@@ -436,14 +453,24 @@ export default function OrderDetailPage() {
                     </TableCell>
                   </TableRow>
                   {order.inspection_discount > 0 && (
-                    <TableRow>
-                      <TableCell colSpan={3 + (items.some((i) => i.inspected_quantity != null) ? 1 : 0) + (items.some((i) => (i.returned_quantity ?? 0) > 0) ? 1 : 0)} className="text-right text-sm text-muted-foreground">
-                        減額
-                      </TableCell>
-                      <TableCell className="text-right text-sm text-destructive">
-                        -{order.inspection_discount.toLocaleString()}円
-                      </TableCell>
-                    </TableRow>
+                    <>
+                      <TableRow>
+                        <TableCell colSpan={3 + (items.some((i) => i.inspected_quantity != null) ? 1 : 0) + (items.some((i) => (i.returned_quantity ?? 0) > 0) ? 1 : 0)} className="text-right text-sm text-muted-foreground">
+                          減額
+                        </TableCell>
+                        <TableCell className="text-right text-sm text-destructive">
+                          -{order.inspection_discount.toLocaleString()}円
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell colSpan={3 + (items.some((i) => i.inspected_quantity != null) ? 1 : 0) + (items.some((i) => (i.returned_quantity ?? 0) > 0) ? 1 : 0)} className="text-right font-bold">
+                          振込金額
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-lg">
+                          {((order.inspected_total_amount ?? order.total_amount) - order.inspection_discount).toLocaleString()}円
+                        </TableCell>
+                      </TableRow>
+                    </>
                   )}
                   {order.inspected_total_amount != null && order.inspected_total_amount !== order.total_amount && (
                     <TableRow>
@@ -612,15 +639,31 @@ export default function OrderDetailPage() {
           )}
 
           {/* Shipping office */}
-          {office && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  宛先
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
+                宛先
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {offices.length > 1 && (
+                <Select
+                  value={order.office_id || ''}
+                  onValueChange={handleOfficeChange}
+                  disabled={savingOffice}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="事務所を選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {offices.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {office && (
                 <dl className="grid grid-cols-[120px_1fr] gap-3 text-sm">
                   <dt className="text-muted-foreground">宛名</dt>
                   <dd>買取スクエア</dd>
@@ -635,9 +678,9 @@ export default function OrderDetailPage() {
                     </>
                   )}
                 </dl>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Sidebar */}

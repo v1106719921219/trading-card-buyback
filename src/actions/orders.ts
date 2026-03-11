@@ -549,6 +549,21 @@ export async function updateBuybackType(orderId: string, buybackType: BuybackTyp
   return { success: true }
 }
 
+export async function updateOrderOffice(orderId: string, officeId: string) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('orders')
+    .update({ office_id: officeId })
+    .eq('id', orderId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/admin/orders/${orderId}`)
+  revalidatePath('/admin/orders')
+  return { success: true }
+}
+
 export async function deleteOrder(orderId: string) {
   const currentUser = await getCurrentUser()
   if (!currentUser || !['admin', 'manager'].includes(currentUser.role)) {
