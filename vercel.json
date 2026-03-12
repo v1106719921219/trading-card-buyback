@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/close-buyback",
-      "schedule": "0 11 * * *"
+      "schedule": "0 14 * * *"
     }
   ]
 }
