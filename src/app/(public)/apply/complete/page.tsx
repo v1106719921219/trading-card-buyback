@@ -300,9 +300,16 @@ function CompleteContent() {
                       : '追跡番号を追加する'}
                 </Button>
                 {isFirstTracking && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    複数の荷物がある場合は、登録後に追加で入力できます
-                  </p>
+                  <>
+                    <p className="text-xs text-muted-foreground text-center">
+                      複数の荷物がある場合は、登録後に追加で入力できます
+                    </p>
+                    <div className="bg-blue-50 border border-blue-200 p-3 rounded-md">
+                      <p className="text-xs text-blue-700 text-center">
+                        💡 今すぐ追跡番号がわからない場合は、<strong>確認メール内のリンク</strong>からいつでも入力できます
+                      </p>
+                    </div>
+                  </>
                 )}
               </form>
             )}

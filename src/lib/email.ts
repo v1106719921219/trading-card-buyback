@@ -35,17 +35,23 @@ export async function sendOrderConfirmationEmail(
           <p style="margin: 0; font-size: 24px; font-weight: bold; font-family: monospace;">${orderNumber}</p>
         </div>
 
-        <p>下記リンクから、追跡番号の登録や送付先の確認ができます。</p>
-
-        <div style="text-align: center; margin: 24px 0;">
-          <a href="${completeUrl}" style="display: inline-block; background: #000; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none;">
-            申込完了ページを開く
-          </a>
+        <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <p style="margin: 0 0 8px; font-size: 16px; font-weight: bold; color: #856404;">
+            ⚠️ 商品を発送したら追跡番号を登録してください
+          </p>
+          <p style="margin: 0 0 16px; font-size: 14px; color: #856404;">
+            下のボタンから追跡番号を入力できます。<br>
+            <strong>このメールを保存しておくと、いつでも追跡番号を登録できます。</strong>
+          </p>
+          <div style="text-align: center;">
+            <a href="${completeUrl}" style="display: inline-block; background: #f59e0b; color: #fff; padding: 14px 32px; border-radius: 6px; text-decoration: none; font-size: 16px; font-weight: bold;">
+              📦 追跡番号を入力する
+            </a>
+          </div>
         </div>
 
         <p style="font-size: 14px; color: #666;">
-          商品の発送後、上記ページから追跡番号をご登録ください。<br>
-          到着後、検品を行い、結果をメールにてお知らせいたします。
+          追跡番号の登録後、検品を行い、結果をメールにてお知らせいたします。
         </p>
 
         <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
