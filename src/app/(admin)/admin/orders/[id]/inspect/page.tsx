@@ -254,8 +254,8 @@ export default function InspectPage() {
     toast.success('検品結果を保存しました')
     setSaving(false)
 
-    // 問題ありステータスになったらDiscordに自動通知
-    if (inspectionStatus === '問題あり' && order) {
+    // 問題ありステータスに初めて変更されたときだけDiscordに通知（既に問題ありなら通知しない）
+    if (inspectionStatus === '問題あり' && order && order.inspection_status !== '問題あり') {
       const result = await notifyDiscordInspectionIssue({
         orderId,
         orderNumber: order.order_number,
