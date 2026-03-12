@@ -30,7 +30,7 @@ export default async function ApplyPage({
       ? supabase.from('categories').select('*').order('sort_order')
       : supabase.from('categories').select('*').eq('is_active', true).order('sort_order'),
     showAll
-      ? supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('show_in_price_list', true).gt('price', 0).order('sort_order').order('name')
+      ? supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').gt('price', 0).order('sort_order').order('name')
       : supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('is_active', true).eq('show_in_price_list', true).gt('price', 0).order('sort_order').order('name'),
     showAll
       ? supabase.from('subcategories').select('*').order('sort_order')
