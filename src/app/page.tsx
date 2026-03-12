@@ -34,6 +34,13 @@ export default function HomePage() {
               </Button>
             </Link>
           </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            申込済みの方は
+            <Link href="/tracking" className="text-primary underline underline-offset-4 hover:text-primary/80 ml-1">
+              こちらから追跡番号を入力
+            </Link>
+            できます
+          </p>
         </div>
       </section>
 
