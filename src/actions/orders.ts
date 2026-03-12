@@ -31,7 +31,7 @@ export async function createOrder(input: CreateOrderInput) {
   // Use admin client for public form submission (bypasses RLS)
   const supabase = createAdminClient()
 
-  const { items, customer, customer_id, office_id, shipped_date } = parsed.data
+  const { items, customer, customer_id, office_id, shipped_date, price_date } = parsed.data
 
   // 重複チェック: 同一テナント・メールアドレスで2分以内の申込があれば既存注文を返す
   const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
@@ -81,6 +81,7 @@ export async function createOrder(input: CreateOrderInput) {
       customer_id: customer_id || null,
       office_id,
       shipped_date: shipped_date || null,
+      price_date: price_date ?? null,
       tenant_id: tenantId,
     })
     .select('id, order_number')

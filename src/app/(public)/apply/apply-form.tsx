@@ -47,9 +47,11 @@ interface ApplyFormProps {
   initialProducts: (Product & { category: Category; subcategory: Subcategory | null })[]
   initialSubcategories: Subcategory[]
   initialOffices: Office[]
+  priceDate?: string | null
+  showAll?: boolean
 }
 
-export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices }: ApplyFormProps) {
+export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, showAll }: ApplyFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -131,7 +133,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     const matchesCategory = selectedCategory === 'all' || p.category_id === selectedCategory
     const matchesSubcategory = selectedSubcategory === 'all' || p.subcategory_id === selectedSubcategory
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
-    return matchesCategory && matchesSubcategory && matchesSearch && p.category?.is_active
+    return matchesCategory && matchesSubcategory && matchesSearch && (showAll || p.category?.is_active)
   })
 
   function addToCart(product: Product & { category: Category }) {
@@ -275,6 +277,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         },
         office_id: selectedOfficeId,
         shipped_date: shippedDate || undefined,
+        price_date: priceDate || undefined,
       })
 
       setLoading(false)
@@ -332,6 +335,13 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
             )
           })}
         </div>
+
+        {/* 価格日付バナー */}
+        {priceDate && (
+          <div className="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+            {priceDate.replace(/-/g, '/')} 時点の買取価格で表示しています
+          </div>
+        )}
 
         {/* セクションヘッダー */}
         <div className="text-center mb-8">

@@ -42,6 +42,7 @@ export const createOrderSchema = z.object({
   customer_id: z.string().uuid().optional(),
   office_id: z.string().uuid('発送先事務所を選択してください'),
   shipped_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '発送日を入力してください').optional(),
+  price_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>
