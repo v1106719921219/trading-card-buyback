@@ -83,6 +83,7 @@ export async function middleware(request: NextRequest) {
     'Permissions-Policy',
     'camera=(), microphone=(), geolocation=()'
   )
+  
   // 本番環境のみHSTSを設定
   if (process.env.NODE_ENV === 'production') {
     response.headers.set(
