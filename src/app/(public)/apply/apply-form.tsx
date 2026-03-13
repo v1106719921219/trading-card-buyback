@@ -2,20 +2,29 @@ import React from 'react';
 
 const ApplyForm = () => {
   return (
-    <div>
-      <h1>申し込みフォーム</h1>
-      {/* AR美品の表示を削除 */}
+    <form>
+      {/* ここからAR美品の表示を削除 */}
       {/* <div>
         <label>
-          <input type="checkbox" />
+          <input type="checkbox" name="arQuality" />
           AR美品を申し込む
         </label>
       </div> */}
-      {/* その他のフォーム要素 */}
-      <form>
-        {/* フォームの内容 */}
-      </form>
-    </div>
+      {/* ここまで削除 */}
+      <div>
+        <label>
+          名前:
+          <input type="text" name="name" required />
+        </label>
+      </div>
+      <div>
+        <label>
+          メール:
+          <input type="email" name="email" required />
+        </label>
+      </div>
+      <button type="submit">申し込む</button>
+    </form>
   );
 };
 

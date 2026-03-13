@@ -7,11 +7,14 @@ const OrderDetailPage = () => {
       {/* AR美品の表示を追加 */}
       <div>
         <label>
-          <input type="checkbox" />
+          <input type="checkbox" name="arQuality" />
           AR美品を申し込む
         </label>
       </div>
-      {/* 注文の詳細情報 */}
+      {/* 注文詳細の表示 */}
+      <div>
+        {/* 注文詳細の内容 */}
+      </div>
     </div>
   );
 };
