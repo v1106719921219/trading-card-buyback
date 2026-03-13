@@ -1,14 +1,17 @@
 import React from 'react';
 
-const OrderDetailPage = ({ order }) => {
-  const isInvoiceIssuer = order.customer_not_invoice_issuer ? '事業者ではない' : '事業者です';
-
+const OrderDetailPage = () => {
   return (
     <div>
       <h1>注文詳細</h1>
-      <p>注文ID: {order.id}</p>
-      <p>適格請求書発行事業者: {isInvoiceIssuer}</p>
-      {/* 他の詳細... */}
+      {/* AR美品の表示を追加 */}
+      <div>
+        <label>
+          <input type="checkbox" />
+          AR美品を申し込む
+        </label>
+      </div>
+      {/* 注文の詳細情報 */}
     </div>
   );
 };
