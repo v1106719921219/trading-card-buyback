@@ -7,6 +7,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -66,6 +73,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [aiParsing, setAiParsing] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [selectedBuybackType, setSelectedBuybackType] = useState<'minimum_guarantee' | 'ar_quality'>('minimum_guarantee')
+  const [showBuybackDialog, setShowBuybackDialog] = useState(false)
 
   // Repeater lookup state
   const [lookupEmail, setLookupEmail] = useState('')
@@ -159,9 +167,9 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
           category_name: product.category?.name || '',
         },
       ])
-      // AR商品を初めてカートに追加した時に通知
+      // AR商品を初めてカートに追加した時にダイアログ表示
       if (arQualityEnabled && isArProduct && !hasArInCart) {
-        toast.info('AR商品が追加されました。買取種別（最低保証 / 美品査定希望）を選択できます。', { duration: 5000 })
+        setShowBuybackDialog(true)
       }
     }
   }
@@ -227,7 +235,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
       setAiText('')
       toast.success(`${result.items.length}件の商品をカートに追加しました`)
       if (arQualityEnabled && hasArAfter && !hadArBefore) {
-        toast.info('AR商品が追加されました。買取種別（最低保証 / 美品査定希望）を選択できます。', { duration: 5000 })
+        setShowBuybackDialog(true)
       }
     } catch {
       toast.error('解析に失敗しました')
@@ -414,40 +422,26 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                 </CardContent>
               </Card>
 
-              {/* 買取種別（カートにAR商品がある場合のみ表示） */}
+              {/* 買取種別（AR商品がカートにある場合、選択済みの種別を表示） */}
               {arQualityEnabled && cart.some(item => item.product_name.includes('AR')) && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>買取種別</CardTitle>
-                    <CardDescription>ご希望の買取種別を選択してください</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {([
-                        { value: 'minimum_guarantee' as const, label: '最低保証' },
-                        { value: 'ar_quality' as const, label: '美品査定希望' },
-                      ]).map((option) => (
-                        <div
-                          key={option.value}
-                          className={`cursor-pointer rounded-lg border-2 p-4 transition-colors ${
-                            selectedBuybackType === option.value
-                              ? 'border-primary bg-primary/5'
-                              : 'border-border hover:border-primary/50'
-                          }`}
-                          onClick={() => setSelectedBuybackType(option.value)}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
-                              selectedBuybackType === option.value ? 'border-primary' : 'border-muted-foreground'
-                            }`}>
-                              {selectedBuybackType === option.value && (
-                                <div className="h-2 w-2 rounded-full bg-primary" />
-                              )}
-                            </div>
-                            <span className="font-medium">{option.label}</span>
-                          </div>
-                        </div>
-                      ))}
+                <Card className="border-purple-300 bg-purple-50">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-purple-800">買取種別</p>
+                        <p className="text-lg font-bold text-purple-900">
+                          {selectedBuybackType === 'ar_quality' ? '美品査定希望' : '最低保証'}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="border-purple-300 text-purple-700 hover:bg-purple-100"
+                        onClick={() => setShowBuybackDialog(true)}
+                      >
+                        変更する
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -1116,6 +1110,51 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
           )}
         </div>
       </div>
+
+      {/* 買取種別選択ダイアログ */}
+      <Dialog open={showBuybackDialog} onOpenChange={setShowBuybackDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl">買取種別を選択してください</DialogTitle>
+            <DialogDescription>
+              AR商品がカートに含まれています。ご希望の買取種別をお選びください。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-4">
+            {([
+              { value: 'minimum_guarantee' as const, label: '最低保証', description: '最低保証価格での買取' },
+              { value: 'ar_quality' as const, label: '美品査定希望', description: '美品査定による買取（査定額が変動します）' },
+            ]).map((option) => (
+              <div
+                key={option.value}
+                className={`cursor-pointer rounded-lg border-2 p-5 transition-colors ${
+                  selectedBuybackType === option.value
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-primary/50'
+                }`}
+                onClick={() => {
+                  setSelectedBuybackType(option.value)
+                  setShowBuybackDialog(false)
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${
+                    selectedBuybackType === option.value ? 'border-primary' : 'border-muted-foreground'
+                  }`}>
+                    {selectedBuybackType === option.value && (
+                      <div className="h-3 w-3 rounded-full bg-primary" />
+                    )}
+                  </div>
+                  <div>
+                    <span className="font-bold text-lg">{option.label}</span>
+                    <p className="text-sm text-muted-foreground mt-0.5">{option.description}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </div>
