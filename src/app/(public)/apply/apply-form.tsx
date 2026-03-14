@@ -58,9 +58,10 @@ interface ApplyFormProps {
   priceDate?: string | null
   showAll?: boolean
   arQualityEnabled?: boolean
+  fromLine?: boolean
 }
 
-export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, showAll, arQualityEnabled }: ApplyFormProps) {
+export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, showAll, arQualityEnabled, fromLine }: ApplyFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -76,8 +77,8 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [selectedBuybackType, setSelectedBuybackType] = useState<'minimum_guarantee' | 'ar_quality'>('minimum_guarantee')
   const [showBuybackDialog, setShowBuybackDialog] = useState(false)
 
-  // LINE申込確認
-  const [lineConfirmed, setLineConfirmed] = useState(false)
+  // LINE申込確認（from=line パラメータがあればスキップ）
+  const [lineConfirmed, setLineConfirmed] = useState(!!fromLine)
   const [lineCheckbox, setLineCheckbox] = useState(false)
 
   // Repeater lookup state
@@ -332,25 +333,25 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
 
       {/* LINE申込確認ダイアログ */}
       <Dialog open={!lineConfirmed} onOpenChange={() => {}}>
-        <DialogContent showCloseButton={false} onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+        <DialogContent showCloseButton={false} className="bg-white text-gray-900 border-gray-200" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 text-gray-900">
               <MessageCircle className="h-5 w-5 text-[#06C755]" />
               LINEでのお申込みはお済みですか？
             </DialogTitle>
-            <DialogDescription className="text-left">
+            <DialogDescription className="text-left text-gray-600">
               買取のお申込みには、事前にLINEでのご連絡が必要です。まだお済みでない場合は、先にLINEからお問い合わせください。
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
-            <label className="flex items-start gap-3 cursor-pointer select-none rounded-lg border border-border p-4 transition-colors hover:bg-muted/50">
+            <label className="flex items-start gap-3 cursor-pointer select-none rounded-lg border border-gray-200 p-4 transition-colors hover:bg-gray-50">
               <input
                 type="checkbox"
                 checked={lineCheckbox}
                 onChange={(e) => setLineCheckbox(e.target.checked)}
-                className="mt-0.5 h-5 w-5 rounded accent-primary cursor-pointer"
+                className="mt-0.5 h-5 w-5 rounded accent-[#06C755] cursor-pointer"
               />
-              <span className="text-sm leading-relaxed">
+              <span className="text-sm text-gray-900 leading-relaxed">
                 LINEで買取の申込・やり取りを済ませています
               </span>
             </label>
@@ -359,7 +360,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
             <Button
               onClick={() => setLineConfirmed(true)}
               disabled={!lineCheckbox}
-              className="w-full"
+              className="w-full bg-[#06C755] hover:bg-[#06C755]/90 text-white font-bold disabled:opacity-40"
             >
               申込フォームへ進む
             </Button>

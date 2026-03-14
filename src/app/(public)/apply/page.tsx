@@ -12,6 +12,7 @@ export default async function ApplyPage({
   const params = await searchParams
   const priceDateParam = typeof params.price_date === 'string' ? params.price_date : undefined
   const showAll = params.show_all === 'true'
+  const fromLine = params.from === 'line'
 
   // price_date バリデーション: YYYY-MM-DD 形式かつ未来日でないこと
   let priceDate: string | null = null
@@ -96,6 +97,7 @@ export default async function ApplyPage({
       priceDate={priceDate}
       showAll={showAll}
       arQualityEnabled={arQualityEnabled}
+      fromLine={fromLine}
     />
   )
 }
