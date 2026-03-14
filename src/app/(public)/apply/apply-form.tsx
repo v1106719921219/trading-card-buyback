@@ -280,7 +280,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         office_id: selectedOfficeId,
         shipped_date: shippedDate || undefined,
         price_date: priceDate || undefined,
-        buyback_type: arQualityEnabled ? selectedBuybackType : 'minimum_guarantee',
+        buyback_type: arQualityEnabled && cart.some(item => item.product_name.includes('AR')) ? selectedBuybackType : 'minimum_guarantee',
       })
 
       setLoading(false)
@@ -403,8 +403,8 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                 </CardContent>
               </Card>
 
-              {/* 買取種別 */}
-              {arQualityEnabled && (
+              {/* 買取種別（カートにAR商品がある場合のみ表示） */}
+              {arQualityEnabled && cart.some(item => item.product_name.includes('AR')) && (
                 <Card>
                   <CardHeader>
                     <CardTitle>買取種別</CardTitle>
@@ -997,7 +997,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                     </div>
                   ) : null
                 })()}
-                {arQualityEnabled && (
+                {arQualityEnabled && cart.some(item => item.product_name.includes('AR')) && (
                   <p className="text-sm mt-2">買取種別: <span className="font-medium">{selectedBuybackType === 'ar_quality' ? '美品査定希望' : '最低保証'}</span></p>
                 )}
                 {shippedDate && (
