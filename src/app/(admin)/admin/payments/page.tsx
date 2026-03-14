@@ -111,6 +111,24 @@ export default function PaymentsPage() {
     }
   }
 
+  async function toggleInvoiceIssuer(id: string, listType: 'pending' | 'shipped') {
+    const list = listType === 'pending' ? orders : shippedOrders
+    const setList = listType === 'pending' ? setOrders : setShippedOrders
+    const order = list.find((o) => o.id === id)
+    if (!order) return
+    const newValue = !order.customer_not_invoice_issuer
+    const { error } = await supabase
+      .from('orders')
+      .update({ customer_not_invoice_issuer: newValue })
+      .eq('id', id)
+    if (error) {
+      toast.error('適格事業者の更新に失敗しました')
+      return
+    }
+    setList(list.map((o) => o.id === id ? { ...o, customer_not_invoice_issuer: newValue } : o))
+    toast.success(newValue ? '適格事業者を解除しました' : '適格事業者に設定しました')
+  }
+
   async function toggleVerified(id: string) {
     const order = orders.find((o) => o.id === id)
     if (!order) return
@@ -299,11 +317,18 @@ export default function PaymentsPage() {
                       <TableCell>
                         <span className="flex items-center gap-1.5">
                           {order.customer_name}
-                          {!order.customer_not_invoice_issuer && (
-                            <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-[10px] px-1.5 py-0">
-                              適格
-                            </Badge>
-                          )}
+                          <Badge
+                            variant="secondary"
+                            className={`cursor-pointer text-[10px] px-1.5 py-0 ${
+                              !order.customer_not_invoice_issuer
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                            }`}
+                            onClick={() => toggleInvoiceIssuer(order.id, 'pending')}
+                            title="クリックで適格事業者の状態を切り替え"
+                          >
+                            {!order.customer_not_invoice_issuer ? '適格' : '非適格'}
+                          </Badge>
                         </span>
                       </TableCell>
                       <TableCell className="text-sm hidden md:table-cell">
@@ -395,11 +420,18 @@ export default function PaymentsPage() {
                       <TableCell className="font-medium">
                         <span className="flex items-center gap-1.5">
                           {order.customer_name}
-                          {!order.customer_not_invoice_issuer && (
-                            <Badge variant="secondary" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-[10px] px-1.5 py-0">
-                              適格
-                            </Badge>
-                          )}
+                          <Badge
+                            variant="secondary"
+                            className={`cursor-pointer text-[10px] px-1.5 py-0 ${
+                              !order.customer_not_invoice_issuer
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                            }`}
+                            onClick={() => toggleInvoiceIssuer(order.id, 'shipped')}
+                            title="クリックで適格事業者の状態を切り替え"
+                          >
+                            {!order.customer_not_invoice_issuer ? '適格' : '非適格'}
+                          </Badge>
                         </span>
                       </TableCell>
                       <TableCell className="text-sm hidden md:table-cell">
