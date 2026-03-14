@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 1500px;
+      height: 500px;
+      background: #0a0a0f;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      position: relative;
+    }
+    body::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .glow1 {
+      position: absolute;
+      top: -150px; right: -100px;
+      width: 500px; height: 500px;
+      background: rgba(255,107,0,0.1);
+      border-radius: 50%;
+      filter: blur(120px);
+    }
+    .glow2 {
+      position: absolute;
+      bottom: -150px; left: 100px;
+      width: 400px; height: 400px;
+      background: rgba(0,63,138,0.12);
+      border-radius: 50%;
+      filter: blur(100px);
+    }
+    .wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 60px;
+      padding-left: 100px;
+    }
+    .logo svg { width: 180px; height: 180px; }
+    .text .l1 {
+      font-family: 'Dela Gothic One', sans-serif;
+      font-size: 96px;
+      color: white;
+      line-height: 1.25;
+    }
+    .text .l2 {
+      font-family: 'Dela Gothic One', sans-serif;
+      font-size: 108px;
+      line-height: 1.25;
+    }
+    .text .l2 .o {
+      color: #FF6B00;
+      text-shadow: 0 0 30px rgba(255,107,0,0.35), 0 0 60px rgba(255,107,0,0.12);
+    }
+    .text .l2 .w { color: white; }
+    .text .sub {
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 28px;
+      color: rgba(255,255,255,0.45);
+      margin-top: 16px;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div class="glow1"></div>
+  <div class="glow2"></div>
+  <div class="wrap">
+    <div class="logo">
+      <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M100 30 L40 65 L40 135 L100 100 Z" fill="#1a1a1a" stroke="#333" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M100 30 L160 65 L160 135 L100 100 Z" fill="white" stroke="#333" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M40 135 L100 170 L160 135 L100 100 Z" fill="#F5921B" stroke="#333" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M100 30 L160 65 L160 135 L100 170 L40 135 L40 65 Z" stroke="#222" stroke-width="3.5" stroke-linejoin="round" fill="none"/>
+        <line x1="100" y1="100" x2="100" y2="30" stroke="#333" stroke-width="2.5"/>
+        <line x1="100" y1="100" x2="40" y2="135" stroke="#333" stroke-width="2.5"/>
+        <line x1="100" y1="100" x2="160" y2="135" stroke="#333" stroke-width="2.5"/>
+      </svg>
+    </div>
+    <div class="text">
+      <div class="l1">あなたのトレカを</div>
+      <div class="l2"><span class="o">最高値</span><span class="w">で買取る</span></div>
+      <div class="sub">ポケモン・ワンピースの未開封BOXを高価買取。</div>
+    </div>
+  </div>
+</body>
+</html>

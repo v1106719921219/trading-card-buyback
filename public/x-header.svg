@@ -1,0 +1,42 @@
+<svg width="1500" height="500" viewBox="0 0 1500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1500" height="500" fill="#0a0a0f"/>
+
+  <!-- Grid pattern -->
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" stroke-opacity="0.03" stroke-width="1"/>
+    </pattern>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="60"/>
+    </filter>
+    <filter id="glow2">
+      <feGaussianBlur stdDeviation="40"/>
+    </filter>
+  </defs>
+  <rect width="1500" height="500" fill="url(#grid)"/>
+
+  <!-- Background glows -->
+  <circle cx="1300" cy="50" r="250" fill="#FF6B00" opacity="0.08" filter="url(#glow)"/>
+  <circle cx="200" cy="450" r="200" fill="#003F8A" opacity="0.12" filter="url(#glow)"/>
+
+  <!-- Main text: あなたのトレカを -->
+  <text x="750" y="190" text-anchor="middle" font-family="'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif" font-weight="900" font-size="120" fill="white" letter-spacing="2">
+    あなたのトレカを
+  </text>
+
+  <!-- 最高値 in orange + で買取る in white -->
+  <text x="750" y="340" text-anchor="middle" font-family="'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif" font-weight="900" font-size="130">
+    <tspan fill="#FF6B00">最高値</tspan><tspan fill="white">で買取る</tspan>
+  </text>
+
+  <!-- Orange glow behind 最高値 -->
+  <text x="530" y="340" text-anchor="middle" font-family="'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif" font-weight="900" font-size="130" fill="#FF6B00" opacity="0.3" filter="url(#glow2)">
+    最高値
+  </text>
+
+  <!-- Subtitle -->
+  <text x="750" y="420" text-anchor="middle" font-family="'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif" font-weight="400" font-size="36" fill="white" opacity="0.5">
+    ポケモン・ワンピースの未開封BOXを高価買取。
+  </text>
+</svg>
