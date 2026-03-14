@@ -11,6 +11,7 @@ export interface TenantInfo {
   contactEmail: string
   ancientDealerNumber: string
   primaryColor: string
+  logoUrl: string
 }
 
 /**
@@ -24,5 +25,6 @@ export function toTenantInfo(tenant: Tenant): TenantInfo {
     contactEmail: tenant.contact_email || '',
     ancientDealerNumber: tenant.ancient_dealer_number || '',
     primaryColor: tenant.primary_color || '',
+    logoUrl: tenant.logo_url || '',
   }
 }

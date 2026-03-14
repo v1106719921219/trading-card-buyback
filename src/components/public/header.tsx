@@ -13,6 +13,7 @@ import {
 import { Menu } from 'lucide-react'
 import { useState } from 'react'
 import { useTenant } from '@/lib/tenant-context'
+import { TenantLogo } from '@/components/tenant-logo'
 
 interface HeaderProps {
   rightContent?: React.ReactNode
@@ -27,7 +28,7 @@ export function Header({ rightContent, hideApplyButton }: HeaderProps) {
     <header className="sticky top-0 z-40 bg-gray-950 shadow-lg border-b-[3px] border-primary">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
-          <Image src="/logo.png" alt={tenant.siteName} width={32} height={32} className="h-8 w-8" />
+          <TenantLogo size={32} />
           <span className="text-xl font-bold text-white">{tenant.siteName}</span>
         </Link>
 
@@ -59,7 +60,7 @@ export function Header({ rightContent, hideApplyButton }: HeaderProps) {
             <SheetContent side="right" className="w-72">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
-                  <Image src="/logo.png" alt={tenant.siteName} width={24} height={24} className="h-6 w-6" />
+                  <TenantLogo size={24} />
                   {tenant.siteName}
                 </SheetTitle>
               </SheetHeader>

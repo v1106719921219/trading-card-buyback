@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { useTenant } from '@/lib/tenant-context'
+import { TenantLogo } from '@/components/tenant-logo'
 
 export function Footer() {
   const tenant = useTenant()
@@ -13,7 +13,7 @@ export function Footer() {
         <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
           <div>
             <h3 className="font-bold mb-3 text-white flex items-center gap-2">
-              <Image src="/logo.png" alt={tenant.siteName} width={24} height={24} className="h-6 w-6" />
+              <TenantLogo size={24} />
               {tenant.siteName}
             </h3>
             {tenant.ancientDealerNumber && (

@@ -40,6 +40,7 @@ export default async function RootLayout({
     contactEmail: '',
     ancientDealerNumber: '',
     primaryColor: '',
+    logoUrl: '',
   };
 
   return (
