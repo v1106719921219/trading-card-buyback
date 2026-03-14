@@ -147,6 +147,8 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
           : item
       ))
     } else {
+      const isArProduct = product.name.includes('AR')
+      const hasArInCart = cart.some(item => item.product_name.includes('AR'))
       setCart([
         ...cart,
         {
@@ -157,6 +159,10 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
           category_name: product.category?.name || '',
         },
       ])
+      // AR商品を初めてカートに追加した時に通知
+      if (arQualityEnabled && isArProduct && !hasArInCart) {
+        toast.info('AR商品が追加されました。買取種別（最低保証 / 美品査定希望）を選択できます。', { duration: 5000 })
+      }
     }
   }
 
@@ -215,9 +221,14 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
           })
         }
       }
+      const hadArBefore = cart.some(item => item.product_name.includes('AR'))
+      const hasArAfter = newCart.some(item => item.product_name.includes('AR'))
       setCart(newCart)
       setAiText('')
       toast.success(`${result.items.length}件の商品をカートに追加しました`)
+      if (arQualityEnabled && hasArAfter && !hadArBefore) {
+        toast.info('AR商品が追加されました。買取種別（最低保証 / 美品査定希望）を選択できます。', { duration: 5000 })
+      }
     } catch {
       toast.error('解析に失敗しました')
     }
