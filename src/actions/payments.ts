@@ -3,7 +3,18 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { sendPaymentCompletionEmail } from '@/lib/email'
-import { generateInspectionPdf } from '@/lib/pdf'
+import { generateInspectionPdf, type PdfTenantInfo } from '@/lib/pdf'
+import { getTenant } from '@/lib/tenant'
+
+async function getPdfTenantInfo(): Promise<PdfTenantInfo | undefined> {
+  const tenant = await getTenant()
+  if (!tenant) return undefined
+  return {
+    siteName: tenant.site_name || tenant.display_name || tenant.name,
+    ancientDealerNumber: tenant.ancient_dealer_number || '',
+    logoUrl: tenant.logo_url || '',
+  }
+}
 
 export async function getPaymentQueue() {
   const supabase = await createClient()
@@ -39,7 +50,8 @@ export async function markAsPaid(orderId: string) {
   // PDF生成 → 振込完了メール送信
   const amount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
   try {
-    const pdfBuffer = await generateInspectionPdf(order, order.order_items ?? [])
+    const tenantInfo = await getPdfTenantInfo()
+    const pdfBuffer = await generateInspectionPdf(order, order.order_items ?? [], tenantInfo)
     await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount, pdfBuffer)
   } catch (err) {
     console.error('[markAsPaid] PDF/Email error:', err)
@@ -66,7 +78,8 @@ export async function downloadInspectionPdf(orderId: string) {
     return { error: '注文が見つかりません' }
   }
 
-  const pdfBuffer = await generateInspectionPdf(order, order.order_items ?? [])
+  const tenantInfo = await getPdfTenantInfo()
+  const pdfBuffer = await generateInspectionPdf(order, order.order_items ?? [], tenantInfo)
   // base64に変換してクライアントに返す
   return {
     data: pdfBuffer.toString('base64'),
