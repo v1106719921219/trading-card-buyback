@@ -95,26 +95,41 @@ export async function middleware(request: NextRequest) {
 }
 
 /**
+ * カスタムドメイン → テナントslugのマッピング
+ * 既存ドメインをそのまま維持しつつマルチテナントに対応
+ */
+const CUSTOM_DOMAIN_MAP: Record<string, string> = {
+  'kaitorisquare.com': 'quadra',
+  'www.kaitorisquare.com': 'quadra',
+  'chiba.kaitorisquare.com': 'chiba',
+}
+
+/**
  * ホスト名からテナントslugを解決する
- * 例:
- *   quadra.buyback.jp → 'quadra'
- *   localhost:3000    → 'quadra'（開発用デフォルト or ?tenant=xxxで切り替え）
+ * 優先順位:
+ *   1. カスタムドメインマッピング（kaitorisquare.com → quadra）
+ *   2. サブドメイン抽出（quadra.buyback.shipord.jp → quadra）
+ *   3. 開発環境（?tenant=xxx で切り替え）
+ *   4. デフォルトテナント
  */
 function resolveTenantSlug(hostname: string, url: URL): string | null {
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000'
-
   // 開発環境: ?tenant=slug で切り替え可能
   if (hostname === 'localhost:3000' || hostname === '127.0.0.1:3000') {
     return url.searchParams.get('tenant') || process.env.DEFAULT_TENANT_SLUG || 'quadra'
   }
 
-  // 本番: サブドメインを抽出
+  // カスタムドメインマッピング
+  if (CUSTOM_DOMAIN_MAP[hostname]) {
+    return CUSTOM_DOMAIN_MAP[hostname]
+  }
+
+  // サブドメインから抽出
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000'
   if (hostname.endsWith(`.${rootDomain}`)) {
     return hostname.replace(`.${rootDomain}`, '')
   }
 
-  // ルートドメインそのもの、またはカスタムドメイン
-  // → デフォルトテナントを返す
+  // フォールバック
   return process.env.DEFAULT_TENANT_SLUG || 'quadra'
 }
 

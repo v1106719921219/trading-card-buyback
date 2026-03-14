@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireTenantId } from '@/lib/tenant'
 import { ApplyForm } from './apply-form'
 import type { Category, Product, Office, Subcategory } from '@/types/database'
 
@@ -23,19 +24,20 @@ export default async function ApplyPage({
     }
   }
 
+  const tenantId = await requireTenantId()
   const supabase = createAdminClient()
 
   const [catResult, prodResult, subResult, officeResult] = await Promise.all([
     showAll
-      ? supabase.from('categories').select('*').order('sort_order')
-      : supabase.from('categories').select('*').eq('is_active', true).order('sort_order'),
+      ? supabase.from('categories').select('*').eq('tenant_id', tenantId).order('sort_order')
+      : supabase.from('categories').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order'),
     showAll
-      ? supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').gt('price', 0).order('sort_order').order('name')
-      : supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('is_active', true).eq('show_in_price_list', true).gt('price', 0).order('sort_order').order('name'),
+      ? supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('tenant_id', tenantId).gt('price', 0).order('sort_order').order('name')
+      : supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('tenant_id', tenantId).eq('is_active', true).eq('show_in_price_list', true).gt('price', 0).order('sort_order').order('name'),
     showAll
-      ? supabase.from('subcategories').select('*').order('sort_order')
-      : supabase.from('subcategories').select('*').eq('is_active', true).order('sort_order'),
-    supabase.from('offices').select('*').eq('is_active', true).order('sort_order'),
+      ? supabase.from('subcategories').select('*').eq('tenant_id', tenantId).order('sort_order')
+      : supabase.from('subcategories').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order'),
+    supabase.from('offices').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order'),
   ])
 
   const categories = (catResult.data ?? []) as Category[]

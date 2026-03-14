@@ -8,6 +8,8 @@ export interface Tenant {
   slug: string
   name: string
   display_name: string
+  site_name: string | null
+  contact_email: string | null
   ancient_dealer_number: string | null
   logo_url: string | null
   primary_color: string

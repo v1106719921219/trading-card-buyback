@@ -195,9 +195,13 @@ export default function ProductsPage() {
       }
       toast.success('商品を更新しました')
     } else {
+      // Calculate next sort_order for this category
+      const maxSortOrder = products
+        .filter((p) => p.category_id === formCategoryId)
+        .reduce((max, p) => Math.max(max, p.sort_order ?? 0), 0)
       const { error } = await supabase
         .from('products')
-        .insert({ name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, show_in_price_list: formPrice > 0, tenant_id: tenantId })
+        .insert({ name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, show_in_price_list: formPrice > 0, tenant_id: tenantId, sort_order: maxSortOrder + 1 })
 
       if (error) {
         toast.error(error.code === '23505' ? 'この商品名は既に存在します' : error.message)
@@ -463,15 +467,36 @@ export default function ProductsPage() {
     if (swapIdx < 0 || swapIdx >= siblings.length) return
 
     const other = siblings[swapIdx]
-    // Swap sort_order values
-    const [{ error: e1 }, { error: e2 }] = await Promise.all([
-      supabase.from('products').update({ sort_order: other.sort_order }).eq('id', product.id),
-      supabase.from('products').update({ sort_order: product.sort_order }).eq('id', other.id),
-    ])
 
-    if (e1 || e2) {
-      toast.error('並び替えに失敗しました')
-      return
+    // If sort_order values are the same (duplicates), normalize all siblings first
+    if (product.sort_order === other.sort_order) {
+      const updates = siblings.map((s, i) =>
+        supabase.from('products').update({ sort_order: i + 1 }).eq('id', s.id)
+      )
+      const results = await Promise.all(updates)
+      if (results.some((r) => r.error)) {
+        toast.error('並び替えに失敗しました')
+        return
+      }
+      // After normalization, swap the two adjacent items
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        supabase.from('products').update({ sort_order: swapIdx + 1 }).eq('id', product.id),
+        supabase.from('products').update({ sort_order: idx + 1 }).eq('id', other.id),
+      ])
+      if (e1 || e2) {
+        toast.error('並び替えに失敗しました')
+        return
+      }
+    } else {
+      // Swap sort_order values
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        supabase.from('products').update({ sort_order: other.sort_order }).eq('id', product.id),
+        supabase.from('products').update({ sort_order: product.sort_order }).eq('id', other.id),
+      ])
+      if (e1 || e2) {
+        toast.error('並び替えに失敗しました')
+        return
+      }
     }
     fetchData()
   }

@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { Order, OrderItem } from '@/types/database'
+import { getTenant } from '@/lib/tenant'
 
 let fontCache: string | null = null
 let logoCache: string | null = null
@@ -13,7 +14,11 @@ async function loadAsset(path: string): Promise<string> {
     const fullPath = join(process.cwd(), 'public', path)
     return readFileSync(fullPath).toString('base64')
   } catch {
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || `https://${process.env.VERCEL_URL}`
+    const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000'
+    const protocol = rootDomain.includes('localhost') ? 'http' : 'https'
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : `${protocol}://${rootDomain}`
     const res = await fetch(`${baseUrl}/${path}`)
     const buf = Buffer.from(await res.arrayBuffer())
     return buf.toString('base64')
@@ -38,6 +43,10 @@ export async function generateInspectionPdf(
 ): Promise<Buffer> {
   const doc = new jsPDF()
 
+  // テナント名を取得
+  const tenant = await getTenant()
+  const siteName = tenant?.site_name || tenant?.display_name || 'カイトリクラウド'
+
   // 日本語フォント登録
   const font = await getFont()
   doc.addFileToVFS('NotoSansJP-Regular.ttf', font)
@@ -49,7 +58,7 @@ export async function generateInspectionPdf(
   const logo = await getLogo()
   doc.addImage(`data:image/png;base64,${logo}`, 'PNG', 14, 10, 12, 12)
   doc.setFontSize(14)
-  doc.text('買取スクエア', 28, 19)
+  doc.text(siteName, 28, 19)
 
   // タイトル
   doc.setFontSize(18)

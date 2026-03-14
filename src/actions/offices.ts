@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireTenantId } from '@/lib/tenant'
 import type { Office, OrderStatus } from '@/types/database'
 import { ORDER_STATUSES } from '@/lib/constants'
 
@@ -12,6 +13,7 @@ export type OfficeWithCounts = Office & {
 }
 
 export async function getOffices(): Promise<Office[]> {
+  const tenantId = await requireTenantId()
   // Use admin client so public form can fetch without auth
   const supabase = createAdminClient()
 
@@ -19,6 +21,7 @@ export async function getOffices(): Promise<Office[]> {
     .from('offices')
     .select('*')
     .eq('is_active', true)
+    .eq('tenant_id', tenantId)
     .order('sort_order')
 
   if (error) {

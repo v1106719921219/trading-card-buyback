@@ -25,6 +25,7 @@ import {
   updateOrderItems,
 } from '@/actions/orders'
 import { getActiveProducts } from '@/actions/products'
+import { useTenant } from '@/lib/tenant-context'
 import type { Office, OrderItem, Product } from '@/types/database'
 
 interface EditableItem {
@@ -36,6 +37,7 @@ interface EditableItem {
 
 function CompleteContent() {
   const searchParams = useSearchParams()
+  const tenant = useTenant()
   const orderNumber = searchParams.get('order_number')
   const officeId = searchParams.get('office_id')
   const [office, setOffice] = useState<Office | null>(null)
@@ -335,7 +337,7 @@ function CompleteContent() {
                     <>
                       <p>〒{office.postal_code}</p>
                       <p>{office.address}</p>
-                      <p>買取スクエア 宛</p>
+                      <p>{tenant.siteName} 宛</p>
                       {office.phone && <p>TEL: {office.phone}</p>}
                     </>
                   ) : (

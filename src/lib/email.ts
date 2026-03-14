@@ -1,8 +1,18 @@
 import { Resend } from 'resend'
+import { getTenant } from '@/lib/tenant'
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null
+
+/**
+ * テナントのサイトURLを動的に構築
+ */
+function buildSiteUrl(tenantSlug: string): string {
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000'
+  const protocol = rootDomain.includes('localhost') ? 'http' : 'https'
+  return `${protocol}://${tenantSlug}.${rootDomain}`
+}
 
 export async function sendOrderConfirmationEmail(
   to: string,
@@ -17,8 +27,11 @@ export async function sendOrderConfirmationEmail(
     return
   }
 
+  const tenant = await getTenant()
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@example.com'
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+  const siteUrl = tenant
+    ? buildSiteUrl(tenant.slug)
+    : (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000')
   const completeUrl = `${siteUrl}/apply/complete?order_number=${orderNumber}&office_id=${officeId}`
 
   const { error } = await resend.emails.send({
