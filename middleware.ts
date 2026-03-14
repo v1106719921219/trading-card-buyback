@@ -46,6 +46,23 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // KYCアップロードへのレート制限
+  if (pathname.startsWith('/api/kyc') && request.method === 'POST') {
+    const result = rateLimit(`kycUpload:${ip}`, RATE_LIMITS.kycUpload)
+    if (!result.success) {
+      return new NextResponse(
+        JSON.stringify({ error: 'アップロードが多すぎます。しばらくしてからお試しください' }),
+        {
+          status: 429,
+          headers: {
+            'Content-Type': 'application/json',
+            'Retry-After': String(Math.ceil((result.resetAt - Date.now()) / 1000)),
+          },
+        }
+      )
+    }
+  }
+
   // ============================================================================
   // 2. テナントSlug解決（サブドメインから）
   // ============================================================================
@@ -81,7 +98,7 @@ export async function middleware(request: NextRequest) {
   response.headers.set('X-XSS-Protection', '1; mode=block')
   response.headers.set(
     'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=()'
+    'camera=(self), microphone=(), geolocation=()'
   )
   
   // 本番環境のみHSTSを設定

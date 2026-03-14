@@ -2,73 +2,94 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       width: 1500px;
       height: 500px;
-      background: #0a0a0f;
+      background: linear-gradient(135deg, #0f0f14 0%, #0a0a0f 40%, #0d0a08 100%);
       display: flex;
       align-items: center;
+      justify-content: center;
       overflow: hidden;
       position: relative;
     }
+    /* Grid */
     body::before {
       content: '';
       position: absolute;
       inset: 0;
       background-image:
-        linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
-      background-size: 40px 40px;
+        linear-gradient(to right, rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 50px 50px;
     }
     .glow1 {
       position: absolute;
-      top: -150px; right: -100px;
-      width: 500px; height: 500px;
-      background: rgba(255,107,0,0.1);
-      border-radius: 50%;
-      filter: blur(120px);
+      top: -200px; right: 100px;
+      width: 600px; height: 600px;
+      background: radial-gradient(ellipse, rgba(255,107,0,0.08) 0%, transparent 70%);
     }
     .glow2 {
       position: absolute;
-      bottom: -150px; left: 100px;
-      width: 400px; height: 400px;
-      background: rgba(0,63,138,0.12);
-      border-radius: 50%;
-      filter: blur(100px);
+      bottom: -200px; left: 50px;
+      width: 500px; height: 500px;
+      background: radial-gradient(ellipse, rgba(0,80,180,0.06) 0%, transparent 70%);
     }
     .wrap {
       position: relative;
       display: flex;
       align-items: center;
-      gap: 60px;
-      padding-left: 100px;
+      gap: 70px;
     }
-    .logo svg { width: 180px; height: 180px; }
-    .text .l1 {
+    .logo svg { width: 220px; height: 220px; }
+    .right { display: flex; flex-direction: column; gap: 8px; }
+    .catchcopy .l1 {
       font-family: 'Dela Gothic One', sans-serif;
-      font-size: 96px;
+      font-size: 88px;
       color: white;
-      line-height: 1.25;
+      line-height: 1.3;
     }
-    .text .l2 {
+    .catchcopy .l2 {
       font-family: 'Dela Gothic One', sans-serif;
-      font-size: 108px;
-      line-height: 1.25;
+      font-size: 100px;
+      line-height: 1.3;
     }
-    .text .l2 .o {
+    .catchcopy .l2 .o {
       color: #FF6B00;
-      text-shadow: 0 0 30px rgba(255,107,0,0.35), 0 0 60px rgba(255,107,0,0.12);
+      text-shadow: 0 0 40px rgba(255,107,0,0.3), 0 0 80px rgba(255,107,0,0.1);
     }
-    .text .l2 .w { color: white; }
-    .text .sub {
+    .catchcopy .l2 .w { color: white; }
+    .sub {
       font-family: 'Noto Sans JP', sans-serif;
-      font-size: 28px;
-      color: rgba(255,255,255,0.45);
-      margin-top: 16px;
+      font-weight: 400;
+      font-size: 26px;
+      color: rgba(255,255,255,0.4);
+      margin-top: 8px;
       letter-spacing: 1px;
+    }
+    .brand-bar {
+      position: absolute;
+      bottom: 30px;
+      right: 60px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-bar .jp {
+      font-family: 'Dela Gothic One', sans-serif;
+      font-size: 22px;
+    }
+    .brand-bar .jp .b { color: rgba(255,255,255,0.6); }
+    .brand-bar .jp .s { color: rgba(255,107,0,0.7); }
+    .brand-bar .en {
+      font-family: 'Noto Sans JP', sans-serif;
+      font-weight: 700;
+      font-size: 10px;
+      letter-spacing: 4px;
+      color: rgba(255,255,255,0.2);
+      text-transform: uppercase;
     }
   </style>
 </head>
@@ -77,21 +98,36 @@
   <div class="glow2"></div>
   <div class="wrap">
     <div class="logo">
-      <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M100 30 L40 65 L40 135 L100 100 Z" fill="#1a1a1a" stroke="#333" stroke-width="2.5" stroke-linejoin="round"/>
-        <path d="M100 30 L160 65 L160 135 L100 100 Z" fill="white" stroke="#333" stroke-width="2.5" stroke-linejoin="round"/>
-        <path d="M40 135 L100 170 L160 135 L100 100 Z" fill="#F5921B" stroke="#333" stroke-width="2.5" stroke-linejoin="round"/>
-        <path d="M100 30 L160 65 L160 135 L100 170 L40 135 L40 65 Z" stroke="#222" stroke-width="3.5" stroke-linejoin="round" fill="none"/>
-        <line x1="100" y1="100" x2="100" y2="30" stroke="#333" stroke-width="2.5"/>
-        <line x1="100" y1="100" x2="40" y2="135" stroke="#333" stroke-width="2.5"/>
-        <line x1="100" y1="100" x2="160" y2="135" stroke="#333" stroke-width="2.5"/>
+      <svg viewBox="0 0 200 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="100" cy="172" rx="55" ry="8" fill="rgba(255,107,0,0.12)"/>
+        <path d="M100 20 L35 57 L35 131 L100 94 Z" fill="#1a1a1f"/>
+        <path d="M100 20 L165 57 L165 131 L100 94 Z" fill="#f0f0f0"/>
+        <defs>
+          <linearGradient id="og" x1="35" y1="131" x2="165" y2="131">
+            <stop offset="0%" stop-color="#E8850F"/>
+            <stop offset="100%" stop-color="#FF9B2B"/>
+          </linearGradient>
+        </defs>
+        <path d="M35 131 L100 168 L165 131 L100 94 Z" fill="url(#og)"/>
+        <path d="M100 20 L165 57 L165 131 L100 168 L35 131 L35 57 Z" stroke="#2a2a30" stroke-width="3" stroke-linejoin="round" fill="none"/>
+        <line x1="100" y1="94" x2="100" y2="20" stroke="#2a2a30" stroke-width="2.5"/>
+        <line x1="100" y1="94" x2="35" y2="131" stroke="#2a2a30" stroke-width="2.5"/>
+        <line x1="100" y1="94" x2="165" y2="131" stroke="#2a2a30" stroke-width="2.5"/>
+        <path d="M100 20 L165 57" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+        <path d="M165 57 L165 131" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
       </svg>
     </div>
-    <div class="text">
-      <div class="l1">あなたのトレカを</div>
-      <div class="l2"><span class="o">最高値</span><span class="w">で買取る</span></div>
+    <div class="right">
+      <div class="catchcopy">
+        <div class="l1">あなたのトレカを</div>
+        <div class="l2"><span class="o">最高値</span><span class="w">で買取る</span></div>
+      </div>
       <div class="sub">ポケモン・ワンピースの未開封BOXを高価買取。</div>
     </div>
+  </div>
+  <div class="brand-bar">
+    <div class="jp"><span class="b">買取</span><span class="s">スクエア</span></div>
+    <div class="en">kaitori square</div>
   </div>
 </body>
 </html>

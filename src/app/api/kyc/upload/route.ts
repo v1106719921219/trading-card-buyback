@@ -6,7 +6,7 @@ import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
-const ALLOWED_IMAGE_TYPES = ['id_front', 'id_back', 'face'] as const
+const ALLOWED_IMAGE_TYPES = ['id_front', 'id_back', 'id_thickness', 'face'] as const
 
 export async function POST(request: NextRequest) {
   // Rate limiting
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     const { path, error: uploadError } = await uploadKycImage(
       kycRequest.tenant_id,
       kycRequestId,
-      imageType as 'id_front' | 'id_back' | 'face',
+      imageType as 'id_front' | 'id_back' | 'id_thickness' | 'face',
       buffer,
       file.type
     )
@@ -78,11 +78,13 @@ export async function POST(request: NextRequest) {
     }
 
     // KYCリクエストの画像パスを更新
-    const updateField = imageType === 'id_front'
-      ? 'id_front_image_path'
-      : imageType === 'id_back'
-        ? 'id_back_image_path'
-        : 'face_image_path'
+    const updateFieldMap: Record<string, string> = {
+      id_front: 'id_front_image_path',
+      id_back: 'id_back_image_path',
+      id_thickness: 'id_thickness_image_path',
+      face: 'face_image_path',
+    }
+    const updateField = updateFieldMap[imageType]
 
     await supabase
       .from('kyc_requests')

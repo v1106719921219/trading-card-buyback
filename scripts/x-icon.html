@@ -2,33 +2,85 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Noto+Sans+JP:wght@700;900&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; }
     body {
       width: 400px;
       height: 400px;
-      background: #0a0a0f;
+      background: linear-gradient(145deg, #0f0f14 0%, #0a0a0f 50%, #0d0a08 100%);
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 18px;
+      position: relative;
+      overflow: hidden;
     }
-    svg { width: 260px; height: 260px; }
+    /* Subtle orange ambient */
+    body::after {
+      content: '';
+      position: absolute;
+      bottom: -40px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 300px;
+      height: 200px;
+      background: radial-gradient(ellipse, rgba(255,107,0,0.12) 0%, transparent 70%);
+    }
+    svg { width: 180px; height: 180px; position: relative; z-index: 1; }
+    .brand {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+    }
+    .brand .jp {
+      font-family: 'Dela Gothic One', sans-serif;
+      font-size: 36px;
+      letter-spacing: 3px;
+    }
+    .brand .jp .b { color: white; }
+    .brand .jp .s { color: #FF6B00; }
+    .brand .en {
+      font-family: 'Noto Sans JP', sans-serif;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 6px;
+      color: rgba(255,255,255,0.3);
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
-  <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <!-- Left face - black -->
-    <path d="M100 30 L40 65 L40 135 L100 100 Z" fill="#1a1a1a" stroke="#333" stroke-width="2.5" stroke-linejoin="round"/>
-    <!-- Right face - white -->
-    <path d="M100 30 L160 65 L160 135 L100 100 Z" fill="white" stroke="#333" stroke-width="2.5" stroke-linejoin="round"/>
-    <!-- Bottom face - orange -->
-    <path d="M40 135 L100 170 L160 135 L100 100 Z" fill="#F5921B" stroke="#333" stroke-width="2.5" stroke-linejoin="round"/>
-    <!-- Outer hex outline -->
-    <path d="M100 30 L160 65 L160 135 L100 170 L40 135 L40 65 Z" stroke="#222" stroke-width="3.5" stroke-linejoin="round" fill="none"/>
+  <svg viewBox="0 0 200 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Drop shadow -->
+    <ellipse cx="100" cy="170" rx="55" ry="8" fill="rgba(255,107,0,0.15)"/>
+    <!-- Left face - dark -->
+    <path d="M100 20 L35 57 L35 131 L100 94 Z" fill="#1a1a1f"/>
+    <!-- Right face - white/light -->
+    <path d="M100 20 L165 57 L165 131 L100 94 Z" fill="#f0f0f0"/>
+    <!-- Bottom face - orange gradient -->
+    <defs>
+      <linearGradient id="og" x1="35" y1="131" x2="165" y2="131">
+        <stop offset="0%" stop-color="#E8850F"/>
+        <stop offset="100%" stop-color="#FF9B2B"/>
+      </linearGradient>
+    </defs>
+    <path d="M35 131 L100 168 L165 131 L100 94 Z" fill="url(#og)"/>
+    <!-- Outline -->
+    <path d="M100 20 L165 57 L165 131 L100 168 L35 131 L35 57 Z" stroke="#2a2a30" stroke-width="3" stroke-linejoin="round" fill="none"/>
     <!-- Inner edges -->
-    <line x1="100" y1="100" x2="100" y2="30" stroke="#333" stroke-width="2.5"/>
-    <line x1="100" y1="100" x2="40" y2="135" stroke="#333" stroke-width="2.5"/>
-    <line x1="100" y1="100" x2="160" y2="135" stroke="#333" stroke-width="2.5"/>
+    <line x1="100" y1="94" x2="100" y2="20" stroke="#2a2a30" stroke-width="2.5"/>
+    <line x1="100" y1="94" x2="35" y2="131" stroke="#2a2a30" stroke-width="2.5"/>
+    <line x1="100" y1="94" x2="165" y2="131" stroke="#2a2a30" stroke-width="2.5"/>
+    <!-- Subtle highlight on right face edge -->
+    <path d="M100 20 L165 57" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+    <path d="M165 57 L165 131" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
   </svg>
+  <div class="brand">
+    <div class="jp"><span class="b">買取</span><span class="s">スクエア</span></div>
+    <div class="en">kaitori square</div>
+  </div>
 </body>
 </html>

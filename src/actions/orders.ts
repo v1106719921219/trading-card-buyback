@@ -264,7 +264,7 @@ export async function getOrderByOrderNumber(orderNumber: string) {
 
   const { data, error } = await supabase
     .from('orders')
-    .select('id, order_number, status, tracking_number, office_id, customer_identity_method')
+    .select('id, order_number, status, tracking_number, office_id, customer_identity_method, customer_name, customer_email')
     .eq('order_number', orderNumber)
     .eq('tenant_id', tenantId)  // テナント境界を強制
     .single()

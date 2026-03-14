@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { CheckCircle, Minus, Package, Plus, Search, Trash2, Truck } from 'lucide-react'
+import { CheckCircle, Minus, Package, Plus, Search, ShieldCheck, Trash2, Truck } from 'lucide-react'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
 import { getOfficeById } from '@/actions/offices'
@@ -46,6 +46,8 @@ function CompleteContent() {
   const [orderStatus, setOrderStatus] = useState<string | null>(null)
   const [existingTrackingNumber, setExistingTrackingNumber] = useState<string | null>(null)
   const [identityMethod, setIdentityMethod] = useState<string | null>(null)
+  const [customerName, setCustomerName] = useState<string | null>(null)
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null)
 
   // Order items state
   const [orderItems, setOrderItems] = useState<EditableItem[]>([])
@@ -76,6 +78,8 @@ function CompleteContent() {
           setOrderStatus(order.status)
           setExistingTrackingNumber(order.tracking_number)
           setIdentityMethod(order.customer_identity_method ?? null)
+          setCustomerName(order.customer_name ?? null)
+          setCustomerEmail(order.customer_email ?? null)
           if (!officeId && order.office_id) {
             getOfficeById(order.office_id).then((data) => {
               if (data) setOffice(data)
@@ -327,6 +331,21 @@ function CompleteContent() {
                       <span className="font-medium">{identityMethod}</span>のコピーを商品と同梱の上、お送りください。
                     </p>
                   </div>
+                )}
+
+                {identityMethod && customerEmail && (
+                  <Link
+                    href={`/kyc?${new URLSearchParams({
+                      ...(customerEmail ? { email: customerEmail } : {}),
+                      ...(customerName ? { name: customerName } : {}),
+                      ...(orderNumber ? { order_number: orderNumber } : {}),
+                    }).toString()}`}
+                  >
+                    <Button variant="outline" className="w-full border-blue-300 text-blue-700 hover:bg-blue-50">
+                      <ShieldCheck className="h-4 w-4 mr-2" />
+                      オンラインで本人確認を行う（eKYC）
+                    </Button>
+                  </Link>
                 )}
 
                 <div className="bg-muted p-4 rounded-md text-sm text-left">

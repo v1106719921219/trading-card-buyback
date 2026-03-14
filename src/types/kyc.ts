@@ -15,6 +15,7 @@ export interface KycRequest {
   id_document_type: IdDocumentType
   id_front_image_path: string | null
   id_back_image_path: string | null
+  id_thickness_image_path: string | null
   face_image_path: string | null
   ocr_result: Record<string, unknown> | null
   ocr_extracted_name: string | null
@@ -76,3 +77,6 @@ export const KYC_METHOD_LABELS: Record<KycMethod, string> = {
 
 /** 裏面撮影が必要な身分証種類 */
 export const REQUIRES_BACK_IMAGE: IdDocumentType[] = ['driving_license']
+
+/** 厚み撮影が必要な身分証種類 */
+export const REQUIRES_THICKNESS_IMAGE: IdDocumentType[] = ['driving_license', 'my_number_card']

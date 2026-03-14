@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Undo2,
   Users,
+  UserCheck,
   Settings,
   LogOut,
   Building2,
@@ -43,6 +44,7 @@ const navItems = [
   { href: '/admin/payments', label: '振込管理', icon: CreditCard },
   { href: '/admin/payment-verification', label: '振込確認', icon: ShieldCheck },
   { href: '/admin/returns', label: '返品管理', icon: Undo2 },
+  { href: '/admin/kyc', label: '本人確認', icon: UserCheck },
   { href: '/admin/staff', label: 'スタッフ管理', icon: Users, adminOnly: true },
   { href: '/admin/settings', label: '設定', icon: Settings, adminOnly: true },
 ]

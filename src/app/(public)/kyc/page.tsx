@@ -2,7 +2,11 @@ import { getTenant } from '@/lib/tenant'
 import { redirect } from 'next/navigation'
 import { KycFlow } from './kyc-flow'
 
-export default async function KycPage() {
+export default async function KycPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ email?: string; name?: string; order_number?: string }>
+}) {
   const tenant = await getTenant()
 
   if (!tenant) {
@@ -14,6 +18,8 @@ export default async function KycPage() {
     redirect('/')
   }
 
+  const params = await searchParams
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-lg px-4 py-8">
@@ -23,7 +29,11 @@ export default async function KycPage() {
             古物営業法に基づく本人確認を行います
           </p>
         </div>
-        <KycFlow />
+        <KycFlow
+          initialEmail={params.email}
+          initialName={params.name}
+          orderNumber={params.order_number}
+        />
       </div>
     </div>
   )

@@ -9,7 +9,7 @@ const BUCKET = 'kyc-documents'
 export async function uploadKycImage(
   tenantId: string,
   kycRequestId: string,
-  imageType: 'id_front' | 'id_back' | 'face',
+  imageType: 'id_front' | 'id_back' | 'id_thickness' | 'face',
   file: Buffer,
   contentType: string
 ): Promise<{ path: string; error: string | null }> {

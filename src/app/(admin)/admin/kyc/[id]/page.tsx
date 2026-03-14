@@ -156,6 +156,12 @@ export default function KycDetailPage() {
                 imagePath={kycRequest.id_front_image_path}
               />
             )}
+            {kycRequest.id_thickness_image_path && (
+              <KycImageViewer
+                label="身分証（厚み）"
+                imagePath={kycRequest.id_thickness_image_path}
+              />
+            )}
             {kycRequest.id_back_image_path && (
               <KycImageViewer
                 label="身分証（裏面）"
