@@ -47,9 +47,10 @@ interface ApplyFormProps {
   initialOffices: Office[]
   priceDate?: string | null
   showAll?: boolean
+  arQualityEnabled?: boolean
 }
 
-export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, showAll }: ApplyFormProps) {
+export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, showAll, arQualityEnabled }: ApplyFormProps) {
   const router = useRouter()
   const tenant = useTenant()
   const [step, setStep] = useState(0)
@@ -63,6 +64,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [aiText, setAiText] = useState('')
   const [aiParsing, setAiParsing] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [selectedBuybackType, setSelectedBuybackType] = useState<'minimum_guarantee' | 'ar_quality'>('minimum_guarantee')
 
   // 顧客情報（CustomerInfoFormから受け取る）
   const [validCustomerData, setValidCustomerData] = useState<CustomerInfoInput | null>(null)
@@ -201,6 +203,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         office_id: selectedOfficeId,
         shipped_date: shippedDate || undefined,
         price_date: priceDate || undefined,
+        buyback_type: arQualityEnabled ? selectedBuybackType : 'minimum_guarantee',
       })
 
       setLoading(false)
@@ -322,6 +325,45 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                   </div>
                 </CardContent>
               </Card>
+
+              {/* 買取種別 */}
+              {arQualityEnabled && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>買取種別</CardTitle>
+                    <CardDescription>ご希望の買取種別を選択してください</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {([
+                        { value: 'minimum_guarantee' as const, label: '最低保証' },
+                        { value: 'ar_quality' as const, label: '美品査定希望' },
+                      ]).map((option) => (
+                        <div
+                          key={option.value}
+                          className={`cursor-pointer rounded-lg border-2 p-4 transition-colors ${
+                            selectedBuybackType === option.value
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border hover:border-primary/50'
+                          }`}
+                          onClick={() => setSelectedBuybackType(option.value)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                              selectedBuybackType === option.value ? 'border-primary' : 'border-muted-foreground'
+                            }`}>
+                              {selectedBuybackType === option.value && (
+                                <div className="h-2 w-2 rounded-full bg-primary" />
+                              )}
+                            </div>
+                            <span className="font-medium">{option.label}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* 発送日 */}
               <Card>
@@ -621,6 +663,9 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                     </div>
                   ) : null
                 })()}
+                {arQualityEnabled && (
+                  <p className="text-sm mt-2">買取種別: <span className="font-medium">{selectedBuybackType === 'ar_quality' ? '美品査定希望' : '最低保証'}</span></p>
+                )}
                 {shippedDate && (
                   <p className="text-sm mt-2">発送日: <span className="font-medium">{shippedDate}</span></p>
                 )}

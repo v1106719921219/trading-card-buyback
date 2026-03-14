@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { MapPin } from 'lucide-react'
+import { MapPin, Settings } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 import { createClient } from '@/lib/supabase/client'
 import { updateOffice } from '@/actions/offices'
 import { toast } from 'sonner'
@@ -22,6 +23,8 @@ export default function SettingsPage() {
   const [offices, setOffices] = useState<Office[]>([])
   const [officeEdits, setOfficeEdits] = useState<Record<string, Partial<Office>>>({})
   const [savingOffice, setSavingOffice] = useState<string | null>(null)
+  const [arQualityEnabled, setArQualityEnabled] = useState(false)
+  const [savingArQuality, setSavingArQuality] = useState(false)
 
   const supabase = createClient()
 
@@ -39,6 +42,8 @@ export default function SettingsPage() {
     const values: Record<string, string> = {}
     data?.forEach((s) => (values[s.key] = s.value))
     setEditValues(values)
+    const arSetting = data?.find((s) => s.key === 'ar_quality_enabled')
+    setArQualityEnabled(arSetting?.value === 'true')
   }
 
   async function fetchOffices() {
@@ -107,9 +112,52 @@ export default function SettingsPage() {
     fetchOffices()
   }
 
+  async function handleArQualityToggle(checked: boolean) {
+    setSavingArQuality(true)
+    const { error } = await supabase
+      .from('app_settings')
+      .update({ value: checked ? 'true' : 'false' })
+      .eq('key', 'ar_quality_enabled')
+
+    if (error) {
+      toast.error('設定の更新に失敗しました')
+      setSavingArQuality(false)
+      return
+    }
+    setArQualityEnabled(checked)
+    setSavingArQuality(false)
+    toast.success(checked ? '美品査定受付を有効にしました' : '美品査定受付を無効にしました')
+  }
+
   return (
     <div className="space-y-6">
       <AdminHeader title="アプリ設定" description="システム設定の管理" />
+
+      {/* 買取設定 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            買取設定
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="ar_quality_toggle">美品査定受付</Label>
+              <p className="text-sm text-muted-foreground">
+                ONにすると申込フォームに美品査定の選択肢が表示されます
+              </p>
+            </div>
+            <Switch
+              id="ar_quality_toggle"
+              checked={arQualityEnabled}
+              onCheckedChange={handleArQualityToggle}
+              disabled={loading || savingArQuality}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Office management */}
       <Card>
