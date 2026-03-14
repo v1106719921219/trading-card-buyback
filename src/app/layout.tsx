@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Noto_Sans_JP, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { getTenant } from "@/lib/tenant";
-import { TenantProvider, toTenantInfo } from "@/lib/tenant-context";
+import { TenantProvider } from "@/lib/tenant-context";
+import { toTenantInfo } from "@/lib/tenant-info";
 import "./globals.css";
 
 const notoSansJP = Noto_Sans_JP({

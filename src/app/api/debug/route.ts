@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { getTenant } from '@/lib/tenant'
-import { toTenantInfo } from '@/lib/tenant-context'
+import { toTenantInfo } from '@/lib/tenant-info'
 
 export async function GET() {
   const checks: Record<string, unknown> = {}
