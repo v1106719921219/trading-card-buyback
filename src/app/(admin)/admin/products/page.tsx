@@ -40,11 +40,28 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Pencil, Trash2, Search, Upload, Download, ArrowUp, ArrowDown, Eye, EyeOff } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, Upload, Download, GripVertical, Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import type { Category, Product, Subcategory } from '@/types/database'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<(Product & { category: Category; subcategory: Subcategory | null })[]>([])
@@ -457,48 +474,49 @@ export default function ProductsPage() {
     fetchData()
   }
 
-  async function moveProduct(product: Product & { category: Category }, direction: 'up' | 'down') {
-    // Find siblings in same category, sorted by sort_order
-    const siblings = products
-      .filter((p) => p.category_id === product.category_id)
-      .sort((a, b) => a.sort_order - b.sort_order)
-    const idx = siblings.findIndex((p) => p.id === product.id)
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
-    if (swapIdx < 0 || swapIdx >= siblings.length) return
+  const isDragEnabled = filterCategory !== 'all' && filterSubcategory === 'all' && !search
 
-    const other = siblings[swapIdx]
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
-    // If sort_order values are the same (duplicates), normalize all siblings first
-    if (product.sort_order === other.sort_order) {
-      const updates = siblings.map((s, i) =>
-        supabase.from('products').update({ sort_order: i + 1 }).eq('id', s.id)
-      )
-      const results = await Promise.all(updates)
-      if (results.some((r) => r.error)) {
-        toast.error('並び替えに失敗しました')
-        return
-      }
-      // After normalization, swap the two adjacent items
-      const [{ error: e1 }, { error: e2 }] = await Promise.all([
-        supabase.from('products').update({ sort_order: swapIdx + 1 }).eq('id', product.id),
-        supabase.from('products').update({ sort_order: idx + 1 }).eq('id', other.id),
-      ])
-      if (e1 || e2) {
-        toast.error('並び替えに失敗しました')
-        return
-      }
-    } else {
-      // Swap sort_order values
-      const [{ error: e1 }, { error: e2 }] = await Promise.all([
-        supabase.from('products').update({ sort_order: other.sort_order }).eq('id', product.id),
-        supabase.from('products').update({ sort_order: product.sort_order }).eq('id', other.id),
-      ])
-      if (e1 || e2) {
-        toast.error('並び替えに失敗しました')
-        return
-      }
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = filteredProducts.findIndex((p) => p.id === active.id)
+    const newIndex = filteredProducts.findIndex((p) => p.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    // 楽観的UI更新
+    const reordered = arrayMove(filteredProducts, oldIndex, newIndex)
+    const prevProducts = [...products]
+    setProducts((prev) => {
+      const next = [...prev]
+      reordered.forEach((p, i) => {
+        const idx = next.findIndex((x) => x.id === p.id)
+        if (idx !== -1) next[idx] = { ...next[idx], sort_order: i + 1 }
+      })
+      next.sort((a, b) => {
+        const catA = a.category?.sort_order ?? 0
+        const catB = b.category?.sort_order ?? 0
+        if (catA !== catB) return catA - catB
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      })
+      return next
+    })
+
+    // DB一括更新
+    const updates = reordered.map((p, i) =>
+      supabase.from('products').update({ sort_order: i + 1 }).eq('id', p.id)
+    )
+    const results = await Promise.all(updates)
+    if (results.some((r) => r.error)) {
+      toast.error('並び替えに失敗しました')
+      setProducts(prevProducts)
+      return
     }
-    fetchData()
   }
 
   return (
@@ -758,141 +776,202 @@ export default function ProductsPage() {
         </AlertDialog>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-16 hidden md:table-cell">順序</TableHead>
-              <TableHead>商品名</TableHead>
-              <TableHead className="hidden sm:table-cell">カテゴリ</TableHead>
-              <TableHead className="hidden lg:table-cell">サブカテゴリ</TableHead>
-              <TableHead className="text-right">買取価格</TableHead>
-              <TableHead className="w-20">価格表</TableHead>
-              <TableHead className="w-20 sm:w-32 text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
+      {!isDragEnabled && filterCategory !== 'all' && (
+        <p className="text-xs text-muted-foreground">
+          ※ ドラッグで並び替えるには、サブカテゴリフィルタを「全サブカテゴリ」に戻し、検索をクリアしてください
+        </p>
+      )}
+      {filterCategory === 'all' && (
+        <p className="text-xs text-muted-foreground">
+          ※ カテゴリを選択するとドラッグで並び替えできます
+        </p>
+      )}
+
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={isDragEnabled ? handleDragEnd : undefined}>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                  読み込み中...
-                </TableCell>
+                <TableHead className="w-10 hidden md:table-cell" />
+                <TableHead>商品名</TableHead>
+                <TableHead className="hidden sm:table-cell">カテゴリ</TableHead>
+                <TableHead className="hidden lg:table-cell">サブカテゴリ</TableHead>
+                <TableHead className="text-right">買取価格</TableHead>
+                <TableHead className="w-20">価格表</TableHead>
+                <TableHead className="w-20 sm:w-32 text-right">操作</TableHead>
               </TableRow>
-            ) : filteredProducts.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                  商品がありません
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredProducts.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="hidden md:table-cell">
-                    <div className="flex gap-0.5">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => moveProduct(product, 'up')}
-                      >
-                        <ArrowUp className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => moveProduct(product, 'down')}
-                      >
-                        <ArrowDown className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">{product.name}</TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    <Badge variant="outline">{product.category?.name}</Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
-                    {product.subcategory?.name || '-'}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {editingPriceId === product.id ? (
-                      <div className="flex items-center justify-end gap-1">
-                        <Input
-                          type="number"
-                          value={editingPriceValue}
-                          onChange={(e) => setEditingPriceValue(Number(e.target.value))}
-                          className="w-24 h-8 text-right"
-                          min={0}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveInlinePrice(product.id)
-                            if (e.key === 'Escape') setEditingPriceId(null)
-                          }}
-                          autoFocus
-                        />
-                        <span className="text-sm">円</span>
-                      </div>
-                    ) : (
-                      <span
-                        className="cursor-pointer hover:text-primary"
-                        onClick={() => {
-                          setEditingPriceId(product.id)
-                          setEditingPriceValue(product.price)
-                        }}
-                      >
-                        {product.price.toLocaleString()}円
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={product.show_in_price_list ? 'default' : 'secondary'}
-                      className="cursor-pointer"
-                      onClick={() => togglePriceList(product)}
-                    >
-                      {product.show_in_price_list ? '表示' : '非表示'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEdit(product)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>商品を削除</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              「{product.name}」を削除しますか？
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(product.id)}>
-                              削除
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <SortableContext items={filteredProducts.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      読み込み中...
+                    </TableCell>
+                  </TableRow>
+                ) : filteredProducts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      商品がありません
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredProducts.map((product) => (
+                    <SortableProductRow
+                      key={product.id}
+                      product={product}
+                      isDragEnabled={isDragEnabled}
+                      editingPriceId={editingPriceId}
+                      editingPriceValue={editingPriceValue}
+                      setEditingPriceId={setEditingPriceId}
+                      setEditingPriceValue={setEditingPriceValue}
+                      saveInlinePrice={saveInlinePrice}
+                      togglePriceList={togglePriceList}
+                      openEdit={openEdit}
+                      handleDelete={handleDelete}
+                    />
+                  ))
+                )}
+              </TableBody>
+            </SortableContext>
+          </Table>
+        </div>
+      </DndContext>
       <p className="text-sm text-muted-foreground">
         {filteredProducts.length}件の商品（価格をクリックしてインライン編集）
       </p>
     </div>
+  )
+}
+
+function SortableProductRow({
+  product,
+  isDragEnabled,
+  editingPriceId,
+  editingPriceValue,
+  setEditingPriceId,
+  setEditingPriceValue,
+  saveInlinePrice,
+  togglePriceList,
+  openEdit,
+  handleDelete,
+}: {
+  product: Product & { category: Category; subcategory: Subcategory | null }
+  isDragEnabled: boolean
+  editingPriceId: string | null
+  editingPriceValue: number
+  setEditingPriceId: (id: string | null) => void
+  setEditingPriceValue: (v: number) => void
+  saveInlinePrice: (id: string) => void
+  togglePriceList: (product: Product) => void
+  openEdit: (product: Product) => void
+  handleDelete: (id: string) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: product.id, disabled: !isDragEnabled })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <TableRow ref={setNodeRef} style={style}>
+      <TableCell className="hidden md:table-cell">
+        <button
+          {...attributes}
+          {...listeners}
+          className={`cursor-${isDragEnabled ? 'grab' : 'not-allowed'} p-1`}
+          disabled={!isDragEnabled}
+          title={isDragEnabled ? 'ドラッグで並び替え' : 'カテゴリを選択してください'}
+        >
+          <GripVertical className={`h-4 w-4 ${isDragEnabled ? 'text-muted-foreground' : 'text-muted-foreground/30'}`} />
+        </button>
+      </TableCell>
+      <TableCell className="font-medium">{product.name}</TableCell>
+      <TableCell className="hidden sm:table-cell">
+        <Badge variant="outline">{product.category?.name}</Badge>
+      </TableCell>
+      <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
+        {product.subcategory?.name || '-'}
+      </TableCell>
+      <TableCell className="text-right">
+        {editingPriceId === product.id ? (
+          <div className="flex items-center justify-end gap-1">
+            <Input
+              type="number"
+              value={editingPriceValue}
+              onChange={(e) => setEditingPriceValue(Number(e.target.value))}
+              className="w-24 h-8 text-right"
+              min={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') saveInlinePrice(product.id)
+                if (e.key === 'Escape') setEditingPriceId(null)
+              }}
+              autoFocus
+            />
+            <span className="text-sm">円</span>
+          </div>
+        ) : (
+          <span
+            className="cursor-pointer hover:text-primary"
+            onClick={() => {
+              setEditingPriceId(product.id)
+              setEditingPriceValue(product.price)
+            }}
+          >
+            {product.price.toLocaleString()}円
+          </span>
+        )}
+      </TableCell>
+      <TableCell>
+        <Badge
+          variant={product.show_in_price_list ? 'default' : 'secondary'}
+          className="cursor-pointer"
+          onClick={() => togglePriceList(product)}
+        >
+          {product.show_in_price_list ? '表示' : '非表示'}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => openEdit(product)}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>商品を削除</AlertDialogTitle>
+                <AlertDialogDescription>
+                  「{product.name}」を削除しますか？
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handleDelete(product.id)}>
+                  削除
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </TableCell>
+    </TableRow>
   )
 }
