@@ -13,6 +13,7 @@ export interface Tenant {
   primary_color: string
   plan: 'starter' | 'standard' | 'pro'
   is_active: boolean
+  ekyc_enabled: boolean
 }
 
 /**
