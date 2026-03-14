@@ -24,7 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, Mail, MapPin, Search, ArrowRight, ArrowLeft, Check, Send, MessageCircle } from 'lucide-react'
+import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, Mail, MapPin, Search, ArrowRight, ArrowLeft, Check, Send } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
@@ -58,10 +58,9 @@ interface ApplyFormProps {
   priceDate?: string | null
   showAll?: boolean
   arQualityEnabled?: boolean
-  fromLine?: boolean
 }
 
-export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, showAll, arQualityEnabled, fromLine }: ApplyFormProps) {
+export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, showAll, arQualityEnabled }: ApplyFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -76,10 +75,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [selectedBuybackType, setSelectedBuybackType] = useState<'minimum_guarantee' | 'ar_quality'>('minimum_guarantee')
   const [showBuybackDialog, setShowBuybackDialog] = useState(false)
-
-  // LINE申込確認（from=line パラメータがあればスキップ）
-  const [lineConfirmed, setLineConfirmed] = useState(!!fromLine)
-  const [lineCheckbox, setLineCheckbox] = useState(false)
 
   // Repeater lookup state
   const [lookupEmail, setLookupEmail] = useState('')
@@ -325,44 +320,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
       setSubmitError(msg)
       toast.error(msg)
     }
-  }
-
-  if (!lineConfirmed) {
-    return (
-      <div className="min-h-screen bg-muted/50">
-        <Header />
-        <div className="flex items-center justify-center px-4 py-20">
-          <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg border border-gray-200">
-            <div className="flex items-center gap-3 mb-3">
-              <MessageCircle className="h-7 w-7 text-[#06C755]" />
-              <h2 className="text-xl font-bold text-gray-900">LINEでのお申込みはお済みですか？</h2>
-            </div>
-            <p className="text-sm text-gray-600 mb-6">
-              買取のお申込みには、事前にLINEでのご連絡が必要です。まだお済みでない場合は、先にLINEからお問い合わせください。
-            </p>
-            <label className="flex items-start gap-3 cursor-pointer select-none rounded-lg border border-gray-200 p-4 mb-6 transition-colors hover:bg-gray-50">
-              <input
-                type="checkbox"
-                checked={lineCheckbox}
-                onChange={(e) => setLineCheckbox(e.target.checked)}
-                className="mt-0.5 h-5 w-5 rounded accent-[#06C755] cursor-pointer"
-              />
-              <span className="text-sm text-gray-900 leading-relaxed">
-                LINEで買取の申込・やり取りを済ませています
-              </span>
-            </label>
-            <Button
-              onClick={() => setLineConfirmed(true)}
-              disabled={!lineCheckbox}
-              className="w-full bg-[#06C755] hover:bg-[#06C755]/90 text-white font-bold text-base py-6 disabled:opacity-40"
-            >
-              申込フォームへ進む
-            </Button>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    )
   }
 
   return (

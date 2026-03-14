@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ApplyForm } from './apply-form'
+import { LineConfirmGate } from './line-confirm-gate'
 import type { Category, Product, Office, Subcategory } from '@/types/database'
 
 export const dynamic = 'force-dynamic'
@@ -88,7 +89,7 @@ export default async function ApplyPage({
     .single()
   const arQualityEnabled = arQualitySetting?.value === 'true'
 
-  return (
+  const form = (
     <ApplyForm
       initialCategories={categories}
       initialProducts={products}
@@ -97,7 +98,12 @@ export default async function ApplyPage({
       priceDate={priceDate}
       showAll={showAll}
       arQualityEnabled={arQualityEnabled}
-      fromLine={fromLine}
     />
   )
+
+  if (fromLine) {
+    return form
+  }
+
+  return <LineConfirmGate>{form}</LineConfirmGate>
 }
