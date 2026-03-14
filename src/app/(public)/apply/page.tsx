@@ -79,6 +79,14 @@ export default async function ApplyPage({
   const subcategories = (subResult.data ?? []) as Subcategory[]
   const offices = (officeResult.data ?? []) as Office[]
 
+  // 美品査定受付の設定を取得
+  const { data: arQualitySetting } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'ar_quality_enabled')
+    .single()
+  const arQualityEnabled = arQualitySetting?.value === 'true'
+
   return (
     <ApplyForm
       initialCategories={categories}
@@ -87,6 +95,7 @@ export default async function ApplyPage({
       initialOffices={offices}
       priceDate={priceDate}
       showAll={showAll}
+      arQualityEnabled={arQualityEnabled}
     />
   )
 }

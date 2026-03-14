@@ -40,7 +40,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Pencil, Trash2, Search, Upload, Download, ArrowUp, ArrowDown, Eye, EyeOff } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, Upload, Download, ArrowUp, ArrowDown, Eye, EyeOff, Settings } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -77,6 +78,10 @@ export default function ProductsPage() {
   const [csvPreview, setCsvPreview] = useState<{ name: string; category: string; categoryId: string; subcategory: string; subcategoryId: string; price: number; showInPriceList?: boolean; isActive?: boolean; isUpdate: boolean; error?: string }[]>([])
   const [csvImporting, setCsvImporting] = useState(false)
 
+  // 美品査定受付トグル
+  const [arQualityEnabled, setArQualityEnabled] = useState(false)
+  const [savingArQuality, setSavingArQuality] = useState(false)
+
   const supabase = createClient()
   const [tenantId, setTenantId] = useState<string | null>(null)
 
@@ -87,6 +92,9 @@ export default function ProductsPage() {
           if (profile) setTenantId(profile.tenant_id)
         })
       }
+    })
+    supabase.from('app_settings').select('value').eq('key', 'ar_quality_enabled').single().then(({ data }) => {
+      if (data) setArQualityEnabled(data.value === 'true')
     })
   }, [])
 
@@ -650,6 +658,38 @@ export default function ProductsPage() {
           </div>
         }
       />
+
+      {/* 美品査定受付トグル */}
+      <div className="flex items-center justify-between rounded-lg border p-4">
+        <div className="space-y-0.5">
+          <Label htmlFor="ar_quality_toggle" className="flex items-center gap-2 font-medium">
+            <Settings className="h-4 w-4" />
+            美品査定受付
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            ONにすると申込フォームに美品査定の選択肢が表示されます
+          </p>
+        </div>
+        <Switch
+          id="ar_quality_toggle"
+          checked={arQualityEnabled}
+          onCheckedChange={async (checked) => {
+            setSavingArQuality(true)
+            const { error } = await supabase
+              .from('app_settings')
+              .update({ value: checked ? 'true' : 'false' })
+              .eq('key', 'ar_quality_enabled')
+            setSavingArQuality(false)
+            if (error) {
+              toast.error('設定の更新に失敗しました')
+              return
+            }
+            setArQualityEnabled(checked)
+            toast.success(checked ? '美品査定受付を有効にしました' : '美品査定受付を無効にしました')
+          }}
+          disabled={savingArQuality}
+        />
+      </div>
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
