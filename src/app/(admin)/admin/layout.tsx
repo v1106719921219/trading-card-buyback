@@ -22,6 +22,7 @@ export default async function AdminLayout({
     .single()
 
   if (!profile) {
+    await supabase.auth.signOut()
     redirect('/login')
   }
 
