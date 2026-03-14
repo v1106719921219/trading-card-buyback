@@ -331,20 +331,18 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     <div className="min-h-screen bg-muted/50">
       <Header />
 
-      {/* LINE申込確認ダイアログ */}
-      <Dialog open={!lineConfirmed} onOpenChange={() => {}}>
-        <DialogContent showCloseButton={false} className="bg-white text-gray-900 border-gray-200" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-gray-900">
-              <MessageCircle className="h-5 w-5 text-[#06C755]" />
-              LINEでのお申込みはお済みですか？
-            </DialogTitle>
-            <DialogDescription className="text-left text-gray-600">
+      {/* LINE申込確認オーバーレイ */}
+      {!lineConfirmed && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-2 mb-2">
+              <MessageCircle className="h-6 w-6 text-[#06C755]" />
+              <h2 className="text-lg font-bold text-gray-900">LINEでのお申込みはお済みですか？</h2>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
               買取のお申込みには、事前にLINEでのご連絡が必要です。まだお済みでない場合は、先にLINEからお問い合わせください。
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-2">
-            <label className="flex items-start gap-3 cursor-pointer select-none rounded-lg border border-gray-200 p-4 transition-colors hover:bg-gray-50">
+            </p>
+            <label className="flex items-start gap-3 cursor-pointer select-none rounded-lg border border-gray-200 p-4 mb-4 transition-colors hover:bg-gray-50">
               <input
                 type="checkbox"
                 checked={lineCheckbox}
@@ -355,8 +353,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                 LINEで買取の申込・やり取りを済ませています
               </span>
             </label>
-          </div>
-          <DialogFooter>
             <Button
               onClick={() => setLineConfirmed(true)}
               disabled={!lineCheckbox}
@@ -364,9 +360,9 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
             >
               申込フォームへ進む
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
 
       {/* Steps indicator */}
       <div className="max-w-4xl mx-auto px-4 py-6">
