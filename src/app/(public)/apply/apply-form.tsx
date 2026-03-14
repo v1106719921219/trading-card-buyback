@@ -327,22 +327,20 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     }
   }
 
-  return (
-    <div className="min-h-screen bg-muted/50">
-      <Header />
-
-      {/* LINE申込確認オーバーレイ */}
-      {!lineConfirmed && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-            <div className="flex items-center gap-2 mb-2">
-              <MessageCircle className="h-6 w-6 text-[#06C755]" />
-              <h2 className="text-lg font-bold text-gray-900">LINEでのお申込みはお済みですか？</h2>
+  if (!lineConfirmed) {
+    return (
+      <div className="min-h-screen bg-muted/50">
+        <Header />
+        <div className="flex items-center justify-center px-4 py-20">
+          <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg border border-gray-200">
+            <div className="flex items-center gap-3 mb-3">
+              <MessageCircle className="h-7 w-7 text-[#06C755]" />
+              <h2 className="text-xl font-bold text-gray-900">LINEでのお申込みはお済みですか？</h2>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 mb-6">
               買取のお申込みには、事前にLINEでのご連絡が必要です。まだお済みでない場合は、先にLINEからお問い合わせください。
             </p>
-            <label className="flex items-start gap-3 cursor-pointer select-none rounded-lg border border-gray-200 p-4 mb-4 transition-colors hover:bg-gray-50">
+            <label className="flex items-start gap-3 cursor-pointer select-none rounded-lg border border-gray-200 p-4 mb-6 transition-colors hover:bg-gray-50">
               <input
                 type="checkbox"
                 checked={lineCheckbox}
@@ -356,13 +354,20 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
             <Button
               onClick={() => setLineConfirmed(true)}
               disabled={!lineCheckbox}
-              className="w-full bg-[#06C755] hover:bg-[#06C755]/90 text-white font-bold disabled:opacity-40"
+              className="w-full bg-[#06C755] hover:bg-[#06C755]/90 text-white font-bold text-base py-6 disabled:opacity-40"
             >
               申込フォームへ進む
             </Button>
           </div>
         </div>
-      )}
+        <Footer />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-muted/50">
+      <Header />
 
       {/* Steps indicator */}
       <div className="max-w-4xl mx-auto px-4 py-6">
