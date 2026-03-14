@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -23,7 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, Mail, MapPin, Search, ArrowRight, ArrowLeft, Check, Send } from 'lucide-react'
+import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, Mail, MapPin, Search, ArrowRight, ArrowLeft, Check, Send, MessageCircle } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
@@ -74,6 +75,10 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [selectedBuybackType, setSelectedBuybackType] = useState<'minimum_guarantee' | 'ar_quality'>('minimum_guarantee')
   const [showBuybackDialog, setShowBuybackDialog] = useState(false)
+
+  // LINE申込確認
+  const [lineConfirmed, setLineConfirmed] = useState(false)
+  const [lineCheckbox, setLineCheckbox] = useState(false)
 
   // Repeater lookup state
   const [lookupEmail, setLookupEmail] = useState('')
@@ -324,6 +329,43 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   return (
     <div className="min-h-screen bg-muted/50">
       <Header />
+
+      {/* LINE申込確認ダイアログ */}
+      <Dialog open={!lineConfirmed} onOpenChange={() => {}}>
+        <DialogContent showCloseButton={false} onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-[#06C755]" />
+              LINEでのお申込みはお済みですか？
+            </DialogTitle>
+            <DialogDescription className="text-left">
+              買取のお申込みには、事前にLINEでのご連絡が必要です。まだお済みでない場合は、先にLINEからお問い合わせください。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <label className="flex items-start gap-3 cursor-pointer select-none rounded-lg border border-border p-4 transition-colors hover:bg-muted/50">
+              <input
+                type="checkbox"
+                checked={lineCheckbox}
+                onChange={(e) => setLineCheckbox(e.target.checked)}
+                className="mt-0.5 h-5 w-5 rounded accent-primary cursor-pointer"
+              />
+              <span className="text-sm leading-relaxed">
+                LINEで買取の申込・やり取りを済ませています
+              </span>
+            </label>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setLineConfirmed(true)}
+              disabled={!lineCheckbox}
+              className="w-full"
+            >
+              申込フォームへ進む
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Steps indicator */}
       <div className="max-w-4xl mx-auto px-4 py-6">
