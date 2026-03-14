@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
+import { getTenant } from '@/lib/tenant'
+import { toTenantInfo } from '@/lib/tenant-context'
 
 export async function GET() {
   const checks: Record<string, unknown> = {}
@@ -17,7 +19,25 @@ export async function GET() {
   const headersList = await headers()
   checks.tenantSlug = headersList.get('x-tenant-slug') || '(not set)'
 
-  // 3. Try DB connection
+  // 3. Test getTenant() - same function used by layout.tsx
+  try {
+    const tenant = await getTenant()
+    if (tenant) {
+      checks.getTenant = { success: true, tenant: { id: tenant.id, slug: tenant.slug, display_name: tenant.display_name, site_name: tenant.site_name } }
+      try {
+        const tenantInfo = toTenantInfo(tenant)
+        checks.toTenantInfo = { success: true, tenantInfo }
+      } catch (e) {
+        checks.toTenantInfo = { error: String(e) }
+      }
+    } else {
+      checks.getTenant = { success: true, result: null }
+    }
+  } catch (e) {
+    checks.getTenant = { error: String(e), stack: (e as Error).stack }
+  }
+
+  // 4. Try DB connection directly
   try {
     const { createClient } = await import('@supabase/supabase-js')
     const supabase = createClient(
@@ -26,7 +46,6 @@ export async function GET() {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Check if tenants table exists
     const { data: tenants, error: tenantsError } = await supabase
       .from('tenants')
       .select('id, slug, is_active, display_name, site_name')
@@ -36,18 +55,6 @@ export async function GET() {
       checks.tenantsTable = { error: tenantsError.message, code: tenantsError.code }
     } else {
       checks.tenantsTable = { rows: tenants }
-    }
-
-    // Check if categories table exists
-    const { data: categories, error: catError } = await supabase
-      .from('categories')
-      .select('id, name')
-      .limit(5)
-
-    if (catError) {
-      checks.categoriesTable = { error: catError.message, code: catError.code }
-    } else {
-      checks.categoriesTable = { count: categories?.length }
     }
   } catch (e) {
     checks.dbConnection = { error: String(e) }
