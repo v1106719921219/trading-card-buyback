@@ -64,6 +64,7 @@ export async function updateOffice(
 }
 
 export async function getOfficeOrderCounts(): Promise<OfficeWithCounts[]> {
+  const tenantId = await requireTenantId()
   const supabase = await createClient()
 
   // Fetch active offices
@@ -71,6 +72,7 @@ export async function getOfficeOrderCounts(): Promise<OfficeWithCounts[]> {
     .from('offices')
     .select('*')
     .eq('is_active', true)
+    .eq('tenant_id', tenantId)
     .order('sort_order')
 
   if (officesError) {
