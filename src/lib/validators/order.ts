@@ -15,6 +15,7 @@ export const IDENTITY_METHODS = [
   'パスポート（2回目以降）',
   'マイナンバーカード（2回目以降）',
   '保険証（2回目以降）',
+  '在留カード（2回目以降）',
 ] as const
 
 export const customerInfoSchema = z.object({
