@@ -300,7 +300,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         office_id: selectedOfficeId,
         shipped_date: shippedDate || undefined,
         price_date: priceDate || undefined,
-        buyback_type: arQualityEnabled && cart.some(item => item.product_name.includes('AR')) ? selectedBuybackType : 'minimum_guarantee',
+        buyback_type: cart.some(item => item.product_name.includes('AR')) ? (arQualityEnabled ? selectedBuybackType : 'minimum_guarantee') : undefined,
       })
 
       setLoading(false)
