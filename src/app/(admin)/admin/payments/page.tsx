@@ -176,7 +176,11 @@ export default function PaymentsPage() {
       return
     }
 
-    toast.success(`${ids.length}件の振込を処理しました（お客様にメール通知済み）`)
+    if ('warning' in result && result.warning) {
+      toast.warning(`振込処理は完了しましたが、${result.warning}`)
+    } else {
+      toast.success(`${ids.length}件の振込を処理しました（お客様にメール通知済み）`)
+    }
     setSelectedIds(new Set())
     setProcessing(false)
     fetchOrders()

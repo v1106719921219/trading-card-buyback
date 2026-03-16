@@ -1,12 +1,12 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPaymentCompletionEmail } from '@/lib/email'
 import { generateInspectionPdf } from '@/lib/pdf'
 
 export async function getPaymentQueue() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items(*)')
@@ -18,7 +18,7 @@ export async function getPaymentQueue() {
 }
 
 export async function markAsPaid(orderId: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   // Atomic update: WHERE status = '検品完了' で TOCTOU 防止
   const { data: updated, error: updateError } = await supabase
@@ -38,23 +38,34 @@ export async function markAsPaid(orderId: string) {
 
   // PDF生成 → 振込完了メール送信
   const amount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
+  let emailSent = false
   try {
     const pdfBuffer = await generateInspectionPdf(order, order.order_items ?? [])
     await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount, pdfBuffer)
+    emailSent = true
   } catch (err) {
     console.error('[markAsPaid] PDF/Email error:', err)
     // PDF失敗時もメール送信を試みる（PDF添付なし）
-    await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount).catch(() => {})
+    try {
+      await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount)
+      emailSent = true
+    } catch (emailErr) {
+      console.error('[markAsPaid] Fallback email also failed:', emailErr)
+    }
   }
 
   revalidatePath('/admin/payments')
   revalidatePath('/admin/orders')
   revalidatePath('/admin')
+
+  if (!emailSent) {
+    return { success: true, warning: 'ステータスは更新しましたが、メール送信に失敗しました' }
+  }
   return { success: true }
 }
 
 export async function downloadInspectionPdf(orderId: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data: order, error: fetchError } = await supabase
     .from('orders')
@@ -75,12 +86,13 @@ export async function downloadInspectionPdf(orderId: string) {
 }
 
 export async function bulkMarkAsPaid(orderIds: string[]) {
-  const supabase = await createClient()
   const errors: string[] = []
+  const warnings: string[] = []
 
   for (const id of orderIds) {
     const result = await markAsPaid(id)
     if (result.error) errors.push(`${id}: ${result.error}`)
+    if ('warning' in result && result.warning) warnings.push(result.warning)
   }
 
   if (errors.length > 0) {
@@ -90,5 +102,9 @@ export async function bulkMarkAsPaid(orderIds: string[]) {
   revalidatePath('/admin/payments')
   revalidatePath('/admin/orders')
   revalidatePath('/admin')
+
+  if (warnings.length > 0) {
+    return { success: true, warning: `${warnings.length}件でメール送信に失敗しました` }
+  }
   return { success: true }
 }
