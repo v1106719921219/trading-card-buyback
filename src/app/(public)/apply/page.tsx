@@ -51,12 +51,16 @@ export default async function ApplyPage({
     return (a.sort_order ?? 0) - (b.sort_order ?? 0)
   }) as (Product & { category: Category; subcategory: Subcategory | null })[]
 
-  // price_date 指定時: 指定日以降に変更された価格履歴から old_price を取得して上書き
+  // price_date 指定時: 指定日の翌日以降に変更された価格履歴から old_price を取得して上書き
+  // 指定日の終わり時点の価格を表示するため、翌日0時以降の変更を対象にする
   if (priceDate) {
+    const nextDay = new Date(priceDate + 'T00:00:00+09:00')
+    nextDay.setDate(nextDay.getDate() + 1)
+    const nextDayStr = nextDay.toISOString().split('T')[0]
     const { data: historyData } = await supabase
       .from('product_price_history')
       .select('product_id, old_price, changed_at')
-      .gte('changed_at', priceDate + 'T00:00:00+09:00')
+      .gte('changed_at', nextDayStr + 'T00:00:00+09:00')
       .order('changed_at', { ascending: true })
 
     if (historyData && historyData.length > 0) {
