@@ -76,3 +76,6 @@ export const KYC_METHOD_LABELS: Record<KycMethod, string> = {
 
 /** 裏面撮影が必要な身分証種類 */
 export const REQUIRES_BACK_IMAGE: IdDocumentType[] = ['driving_license']
+
+/** 厚み撮影が必要な身分証種類（古物営業法対応） */
+export const REQUIRES_THICKNESS_IMAGE: IdDocumentType[] = ['driving_license', 'my_number_card']

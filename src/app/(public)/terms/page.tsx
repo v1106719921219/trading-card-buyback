@@ -3,7 +3,7 @@ import { Header } from '@/components/public/header'
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-muted/50">
+    <div className="min-h-screen bg-background pb-16 sm:pb-0">
       <Header hideApplyButton />
 
       <div className="max-w-3xl mx-auto px-4 py-8 sm:py-12">
@@ -91,9 +91,9 @@ export default function TermsPage() {
               <li>買取金額の振込は、商品到着後即日から2営業日以内に完了いたします。</li>
               <li>振込手数料は弊社が負担いたします。</li>
             </ul>
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm space-y-2">
-              <p className="font-medium text-amber-900">振込先情報のご確認について</p>
-              <ul className="list-disc list-inside text-amber-800 space-y-1">
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 text-sm space-y-2">
+              <p className="font-medium text-yellow-300">振込先情報のご確認について</p>
+              <ul className="list-disc list-inside text-yellow-300 space-y-1">
                 <li>お振込はお客様のご指定いただいた口座情報に基づき行います。</li>
                 <li>口座番号や名義の誤入力により誤振込が発生した場合、当社は一切の責任を負いません。</li>
                 <li>万が一誤振込が発生した場合、銀行を通じて組戻しの手続きを行いますが、返金が保証されるものではありません。</li>

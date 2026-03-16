@@ -314,6 +314,112 @@ function CompleteContent() {
               </form>
             )}
 
+            {/* Order Items Section - inline */}
+            {!itemsLoading && orderItems.length > 0 && (
+              <div className={`rounded-lg p-4 text-left space-y-3 ${
+                isEditable
+                  ? 'border-2 border-[#FF6B00]/40 bg-[#FF6B00]/5'
+                  : 'border-t pt-4'
+              }`}>
+                <div>
+                  <p className="text-lg font-semibold">
+                    申込商品一覧
+                  </p>
+                  {isEditable && (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-xs font-medium text-[#FF6B00] bg-[#FF6B00]/10 px-2 py-0.5 rounded-full">編集可能</span>
+                      <span className="text-xs text-muted-foreground">タップして数量を変更できます</span>
+                    </div>
+                  )}
+                </div>
+                {orderItems.map((item, index) => (
+                  <div
+                    key={`${item.product_id}-${index}`}
+                    className="flex items-center justify-between gap-2 py-2 border-b last:border-b-0"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{item.product_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ¥{item.unit_price.toLocaleString()} × {item.quantity}点
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {isEditable ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 sm:h-7 sm:w-7"
+                            onClick={() => updateQuantity(index, -1)}
+                            disabled={item.quantity <= 1}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="w-8 text-center text-sm font-medium">
+                            {item.quantity}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 sm:h-7 sm:w-7"
+                            onClick={() => updateQuantity(index, 1)}
+                            disabled={item.quantity >= 999}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 sm:h-7 sm:w-7 text-destructive hover:text-destructive"
+                            onClick={() => removeItem(index)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </>
+                      ) : (
+                        <span className="text-sm font-medium">
+                          ¥{(item.unit_price * item.quantity).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex justify-between pt-2 border-t font-medium">
+                  <span>合計見積額</span>
+                  <span>¥{totalAmount.toLocaleString()}</span>
+                </div>
+
+                {isEditable && (
+                  <div className="space-y-2 pt-2">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={handleOpenProductDialog}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      商品を追加
+                    </Button>
+
+                    {saveError && (
+                      <p className="text-sm text-destructive text-center">{saveError}</p>
+                    )}
+                    {saveMessage && (
+                      <p className="text-sm text-green-600 text-center">{saveMessage}</p>
+                    )}
+
+                    <Button
+                      className="w-full"
+                      disabled={saving || !hasChanges || orderItems.length === 0}
+                      onClick={handleSaveItems}
+                    >
+                      {saving ? '保存中...' : '変更を保存'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {!submitted && (
               <>
                 <p className="text-sm text-muted-foreground">
@@ -352,126 +458,6 @@ function CompleteContent() {
             </Link>
           </CardContent>
         </Card>
-
-        {/* Order Items Section */}
-        {!itemsLoading && orderItems.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">
-                申込商品一覧
-                {isEditable && (
-                  <span className="text-sm font-normal text-muted-foreground ml-2">
-                    （編集可能）
-                  </span>
-                )}
-              </CardTitle>
-              {isEditable && (
-                <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                  ※ 追跡番号の登録前まで商品の修正が可能です。数量に誤りがある場合は訂正してください。LINEでのお申込内容と異なる場合は、LINEにてご連絡の上修正をお願いします。
-                </p>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {orderItems.map((item, index) => (
-                <div
-                  key={`${item.product_id}-${index}`}
-                  className="flex items-center justify-between gap-2 py-2 border-b last:border-b-0"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{item.product_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      ¥{item.unit_price.toLocaleString()} × {item.quantity}点
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {isEditable ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-9 w-9 sm:h-7 sm:w-7"
-                          onClick={() => updateQuantity(index, -1)}
-                          disabled={item.quantity <= 1}
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="w-8 text-center text-sm font-medium">
-                          {item.quantity}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-9 w-9 sm:h-7 sm:w-7"
-                          onClick={() => updateQuantity(index, 1)}
-                          disabled={item.quantity >= 999}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 sm:h-7 sm:w-7 text-destructive hover:text-destructive"
-                          onClick={() => removeItem(index)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </>
-                    ) : (
-                      <span className="text-sm font-medium">
-                        ¥{(item.unit_price * item.quantity).toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-
-              <div className="flex justify-between pt-2 border-t font-medium">
-                <span>合計見積額</span>
-                <span>¥{totalAmount.toLocaleString()}</span>
-              </div>
-
-              {isEditable && (
-                <div className="space-y-2 pt-2">
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={handleOpenProductDialog}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    商品を追加
-                  </Button>
-
-                  {saveError && (
-                    <p className="text-sm text-destructive text-center">{saveError}</p>
-                  )}
-                  {saveMessage && (
-                    <p className="text-sm text-green-600 text-center">{saveMessage}</p>
-                  )}
-
-                  <Button
-                    className="w-full"
-                    disabled={saving || !hasChanges || orderItems.length === 0}
-                    onClick={handleSaveItems}
-                  >
-                    {saving ? '保存中...' : '変更を保存'}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Read-only items for non-editable status with no items loaded yet handled */}
-        {!itemsLoading && orderItems.length === 0 && !isEditable && orderStatus && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">申込商品一覧</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">商品情報がありません</p>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Product Selection Dialog */}
         <Dialog open={showProductDialog} onOpenChange={setShowProductDialog}>

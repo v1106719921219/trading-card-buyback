@@ -1,43 +1,43 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 
 type Theme = 'dark' | 'light'
+
+// トップページはダークがデフォルト（切替可）、それ以外はライト固定
+const DARK_DEFAULT_PATHS = ['/']
 
 interface ThemeContextValue {
   theme: Theme
   toggleTheme: () => void
+  canToggle: boolean
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: 'dark',
+  theme: 'light',
   toggleTheme: () => {},
+  canToggle: false,
 })
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark')
-  const [mounted, setMounted] = useState(false)
+  const pathname = usePathname()
+  const isDarkDefaultPage = DARK_DEFAULT_PATHS.includes(pathname)
+  const [userTheme, setUserTheme] = useState<Theme | null>(null)
 
-  useEffect(() => {
-    const saved = localStorage.getItem('theme') as Theme | null
-    if (saved === 'light' || saved === 'dark') {
-      setTheme(saved)
-    }
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('theme', theme)
-    }
-  }, [theme, mounted])
+  // トップページ以外はライト固定、トップページはユーザー切替可
+  const theme: Theme = isDarkDefaultPage
+    ? (userTheme ?? 'dark')
+    : 'light'
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
+    if (isDarkDefaultPage) {
+      setUserTheme((prev) => (prev ?? 'dark') === 'dark' ? 'light' : 'dark')
+    }
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, canToggle: isDarkDefaultPage }}>
       <div className={theme === 'dark' ? 'dark' : ''}>
         {children}
       </div>

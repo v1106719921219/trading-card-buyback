@@ -3,7 +3,7 @@ import { Header } from '@/components/public/header'
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-muted/50">
+    <div className="min-h-screen bg-background pb-16 sm:pb-0">
       <Header hideApplyButton />
 
       <div className="max-w-3xl mx-auto px-4 py-8 sm:py-12">
@@ -62,10 +62,10 @@ export default function PrivacyPage() {
             <p className="text-sm text-muted-foreground leading-relaxed mb-3">
               当社が保有する個人情報についての苦情、開示、訂正、削除のご依頼については、以下の窓口までお問い合わせください。
             </p>
-            <div className="bg-white rounded-lg border p-4 text-sm space-y-1">
+            <div className="bg-card rounded-lg border border-border p-4 text-sm space-y-1">
               <p className="font-medium">【個人情報についてのお問い合わせ窓口】</p>
               <p>買取スクエア</p>
-              <p>E-mail：<a href="mailto:email@kaitorisquare.com" className="text-primary hover:underline">email@kaitorisquare.com</a></p>
+              <p>E-mail：<a href={`mailto:${process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'email@kaitorisquare.com'}`} className="text-primary hover:underline">{process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'email@kaitorisquare.com'}</a></p>
               <p>古物許可番号：{process.env.NEXT_PUBLIC_KOBUTSU_LICENSE || '山口県公安委員会許可 第741091000629号'}</p>
             </div>
           </section>

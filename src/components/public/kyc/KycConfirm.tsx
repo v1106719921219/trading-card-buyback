@@ -9,13 +9,15 @@ import { RotateCcw, Send } from 'lucide-react'
 interface KycConfirmProps {
   images: {
     id_front: Blob | null
+    id_thickness: Blob | null
     id_back: Blob | null
     face: Blob | null
   }
   idDocumentType: IdDocumentType
   needsBackImage: boolean
+  needsThicknessImage: boolean
   onSubmit: () => void
-  onRetake: (imageType: 'id_front' | 'id_back' | 'face') => void
+  onRetake: (imageType: 'id_front' | 'id_thickness' | 'id_back' | 'face') => void
 }
 
 function ImagePreview({
@@ -50,6 +52,7 @@ export function KycConfirm({
   images,
   idDocumentType,
   needsBackImage,
+  needsThicknessImage,
   onSubmit,
   onRetake,
 }: KycConfirmProps) {
@@ -72,6 +75,14 @@ export function KycConfirm({
           label="身分証明書（表面）"
           onRetake={() => onRetake('id_front')}
         />
+
+        {needsThicknessImage && (
+          <ImagePreview
+            blob={images.id_thickness}
+            label="身分証明書（厚み）"
+            onRetake={() => onRetake('id_thickness')}
+          />
+        )}
 
         {needsBackImage && (
           <ImagePreview

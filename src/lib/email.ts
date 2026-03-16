@@ -17,7 +17,8 @@ export async function sendOrderConfirmationEmail(
     return
   }
 
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@example.com'
+  const fromAddress = process.env.RESEND_FROM_EMAIL || 'noreply@example.com'
+  const fromEmail = `買取スクエア <${fromAddress}>`
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   const completeUrl = `${siteUrl}/apply/complete?order_number=${orderNumber}&office_id=${officeId}`
 
@@ -83,7 +84,8 @@ export async function sendPaymentCompletionEmail(
     return
   }
 
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@example.com'
+  const fromAddress = process.env.RESEND_FROM_EMAIL || 'noreply@example.com'
+  const fromEmail = `買取スクエア <${fromAddress}>`
 
   const attachments = pdfBuffer
     ? [{ filename: `査定結果_${orderNumber}.pdf`, content: pdfBuffer }]

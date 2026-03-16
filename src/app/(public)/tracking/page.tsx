@@ -38,7 +38,7 @@ export default function TrackingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/50 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col pb-16 sm:pb-0">
       <Header />
       <div className="flex-1 flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-md">

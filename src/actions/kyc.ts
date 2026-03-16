@@ -49,7 +49,9 @@ export async function createKycRequest(input: KycSubmitInput) {
     .single()
 
   if (existing) {
-    return { error: '既に処理中の本人確認申請があります', kyc_request_id: existing.id }
+    // 既存の未完了リクエストを削除して作り直す
+    await supabase.from('kyc_audit_logs').delete().eq('kyc_request_id', existing.id)
+    await supabase.from('kyc_requests').delete().eq('id', existing.id)
   }
 
   const { data: kycRequest, error } = await supabase

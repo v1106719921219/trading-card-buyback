@@ -16,6 +16,8 @@ interface CameraCaptureProps {
 
 const MAX_IMAGE_SIZE = 1920
 const JPEG_QUALITY = 0.85
+// カメラ起動後、撮影ボタンが有効になるまでの遅延（ms）
+const CAPTURE_DELAY_MS = 1500
 
 export function CameraCapture({
   title,
@@ -29,6 +31,7 @@ export function CameraCapture({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [cameraReady, setCameraReady] = useState(false)
+  const [captureReady, setCaptureReady] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -36,6 +39,7 @@ export function CameraCapture({
   const startCamera = useCallback(async () => {
     try {
       setCameraError(null)
+      setCaptureReady(false)
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: facingMode },
@@ -50,6 +54,8 @@ export function CameraCapture({
         videoRef.current.srcObject = stream
         videoRef.current.onloadedmetadata = () => {
           setCameraReady(true)
+          // 少し待ってから撮影可能にする（ユーザーが位置合わせする時間）
+          setTimeout(() => setCaptureReady(true), CAPTURE_DELAY_MS)
         }
       }
     } catch (err) {
@@ -74,6 +80,7 @@ export function CameraCapture({
       streamRef.current = null
     }
     setCameraReady(false)
+    setCaptureReady(false)
   }, [])
 
   useEffect(() => {
@@ -84,6 +91,7 @@ export function CameraCapture({
   }, [startCamera, stopCamera, preview])
 
   function handleCapture() {
+    if (!captureReady) return
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas) return
@@ -91,7 +99,6 @@ export function CameraCapture({
     const vw = video.videoWidth
     const vh = video.videoHeight
 
-    // リサイズ（最大1920px）
     let width = vw
     let height = vh
     if (width > MAX_IMAGE_SIZE || height > MAX_IMAGE_SIZE) {
@@ -105,7 +112,6 @@ export function CameraCapture({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // インカメラの場合はミラー反転
     if (facingMode === 'user') {
       ctx.translate(width, 0)
       ctx.scale(-1, 1)
@@ -140,7 +146,6 @@ export function CameraCapture({
     }
   }
 
-  // カメラエラー時のフォールバック
   if (cameraError) {
     return (
       <Card>
@@ -180,14 +185,79 @@ export function CameraCapture({
                   transform: facingMode === 'user' ? 'scaleX(-1)' : undefined,
                 }}
               />
-              {/* ガイド枠 */}
+              {/* ガイド枠オーバーレイ */}
               {cameraReady && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  {guideType === 'rectangle' ? (
-                    <div className="h-[60%] w-[80%] rounded-lg border-2 border-white/70" />
-                  ) : (
-                    <div className="h-[70%] w-[50%] rounded-full border-2 border-white/70" />
-                  )}
+                <div className="absolute inset-0">
+                  {/* 暗いオーバーレイ（枠の外側） */}
+                  <svg className="absolute inset-0 h-full w-full">
+                    <defs>
+                      <mask id="guide-mask">
+                        <rect width="100%" height="100%" fill="white" />
+                        {guideType === 'rectangle' ? (
+                          <rect
+                            x="7.5%"
+                            y="50%"
+                            width="85%"
+                            height="0"
+                            fill="black"
+                            rx="8"
+                            style={{
+                              height: 'calc(85% / 1.586)',
+                              transform: 'translateY(calc(-85% / 1.586 / 2))',
+                            }}
+                          />
+                        ) : (
+                          <ellipse
+                            cx="50%"
+                            cy="50%"
+                            rx="25%"
+                            ry="33%"
+                            fill="black"
+                          />
+                        )}
+                      </mask>
+                    </defs>
+                    <rect
+                      width="100%"
+                      height="100%"
+                      fill="rgba(0,0,0,0.5)"
+                      mask="url(#guide-mask)"
+                    />
+                  </svg>
+                  {/* 緑色のガイド枠 */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    {guideType === 'rectangle' ? (
+                      <div
+                        className={`w-[85%] rounded-lg border-[3px] transition-colors duration-300 ${
+                          captureReady
+                            ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.4)]'
+                            : 'border-white/50'
+                        }`}
+                        style={{ aspectRatio: 1.586 }}
+                      />
+                    ) : (
+                      <div
+                        className={`h-[66%] rounded-full border-[3px] transition-colors duration-300 ${
+                          captureReady
+                            ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.4)]'
+                            : 'border-white/50'
+                        }`}
+                        style={{ aspectRatio: 0.75 }}
+                      />
+                    )}
+                  </div>
+                  {/* ガイドメッセージ */}
+                  <div className="absolute bottom-3 left-0 right-0 text-center">
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      captureReady
+                        ? 'bg-green-500/80 text-white'
+                        : 'bg-black/60 text-white'
+                    }`}>
+                      {captureReady
+                        ? '枠内に合わせて撮影してください'
+                        : 'カメラを合わせています...'}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -199,11 +269,11 @@ export function CameraCapture({
               </Button>
               <Button
                 onClick={handleCapture}
-                disabled={!cameraReady}
-                className="flex-1"
+                disabled={!captureReady}
+                className={`flex-1 ${captureReady ? 'bg-green-600 hover:bg-green-700' : ''}`}
               >
                 <Camera className="mr-2 h-4 w-4" />
-                撮影
+                {captureReady ? '撮影' : '準備中...'}
               </Button>
             </div>
           </>

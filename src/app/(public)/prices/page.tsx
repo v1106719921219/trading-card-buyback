@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -10,14 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Search } from 'lucide-react'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
@@ -71,7 +62,6 @@ export default function PricesPage() {
     return matchesCategory && matchesSubcategory && matchesSearch
   })
 
-  // Group filtered products by category then subcategory
   const displayCategories = (selectedCategory === 'all' ? categories : categories.filter((c) => c.id === selectedCategory))
   const productsByCategory = displayCategories.map((cat) => {
     const catProducts = filteredProducts
@@ -98,79 +88,87 @@ export default function PricesPage() {
   }).filter((cat) => cat.groups.length > 0)
 
   return (
-    <div className="min-h-screen bg-muted/50">
+    <div className="min-h-screen bg-background pb-16 sm:pb-0">
       <Header hideApplyButton />
 
-      <section className="bg-gradient-to-b from-orange-50 to-muted/50 py-8 sm:py-12">
-        <div className="max-w-4xl mx-auto text-center px-4">
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">買取価格一覧</h2>
-          <p className="text-muted-foreground">
+      {/* Page hero */}
+      <section className="relative py-10 sm:py-14 overflow-hidden">
+        <div className="absolute inset-0 bg-grid-pattern" />
+        <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-[#FF6B00]/8 rounded-full blur-[80px]" />
+        <div className="relative max-w-4xl mx-auto text-center px-4">
+          <p className="text-xs font-semibold tracking-[0.2em] text-[#FF6B00] uppercase mb-2">Price List</p>
+          <h1 className="font-heading text-2xl sm:text-3xl text-foreground mb-2">買取価格一覧</h1>
+          <p className="text-muted-foreground text-sm">
             最新の買取価格です。価格は市場状況により変動することがあります。
           </p>
         </div>
       </section>
 
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        {/* Search & Filters */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="商品名で検索..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Select value={selectedCategory} onValueChange={(v) => { setSelectedCategory(v); setSelectedSubcategory('all') }}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全カテゴリ</SelectItem>
-              {categories.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {filteredSubcategories.length > 0 && (
-            <Select value={selectedSubcategory} onValueChange={setSelectedSubcategory}>
-              <SelectTrigger className="w-full sm:w-52">
+      {/* Sticky search & filters */}
+      <div className="sticky top-[52px] z-30 bg-background/90 backdrop-blur-xl border-b border-border py-3">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="商品名で検索..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 bg-white/[0.05] border-white/[0.08] text-[16px]"
+              />
+            </div>
+            <Select value={selectedCategory} onValueChange={(v) => { setSelectedCategory(v); setSelectedSubcategory('all') }}>
+              <SelectTrigger className="w-full sm:w-48 bg-white/[0.05] border-white/[0.08]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">全サブカテゴリ</SelectItem>
-                {filteredSubcategories.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                <SelectItem value="all">全カテゴリ</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          )}
+            {filteredSubcategories.length > 0 && (
+              <Select value={selectedSubcategory} onValueChange={setSelectedSubcategory}>
+                <SelectTrigger className="w-full sm:w-52 bg-white/[0.05] border-white/[0.08]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全サブカテゴリ</SelectItem>
+                  {filteredSubcategories.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </div>
+      </div>
 
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
         {loading ? (
           <p className="text-center py-8 text-muted-foreground">読み込み中...</p>
         ) : productsByCategory.length === 0 ? (
           <p className="text-center py-8 text-muted-foreground">該当する商品がありません</p>
         ) : (
           productsByCategory.map((cat) => (
-            <Card key={cat.id}>
-              <CardHeader>
-                <CardTitle>{cat.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
+            <div key={cat.id} className="rounded-xl border border-border overflow-hidden bg-card">
+              <div className="border-t-[3px] border-[#FF6B00] px-5 py-4 bg-white/[0.02]">
+                <h2 className="font-bold text-foreground">{cat.name}</h2>
+              </div>
+              <div className="px-5 pb-4">
+                <div className="space-y-5">
                   {cat.groups.map((group) => (
                     <div key={group.name || '_ungrouped'}>
                       {group.name && (
-                        <h3 className="font-medium text-sm text-muted-foreground mb-2">{group.name}</h3>
+                        <h3 className="font-medium text-xs text-muted-foreground mb-2 mt-3 uppercase tracking-wider">{group.name}</h3>
                       )}
-                      <div className="divide-y">
+                      <div className="divide-y divide-border">
                         {group.products.map((product) => (
-                          <div key={product.id} className="flex items-center justify-between gap-4 py-2.5 px-1">
-                            <span className="font-medium text-sm min-w-0 break-words">{product.name}</span>
-                            <span className="font-bold text-primary whitespace-nowrap text-sm shrink-0">
-                              {product.price.toLocaleString()}円
+                          <div key={product.id} className="flex items-center justify-between gap-4 py-3 px-1">
+                            <span className="font-medium text-sm min-w-0 break-words text-foreground">{product.name}</span>
+                            <span className="font-heading text-lg text-[#FF6B00] whitespace-nowrap shrink-0">
+                              {product.price.toLocaleString()}<span className="text-xs font-sans text-muted-foreground ml-0.5">円</span>
                             </span>
                           </div>
                         ))}
@@ -178,8 +176,8 @@ export default function PricesPage() {
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))
         )}
       </div>
