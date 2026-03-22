@@ -372,6 +372,7 @@ export default function InspectPage() {
                     {!item._isNew && (
                       <p className="text-sm text-muted-foreground mt-0.5">
                         単価: {item.unit_price.toLocaleString()}円
+                        {order.buyback_type === 'ar_quality' && ` × ${item.quantity}個`}
                       </p>
                     )}
                     {isMismatch && (
