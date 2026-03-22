@@ -36,13 +36,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil } from 'lucide-react'
-import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice } from '@/actions/orders'
+import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil, Plus } from 'lucide-react'
+import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice, addOrderItem } from '@/actions/orders'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
 import { STATUS_TRANSITIONS, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
 import { toast } from 'sonner'
-import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole, BuybackType, InspectionStatus } from '@/types/database'
+import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole, BuybackType, InspectionStatus, Product } from '@/types/database'
 
 export default function OrderDetailPage() {
   const params = useParams()
@@ -69,6 +69,11 @@ export default function OrderDetailPage() {
   const [savingBuybackType, setSavingBuybackType] = useState(false)
   const [offices, setOffices] = useState<Office[]>([])
   const [savingOffice, setSavingOffice] = useState(false)
+  const [products, setProducts] = useState<Product[]>([])
+  const [addingItem, setAddingItem] = useState(false)
+  const [newItemProductId, setNewItemProductId] = useState('')
+  const [newItemQuantity, setNewItemQuantity] = useState(1)
+  const [savingNewItem, setSavingNewItem] = useState(false)
 
   const supabase = createClient()
 
@@ -119,6 +124,14 @@ export default function OrderDetailPage() {
       .order('created_at', { ascending: false })
       .limit(10)
     setDuplicateOrders(dupes || [])
+
+    // 商品マスタ取得（申込・発送済ステータス時に商品追加で使用）
+    const { data: productData } = await supabase
+      .from('products')
+      .select('*')
+      .eq('is_active', true)
+      .order('name')
+    if (productData) setProducts(productData as Product[])
 
     // Fetch offices list and current office
     const { data: allOffices } = await supabase
@@ -239,6 +252,29 @@ export default function OrderDetailPage() {
     toast.success('申告数量を更新しました')
     setEditingQuantities(false)
     setEditItems([])
+    fetchOrder()
+  }
+
+  async function handleAddItem() {
+    if (!newItemProductId || newItemQuantity <= 0) return
+    const product = products.find((p) => p.id === newItemProductId)
+    if (!product) return
+    setSavingNewItem(true)
+    const result = await addOrderItem(orderId, {
+      product_id: product.id,
+      product_name: product.name,
+      unit_price: product.price,
+      quantity: newItemQuantity,
+    })
+    setSavingNewItem(false)
+    if (result.error) {
+      toast.error(result.error)
+      return
+    }
+    toast.success('商品を追加しました')
+    setAddingItem(false)
+    setNewItemProductId('')
+    setNewItemQuantity(1)
     fetchOrder()
   }
 
@@ -364,18 +400,27 @@ export default function OrderDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle>注文明細</CardTitle>
-              {!editingQuantities && (() => {
+              {!editingQuantities && !addingItem && (() => {
                 const postInspectionStatuses: OrderStatus[] = ['検品完了', '振込済', '振込確認済']
                 const isPostInspection = postInspectionStatuses.includes(order.status as OrderStatus)
                 const canEdit = !isPostInspection || (userRole && ['admin', 'manager'].includes(userRole))
-                return canEdit ? (
-                  <div data-slot="card-action">
-                    <Button variant="outline" size="sm" onClick={handleStartEditQuantities}>
-                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                      編集
-                    </Button>
+                const canAddItem = (['申込', '発送済'] as OrderStatus[]).includes(order.status as OrderStatus)
+                return (
+                  <div data-slot="card-action" className="flex gap-2">
+                    {canAddItem && (
+                      <Button variant="outline" size="sm" onClick={() => setAddingItem(true)}>
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        商品追加
+                      </Button>
+                    )}
+                    {canEdit && (
+                      <Button variant="outline" size="sm" onClick={handleStartEditQuantities}>
+                        <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                        編集
+                      </Button>
+                    )}
                   </div>
-                ) : null
+                )
               })()}
             </CardHeader>
             <CardContent>
@@ -499,6 +544,58 @@ export default function OrderDetailPage() {
                   <Button onClick={handleSaveQuantities} disabled={savingQuantities}>
                     {savingQuantities ? '保存中...' : '保存'}
                   </Button>
+                </div>
+              )}
+              {addingItem && (
+                <div className="mt-4 rounded-lg border p-4 space-y-3">
+                  <p className="text-sm font-medium">商品を追加</p>
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <Select value={newItemProductId} onValueChange={setNewItemProductId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="商品を選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name}（{p.price.toLocaleString()}円）
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-24">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        min={1}
+                        value={newItemQuantity}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10)
+                          setNewItemQuantity(isNaN(val) ? 1 : Math.max(1, val))
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        placeholder="数量"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { setAddingItem(false); setNewItemProductId(''); setNewItemQuantity(1) }}
+                      disabled={savingNewItem}
+                    >
+                      キャンセル
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleAddItem}
+                      disabled={savingNewItem || !newItemProductId}
+                    >
+                      {savingNewItem ? '追加中...' : '追加'}
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>

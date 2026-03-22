@@ -536,6 +536,56 @@ export async function updateOrderItemQuantities(
   return { success: true }
 }
 
+export async function addOrderItem(
+  orderId: string,
+  item: { product_id: string; product_name: string; unit_price: number; quantity: number }
+) {
+  const supabase = await createClient()
+
+  const { data: order, error: fetchError } = await supabase
+    .from('orders')
+    .select('id, status, tenant_id')
+    .eq('id', orderId)
+    .single()
+
+  if (fetchError || !order) {
+    return { error: '注文が見つかりません' }
+  }
+
+  if (!['申込', '発送済'].includes(order.status)) {
+    return { error: '申込または発送済ステータスの注文のみ商品を追加できます' }
+  }
+
+  const { error: insertError } = await supabase
+    .from('order_items')
+    .insert({
+      order_id: orderId,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      unit_price: item.unit_price,
+      quantity: item.quantity,
+      tenant_id: order.tenant_id,
+    })
+
+  if (insertError) {
+    return { error: `商品の追加に失敗しました: ${insertError.message}` }
+  }
+
+  // 合計金額を再計算
+  const { data: orderItems } = await supabase
+    .from('order_items')
+    .select('unit_price, quantity')
+    .eq('order_id', orderId)
+
+  if (orderItems) {
+    const total_amount = orderItems.reduce((sum, i) => sum + i.unit_price * i.quantity, 0)
+    await supabase.from('orders').update({ total_amount }).eq('id', orderId)
+  }
+
+  revalidatePath(`/admin/orders/${orderId}`)
+  return { success: true }
+}
+
 export async function updateBuybackType(orderId: string, buybackType: BuybackType | null) {
   const supabase = await createClient()
 
