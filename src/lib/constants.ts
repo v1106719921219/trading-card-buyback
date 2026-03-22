@@ -28,6 +28,14 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   'キャンセル': 'bg-red-100 text-red-800',
 }
 
+// ステータスを1つ前に戻す（admin/managerのみ）
+export const STATUS_REVERT: Partial<Record<OrderStatus, OrderStatus>> = {
+  '発送済': '申込',
+  '検品完了': '発送済',
+  '振込済': '検品完了',
+  '振込確認済': '振込済',
+}
+
 export const INSPECTION_STATUSES: InspectionStatus[] = ['問題あり']
 
 export const INSPECTION_STATUS_COLORS: Record<InspectionStatus, string> = {

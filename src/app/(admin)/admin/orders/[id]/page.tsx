@@ -40,7 +40,7 @@ import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalL
 import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice, addOrderItem } from '@/actions/orders'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
-import { STATUS_TRANSITIONS, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
+import { STATUS_TRANSITIONS, STATUS_REVERT, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
 import { toast } from 'sonner'
 import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole, BuybackType, InspectionStatus, Product } from '@/types/database'
 
@@ -60,6 +60,7 @@ export default function OrderDetailPage() {
   const [newTrackingNumber, setNewTrackingNumber] = useState('')
   const [addingTracking, setAddingTracking] = useState(false)
   const [changingStatus, setChangingStatus] = useState(false)
+  const [revertingStatus, setRevertingStatus] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [duplicateOrders, setDuplicateOrders] = useState<{ id: string; order_number: string; status: string; created_at: string; total_amount: number }[]>([])
@@ -170,6 +171,27 @@ export default function OrderDetailPage() {
 
     toast.success(`ステータスを「${newStatus}」に変更しました`)
     setNewStatus('')
+    fetchOrder()
+  }
+
+  async function handleRevertStatus() {
+    if (!order || revertingStatus) return
+    const revertTo = STATUS_REVERT[order.status as OrderStatus]
+    if (!revertTo) return
+    setRevertingStatus(true)
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: revertTo })
+      .eq('id', orderId)
+
+    setRevertingStatus(false)
+    if (error) {
+      toast.error(`ステータスの変更に失敗しました: ${error.message}`)
+      return
+    }
+
+    toast.success(`ステータスを「${revertTo}」に戻しました`)
     fetchOrder()
   }
 
@@ -816,6 +838,38 @@ export default function OrderDetailPage() {
                       <AlertDialogCancel>キャンセル</AlertDialogCancel>
                       <AlertDialogAction onClick={handleStatusChange}>
                         変更する
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ステータスを戻す（admin/managerのみ） */}
+          {userRole && ['admin', 'manager'].includes(userRole) && STATUS_REVERT[order.status as OrderStatus] && (
+            <Card className="border-amber-300">
+              <CardHeader>
+                <CardTitle className="text-sm text-amber-700">ステータスを戻す</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-50" disabled={revertingStatus}>
+                      {revertingStatus ? '変更中...' : `「${STATUS_REVERT[order.status as OrderStatus]}」に戻す`}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>ステータスを戻しますか？</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        「{order.status}」から「{STATUS_REVERT[order.status as OrderStatus]}」に戻します。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleRevertStatus}>
+                        戻す
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
