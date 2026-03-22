@@ -370,10 +370,16 @@ export default function InspectPage() {
                       <Badge variant="outline" className="mt-1">追加</Badge>
                     )}
                     {!item._isNew && (
-                      <p className="text-sm text-muted-foreground mt-0.5">
-                        単価: {item.unit_price.toLocaleString()}円
-                        {order.buyback_type === 'ar_quality' && ` × ${item.quantity}個`}
-                      </p>
+                      <div className="mt-0.5 space-y-0.5">
+                        <p className="text-sm text-muted-foreground">
+                          単価: {item.unit_price.toLocaleString()}円
+                        </p>
+                        {order.buyback_type === 'ar_quality' && (
+                          <p className="text-sm font-medium text-blue-700">
+                            申告数量: {item.quantity}個
+                          </p>
+                        )}
+                      </div>
                     )}
                     {isMismatch && (
                       <p className="text-xs text-red-600 font-medium mt-0.5">
