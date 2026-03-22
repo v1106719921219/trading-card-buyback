@@ -41,7 +41,7 @@ interface InspectItem {
   product_name: string
   unit_price: number
   quantity: number
-  _inspected: number
+  _inspected: number | null  // null = 未入力
   _inspected_price: number
   _returned: number
   _isNew: boolean
@@ -104,7 +104,7 @@ export default function InspectPage() {
         product_name: item.product_name,
         unit_price: item.unit_price,
         quantity: item.quantity,
-        _inspected: item.inspected_quantity ?? item.quantity,
+        _inspected: item.inspected_quantity ?? null,
         _inspected_price: item.unit_price,
         _returned: item.returned_quantity ?? 0,
         _isNew: false,
@@ -126,10 +126,19 @@ export default function InspectPage() {
     fetchOrder()
   }, [orderId])
 
-  function updateItem(id: string, field: '_inspected' | '_inspected_price' | '_returned', value: number) {
+  function updateItem(id: string, field: '_inspected_price' | '_returned', value: number) {
     setItems(items.map((item) =>
       item.id === id ? { ...item, [field]: Math.max(0, value) } : item
     ))
+  }
+
+  function updateInspected(id: string, raw: string) {
+    setItems(items.map((item) => {
+      if (item.id !== id) return item
+      if (raw === '') return { ...item, _inspected: null }
+      const val = parseInt(raw, 10)
+      return { ...item, _inspected: isNaN(val) ? null : Math.max(0, val) }
+    }))
   }
 
   function addItem() {
@@ -173,12 +182,21 @@ export default function InspectPage() {
     .reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
 
   const inspectedSubtotal = items.reduce(
-    (sum, item) => sum + item._inspected_price * (item._inspected - item._returned), 0
+    (sum, item) => sum + item._inspected_price * ((item._inspected ?? 0) - item._returned), 0
   )
+
+  // 既存商品（_isNew=false）が全て入力済みかどうか
+  const allInspected = items.filter((i) => !i._isNew).every((i) => i._inspected !== null)
   const inspectedTotal = inspectedSubtotal - discount
   const difference = inspectedTotal - originalTotal
 
   async function handleSave(): Promise<boolean> {
+    // Validate: 既存商品の検品数量が全て入力済みか
+    const uninspected = items.filter((i) => !i._isNew && i._inspected === null)
+    if (uninspected.length > 0) {
+      toast.error(`${uninspected.length}件の商品の検品数量が未入力です`)
+      return false
+    }
     // Validate new items
     for (const item of items) {
       if (item._isNew && (!item.product_name || item._inspected_price <= 0)) {
@@ -195,7 +213,7 @@ export default function InspectPage() {
       const { error } = await supabase
         .from('order_items')
         .update({
-          inspected_quantity: item._inspected,
+          inspected_quantity: item._inspected ?? 0,
           unit_price: item._inspected_price,
           returned_quantity: item._returned,
         })
@@ -323,9 +341,11 @@ export default function InspectPage() {
 
       <div className="space-y-4">
         {items.map((item, index) => {
-          const subtotal = item._inspected_price * (item._inspected - item._returned)
+          const subtotal = item._inspected_price * ((item._inspected ?? 0) - item._returned)
+          const isMismatch = !item._isNew && item._inspected !== null && item._inspected !== item.quantity
+          const isUnfilled = !item._isNew && item._inspected === null
           return (
-            <Card key={item.id}>
+            <Card key={item.id} className={isMismatch ? 'border-red-400' : isUnfilled ? 'border-amber-400' : ''}>
               <CardContent className="pt-5 pb-4 space-y-4">
                 {/* Product name */}
                 <div className="flex items-start justify-between gap-2">
@@ -351,12 +371,17 @@ export default function InspectPage() {
                     )}
                     {!item._isNew && (
                       <p className="text-sm text-muted-foreground mt-0.5">
-                        申告: {item.unit_price.toLocaleString()}円 x {item.quantity}個
+                        単価: {item.unit_price.toLocaleString()}円
+                      </p>
+                    )}
+                    {isMismatch && (
+                      <p className="text-xs text-red-600 font-medium mt-0.5">
+                        ⚠ 申告数量（{item.quantity}個）と異なります
                       </p>
                     )}
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-lg font-bold">{subtotal.toLocaleString()}円</p>
+                    <p className="text-lg font-bold">{item._inspected !== null ? subtotal.toLocaleString() : '-'}円</p>
                     <p className="text-xs text-muted-foreground">検品後小計</p>
                   </div>
                   <Button
@@ -374,43 +399,42 @@ export default function InspectPage() {
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1 block">検品単価</Label>
                     <Input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       value={item._inspected_price || ''}
                       onChange={(e) =>
                         updateItem(item.id, '_inspected_price', Number(e.target.value))
                       }
                       onFocus={(e) => e.target.select()}
                       className="text-right h-12 text-base"
-                      min={0}
-                      step={100}
                       placeholder="0"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground mb-1 block">検品数量</Label>
+                    <Label className={`text-xs mb-1 block font-medium ${isUnfilled ? 'text-amber-600' : isMismatch ? 'text-red-600' : 'text-muted-foreground'}`}>
+                      検品数量{isUnfilled && ' ※要入力'}
+                    </Label>
                     <Input
-                      type="number"
-                      value={item._inspected || ''}
-                      onChange={(e) =>
-                        updateItem(item.id, '_inspected', Number(e.target.value))
-                      }
+                      type="text"
+                      inputMode="numeric"
+                      value={item._inspected === null ? '' : String(item._inspected)}
+                      onChange={(e) => updateInspected(item.id, e.target.value)}
                       onFocus={(e) => e.target.select()}
-                      className="text-right h-12 text-base"
-                      min={0}
-                      placeholder="0"
+                      className={`text-right h-12 text-base ${isUnfilled ? 'border-amber-400 bg-amber-50' : isMismatch ? 'border-red-400 bg-red-50' : ''}`}
+                      placeholder="未入力"
                     />
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1 block">返品数量</Label>
                     <Input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       value={item._returned || ''}
                       onChange={(e) =>
                         updateItem(item.id, '_returned', Number(e.target.value))
                       }
                       onFocus={(e) => e.target.select()}
                       className="text-right h-12 text-base"
-                      min={0}
                       placeholder="0"
                     />
                   </div>
@@ -517,14 +541,19 @@ export default function InspectPage() {
       </div>
 
       {/* Actions - sticky bottom for iPad */}
-      <div className="sticky bottom-0 bg-background border-t py-4 -mx-4 px-4 md:-mx-8 md:px-8 flex justify-end gap-3">
+      <div className="sticky bottom-0 bg-background border-t py-4 -mx-4 px-4 md:-mx-8 md:px-8 flex items-center justify-end gap-3">
+        {!allInspected && (
+          <p className="text-sm text-amber-600 mr-auto">
+            {items.filter((i) => !i._isNew && i._inspected === null).length}件の検品数量が未入力です
+          </p>
+        )}
         <Button variant="outline" size="lg" onClick={handleSave} disabled={saving}>
           <Save className="mr-2 h-4 w-4" />
           一時保存
         </Button>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button size="lg">検品完了にする</Button>
+            <Button size="lg" disabled={!allInspected}>検品完了にする</Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
