@@ -374,11 +374,9 @@ export default function InspectPage() {
                         <p className="text-sm text-muted-foreground">
                           単価: {item.unit_price.toLocaleString()}円
                         </p>
-                        {order.buyback_type === 'ar_quality' && (
-                          <p className="text-sm font-medium text-blue-700">
-                            申告数量: {item.quantity}個
-                          </p>
-                        )}
+                        <p className="text-sm font-medium text-blue-700">
+                          申告数量: {item.quantity}個
+                        </p>
                       </div>
                     )}
                     {isMismatch && (
