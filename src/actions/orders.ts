@@ -31,7 +31,7 @@ export async function createOrder(input: CreateOrderInput) {
   // Use admin client for public form submission (bypasses RLS)
   const supabase = createAdminClient()
 
-  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type } = parsed.data
+  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type, kyc_method } = parsed.data
 
   // 重複チェック: 同一テナント・メールアドレスで2分以内の申込があれば既存注文を返す
   const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
@@ -83,6 +83,7 @@ export async function createOrder(input: CreateOrderInput) {
       shipped_date: shipped_date || null,
       price_date: price_date ?? null,
       buyback_type: buyback_type ?? 'minimum_guarantee',
+      kyc_method: kyc_method ?? null,
       tenant_id: tenantId,
     })
     .select('id, order_number')
@@ -530,6 +531,56 @@ export async function updateOrderItemQuantities(
 
   if (updateError) {
     return { error: `合計金額の更新に失敗しました: ${updateError.message}` }
+  }
+
+  revalidatePath(`/admin/orders/${orderId}`)
+  return { success: true }
+}
+
+export async function addOrderItem(
+  orderId: string,
+  item: { product_id: string; product_name: string; unit_price: number; quantity: number }
+) {
+  const supabase = await createClient()
+
+  const { data: order, error: fetchError } = await supabase
+    .from('orders')
+    .select('id, status, tenant_id')
+    .eq('id', orderId)
+    .single()
+
+  if (fetchError || !order) {
+    return { error: '注文が見つかりません' }
+  }
+
+  if (!['申込', '発送済'].includes(order.status)) {
+    return { error: '申込または発送済ステータスの注文のみ商品を追加できます' }
+  }
+
+  const { error: insertError } = await supabase
+    .from('order_items')
+    .insert({
+      order_id: orderId,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      unit_price: item.unit_price,
+      quantity: item.quantity,
+      tenant_id: order.tenant_id,
+    })
+
+  if (insertError) {
+    return { error: `商品の追加に失敗しました: ${insertError.message}` }
+  }
+
+  // 合計金額を再計算
+  const { data: orderItems } = await supabase
+    .from('order_items')
+    .select('unit_price, quantity')
+    .eq('order_id', orderId)
+
+  if (orderItems) {
+    const total_amount = orderItems.reduce((sum, i) => sum + i.unit_price * i.quantity, 0)
+    await supabase.from('orders').update({ total_amount }).eq('id', orderId)
   }
 
   revalidatePath(`/admin/orders/${orderId}`)
