@@ -45,9 +45,11 @@ export default async function RootLayout({
 
   return (
     <html lang="ja">
-      {tenant?.primary_color && (
-        <style>{`:root { --primary: ${tenant.primary_color}; }`}</style>
-      )}
+      <head>
+        {tenant?.primary_color && (
+          <style>{`:root { --primary: ${tenant.primary_color}; }`}</style>
+        )}
+      </head>
       <body
         className={`${notoSansJP.variable} ${geistMono.variable} antialiased`}
       >
