@@ -309,7 +309,12 @@ export default function InspectPage() {
     }
 
     toast.success('検品が完了しました')
-    router.push(`/admin/orders/${orderId}`)
+    const officeId = order?.office_id
+    if (officeId) {
+      router.push(`/admin/offices/${officeId}`)
+    } else {
+      router.push(`/admin/orders`)
+    }
   }
 
   if (loading || !order) {
