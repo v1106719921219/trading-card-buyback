@@ -106,6 +106,8 @@ export interface Order {
   arrival_date: string | null
   price_date: string | null
   assigned_to: string | null
+  kyc_method: string | null
+  kyc_document_received: boolean | null
   tenant_id: string
   created_at: string
   updated_at: string

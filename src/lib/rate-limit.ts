@@ -85,4 +85,6 @@ export const RATE_LIMITS = {
   applyForm: { limit: 5, windowMs: 10 * 60 * 1000 } satisfies RateLimitConfig,
   /** 一般API: 100回/1分/IP */
   api: { limit: 100, windowMs: 60 * 1000 } satisfies RateLimitConfig,
+  /** KYC画像アップロード: 20回/10分/IP */
+  kycUpload: { limit: 20, windowMs: 10 * 60 * 1000 } satisfies RateLimitConfig,
 } as const
