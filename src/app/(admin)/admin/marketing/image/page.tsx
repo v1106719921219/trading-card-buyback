@@ -195,7 +195,7 @@ export default function MarketingImagePage() {
         {/* 右: プレビュー */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">プレビュー（実際の画像サイズ: 1080×1080）</p>
+            <p className="text-sm text-muted-foreground">プレビュー（実際の画像サイズ: 1600×900 / X推奨）</p>
             <Button onClick={handleDownload} disabled={downloading || selectedIds.size === 0} className="gap-2">
               <Download className="h-4 w-4" />
               {downloading ? '生成中...' : 'PNG ダウンロード'}
@@ -204,7 +204,7 @@ export default function MarketingImagePage() {
 
           {/* 画像プレビュー本体 */}
           <div className="overflow-auto border rounded-lg">
-            <div style={{ transform: 'scale(0.45)', transformOrigin: 'top left', width: '1080px', height: 'auto' }}>
+            <div style={{ transform: 'scale(0.38)', transformOrigin: 'top left', width: '1600px', height: '900px' }}>
               <PriceImageCanvas ref={previewRef} products={selectedProducts} />
             </div>
           </div>
@@ -222,34 +222,35 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
       <div
         ref={ref}
         style={{
-          width: '1080px',
-          minHeight: '1080px',
+          width: '1600px',
+          height: '900px',
           background: 'linear-gradient(160deg, #FFE000 0%, #FFC200 100%)',
           fontFamily: '"Hiragino Kaku Gothic ProN", "Noto Sans JP", "Meiryo", sans-serif',
-          padding: '40px',
+          padding: '32px 40px',
           boxSizing: 'border-box',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
         {/* ヘッダー */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
-          <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
             <div style={{
               background: '#CC0000',
               color: 'white',
-              fontSize: '28px',
+              fontSize: '22px',
               fontWeight: 900,
-              padding: '8px 20px',
+              padding: '6px 18px',
               borderRadius: '8px',
-              display: 'inline-block',
               letterSpacing: '0.05em',
             }}>
               買取スクエア
             </div>
             <div style={{
-              fontSize: '42px',
+              fontSize: '36px',
               fontWeight: 900,
               color: '#CC0000',
-              marginTop: '10px',
               textShadow: '2px 2px 0 rgba(0,0,0,0.1)',
               letterSpacing: '0.05em',
             }}>
@@ -257,35 +258,36 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
             </div>
           </div>
           {/* 吹き出し */}
-          <div style={{ position: 'relative', marginTop: '8px' }}>
-            <div style={{
-              background: 'white',
-              border: '4px solid #CC0000',
-              borderRadius: '50%',
-              width: '140px',
-              height: '140px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              flexDirection: 'column',
-              boxShadow: '3px 3px 0 rgba(204,0,0,0.3)',
-            }}>
-              <div style={{ fontSize: '13px', fontWeight: 900, color: '#CC0000', lineHeight: 1.3 }}>
-                全種<br />シュリンクあり！
-              </div>
+          <div style={{
+            background: 'white',
+            border: '4px solid #CC0000',
+            borderRadius: '50%',
+            width: '110px',
+            height: '110px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            flexDirection: 'column',
+            boxShadow: '3px 3px 0 rgba(204,0,0,0.3)',
+            flexShrink: 0,
+          }}>
+            <div style={{ fontSize: '11px', fontWeight: 900, color: '#CC0000', lineHeight: 1.3 }}>
+              全種<br />シュリンクあり！
             </div>
           </div>
         </div>
 
         {/* 仕切り線 */}
-        <div style={{ height: '4px', background: '#CC0000', borderRadius: '2px', marginBottom: '24px' }} />
+        <div style={{ height: '3px', background: '#CC0000', borderRadius: '2px', marginBottom: '16px', flexShrink: 0 }} />
 
         {/* 商品グリッド */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(6, 1fr)',
-          gap: '14px',
+          gridTemplateColumns: 'repeat(10, 1fr)',
+          gap: '10px',
+          flex: 1,
+          overflow: 'hidden',
         }}>
           {products.map((product) => (
             <div
@@ -316,13 +318,13 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
                 )}
               </div>
               {/* 商品名 + 価格 */}
-              <div style={{ padding: '6px 6px 8px', textAlign: 'center', flex: 1 }}>
+              <div style={{ padding: '4px 4px 6px', textAlign: 'center', flex: 1 }}>
                 <div style={{
-                  fontSize: '11px',
+                  fontSize: '9px',
                   fontWeight: 700,
                   color: '#333',
                   lineHeight: 1.3,
-                  marginBottom: '4px',
+                  marginBottom: '3px',
                   overflow: 'hidden',
                   display: '-webkit-box',
                   WebkitLineClamp: 2,
@@ -333,9 +335,9 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
                 <div style={{
                   background: '#CC0000',
                   color: 'white',
-                  borderRadius: '4px',
-                  padding: '3px 4px',
-                  fontSize: '12px',
+                  borderRadius: '3px',
+                  padding: '2px 3px',
+                  fontSize: '10px',
                   fontWeight: 900,
                 }}>
                   【{product.price.toLocaleString('ja-JP')}円】
