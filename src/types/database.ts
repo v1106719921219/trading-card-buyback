@@ -49,6 +49,7 @@ export interface Product {
   is_active: boolean
   show_in_price_list: boolean
   sort_order: number
+  image_url: string | null
   created_at: string
   updated_at: string
   // joined

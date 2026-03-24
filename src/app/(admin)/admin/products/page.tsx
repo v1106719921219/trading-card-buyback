@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Pencil, Trash2, Search, Upload, Download, ArrowUp, ArrowDown, Eye, EyeOff, Settings } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, Upload, Download, ArrowUp, ArrowDown, Eye, EyeOff, Settings, ImageIcon } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -63,6 +63,8 @@ export default function ProductsPage() {
   const [formCategoryId, setFormCategoryId] = useState('')
   const [formSubcategoryId, setFormSubcategoryId] = useState('none')
   const [formPrice, setFormPrice] = useState(0)
+  const [formImageUrl, setFormImageUrl] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   // Inline price editing
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
@@ -174,6 +176,7 @@ export default function ProductsPage() {
     setFormCategoryId(categories[0]?.id || '')
     setFormSubcategoryId('none')
     setFormPrice(0)
+    setFormImageUrl(null)
     setDialogOpen(true)
   }
 
@@ -183,14 +186,35 @@ export default function ProductsPage() {
     setFormCategoryId(product.category_id)
     setFormSubcategoryId(product.subcategory_id || 'none')
     setFormPrice(product.price)
+    setFormImageUrl(product.image_url ?? null)
     setDialogOpen(true)
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingImage(true)
+    const ext = file.name.split('.').pop()
+    const path = `${Date.now()}.${ext}`
+    const { error } = await supabase.storage
+      .from('product-images')
+      .upload(path, file, { upsert: true })
+    if (error) {
+      toast.error('画像のアップロードに失敗しました')
+      setUploadingImage(false)
+      return
+    }
+    const { data } = supabase.storage.from('product-images').getPublicUrl(path)
+    setFormImageUrl(data.publicUrl)
+    setUploadingImage(false)
+    toast.success('画像をアップロードしました')
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
     if (editing) {
-      const updateData: Record<string, unknown> = { name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice }
+      const updateData: Record<string, unknown> = { name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, image_url: formImageUrl }
       if (formPrice === 0) updateData.show_in_price_list = false
       const { error } = await supabase
         .from('products')
@@ -205,7 +229,7 @@ export default function ProductsPage() {
     } else {
       const { error } = await supabase
         .from('products')
-        .insert({ name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, show_in_price_list: formPrice > 0, tenant_id: tenantId })
+        .insert({ name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, show_in_price_list: formPrice > 0, image_url: formImageUrl, tenant_id: tenantId })
 
       if (error) {
         toast.error(error.code === '23505' ? 'この商品名は既に存在します' : error.message)
@@ -649,7 +673,30 @@ export default function ProductsPage() {
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full">
+                  <div className="space-y-2">
+                    <Label>商品画像（SNS画像生成用）</Label>
+                    {formImageUrl && (
+                      <div className="relative w-20 h-20 rounded border overflow-hidden mb-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={formImageUrl} alt="商品画像" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setFormImageUrl(null)}
+                          className="absolute top-0 right-0 bg-destructive text-destructive-foreground text-xs px-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={uploadingImage}
+                    />
+                    {uploadingImage && <p className="text-xs text-muted-foreground">アップロード中...</p>}
+                  </div>
+                  <Button type="submit" className="w-full" disabled={uploadingImage}>
                     {editing ? '更新' : '作成'}
                   </Button>
                 </form>
@@ -778,6 +825,7 @@ export default function ProductsPage() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-16 hidden md:table-cell">順序</TableHead>
+              <TableHead className="w-10 hidden sm:table-cell">画像</TableHead>
               <TableHead>商品名</TableHead>
               <TableHead className="hidden sm:table-cell">カテゴリ</TableHead>
               <TableHead className="hidden lg:table-cell">サブカテゴリ</TableHead>
@@ -821,6 +869,14 @@ export default function ProductsPage() {
                         <ArrowDown className="h-3 w-3" />
                       </Button>
                     </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {product.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded" />
+                    ) : (
+                      <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
+                    )}
                   </TableCell>
                   <TableCell className="font-medium">{product.name}</TableCell>
                   <TableCell className="hidden sm:table-cell">

@@ -18,6 +18,7 @@ import {
   Menu,
   TrendingUp,
   Megaphone,
+  ImageIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -42,6 +43,7 @@ const navItems = [
   { href: '/admin/products/price-history', label: '価格履歴', icon: TrendingUp },
   { href: '/admin/categories', label: 'カテゴリ管理', icon: FolderOpen },
   { href: '/admin/marketing', label: 'SNS投稿文生成', icon: Megaphone },
+  { href: '/admin/marketing/image', label: 'SNS価格画像生成', icon: ImageIcon },
   { href: '/admin/payments', label: '振込管理', icon: CreditCard },
   { href: '/admin/payment-verification', label: '振込確認', icon: ShieldCheck },
   { href: '/admin/returns', label: '返品管理', icon: Undo2 },
