@@ -218,15 +218,18 @@ import React from 'react'
 
 const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWithRelations[] }>(
   ({ products }, ref) => {
+    // 最大24件（6列×4行）
+    const displayProducts = products.slice(0, 24)
+
     return (
       <div
         ref={ref}
         style={{
           width: '1600px',
           height: '900px',
-          background: 'linear-gradient(160deg, #FFE000 0%, #FFC200 100%)',
+          background: 'linear-gradient(150deg, #FFE800 0%, #FFBA00 60%, #FF9500 100%)',
           fontFamily: '"Hiragino Kaku Gothic ProN", "Noto Sans JP", "Meiryo", sans-serif',
-          padding: '32px 40px',
+          padding: '24px 32px',
           boxSizing: 'border-box',
           overflow: 'hidden',
           display: 'flex',
@@ -234,114 +237,151 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
         }}
       >
         {/* ヘッダー */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+            {/* ロゴバッジ */}
             <div style={{
               background: '#CC0000',
               color: 'white',
-              fontSize: '22px',
+              fontSize: '18px',
               fontWeight: 900,
-              padding: '6px 18px',
-              borderRadius: '8px',
+              padding: '5px 14px',
+              borderRadius: '6px',
               letterSpacing: '0.05em',
+              boxShadow: '0 3px 0 #880000',
             }}>
               買取スクエア
             </div>
+            {/* タイトル：縁取り文字 */}
             <div style={{
-              fontSize: '36px',
+              fontSize: '44px',
               fontWeight: 900,
               color: '#CC0000',
-              textShadow: '2px 2px 0 rgba(0,0,0,0.1)',
-              letterSpacing: '0.05em',
+              letterSpacing: '0.06em',
+              textShadow: [
+                '-3px -3px 0 white',
+                ' 3px -3px 0 white',
+                '-3px  3px 0 white',
+                ' 3px  3px 0 white',
+                '-3px  0   0 white',
+                ' 3px  0   0 white',
+                ' 0   -3px 0 white',
+                ' 0    3px 0 white',
+                ' 4px  4px 0 rgba(0,0,0,0.15)',
+              ].join(','),
             }}>
               買い取り商品
             </div>
           </div>
-          {/* 吹き出し */}
-          <div style={{
-            background: 'white',
-            border: '4px solid #CC0000',
-            borderRadius: '50%',
-            width: '110px',
-            height: '110px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textAlign: 'center',
-            flexDirection: 'column',
-            boxShadow: '3px 3px 0 rgba(204,0,0,0.3)',
-            flexShrink: 0,
-          }}>
-            <div style={{ fontSize: '11px', fontWeight: 900, color: '#CC0000', lineHeight: 1.3 }}>
-              全種<br />シュリンクあり！
+
+          {/* 吹き出し（強化版） */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            {/* 吹き出しの尾 */}
+            <div style={{
+              position: 'absolute',
+              bottom: '-14px',
+              left: '20px',
+              width: 0,
+              height: 0,
+              borderLeft: '12px solid transparent',
+              borderRight: '12px solid transparent',
+              borderTop: '16px solid #CC0000',
+            }} />
+            <div style={{
+              position: 'absolute',
+              bottom: '-10px',
+              left: '23px',
+              width: 0,
+              height: 0,
+              borderLeft: '9px solid transparent',
+              borderRight: '9px solid transparent',
+              borderTop: '12px solid white',
+            }} />
+            {/* 吹き出し本体 */}
+            <div style={{
+              background: 'white',
+              border: '5px solid #CC0000',
+              borderRadius: '16px',
+              padding: '10px 18px',
+              textAlign: 'center',
+              boxShadow: '3px 3px 0 rgba(204,0,0,0.35)',
+              minWidth: '130px',
+            }}>
+              <div style={{ fontSize: '13px', fontWeight: 900, color: '#CC0000', lineHeight: 1.5, whiteSpace: 'nowrap' }}>
+                ✨ 全種シュリンクあり！ ✨
+              </div>
             </div>
           </div>
         </div>
 
         {/* 仕切り線 */}
-        <div style={{ height: '3px', background: '#CC0000', borderRadius: '2px', marginBottom: '16px', flexShrink: 0 }} />
+        <div style={{ height: '4px', background: '#CC0000', borderRadius: '2px', marginBottom: '12px', flexShrink: 0, boxShadow: '0 2px 0 rgba(0,0,0,0.1)' }} />
 
-        {/* 商品グリッド */}
+        {/* 商品グリッド（白ボックスなし・6列） */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(10, 1fr)',
-          gap: '10px',
+          gridTemplateColumns: 'repeat(6, 1fr)',
+          gridTemplateRows: 'repeat(4, 1fr)',
+          gap: '10px 14px',
           flex: 1,
           overflow: 'hidden',
         }}>
-          {products.map((product) => (
+          {displayProducts.map((product) => (
             <div
               key={product.id}
               style={{
-                background: 'white',
-                borderRadius: '10px',
-                overflow: 'hidden',
-                boxShadow: '2px 4px 8px rgba(0,0,0,0.15)',
                 display: 'flex',
                 flexDirection: 'column',
+                alignItems: 'center',
+                gap: '4px',
+                overflow: 'hidden',
               }}
             >
-              {/* 商品画像 */}
-              <div style={{ aspectRatio: '3/4', background: '#f5f5f5', overflow: 'hidden' }}>
+              {/* 商品画像（白ボックスなし） */}
+              <div style={{ flex: 1, width: '100%', overflow: 'hidden', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {product.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={product.image_url}
                     alt={product.name}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     crossOrigin="anonymous"
                   />
                 ) : (
-                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc', fontSize: '12px' }}>
+                  <div style={{ width: '100%', height: '100%', background: 'rgba(255,255,255,0.4)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888', fontSize: '10px' }}>
                     NO IMAGE
                   </div>
                 )}
               </div>
-              {/* 商品名 + 価格 */}
-              <div style={{ padding: '4px 4px 6px', textAlign: 'center', flex: 1 }}>
-                <div style={{
-                  fontSize: '9px',
-                  fontWeight: 700,
-                  color: '#333',
-                  lineHeight: 1.3,
-                  marginBottom: '3px',
-                  overflow: 'hidden',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical' as const,
-                }}>
-                  {product.name}
-                </div>
-                <div style={{
-                  background: '#CC0000',
-                  color: 'white',
-                  borderRadius: '3px',
-                  padding: '2px 3px',
-                  fontSize: '10px',
-                  fontWeight: 900,
-                }}>
-                  【{product.price.toLocaleString('ja-JP')}円】
-                </div>
+              {/* 商品名 */}
+              <div style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                color: '#1a1a1a',
+                textAlign: 'center',
+                lineHeight: 1.3,
+                width: '100%',
+                overflow: 'hidden',
+                display: '-webkit-box',
+                WebkitLineClamp: 1,
+                WebkitBoxOrient: 'vertical' as const,
+                flexShrink: 0,
+              }}>
+                {product.name}
+              </div>
+              {/* 価格バッジ */}
+              <div style={{
+                background: '#CC0000',
+                color: 'white',
+                borderRadius: '4px',
+                padding: '2px 6px',
+                fontSize: '11px',
+                fontWeight: 900,
+                whiteSpace: 'nowrap',
+                boxShadow: '0 2px 0 #880000',
+                flexShrink: 0,
+              }}>
+                {product.price.toLocaleString('ja-JP')}円
               </div>
             </div>
           ))}
