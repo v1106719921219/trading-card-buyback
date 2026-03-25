@@ -65,7 +65,7 @@ export default function OrderDetailPage() {
   const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [duplicateOrders, setDuplicateOrders] = useState<{ id: string; order_number: string; status: string; created_at: string; total_amount: number }[]>([])
   const [editingQuantities, setEditingQuantities] = useState(false)
-  const [editItems, setEditItems] = useState<{ id: string; quantity: number }[]>([])
+  const [editItems, setEditItems] = useState<{ id: string; quantity: number; unit_price: number }[]>([])
   const [savingQuantities, setSavingQuantities] = useState(false)
   const [savingBuybackType, setSavingBuybackType] = useState(false)
   const [offices, setOffices] = useState<Office[]>([])
@@ -254,7 +254,7 @@ export default function OrderDetailPage() {
   }
 
   function handleStartEditQuantities() {
-    setEditItems(items.map((item) => ({ id: item.id, quantity: item.quantity })))
+    setEditItems(items.map((item) => ({ id: item.id, quantity: item.quantity, unit_price: item.unit_price })))
     setEditingQuantities(true)
   }
 
@@ -466,15 +466,37 @@ export default function OrderDetailPage() {
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.product_name}</TableCell>
                       <TableCell className="text-right">
-                        {item.unit_price.toLocaleString()}円
+                        {editingQuantities ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              className="w-28 text-right"
+                              value={editItems.find((e) => e.id === item.id)?.unit_price ?? item.unit_price}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value.replace(/,/g, ''), 10)
+                                setEditItems((prev) =>
+                                  prev.map((ei) =>
+                                    ei.id === item.id ? { ...ei, unit_price: isNaN(val) ? 0 : val } : ei
+                                  )
+                                )
+                              }}
+                            />
+                            <span className="text-sm">円</span>
+                          </div>
+                        ) : (
+                          `${item.unit_price.toLocaleString()}円`
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         {editingQuantities ? (
                           <Input
-                            type="number"
-                            min={0}
+                            type="text"
+                            inputMode="numeric"
                             className="w-20 ml-auto text-right"
                             value={editItems.find((e) => e.id === item.id)?.quantity ?? item.quantity}
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
                               const val = parseInt(e.target.value, 10)
                               setEditItems((prev) =>

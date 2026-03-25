@@ -491,15 +491,17 @@ export async function updateOrderItems(
 
 export async function updateOrderItemQuantities(
   orderId: string,
-  items: { id: string; quantity: number }[]
+  items: { id: string; quantity: number; unit_price?: number }[]
 ) {
   const supabase = await createClient()
 
-  // 各order_itemのquantityを更新
+  // 各order_itemのquantity（および単価）を更新
   for (const item of items) {
+    const updateData: { quantity: number; unit_price?: number } = { quantity: item.quantity }
+    if (item.unit_price !== undefined) updateData.unit_price = item.unit_price
     const { error } = await supabase
       .from('order_items')
-      .update({ quantity: item.quantity })
+      .update(updateData)
       .eq('id', item.id)
       .eq('order_id', orderId)
 
