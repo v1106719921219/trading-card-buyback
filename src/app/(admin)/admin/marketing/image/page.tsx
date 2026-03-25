@@ -241,14 +241,14 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
           <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
             {/* ロゴバッジ */}
             <div style={{
-              background: '#CC0000',
+              background: '#222222',
               color: 'white',
               fontSize: '18px',
               fontWeight: 900,
               padding: '5px 14px',
               borderRadius: '6px',
               letterSpacing: '0.05em',
-              boxShadow: '0 3px 0 #880000',
+              boxShadow: '0 3px 0 #000000',
             }}>
               買取スクエア
             </div>
@@ -256,7 +256,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
             <div style={{
               fontSize: '44px',
               fontWeight: 900,
-              color: '#CC0000',
+              color: '#111111',
               letterSpacing: '0.06em',
               textShadow: [
                 '-3px -3px 0 white',
@@ -355,33 +355,25 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
               </div>
               {/* 商品名 */}
               <div style={{
-                fontSize: '10px',
+                fontSize: '11px',
                 fontWeight: 700,
                 color: '#1a1a1a',
                 textAlign: 'center',
                 lineHeight: 1.3,
                 width: '100%',
-                overflow: 'hidden',
-                display: '-webkit-box',
-                WebkitLineClamp: 1,
-                WebkitBoxOrient: 'vertical' as const,
                 flexShrink: 0,
               }}>
                 {product.name}
               </div>
-              {/* 価格バッジ */}
+              {/* 価格 */}
               <div style={{
-                background: '#CC0000',
-                color: 'white',
-                borderRadius: '4px',
-                padding: '2px 6px',
-                fontSize: '11px',
+                fontSize: '13px',
                 fontWeight: 900,
+                color: '#111111',
                 whiteSpace: 'nowrap',
-                boxShadow: '0 2px 0 #880000',
                 flexShrink: 0,
               }}>
-                {product.price.toLocaleString('ja-JP')}円
+                【{product.price.toLocaleString('ja-JP')}円】
               </div>
             </div>
           ))}
