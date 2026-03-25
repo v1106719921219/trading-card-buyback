@@ -231,9 +231,8 @@ export default function ProductsPage() {
         .then((r) => r.json())
         .then((data) => {
           if (data.success) toast.success(`千葉にも同期しました（${data.syncCount}件）`)
-          else toast.info(`千葉同期: ${JSON.stringify(data)}`)
         })
-        .catch((e) => toast.error(`千葉への同期に失敗しました: ${e}`))
+        .catch(() => toast.error('千葉への同期に失敗しました'))
     } else {
       const { error } = await supabase
         .from('products')
