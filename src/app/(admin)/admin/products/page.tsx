@@ -915,11 +915,12 @@ export default function ProductsPage() {
                     {editingPriceId === product.id ? (
                       <div className="flex items-center justify-end gap-1">
                         <Input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           value={editingPriceValue}
-                          onChange={(e) => setEditingPriceValue(Number(e.target.value))}
+                          onChange={(e) => setEditingPriceValue(Number(e.target.value.replace(/[^0-9]/g, '')))}
                           className="w-24 h-8 text-right"
-                          min={0}
+                          onFocus={(e) => e.target.select()}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') saveInlinePrice(product.id)
                             if (e.key === 'Escape') setEditingPriceId(null)
