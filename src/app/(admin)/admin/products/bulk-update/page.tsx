@@ -124,6 +124,7 @@ export default function BulkUpdatePage() {
     toast.success(`${changedProducts.length}件の価格を更新しました`)
     setSaving(false)
     fetchData()
+    fetch('/api/sync-prices-to-chiba', { method: 'POST' }).catch(() => {})
   }
 
   return (

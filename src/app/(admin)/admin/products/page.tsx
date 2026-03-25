@@ -226,6 +226,7 @@ export default function ProductsPage() {
         return
       }
       toast.success('商品を更新しました')
+      fetch('/api/sync-prices-to-chiba', { method: 'POST' }).catch(() => {})
     } else {
       const { error } = await supabase
         .from('products')
@@ -236,6 +237,7 @@ export default function ProductsPage() {
         return
       }
       toast.success('商品を作成しました')
+      fetch('/api/sync-prices-to-chiba', { method: 'POST' }).catch(() => {})
     }
 
     setDialogOpen(false)
@@ -267,6 +269,7 @@ export default function ProductsPage() {
     toast.success('価格を更新しました')
     setEditingPriceId(null)
     fetchData()
+    fetch('/api/sync-prices-to-chiba', { method: 'POST' }).catch(() => {})
   }
 
   function parseCsv() {
