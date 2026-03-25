@@ -269,7 +269,14 @@ export default function ProductsPage() {
     toast.success('価格を更新しました')
     setEditingPriceId(null)
     fetchData()
-    fetch('/api/sync-prices-to-chiba', { method: 'POST' }).catch(() => {})
+
+    // 千葉への自動同期（東京のみ有効・バックグラウンド）
+    fetch('/api/sync-prices-to-chiba', { method: 'POST' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) toast.success(`千葉にも同期しました（${data.syncCount}件）`)
+      })
+      .catch(() => toast.error('千葉への同期に失敗しました'))
   }
 
   function parseCsv() {
