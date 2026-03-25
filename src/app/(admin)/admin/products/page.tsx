@@ -226,7 +226,13 @@ export default function ProductsPage() {
         return
       }
       toast.success('商品を更新しました')
-      fetch('/api/sync-prices-to-chiba', { method: 'POST' }).catch(() => {})
+      fetch('/api/sync-prices-to-chiba', { method: 'POST' })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success) toast.success(`千葉にも同期しました（${data.syncCount}件）`)
+          else toast.info(`千葉同期: ${JSON.stringify(data)}`)
+        })
+        .catch((e) => toast.error(`千葉への同期に失敗しました: ${e}`))
     } else {
       const { error } = await supabase
         .from('products')
