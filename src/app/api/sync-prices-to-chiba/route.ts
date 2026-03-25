@@ -50,14 +50,28 @@ export async function POST(request: Request) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
-  const { data: chibaTenant } = await chibaSupabase
+  let { data: chibaTenant } = await chibaSupabase
     .from('tenants')
     .select('id')
     .eq('slug', 'chiba')
     .single()
 
   if (!chibaTenant) {
-    return NextResponse.json({ error: '千葉テナントが見つかりません' }, { status: 404 })
+    // 千葉テナントが存在しない場合は自動作成
+    const { data: newTenant, error: createError } = await chibaSupabase
+      .from('tenants')
+      .insert({
+        slug: 'chiba',
+        name: '千葉店',
+        display_name: '千葉店 トレカ買取',
+        plan: 'pro',
+      })
+      .select('id')
+      .single()
+    if (createError || !newTenant) {
+      return NextResponse.json({ error: `千葉テナント作成失敗: ${createError?.message}` }, { status: 500 })
+    }
+    chibaTenant = newTenant
   }
 
   // 千葉のカテゴリ・サブカテゴリを取得
