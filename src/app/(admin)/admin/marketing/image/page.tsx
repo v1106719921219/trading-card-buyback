@@ -27,6 +27,15 @@ export default function MarketingImagePage() {
   const previewRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
+  // Noto Sans JPをページに動的に読み込む
+  useEffect(() => {
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700;900&display=swap'
+    document.head.appendChild(link)
+    return () => { document.head.removeChild(link) }
+  }, [])
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     const [productsResult, settingResult] = await Promise.all([
@@ -98,11 +107,19 @@ export default function MarketingImagePage() {
     if (!previewRef.current) return
     setDownloading(true)
     try {
+      // フォントが完全に読み込まれるまで待機
+      await document.fonts.load('700 16px "Noto Sans JP"')
+      await document.fonts.load('900 16px "Noto Sans JP"')
+      await document.fonts.ready
+
       const { toPng } = await import('html-to-image')
-      const dataUrl = await toPng(previewRef.current, {
-        quality: 1,
-        pixelRatio: 2,
-      })
+      const options = { quality: 1, pixelRatio: 3 }
+
+      // 1回目：フォントキャッシュを温める（html-to-imageの既知の挙動対策）
+      await toPng(previewRef.current, options)
+      // 2回目：実際の出力
+      const dataUrl = await toPng(previewRef.current, options)
+
       const a = document.createElement('a')
       a.href = dataUrl
       a.download = `買取価格_${new Date().toLocaleDateString('ja-JP').replace(/\//g, '')}.png`
@@ -228,7 +245,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
           width: '1600px',
           height: '900px',
           background: 'linear-gradient(150deg, #FFE800 0%, #FFBA00 60%, #FF9500 100%)',
-          fontFamily: '"Hiragino Kaku Gothic ProN", "Noto Sans JP", "Meiryo", sans-serif',
+          fontFamily: '"Noto Sans JP", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif',
           padding: '24px 32px',
           boxSizing: 'border-box',
           overflow: 'hidden',
@@ -344,7 +361,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
                   <img
                     src={product.image_url}
                     alt={product.name}
-                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.3))' }}
                     crossOrigin="anonymous"
                   />
                 ) : (
