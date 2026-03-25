@@ -68,7 +68,7 @@ export default function ProductsPage() {
 
   // Inline price editing
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
-  const [editingPriceValue, setEditingPriceValue] = useState(0)
+  const [editingPriceValue, setEditingPriceValue] = useState('')
 
   // Bulk price list toggle
   const [bulkAction, setBulkAction] = useState<'show' | 'hide' | null>(null)
@@ -214,7 +214,8 @@ export default function ProductsPage() {
     e.preventDefault()
 
     if (editing) {
-      const updateData: Record<string, unknown> = { name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, image_url: formImageUrl }
+      const updateData: Record<string, unknown> = { name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice }
+      if (formImageUrl !== null) updateData.image_url = formImageUrl
       if (formPrice === 0) updateData.show_in_price_list = false
       const { error } = await supabase
         .from('products')
@@ -236,7 +237,7 @@ export default function ProductsPage() {
     } else {
       const { error } = await supabase
         .from('products')
-        .insert({ name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, show_in_price_list: formPrice > 0, image_url: formImageUrl, tenant_id: tenantId })
+        .insert({ name: formName, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, show_in_price_list: formPrice > 0, tenant_id: tenantId, ...(formImageUrl !== null ? { image_url: formImageUrl } : {}) })
 
       if (error) {
         toast.error(error.code === '23505' ? 'この商品名は既に存在します' : error.message)
@@ -261,8 +262,9 @@ export default function ProductsPage() {
   }
 
   async function saveInlinePrice(id: string) {
-    const updateData: Record<string, unknown> = { price: editingPriceValue }
-    if (editingPriceValue === 0) updateData.show_in_price_list = false
+    const priceNum = Number(editingPriceValue) || 0
+    const updateData: Record<string, unknown> = { price: priceNum }
+    if (priceNum === 0) updateData.show_in_price_list = false
     const { error } = await supabase
       .from('products')
       .update(updateData)
@@ -918,7 +920,7 @@ export default function ProductsPage() {
                           type="text"
                           inputMode="numeric"
                           value={editingPriceValue}
-                          onChange={(e) => setEditingPriceValue(Number(e.target.value.replace(/[^0-9]/g, '')))}
+                          onChange={(e) => setEditingPriceValue(e.target.value.replace(/[^0-9]/g, ''))}
                           className="w-24 h-8 text-right"
                           onFocus={(e) => e.target.select()}
                           onKeyDown={(e) => {
@@ -934,7 +936,7 @@ export default function ProductsPage() {
                         className="cursor-pointer hover:text-primary"
                         onClick={() => {
                           setEditingPriceId(product.id)
-                          setEditingPriceValue(product.price)
+                          setEditingPriceValue(String(product.price))
                         }}
                       >
                         {product.price.toLocaleString()}円
