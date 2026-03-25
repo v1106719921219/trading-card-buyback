@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
-import { Download, RefreshCw, Save, ImageIcon } from 'lucide-react'
+import { Download, RefreshCw, Save, ImageIcon, Upload, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Product, Category, Subcategory } from '@/types/database'
 
 const SETTING_KEY = 'sns_post_default_products'
+const HEADER_IMAGE_KEY = 'sns_image_header_url'
+const FOOTER_IMAGE_KEY = 'sns_image_footer_url'
 
 type ProductWithRelations = Product & {
   category: Category | null
@@ -24,6 +26,10 @@ export default function MarketingImagePage() {
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null)
+  const [footerImageUrl, setFooterImageUrl] = useState<string | null>(null)
+  const [uploadingHeader, setUploadingHeader] = useState(false)
+  const [uploadingFooter, setUploadingFooter] = useState(false)
   const previewRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
@@ -38,18 +44,16 @@ export default function MarketingImagePage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const [productsResult, settingResult] = await Promise.all([
+    const [productsResult, settingResult, headerResult, footerResult] = await Promise.all([
       supabase
         .from('products')
         .select('*, category:categories(*), subcategory:subcategories(*)')
         .eq('is_active', true)
         .eq('show_in_price_list', true)
         .order('sort_order'),
-      supabase
-        .from('app_settings')
-        .select('value')
-        .eq('key', SETTING_KEY)
-        .maybeSingle(),
+      supabase.from('app_settings').select('value').eq('key', SETTING_KEY).maybeSingle(),
+      supabase.from('app_settings').select('value').eq('key', HEADER_IMAGE_KEY).maybeSingle(),
+      supabase.from('app_settings').select('value').eq('key', FOOTER_IMAGE_KEY).maybeSingle(),
     ])
 
     if (productsResult.error) {
@@ -64,8 +68,7 @@ export default function MarketingImagePage() {
     if (settingResult.data?.value) {
       try {
         const savedIds: string[] = JSON.parse(settingResult.data.value)
-        const validIds = new Set(savedIds.filter((id) => prods.some((p) => p.id === id)))
-        setSelectedIds(validIds)
+        setSelectedIds(new Set(savedIds.filter((id) => prods.some((p) => p.id === id))))
       } catch {
         setSelectedIds(new Set(prods.map((p) => p.id)))
       }
@@ -73,6 +76,8 @@ export default function MarketingImagePage() {
       setSelectedIds(new Set(prods.map((p) => p.id)))
     }
 
+    setHeaderImageUrl(headerResult.data?.value ?? null)
+    setFooterImageUrl(footerResult.data?.value ?? null)
     setLoading(false)
   }, [supabase])
 
@@ -103,11 +108,48 @@ export default function MarketingImagePage() {
     else toast.success('デフォルト選択を保存しました')
   }
 
+  async function uploadCanvasImage(
+    file: File,
+    settingKey: string,
+    setUrl: (url: string | null) => void,
+    setUploading: (v: boolean) => void
+  ) {
+    setUploading(true)
+    const ext = file.name.split('.').pop()
+    const path = `canvas-parts/${settingKey}_${Date.now()}.${ext}`
+    const { error } = await supabase.storage
+      .from('product-images')
+      .upload(path, file, { upsert: true })
+    if (error) {
+      toast.error('アップロードに失敗しました')
+      setUploading(false)
+      return
+    }
+    const { data } = supabase.storage.from('product-images').getPublicUrl(path)
+    const url = data.publicUrl
+
+    await supabase.from('app_settings').upsert(
+      { key: settingKey, value: url, description: 'Canvaから書き出したSNS画像パーツ' },
+      { onConflict: 'key' }
+    )
+    setUrl(url)
+    setUploading(false)
+    toast.success('アップロードしました')
+  }
+
+  async function removeCanvasImage(
+    settingKey: string,
+    setUrl: (url: string | null) => void
+  ) {
+    await supabase.from('app_settings').delete().eq('key', settingKey)
+    setUrl(null)
+    toast.success('削除しました')
+  }
+
   async function handleDownload() {
     if (!previewRef.current) return
     setDownloading(true)
     try {
-      // フォントが完全に読み込まれるまで待機
       await document.fonts.load('700 16px "Noto Sans JP"')
       await document.fonts.load('900 16px "Noto Sans JP"')
       await document.fonts.ready
@@ -115,9 +157,7 @@ export default function MarketingImagePage() {
       const { toPng } = await import('html-to-image')
       const options = { quality: 1, pixelRatio: 3 }
 
-      // 1回目：フォントキャッシュを温める（html-to-imageの既知の挙動対策）
       await toPng(previewRef.current, options)
-      // 2回目：実際の出力
       const dataUrl = await toPng(previewRef.current, options)
 
       const a = document.createElement('a')
@@ -144,8 +184,93 @@ export default function MarketingImagePage() {
       />
 
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* 左: 商品選択 */}
+        {/* 左カラム */}
         <div className="space-y-4">
+
+          {/* Canvaパーツ設定 */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Canvaパーツ設定</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Canvaで作ったデザイン画像をアップロードして配置できます。未設定の場合はデフォルトデザインを使用します。
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* ヘッダー画像 */}
+              <div>
+                <p className="text-sm font-medium mb-2">ヘッダー画像（ロゴ・タイトル部分）</p>
+                {headerImageUrl ? (
+                  <div className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={headerImageUrl} alt="ヘッダー" className="w-full rounded border object-contain max-h-32" />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-1 right-1 h-6 w-6"
+                      onClick={() => removeCanvasImage(HEADER_IMAGE_KEY, setHeaderImageUrl)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-2 cursor-pointer border-2 border-dashed rounded-md p-3 hover:bg-muted transition-colors">
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      {uploadingHeader ? 'アップロード中...' : 'PNG/JPGをアップロード'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingHeader}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) uploadCanvasImage(file, HEADER_IMAGE_KEY, setHeaderImageUrl, setUploadingHeader)
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* フッター画像 */}
+              <div>
+                <p className="text-sm font-medium mb-2">フッター画像（任意）</p>
+                {footerImageUrl ? (
+                  <div className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={footerImageUrl} alt="フッター" className="w-full rounded border object-contain max-h-20" />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-1 right-1 h-6 w-6"
+                      onClick={() => removeCanvasImage(FOOTER_IMAGE_KEY, setFooterImageUrl)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-2 cursor-pointer border-2 border-dashed rounded-md p-3 hover:bg-muted transition-colors">
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      {uploadingFooter ? 'アップロード中...' : 'PNG/JPGをアップロード（任意）'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingFooter}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) uploadCanvasImage(file, FOOTER_IMAGE_KEY, setFooterImageUrl, setUploadingFooter)
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 商品選択 */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
@@ -154,13 +279,7 @@ export default function MarketingImagePage() {
                   <span className="text-sm text-muted-foreground">
                     {selectedIds.size} / {products.length} 件
                   </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={saveDefaults}
-                    disabled={saving}
-                    className="gap-1"
-                  >
+                  <Button variant="outline" size="sm" onClick={saveDefaults} disabled={saving} className="gap-1">
                     <Save className="h-3.5 w-3.5" />
                     デフォルト保存
                   </Button>
@@ -171,7 +290,7 @@ export default function MarketingImagePage() {
               </div>
               {noImageCount > 0 && (
                 <p className="text-xs text-amber-600 mt-1">
-                  ⚠ 画像未設定の商品が {noImageCount} 件あります（商品管理から画像を登録してください）
+                  ⚠ 画像未設定の商品が {noImageCount} 件あります
                 </p>
               )}
             </CardHeader>
@@ -179,7 +298,7 @@ export default function MarketingImagePage() {
               {loading ? (
                 <p className="text-sm text-muted-foreground">読み込み中...</p>
               ) : (
-                <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1">
+                <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
                   {products.map((product) => (
                     <label
                       key={product.id}
@@ -209,20 +328,24 @@ export default function MarketingImagePage() {
           </Card>
         </div>
 
-        {/* 右: プレビュー */}
+        {/* 右カラム: プレビュー */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">プレビュー（実際の画像サイズ: 1600×900 / X推奨）</p>
+            <p className="text-sm text-muted-foreground">プレビュー（1600×900 / X推奨）</p>
             <Button onClick={handleDownload} disabled={downloading || selectedIds.size === 0} className="gap-2">
               <Download className="h-4 w-4" />
               {downloading ? '生成中...' : 'PNG ダウンロード'}
             </Button>
           </div>
 
-          {/* 画像プレビュー本体 */}
-          <div className="overflow-auto border rounded-lg">
+          <div className="overflow-auto border rounded-lg bg-muted/30">
             <div style={{ transform: 'scale(0.38)', transformOrigin: 'top left', width: '1600px', height: '900px' }}>
-              <PriceImageCanvas ref={previewRef} products={selectedProducts} />
+              <PriceImageCanvas
+                ref={previewRef}
+                products={selectedProducts}
+                headerImageUrl={headerImageUrl}
+                footerImageUrl={footerImageUrl}
+              />
             </div>
           </div>
         </div>
@@ -233,10 +356,15 @@ export default function MarketingImagePage() {
 
 import React from 'react'
 
-const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWithRelations[] }>(
-  ({ products }, ref) => {
-    // 最大24件（6列×4行）
+const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
+  products: ProductWithRelations[]
+  headerImageUrl: string | null
+  footerImageUrl: string | null
+}>(
+  ({ products, headerImageUrl, footerImageUrl }, ref) => {
     const displayProducts = products.slice(0, 24)
+    const hasHeader = !!headerImageUrl
+    const hasFooter = !!footerImageUrl
 
     return (
       <div
@@ -253,88 +381,42 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
           flexDirection: 'column',
         }}
       >
-        {/* ヘッダー */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-            {/* ロゴバッジ */}
-            <div style={{
-              background: '#222222',
-              color: 'white',
-              fontSize: '18px',
-              fontWeight: 900,
-              padding: '5px 14px',
-              borderRadius: '6px',
-              letterSpacing: '0.05em',
-              boxShadow: '0 3px 0 #000000',
-            }}>
-              買取スクエア
-            </div>
-            {/* タイトル：縁取り文字 */}
-            <div style={{
-              fontSize: '44px',
-              fontWeight: 900,
-              color: '#111111',
-              letterSpacing: '0.06em',
-              textShadow: [
-                '-3px -3px 0 white',
-                ' 3px -3px 0 white',
-                '-3px  3px 0 white',
-                ' 3px  3px 0 white',
-                '-3px  0   0 white',
-                ' 3px  0   0 white',
-                ' 0   -3px 0 white',
-                ' 0    3px 0 white',
-                ' 4px  4px 0 rgba(0,0,0,0.15)',
-              ].join(','),
-            }}>
-              買い取り商品
-            </div>
-          </div>
-
-          {/* 吹き出し（強化版） */}
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            {/* 吹き出しの尾 */}
-            <div style={{
-              position: 'absolute',
-              bottom: '-14px',
-              left: '20px',
-              width: 0,
-              height: 0,
-              borderLeft: '12px solid transparent',
-              borderRight: '12px solid transparent',
-              borderTop: '16px solid #CC0000',
-            }} />
-            <div style={{
-              position: 'absolute',
-              bottom: '-10px',
-              left: '23px',
-              width: 0,
-              height: 0,
-              borderLeft: '9px solid transparent',
-              borderRight: '9px solid transparent',
-              borderTop: '12px solid white',
-            }} />
-            {/* 吹き出し本体 */}
-            <div style={{
-              background: 'white',
-              border: '5px solid #CC0000',
-              borderRadius: '16px',
-              padding: '10px 18px',
-              textAlign: 'center',
-              boxShadow: '3px 3px 0 rgba(204,0,0,0.35)',
-              minWidth: '130px',
-            }}>
-              <div style={{ fontSize: '13px', fontWeight: 900, color: '#CC0000', lineHeight: 1.5, whiteSpace: 'nowrap' }}>
-                ✨ 全種シュリンクあり！ ✨
+        {/* ヘッダー：Canva画像 or デフォルト */}
+        {hasHeader ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={headerImageUrl!}
+            alt="header"
+            crossOrigin="anonymous"
+            style={{ width: '100%', objectFit: 'contain', flexShrink: 0, maxHeight: '160px' }}
+          />
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+                <div style={{ background: '#222222', color: 'white', fontSize: '18px', fontWeight: 900, padding: '5px 14px', borderRadius: '6px', letterSpacing: '0.05em', boxShadow: '0 3px 0 #000000' }}>
+                  買取スクエア
+                </div>
+                <div style={{
+                  fontSize: '44px', fontWeight: 900, color: '#111111', letterSpacing: '0.06em',
+                  textShadow: '-3px -3px 0 white, 3px -3px 0 white, -3px 3px 0 white, 3px 3px 0 white, -3px 0 0 white, 3px 0 0 white, 0 -3px 0 white, 0 3px 0 white, 4px 4px 0 rgba(0,0,0,0.15)',
+                }}>
+                  買い取り商品
+                </div>
+              </div>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div style={{ position: 'absolute', bottom: '-14px', left: '20px', width: 0, height: 0, borderLeft: '12px solid transparent', borderRight: '12px solid transparent', borderTop: '16px solid #CC0000' }} />
+                <div style={{ position: 'absolute', bottom: '-10px', left: '23px', width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderTop: '12px solid white' }} />
+                <div style={{ background: 'white', border: '5px solid #CC0000', borderRadius: '16px', padding: '10px 18px', textAlign: 'center', boxShadow: '3px 3px 0 rgba(204,0,0,0.35)', minWidth: '130px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 900, color: '#CC0000', lineHeight: 1.5, whiteSpace: 'nowrap' }}>✨ 全種シュリンクあり！ ✨</div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+            <div style={{ height: '4px', background: '#CC0000', borderRadius: '2px', marginBottom: '12px', flexShrink: 0, boxShadow: '0 2px 0 rgba(0,0,0,0.1)' }} />
+          </>
+        )}
 
-        {/* 仕切り線 */}
-        <div style={{ height: '4px', background: '#CC0000', borderRadius: '2px', marginBottom: '12px', flexShrink: 0, boxShadow: '0 2px 0 rgba(0,0,0,0.1)' }} />
-
-        {/* 商品グリッド（白ボックスなし・6列） */}
+        {/* 商品グリッド */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(6, 1fr)',
@@ -342,19 +424,11 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
           gap: '10px 14px',
           flex: 1,
           overflow: 'hidden',
+          marginTop: hasHeader ? '12px' : 0,
+          marginBottom: hasFooter ? '8px' : 0,
         }}>
           {displayProducts.map((product) => (
-            <div
-              key={product.id}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '4px',
-                overflow: 'hidden',
-              }}
-            >
-              {/* 商品画像（白ボックスなし） */}
+            <div key={product.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', overflow: 'hidden' }}>
               <div style={{ flex: 1, width: '100%', overflow: 'hidden', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {product.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -370,31 +444,26 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, { products: ProductWit
                   </div>
                 )}
               </div>
-              {/* 商品名 */}
-              <div style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                color: '#1a1a1a',
-                textAlign: 'center',
-                lineHeight: 1.3,
-                width: '100%',
-                flexShrink: 0,
-              }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#1a1a1a', textAlign: 'center', lineHeight: 1.3, width: '100%', flexShrink: 0 }}>
                 {product.name}
               </div>
-              {/* 価格 */}
-              <div style={{
-                fontSize: '13px',
-                fontWeight: 900,
-                color: '#111111',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}>
+              <div style={{ fontSize: '13px', fontWeight: 900, color: '#111111', whiteSpace: 'nowrap', flexShrink: 0 }}>
                 【{product.price.toLocaleString('ja-JP')}円】
               </div>
             </div>
           ))}
         </div>
+
+        {/* フッター：Canva画像 */}
+        {hasFooter && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={footerImageUrl!}
+            alt="footer"
+            crossOrigin="anonymous"
+            style={{ width: '100%', objectFit: 'contain', flexShrink: 0, maxHeight: '80px' }}
+          />
+        )}
       </div>
     )
   }
