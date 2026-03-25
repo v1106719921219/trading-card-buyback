@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -69,6 +69,7 @@ export default function ProductsPage() {
   // Inline price editing
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
   const [editingPriceValue, setEditingPriceValue] = useState('')
+  const editingPriceRef = useRef('')
 
   // Bulk price list toggle
   const [bulkAction, setBulkAction] = useState<'show' | 'hide' | null>(null)
@@ -261,7 +262,7 @@ export default function ProductsPage() {
   }
 
   async function saveInlinePrice(id: string) {
-    const priceNum = Number(editingPriceValue) || 0
+    const priceNum = Number(editingPriceRef.current) || 0
     const updateData: Record<string, unknown> = { price: priceNum }
     if (priceNum === 0) updateData.show_in_price_list = false
     const { error } = await supabase
@@ -693,10 +694,12 @@ export default function ProductsPage() {
                   <div className="space-y-2">
                     <Label>買取価格（円）</Label>
                     <Input
-                      type="number"
-                      value={formPrice}
-                      onChange={(e) => setFormPrice(Number(e.target.value))}
-                      min={0}
+                      type="text"
+                      inputMode="numeric"
+                      value={formPrice === 0 ? '' : formPrice}
+                      placeholder="0"
+                      onChange={(e) => setFormPrice(Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
+                      onFocus={(e) => e.target.select()}
                       required
                     />
                   </div>
@@ -919,7 +922,7 @@ export default function ProductsPage() {
                           type="text"
                           inputMode="numeric"
                           value={editingPriceValue}
-                          onChange={(e) => setEditingPriceValue(e.target.value.replace(/[^0-9]/g, ''))}
+                          onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); editingPriceRef.current = v; setEditingPriceValue(v) }}
                           className="w-24 h-8 text-right"
                           onFocus={(e) => e.target.select()}
                           onKeyDown={(e) => {
@@ -935,6 +938,7 @@ export default function ProductsPage() {
                         className="cursor-pointer hover:text-primary"
                         onClick={() => {
                           setEditingPriceId(product.id)
+                          editingPriceRef.current = String(product.price)
                           setEditingPriceValue(String(product.price))
                         }}
                       >
