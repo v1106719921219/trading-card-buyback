@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Pencil, Trash2, Search, Upload, Download, ArrowUp, ArrowDown, Eye, EyeOff, Settings, ImageIcon } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, Upload, Download, ArrowUp, ArrowDown, Eye, EyeOff, Settings, ImageIcon, RefreshCw } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -80,6 +80,9 @@ export default function ProductsPage() {
   const [csvText, setCsvText] = useState('')
   const [csvPreview, setCsvPreview] = useState<{ name: string; category: string; categoryId: string; subcategory: string; subcategoryId: string; price: number; showInPriceList?: boolean; isActive?: boolean; isUpdate: boolean; error?: string }[]>([])
   const [csvImporting, setCsvImporting] = useState(false)
+
+  // 千葉同期
+  const [syncing, setSyncing] = useState(false)
 
   // 美品査定受付トグル
   const [arQualityEnabled, setArQualityEnabled] = useState(false)
@@ -137,6 +140,25 @@ export default function ProductsPage() {
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
     return matchesCategory && matchesSubcategory && matchesSearch
   })
+
+  async function syncToChiba() {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/sync-prices-to-chiba', { method: 'POST' })
+      const data = await res.json()
+      if (data.skipped) {
+        // 千葉設定なし（千葉デプロイ自身）
+      } else if (data.success) {
+        toast.success(`千葉に${data.syncCount}件同期しました`)
+      } else {
+        toast.error(`千葉への同期に失敗しました: ${data.error ?? ''}`)
+      }
+    } catch {
+      toast.error('千葉への同期に失敗しました')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   function handleCsvExport() {
     const headers = ['カテゴリ', 'サブカテゴリ', '商品名', '買取価格', '価格表']
@@ -543,6 +565,10 @@ export default function ProductsPage() {
         description="買取商品の管理"
         actions={
           <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" onClick={syncToChiba} disabled={syncing}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? '同期中...' : '千葉に同期'}
+            </Button>
             <Button variant="outline" onClick={handleCsvExport}>
               <Download className="mr-2 h-4 w-4" />
               CSVエクスポート
