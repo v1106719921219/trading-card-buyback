@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'テナントが見つかりません' }, { status: 404 })
   }
 
-  // 東京の商品・カテゴリ・サブカテゴリを取得
+  // 東京の商品・カテゴリ・サブカテゴリを取得（sort_order含む）
   const [{ data: products }, { data: categories }, { data: subcategories }] = await Promise.all([
     tokyoSupabase
       .from('products')
@@ -31,11 +31,11 @@ export async function POST(request: Request) {
       .eq('tenant_id', tokyoTenant.id),
     tokyoSupabase
       .from('categories')
-      .select('id, name')
+      .select('id, name, sort_order, is_active')
       .eq('tenant_id', tokyoTenant.id),
     tokyoSupabase
       .from('subcategories')
-      .select('id, name, category_id')
+      .select('id, name, category_id, sort_order, is_active')
       .eq('tenant_id', tokyoTenant.id),
   ])
 
@@ -73,51 +73,56 @@ export async function POST(request: Request) {
     chibaTenant = newTenant
   }
 
-  // 千葉のカテゴリ・サブカテゴリを取得
-  const [{ data: chibaCategories }, { data: chibaSubcategories }] = await Promise.all([
-    chibaSupabase.from('categories').select('id, name').eq('tenant_id', chibaTenant.id),
-    chibaSupabase.from('subcategories').select('id, name, category_id').eq('tenant_id', chibaTenant.id),
-  ])
+  // カテゴリをupsert（sort_orderも同期）
+  const { data: upsertedCats, error: catError } = await chibaSupabase
+    .from('categories')
+    .upsert(
+      categories.map((c) => ({
+        name: c.name,
+        sort_order: c.sort_order,
+        is_active: c.is_active,
+        tenant_id: chibaTenant!.id,
+      })),
+      { onConflict: 'tenant_id,name' }
+    )
+    .select('id, name')
 
-  // 名前→IDのマップを作成
-  const chibaCategoryMap = new Map<string, string>(
-    (chibaCategories ?? []).map((c) => [c.name, c.id])
-  )
-  const chibaSubcategoryMap = new Map<string, string>(
-    (chibaSubcategories ?? []).map((s) => [`${s.category_id}:${s.name}`, s.id])
-  )
-
-  // 千葉に存在しないカテゴリをバッチ作成
-  const missingCats = categories.filter((c) => !chibaCategoryMap.has(c.name))
-  if (missingCats.length > 0) {
-    const { data: newCats } = await chibaSupabase
-      .from('categories')
-      .insert(missingCats.map((c) => ({ name: c.name, tenant_id: chibaTenant.id })))
-      .select('id, name')
-    if (newCats) newCats.forEach((c) => chibaCategoryMap.set(c.name, c.id))
+  if (catError) {
+    return NextResponse.json({ error: `カテゴリ同期失敗: ${catError.message}` }, { status: 500 })
   }
 
-  // 千葉に存在しないサブカテゴリをバッチ作成
-  const missingSubcats = (subcategories ?? []).flatMap((sub) => {
+  const chibaCategoryMap = new Map<string, string>(
+    (upsertedCats ?? []).map((c) => [c.name, c.id])
+  )
+
+  // サブカテゴリをupsert（sort_orderも同期）
+  const subUpsertData = (subcategories ?? []).flatMap((sub) => {
     const tokyoCat = categories.find((c) => c.id === sub.category_id)
     if (!tokyoCat) return []
     const chibaCatId = chibaCategoryMap.get(tokyoCat.name)
     if (!chibaCatId) return []
-    const key = `${chibaCatId}:${sub.name}`
-    if (chibaSubcategoryMap.has(key)) return []
-    return [{ name: sub.name, category_id: chibaCatId, tenant_id: chibaTenant.id, _key: key }]
+    return [{
+      name: sub.name,
+      category_id: chibaCatId,
+      sort_order: sub.sort_order,
+      is_active: sub.is_active,
+      tenant_id: chibaTenant!.id,
+    }]
   })
-  if (missingSubcats.length > 0) {
-    const { data: newSubs } = await chibaSupabase
+
+  const chibaSubcategoryMap = new Map<string, string>()
+  if (subUpsertData.length > 0) {
+    const { data: upsertedSubs, error: subError } = await chibaSupabase
       .from('subcategories')
-      .insert(missingSubcats.map(({ _key: _k, ...rest }) => rest))
+      .upsert(subUpsertData, { onConflict: 'tenant_id,category_id,name' })
       .select('id, name, category_id')
-    if (newSubs) {
-      newSubs.forEach((s) => chibaSubcategoryMap.set(`${s.category_id}:${s.name}`, s.id))
+    if (subError) {
+      return NextResponse.json({ error: `サブカテゴリ同期失敗: ${subError.message}` }, { status: 500 })
     }
+    ;(upsertedSubs ?? []).forEach((s) => chibaSubcategoryMap.set(`${s.category_id}:${s.name}`, s.id))
   }
 
-  // 全商品をバッチupsert
+  // 商品をバッチupsert
   const upsertData = products.flatMap((product) => {
     const tokyoCat = categories.find((c) => c.id === product.category_id)
     if (!tokyoCat) return []
