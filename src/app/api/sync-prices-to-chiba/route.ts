@@ -122,14 +122,14 @@ export async function POST(request: Request) {
     ;(upsertedSubs ?? []).forEach((s) => chibaSubcategoryMap.set(`${s.category_id}:${s.name}`, s.id))
   }
 
-  // 千葉の既存商品を全削除（重複防止のため毎回クリーンに入れ直す）
-  const { error: deleteError } = await chibaSupabase
-    .from('products')
-    .delete()
-    .eq('tenant_id', chibaTenant!.id)
+  // 千葉の既存商品を全削除（tenant_id一致 + NULL両方削除）
+  const [{ error: deleteErr1 }, { error: deleteErr2 }] = await Promise.all([
+    chibaSupabase.from('products').delete().eq('tenant_id', chibaTenant!.id),
+    chibaSupabase.from('products').delete().is('tenant_id', null),
+  ])
 
-  if (deleteError) {
-    return NextResponse.json({ error: `千葉商品削除失敗: ${deleteError.message}` }, { status: 500 })
+  if (deleteErr1 || deleteErr2) {
+    return NextResponse.json({ error: `千葉商品削除失敗: ${deleteErr1?.message ?? deleteErr2?.message}` }, { status: 500 })
   }
 
   // 東京の商品を全件挿入
