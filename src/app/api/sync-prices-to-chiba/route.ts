@@ -57,7 +57,6 @@ export async function POST(request: Request) {
     .single()
 
   if (!chibaTenant) {
-    // 千葉テナントが存在しない場合は自動作成
     const { data: newTenant, error: createError } = await chibaSupabase
       .from('tenants')
       .insert({
@@ -88,64 +87,67 @@ export async function POST(request: Request) {
     (chibaSubcategories ?? []).map((s) => [`${s.category_id}:${s.name}`, s.id])
   )
 
-  // 千葉に存在しないカテゴリを作成
-  for (const cat of categories) {
-    if (!chibaCategoryMap.has(cat.name)) {
-      const { data: newCat } = await chibaSupabase
-        .from('categories')
-        .insert({ name: cat.name, tenant_id: chibaTenant.id })
-        .select('id')
-        .single()
-      if (newCat) chibaCategoryMap.set(cat.name, newCat.id)
-    }
+  // 千葉に存在しないカテゴリをバッチ作成
+  const missingCats = categories.filter((c) => !chibaCategoryMap.has(c.name))
+  if (missingCats.length > 0) {
+    const { data: newCats } = await chibaSupabase
+      .from('categories')
+      .insert(missingCats.map((c) => ({ name: c.name, tenant_id: chibaTenant.id })))
+      .select('id, name')
+    if (newCats) newCats.forEach((c) => chibaCategoryMap.set(c.name, c.id))
   }
 
-  // 千葉に存在しないサブカテゴリを作成
-  for (const sub of subcategories ?? []) {
+  // 千葉に存在しないサブカテゴリをバッチ作成
+  const missingSubcats = (subcategories ?? []).flatMap((sub) => {
     const tokyoCat = categories.find((c) => c.id === sub.category_id)
-    if (!tokyoCat) continue
+    if (!tokyoCat) return []
     const chibaCatId = chibaCategoryMap.get(tokyoCat.name)
-    if (!chibaCatId) continue
+    if (!chibaCatId) return []
     const key = `${chibaCatId}:${sub.name}`
-    if (!chibaSubcategoryMap.has(key)) {
-      const { data: newSub } = await chibaSupabase
-        .from('subcategories')
-        .insert({ name: sub.name, category_id: chibaCatId, tenant_id: chibaTenant.id })
-        .select('id')
-        .single()
-      if (newSub) chibaSubcategoryMap.set(key, newSub.id)
+    if (chibaSubcategoryMap.has(key)) return []
+    return [{ name: sub.name, category_id: chibaCatId, tenant_id: chibaTenant.id, _key: key }]
+  })
+  if (missingSubcats.length > 0) {
+    const { data: newSubs } = await chibaSupabase
+      .from('subcategories')
+      .insert(missingSubcats.map(({ _key: _k, ...rest }) => rest))
+      .select('id, name, category_id')
+    if (newSubs) {
+      newSubs.forEach((s) => chibaSubcategoryMap.set(`${s.category_id}:${s.name}`, s.id))
     }
   }
 
-  // 商品を千葉にupsert
-  let syncCount = 0
-  for (const product of products) {
+  // 全商品をバッチupsert
+  const upsertData = products.flatMap((product) => {
     const tokyoCat = categories.find((c) => c.id === product.category_id)
-    if (!tokyoCat) continue
+    if (!tokyoCat) return []
     const chibaCatId = chibaCategoryMap.get(tokyoCat.name)
-    if (!chibaCatId) continue
+    if (!chibaCatId) return []
 
     const tokyoSub = (subcategories ?? []).find((s) => s.id === product.subcategory_id)
     const chibaSubId = tokyoSub
       ? (chibaSubcategoryMap.get(`${chibaCatId}:${tokyoSub.name}`) ?? null)
       : null
 
-    const { error } = await chibaSupabase.from('products').upsert(
-      {
-        name: product.name,
-        category_id: chibaCatId,
-        subcategory_id: chibaSubId,
-        price: product.price,
-        show_in_price_list: product.show_in_price_list,
-        is_active: product.is_active,
-        sort_order: product.sort_order,
-        tenant_id: chibaTenant.id,
-      },
-      { onConflict: 'tenant_id,category_id,name' }
-    )
+    return [{
+      name: product.name,
+      category_id: chibaCatId,
+      subcategory_id: chibaSubId,
+      price: product.price,
+      show_in_price_list: product.show_in_price_list,
+      is_active: product.is_active,
+      sort_order: product.sort_order,
+      tenant_id: chibaTenant!.id,
+    }]
+  })
 
-    if (!error) syncCount++
+  const { error: upsertError } = await chibaSupabase
+    .from('products')
+    .upsert(upsertData, { onConflict: 'tenant_id,category_id,name' })
+
+  if (upsertError) {
+    return NextResponse.json({ error: `商品同期失敗: ${upsertError.message}` }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, syncCount })
+  return NextResponse.json({ success: true, syncCount: upsertData.length })
 }
