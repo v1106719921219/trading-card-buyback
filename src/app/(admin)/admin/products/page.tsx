@@ -141,6 +141,22 @@ export default function ProductsPage() {
     return matchesCategory && matchesSubcategory && matchesSearch
   })
 
+  async function cleanupDuplicates() {
+    if (!confirm('重複商品を削除しますか？（表示中・価格が高い方を残します）')) return
+    const res = await fetch('/api/cleanup-duplicate-products', { method: 'POST' })
+    const data = await res.json()
+    if (data.success) {
+      if (data.deletedCount === 0) {
+        toast.info('重複商品はありませんでした')
+      } else {
+        toast.success(`重複商品を${data.deletedCount}件削除しました`)
+        fetchData()
+      }
+    } else {
+      toast.error(`削除失敗: ${data.error}`)
+    }
+  }
+
   async function syncToChiba() {
     setSyncing(true)
     try {
@@ -565,6 +581,9 @@ export default function ProductsPage() {
         description="買取商品の管理"
         actions={
           <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" onClick={cleanupDuplicates}>
+              重複削除
+            </Button>
             <Button variant="outline" onClick={syncToChiba} disabled={syncing}>
               <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? '同期中...' : '千葉に同期'}
