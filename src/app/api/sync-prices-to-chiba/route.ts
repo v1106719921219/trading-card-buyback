@@ -169,7 +169,10 @@ export async function POST(request: Request) {
   }
   const dedupedData = Array.from(deduped.values())
 
-  const { error: insertError } = await chibaSupabase.from('products').insert(dedupedData)
+  // ON CONFLICT DO NOTHING で競合しても失敗しない
+  const { error: insertError } = await chibaSupabase
+    .from('products')
+    .upsert(dedupedData, { onConflict: 'category_id,name', ignoreDuplicates: true })
 
   if (insertError) {
     return NextResponse.json({ error: `商品挿入失敗: ${insertError.message}` }, { status: 500 })
