@@ -153,11 +153,27 @@ export async function POST(request: Request) {
     }]
   })
 
-  const { error: insertError } = await chibaSupabase.from('products').insert(insertData)
+  // 同名・同カテゴリの重複を除去（show_in_price_list=true優先、次に価格が高い方）
+  const deduped = new Map<string, typeof insertData[number]>()
+  for (const item of insertData) {
+    const key = `${item.category_id}:${item.name}`
+    const existing = deduped.get(key)
+    if (!existing) {
+      deduped.set(key, item)
+    } else if (
+      (!existing.show_in_price_list && item.show_in_price_list) ||
+      (existing.show_in_price_list === item.show_in_price_list && item.price > existing.price)
+    ) {
+      deduped.set(key, item)
+    }
+  }
+  const dedupedData = Array.from(deduped.values())
+
+  const { error: insertError } = await chibaSupabase.from('products').insert(dedupedData)
 
   if (insertError) {
     return NextResponse.json({ error: `商品挿入失敗: ${insertError.message}` }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, syncCount: insertData.length })
+  return NextResponse.json({ success: true, syncCount: dedupedData.length })
 }
