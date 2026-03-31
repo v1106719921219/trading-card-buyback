@@ -27,7 +27,13 @@ export const getTenant = cache(async (): Promise<Tenant | null> => {
 
   // ミドルウェアからヘッダーが届かない場合のフォールバック
   if (!slug) {
-    slug = process.env.DEFAULT_TENANT_SLUG || 'quadra'
+    // NEXT_PUBLIC_SITE_URLからテナントを自動判定
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
+    if (siteUrl.includes('chiba.')) {
+      slug = 'chiba'
+    } else {
+      slug = process.env.DEFAULT_TENANT_SLUG || 'quadra'
+    }
   }
 
   // RLSをバイパスして確実にテナント情報を取得
