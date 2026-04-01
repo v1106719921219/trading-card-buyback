@@ -868,8 +868,8 @@ export default function OrderDetailPage() {
             </Card>
           )}
 
-          {/* ステータスを戻す（admin/managerのみ） */}
-          {userRole && ['admin', 'manager'].includes(userRole) && STATUS_REVERT[order.status as OrderStatus] && (
+          {/* ステータスを戻す */}
+          {userRole && STATUS_REVERT[order.status as OrderStatus] && (
             <Card className="border-amber-300">
               <CardHeader>
                 <CardTitle className="text-sm text-amber-700">ステータスを戻す</CardTitle>
