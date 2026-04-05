@@ -105,6 +105,7 @@ export default function ProductsPage() {
   }, [])
 
   async function fetchData() {
+    const scrollY = window.scrollY
     const [productsResult, categoriesResult, subcategoriesResult] = await Promise.all([
       supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').order('sort_order').order('created_at', { ascending: false }),
       supabase.from('categories').select('*').order('sort_order'),
@@ -124,6 +125,7 @@ export default function ProductsPage() {
     if (categoriesResult.data) setCategories(categoriesResult.data)
     if (subcategoriesResult.data) setSubcategories(subcategoriesResult.data)
     setLoading(false)
+    requestAnimationFrame(() => window.scrollTo(0, scrollY))
   }
 
   useEffect(() => {
