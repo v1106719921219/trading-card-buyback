@@ -25,6 +25,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
 import { ShieldCheck, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -71,6 +72,22 @@ export default function PaymentVerificationPage() {
     } else {
       setConfirmedIds(new Set(orders.map((o) => o.id)))
     }
+  }
+
+  async function toggleInvoiceIssuer(id: string) {
+    const order = orders.find((o) => o.id === id)
+    if (!order) return
+    const newValue = !order.customer_not_invoice_issuer
+    const { error } = await supabase
+      .from('orders')
+      .update({ customer_not_invoice_issuer: newValue })
+      .eq('id', id)
+    if (error) {
+      toast.error('適格事業者の更新に失敗しました')
+      return
+    }
+    setOrders(orders.map((o) => o.id === id ? { ...o, customer_not_invoice_issuer: newValue } : o))
+    toast.success(newValue ? '適格事業者を解除しました' : '適格事業者に設定しました')
   }
 
   function getAmount(order: Order): number {
@@ -205,7 +222,23 @@ export default function PaymentVerificationPage() {
                       {order.order_number}
                     </Link>
                   </TableCell>
-                  <TableCell>{order.customer_name}</TableCell>
+                  <TableCell>
+                    <span className="flex items-center gap-1.5">
+                      {order.customer_name}
+                      <Badge
+                        variant="secondary"
+                        className={`cursor-pointer text-[10px] px-1.5 py-0 ${
+                          !order.customer_not_invoice_issuer
+                            ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                            : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                        }`}
+                        onClick={() => toggleInvoiceIssuer(order.id)}
+                        title="クリックで適格事業者の状態を切り替え"
+                      >
+                        {!order.customer_not_invoice_issuer ? '適格' : '非適格'}
+                      </Badge>
+                    </span>
+                  </TableCell>
                   <TableCell className="text-sm">
                     {order.bank_name} {order.bank_branch}
                     <br />

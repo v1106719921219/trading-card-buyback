@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, useMemo } from 'react'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,12 +40,55 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Pencil, Trash2, Search, Upload, Download, ArrowUp, ArrowDown, Eye, EyeOff, Settings, ImageIcon, RefreshCw } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, Upload, Download, Eye, EyeOff, Settings, ImageIcon, RefreshCw, GripVertical } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { Category, Product, Subcategory } from '@/types/database'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const DragHandleContext = createContext<{ attributes: Record<string, any>; listeners: Record<string, any> | undefined }>({ attributes: {}, listeners: undefined })
+
+function SortableRow({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+  return (
+    <DragHandleContext.Provider value={{ attributes, listeners }}>
+      <TableRow ref={setNodeRef} style={style}>
+        {children}
+      </TableRow>
+    </DragHandleContext.Provider>
+  )
+}
+
+function DragHandle() {
+  const { attributes, listeners } = useContext(DragHandleContext)
+  return (
+    <button type="button" {...attributes} {...listeners} className="touch-none">
+      <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
+    </button>
+  )
+}
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<(Product & { category: Category; subcategory: Subcategory | null })[]>([])
@@ -537,28 +580,67 @@ async function syncToChiba() {
     fetchData()
   }
 
-  async function moveProduct(product: Product & { category: Category }, direction: 'up' | 'down') {
-    // Find siblings in same category, sorted by sort_order
-    const siblings = products
-      .filter((p) => p.category_id === product.category_id)
-      .sort((a, b) => a.sort_order - b.sort_order)
-    const idx = siblings.findIndex((p) => p.id === product.id)
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
-    if (swapIdx < 0 || swapIdx >= siblings.length) return
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
 
-    const other = siblings[swapIdx]
-    // Swap sort_order values
-    const [{ error: e1 }, { error: e2 }] = await Promise.all([
-      supabase.from('products').update({ sort_order: other.sort_order }).eq('id', product.id),
-      supabase.from('products').update({ sort_order: product.sort_order }).eq('id', other.id),
-    ])
+    const oldIndex = filteredProducts.findIndex((p) => p.id === active.id)
+    const newIndex = filteredProducts.findIndex((p) => p.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
 
-    if (e1 || e2) {
-      toast.error('並び替えに失敗しました')
+    const draggedProduct = filteredProducts[oldIndex]
+    const targetProduct = filteredProducts[newIndex]
+
+    // Only allow drag within same category
+    if (draggedProduct.category_id !== targetProduct.category_id) {
+      toast.error('カテゴリをまたいだ移動はできません')
       return
     }
-    fetchData()
+
+    // Reorder siblings in the same category
+    const siblings = filteredProducts
+      .filter((p) => p.category_id === draggedProduct.category_id)
+      .sort((a, b) => a.sort_order - b.sort_order)
+
+    const oldSibIdx = siblings.findIndex((p) => p.id === active.id)
+    const newSibIdx = siblings.findIndex((p) => p.id === over.id)
+    if (oldSibIdx === -1 || newSibIdx === -1) return
+
+    const reordered = [...siblings]
+    const [moved] = reordered.splice(oldSibIdx, 1)
+    reordered.splice(newSibIdx, 0, moved)
+
+    // Optimistic update
+    const updatedProducts = products.map((p) => {
+      const idx = reordered.findIndex((r) => r.id === p.id)
+      if (idx !== -1) return { ...p, sort_order: idx }
+      return p
+    })
+    updatedProducts.sort((a, b) => {
+      const catA = a.category?.sort_order ?? 0
+      const catB = b.category?.sort_order ?? 0
+      if (catA !== catB) return catA - catB
+      return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    })
+    setProducts(updatedProducts as never[])
+
+    // Persist to database
+    const updates = reordered.map((p, i) =>
+      supabase.from('products').update({ sort_order: i }).eq('id', p.id)
+    )
+    const results = await Promise.all(updates)
+    if (results.some((r) => r.error)) {
+      toast.error('並び替えに失敗しました')
+      fetchData()
+    }
   }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  )
+
+  const sortableIds = useMemo(() => filteredProducts.map((p) => p.id), [filteredProducts])
 
   return (
     <div className="space-y-6">
@@ -878,11 +960,12 @@ async function syncToChiba() {
         </AlertDialog>
       </div>
 
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-16 hidden md:table-cell">順序</TableHead>
+              <TableHead className="w-10 hidden md:table-cell"></TableHead>
               <TableHead className="w-10 hidden sm:table-cell">画像</TableHead>
               <TableHead>商品名</TableHead>
               <TableHead className="hidden sm:table-cell">カテゴリ</TableHead>
@@ -892,41 +975,25 @@ async function syncToChiba() {
               <TableHead className="w-20 sm:w-32 text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
+          <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   読み込み中...
                 </TableCell>
               </TableRow>
             ) : filteredProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   商品がありません
                 </TableCell>
               </TableRow>
             ) : (
               filteredProducts.map((product) => (
-                <TableRow key={product.id}>
+                <SortableRow key={product.id} id={product.id}>
                   <TableCell className="hidden md:table-cell">
-                    <div className="flex gap-0.5">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => moveProduct(product, 'up')}
-                      >
-                        <ArrowUp className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => moveProduct(product, 'down')}
-                      >
-                        <ArrowDown className="h-3 w-3" />
-                      </Button>
-                    </div>
+                    <DragHandle />
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     {product.image_url ? (
@@ -1015,12 +1082,14 @@ async function syncToChiba() {
                       </AlertDialog>
                     </div>
                   </TableCell>
-                </TableRow>
+                </SortableRow>
               ))
             )}
           </TableBody>
+          </SortableContext>
         </Table>
       </div>
+      </DndContext>
       <p className="text-sm text-muted-foreground">
         {filteredProducts.length}件の商品（価格をクリックしてインライン編集）
       </p>

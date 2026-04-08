@@ -12,7 +12,6 @@ import {
 import { Search } from 'lucide-react'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
-import { createClient } from '@/lib/supabase/client'
 import type { Category, Subcategory } from '@/types/database'
 
 interface ProductItem {
@@ -37,15 +36,12 @@ export default function PricesPage() {
 
   useEffect(() => {
     async function fetchData() {
-      const supabase = createClient()
-      const [catResult, subResult, prodResult] = await Promise.all([
-        supabase.from('categories').select('*').eq('is_active', true).order('sort_order'),
-        supabase.from('subcategories').select('*').eq('is_active', true).order('sort_order'),
-        supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('is_active', true).eq('show_in_price_list', true).gt('price', 0).order('sort_order').order('name'),
-      ])
-      if (catResult.data) setCategories(catResult.data)
-      if (subResult.data) setSubcategories(subResult.data)
-      if (prodResult.data) setProducts(prodResult.data as ProductItem[])
+      const res = await fetch('/api/public/prices')
+      if (!res.ok) { setLoading(false); return }
+      const data = await res.json()
+      setCategories(data.categories ?? [])
+      setSubcategories(data.subcategories ?? [])
+      setProducts((data.products ?? []) as ProductItem[])
       setLoading(false)
     }
     fetchData()

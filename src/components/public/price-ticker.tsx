@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 
 interface TickerProduct {
   name: string
@@ -13,16 +12,14 @@ export function PriceTicker() {
 
   useEffect(() => {
     async function fetchPrices() {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from('products')
-        .select('name, price')
-        .eq('is_active', true)
-        .eq('show_in_price_list', true)
-        .gt('price', 0)
-        .order('price', { ascending: false })
-        .limit(20)
-      if (data) setProducts(data)
+      const res = await fetch('/api/public/prices')
+      if (!res.ok) return
+      const data = await res.json()
+      const sorted = (data.products ?? [])
+        .sort((a: TickerProduct, b: TickerProduct) => b.price - a.price)
+        .slice(0, 20)
+        .map((p: TickerProduct) => ({ name: p.name, price: p.price }))
+      setProducts(sorted)
     }
     fetchPrices()
   }, [])
