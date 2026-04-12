@@ -7,9 +7,16 @@ import { Badge } from '@/components/ui/badge'
 import { MapPin, Package } from 'lucide-react'
 import { getArrivalSchedule } from '@/actions/arrival-schedule'
 import { formatDateJST } from '@/lib/delivery'
+import Link from 'next/link'
 
-export default async function ArrivalSchedulePage() {
-  const schedules = await getArrivalSchedule()
+export default async function ArrivalSchedulePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mode?: string }>
+}) {
+  const params = await searchParams
+  const includeApplied = params.mode === 'all'
+  const schedules = await getArrivalSchedule(includeApplied)
   const todayStr = formatDateJST(new Date())
 
   return (
@@ -18,6 +25,29 @@ export default async function ArrivalSchedulePage() {
         title="到着予定"
         description="いつ何が何個届くかを事務所ごとに確認できます"
       />
+
+      <div className="flex gap-2">
+        <Link
+          href="/admin/arrival-schedule"
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            !includeApplied
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          }`}
+        >
+          発送済みのみ
+        </Link>
+        <Link
+          href="/admin/arrival-schedule?mode=all"
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            includeApplied
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+          }`}
+        >
+          申し込み済み + 発送済み
+        </Link>
+      </div>
 
       {schedules.length === 0 ? (
         <Card>
@@ -53,6 +83,9 @@ export default async function ArrivalSchedulePage() {
                       )}
                       {isPast && (
                         <Badge className="bg-red-100 text-red-800">遅延の可能性</Badge>
+                      )}
+                      {group.date === 'not_shipped' && (
+                        <Badge className="bg-yellow-100 text-yellow-800">未発送</Badge>
                       )}
                       <Badge variant="outline">合計 {totalItems}個</Badge>
                     </div>
