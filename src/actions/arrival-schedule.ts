@@ -169,7 +169,7 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
         .map(([product_name, total_quantity]) => ({ product_name, total_quantity }))
         .sort((a, b) => a.product_name.localeCompare(b.product_name))
 
-      dateGroups.push({ date: 'not_shipped', label: '未発送（申し込み済み）', products })
+      dateGroups.push({ date: 'not_shipped', label: '未発送（申込済）', products })
     }
 
     if (dateGroups.length > 0) {

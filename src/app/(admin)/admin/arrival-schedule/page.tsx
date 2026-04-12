@@ -45,7 +45,7 @@ export default async function ArrivalSchedulePage({
               : 'bg-muted text-muted-foreground hover:bg-muted/80'
           }`}
         >
-          申し込み済み + 発送済み
+          申込済 + 発送済み
         </Link>
       </div>
 
