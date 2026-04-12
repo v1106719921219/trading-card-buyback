@@ -29,7 +29,7 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
     .select('id, customer_prefecture, office_id, shipped_date, status, order_items(product_name, quantity)')
 
   if (includeApplied) {
-    query = query.in('status', ['発送済', '申し込み済み'])
+    query = query.in('status', ['発送済', '申込'])
   } else {
     query = query.eq('status', '発送済')
   }
@@ -85,8 +85,8 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
     const dateProductMap = new Map<string, Map<string, number>>()
 
     for (const order of officeOrders) {
-      // 申し込み済みの注文は未発送として扱う
-      if ((order as { status: string }).status === '申し込み済み') {
+      // 申込ステータスの注文は未発送として扱う
+      if ((order as { status: string }).status === '申込') {
         const dateKey = 'not_shipped'
         if (!dateProductMap.has(dateKey)) {
           dateProductMap.set(dateKey, new Map())
