@@ -104,6 +104,7 @@ export default function ProductsPage() {
   // Form state
   const [formName, setFormName] = useState('')
   const [formModelNumber, setFormModelNumber] = useState('')
+  const [formSetNumber, setFormSetNumber] = useState('')
   const [formCategoryId, setFormCategoryId] = useState('')
   const [formSubcategoryId, setFormSubcategoryId] = useState('none')
   const [formPrice, setFormPrice] = useState(0)
@@ -122,7 +123,7 @@ export default function ProductsPage() {
   // CSV import
   const [csvDialogOpen, setCsvDialogOpen] = useState(false)
   const [csvText, setCsvText] = useState('')
-  const [csvPreview, setCsvPreview] = useState<{ name: string; modelNumber: string; imageUrl: string; category: string; categoryId: string; subcategory: string; subcategoryId: string; price: number; showInPriceList?: boolean; isActive?: boolean; isUpdate: boolean; error?: string }[]>([])
+  const [csvPreview, setCsvPreview] = useState<{ name: string; modelNumber: string; setNumber: string; imageUrl: string; category: string; categoryId: string; subcategory: string; subcategoryId: string; price: number; showInPriceList?: boolean; isActive?: boolean; isUpdate: boolean; error?: string }[]>([])
   const [csvImporting, setCsvImporting] = useState(false)
 
   // 千葉同期
@@ -207,12 +208,13 @@ async function syncToChiba() {
   }
 
   function handleCsvExport() {
-    const headers = ['カテゴリ', 'サブカテゴリ', '商品名', '型番', '買取価格', '画像URL', '価格表']
+    const headers = ['カテゴリ', 'サブカテゴリ', '商品名', 'カード型番', 'セット型番', '買取価格', '画像URL', '価格表']
     const rows = filteredProducts.map((p) => [
       p.category?.name ?? '',
       p.subcategory?.name ?? '',
       p.name,
       p.model_number ?? '',
+      p.set_number ?? '',
       String(p.price),
       p.image_url ?? '',
       p.show_in_price_list ? '表示' : '非表示',
@@ -245,6 +247,7 @@ async function syncToChiba() {
     setEditing(null)
     setFormName('')
     setFormModelNumber('')
+    setFormSetNumber('')
     setFormCategoryId(categories[0]?.id || '')
     setFormSubcategoryId('none')
     setFormPrice(0)
@@ -256,6 +259,7 @@ async function syncToChiba() {
     setEditing(product)
     setFormName(product.name)
     setFormModelNumber(product.model_number ?? '')
+    setFormSetNumber(product.set_number ?? '')
     setFormCategoryId(product.category_id)
     setFormSubcategoryId(product.subcategory_id || 'none')
     setFormPrice(product.price)
@@ -287,7 +291,7 @@ async function syncToChiba() {
     e.preventDefault()
 
     if (editing) {
-      const updateData: Record<string, unknown> = { name: formName, model_number: formModelNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice }
+      const updateData: Record<string, unknown> = { name: formName, model_number: formModelNumber || null, set_number: formSetNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice }
       if (formImageUrl !== null) updateData.image_url = formImageUrl
       if (formPrice === 0) updateData.show_in_price_list = false
       const { error } = await supabase
@@ -309,7 +313,7 @@ async function syncToChiba() {
     } else {
       const { error } = await supabase
         .from('products')
-        .insert({ name: formName, model_number: formModelNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, show_in_price_list: formPrice > 0, tenant_id: tenantId, ...(formImageUrl !== null ? { image_url: formImageUrl } : {}) })
+        .insert({ name: formName, model_number: formModelNumber || null, set_number: formSetNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, show_in_price_list: formPrice > 0, tenant_id: tenantId, ...(formImageUrl !== null ? { image_url: formImageUrl } : {}) })
 
       if (error) {
         toast.error(error.code === '23505' ? 'この商品名は既に存在します' : error.message)
@@ -373,22 +377,31 @@ async function syncToChiba() {
       // Support: カテゴリ名,サブカテゴリ名,商品名,価格[,価格表,状態] or カテゴリ名,商品名,価格 or 商品名,価格
       const parts = line.split(/[,\t]/).map((s) => s.trim())
       if (parts.length < 2) {
-        results.push({ name: parts[0] || '', modelNumber: '', imageUrl: '', category: '', categoryId: '', subcategory: '', subcategoryId: '', price: 0, isUpdate: false, error: '列が不足しています' })
+        results.push({ name: parts[0] || '', modelNumber: '', setNumber: '', imageUrl: '', category: '', categoryId: '', subcategory: '', subcategoryId: '', price: 0, isUpdate: false, error: '列が不足しています' })
         continue
       }
 
-      let categoryName = '', subcategoryName = '', name = '', modelNumber = '', priceStr = '', imageUrl = ''
+      let categoryName = '', subcategoryName = '', name = '', modelNumber = '', setNumber = '', priceStr = '', imageUrl = ''
 
-      if (parts.length >= 6) {
-        // カテゴリ名,サブカテゴリ名,商品名,型番,価格,画像URL[,価格表,状態]
+      if (parts.length >= 7) {
+        // カテゴリ名,サブカテゴリ名,商品名,カード型番,セット型番,価格,画像URL[,価格表,状態]
         categoryName = parts[0]
         subcategoryName = parts[1]
         name = parts[2]
         modelNumber = parts[3]
-        priceStr = parts[4]
-        imageUrl = parts[5]
+        setNumber = parts[4]
+        priceStr = parts[5]
+        imageUrl = parts[6]
+      } else if (parts.length === 6) {
+        // カテゴリ名,サブカテゴリ名,商品名,カード型番,セット型番,価格
+        categoryName = parts[0]
+        subcategoryName = parts[1]
+        name = parts[2]
+        modelNumber = parts[3]
+        setNumber = parts[4]
+        priceStr = parts[5]
       } else if (parts.length === 5) {
-        // カテゴリ名,サブカテゴリ名,商品名,型番,価格
+        // カテゴリ名,サブカテゴリ名,商品名,カード型番,価格
         categoryName = parts[0]
         subcategoryName = parts[1]
         name = parts[2]
@@ -413,8 +426,8 @@ async function syncToChiba() {
 
       const price = priceStr && priceStr.trim() !== '' ? parseInt(priceStr, 10) : 0
 
-      if (!name) { results.push({ name, modelNumber, imageUrl, category: categoryName, categoryId: '', subcategory: subcategoryName, subcategoryId: '', price: 0, isUpdate: false, error: '商品名が空です' }); continue }
-      if (isNaN(price) || price < 0) { results.push({ name, modelNumber, imageUrl, category: categoryName, categoryId: '', subcategory: subcategoryName, subcategoryId: '', price: 0, isUpdate: false, error: '価格が不正です' }); continue }
+      if (!name) { results.push({ name, modelNumber, setNumber, imageUrl, category: categoryName, categoryId: '', subcategory: subcategoryName, subcategoryId: '', price: 0, isUpdate: false, error: '商品名が空です' }); continue }
+      if (isNaN(price) || price < 0) { results.push({ name, modelNumber, setNumber, imageUrl, category: categoryName, categoryId: '', subcategory: subcategoryName, subcategoryId: '', price: 0, isUpdate: false, error: '価格が不正です' }); continue }
 
       // Match category
       let matchedCat = categories[0]
@@ -423,7 +436,7 @@ async function syncToChiba() {
         if (found) {
           matchedCat = found
         } else {
-          results.push({ name, modelNumber, imageUrl, category: categoryName, categoryId: '', subcategory: subcategoryName, subcategoryId: '', price, isUpdate: false, error: `カテゴリ「${categoryName}」が見つかりません` })
+          results.push({ name, modelNumber, setNumber, imageUrl, category: categoryName, categoryId: '', subcategory: subcategoryName, subcategoryId: '', price, isUpdate: false, error: `カテゴリ「${categoryName}」が見つかりません` })
           continue
         }
       } else if (filterCategory !== 'all') {
@@ -439,13 +452,13 @@ async function syncToChiba() {
           matchedSubId = found.id
           matchedSubName = found.name
         } else {
-          results.push({ name, modelNumber, imageUrl, category: matchedCat.name, categoryId: matchedCat.id, subcategory: subcategoryName, subcategoryId: '', price, isUpdate: false, error: `サブカテゴリ「${subcategoryName}」が見つかりません` })
+          results.push({ name, modelNumber, setNumber, imageUrl, category: matchedCat.name, categoryId: matchedCat.id, subcategory: subcategoryName, subcategoryId: '', price, isUpdate: false, error: `サブカテゴリ「${subcategoryName}」が見つかりません` })
           continue
         }
       }
 
       // Parse optional columns: 価格表, 状態（位置はカラム数に依存）
-      const optStart = parts.length >= 6 ? 6 : parts.length >= 5 ? 5 : 4
+      const optStart = parts.length >= 7 ? 7 : parts.length >= 6 ? 6 : parts.length >= 5 ? 5 : 4
       const showInPriceList = parts[optStart] ? parts[optStart] !== '非表示' : undefined
       const isActive = parts[optStart + 1] ? parts[optStart + 1] !== '無効' : undefined
 
@@ -453,7 +466,7 @@ async function syncToChiba() {
       const existing = products.find((p) => p.name === name && p.category_id === matchedCat.id)
       const isUpdate = !!existing
 
-      results.push({ name, modelNumber, imageUrl, category: matchedCat.name, categoryId: matchedCat.id, subcategory: matchedSubName, subcategoryId: matchedSubId, price, showInPriceList, isActive, isUpdate, error: undefined })
+      results.push({ name, modelNumber, setNumber, imageUrl, category: matchedCat.name, categoryId: matchedCat.id, subcategory: matchedSubName, subcategoryId: matchedSubId, price, showInPriceList, isActive, isUpdate, error: undefined })
     }
 
     setCsvPreview(results)
@@ -514,7 +527,7 @@ async function syncToChiba() {
       if (item.isUpdate) {
         const existing = products.find((p) => p.name === item.name && p.category_id === item.categoryId)
         if (!existing) continue
-        const updateData: Record<string, unknown> = { price: item.price, model_number: item.modelNumber || null, subcategory_id: item.subcategoryId || null, sort_order: sortOrder }
+        const updateData: Record<string, unknown> = { price: item.price, model_number: item.modelNumber || null, set_number: item.setNumber || null, subcategory_id: item.subcategoryId || null, sort_order: sortOrder }
         if (uploadedImageUrl) updateData.image_url = uploadedImageUrl
         if (item.showInPriceList !== undefined) updateData.show_in_price_list = item.showInPriceList
         else if (item.price === 0) updateData.show_in_price_list = false
@@ -533,6 +546,7 @@ async function syncToChiba() {
         const { error } = await supabase.from('products').insert({
           name: item.name,
           model_number: item.modelNumber || null,
+          set_number: item.setNumber || null,
           category_id: item.categoryId,
           subcategory_id: item.subcategoryId || null,
           price: item.price,
@@ -721,13 +735,13 @@ async function syncToChiba() {
                   <div>
                     <Label>CSVファイルを選択、またはテキストを貼り付け</Label>
                     <p className="text-xs text-muted-foreground mb-2">
-                      形式: カテゴリ名,サブカテゴリ名,商品名,型番,価格,画像URL（型番・画像URL省略可。既存画像は上書きしません）
+                      形式: カテゴリ名,サブカテゴリ名,商品名,カード型番,セット型番,価格,画像URL（型番・画像URL省略可。既存画像は上書きしません）
                     </p>
                     <Input type="file" accept=".csv,.tsv,.txt" onChange={handleCsvFile} className="mb-2" />
                     <Textarea
                       value={csvText}
                       onChange={(e) => setCsvText(e.target.value)}
-                      placeholder={"ポケモンカード,鑑定品,リザードンex SAR PSA,110/080,175000,https://drive.google.com/...\nポケモンカード,シュリンク付きBOX,インフェルノX,,14400,\nポケモンカード,リザードンex SAR,15000"}
+                      placeholder={"ポケモンカード,鑑定品,リザードンex SAR PSA,217/187,SV8a,175000,https://drive.google.com/...\nポケモンカード,シュリンク付きBOX,インフェルノX,,,14400,\nポケモンカード,リザードンex SAR,15000"}
                       rows={6}
                     />
                   </div>
@@ -851,11 +865,19 @@ async function syncToChiba() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>型番</Label>
+                    <Label>カード型番</Label>
                     <Input
                       value={formModelNumber}
                       onChange={(e) => setFormModelNumber(e.target.value)}
-                      placeholder="例: 110/080"
+                      placeholder="例: 217/187"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>セット型番</Label>
+                    <Input
+                      value={formSetNumber}
+                      onChange={(e) => setFormSetNumber(e.target.value)}
+                      placeholder="例: SV8a"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1025,7 +1047,8 @@ async function syncToChiba() {
               <TableHead className="w-10 hidden md:table-cell"></TableHead>
               <TableHead className="w-10 hidden sm:table-cell">画像</TableHead>
               <TableHead>商品名</TableHead>
-              <TableHead className="hidden md:table-cell">型番</TableHead>
+              <TableHead className="hidden md:table-cell">カード型番</TableHead>
+              <TableHead className="hidden lg:table-cell">セット型番</TableHead>
               <TableHead className="hidden sm:table-cell">カテゴリ</TableHead>
               <TableHead className="hidden lg:table-cell">サブカテゴリ</TableHead>
               <TableHead className="text-right">買取価格</TableHead>
@@ -1037,13 +1060,13 @@ async function syncToChiba() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   読み込み中...
                 </TableCell>
               </TableRow>
             ) : filteredProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   商品がありません
                 </TableCell>
               </TableRow>
@@ -1064,6 +1087,9 @@ async function syncToChiba() {
                   <TableCell className="font-medium">{product.name}</TableCell>
                   <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
                     {product.model_number || '-'}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
+                    {product.set_number || '-'}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <Badge variant="outline">{product.category?.name}</Badge>
