@@ -385,7 +385,7 @@ export default function CategoriesPage() {
                         {cat.name}
                         {catSubs.length > 0 && (
                           <span className="ml-2 text-xs text-muted-foreground">
-                            ({catSubs.length}件のサブカテゴリ)
+                            ({catSubs.map((s) => s.name).join('、')})
                           </span>
                         )}
                       </TableCell>
