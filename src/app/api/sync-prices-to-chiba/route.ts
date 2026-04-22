@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   const [{ data: products }, { data: categories }, { data: subcategories }] = await Promise.all([
     tokyoSupabase
       .from('products')
-      .select('name, price, show_in_price_list, is_active, sort_order, category_id, subcategory_id')
+      .select('name, model_number, price, show_in_price_list, is_active, sort_order, category_id, subcategory_id')
       .eq('tenant_id', tokyoTenant.id),
     tokyoSupabase
       .from('categories')
@@ -143,6 +143,7 @@ export async function POST(request: Request) {
 
     return [{
       name: product.name,
+      model_number: product.model_number,
       category_id: chibaCatId,
       subcategory_id: chibaSubId,
       price: product.price,
