@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,10 +39,53 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, GripVertical } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { Category, Subcategory } from '@/types/database'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const DragHandleContext = createContext<{ attributes: Record<string, any>; listeners: Record<string, any> | undefined }>({ attributes: {}, listeners: undefined })
+
+function SortableRow({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+  return (
+    <DragHandleContext.Provider value={{ attributes, listeners }}>
+      <TableRow ref={setNodeRef} style={style}>
+        {children}
+      </TableRow>
+    </DragHandleContext.Provider>
+  )
+}
+
+function DragHandle() {
+  const { attributes, listeners } = useContext(DragHandleContext)
+  return (
+    <button type="button" {...attributes} {...listeners} className="touch-none">
+      <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
+    </button>
+  )
+}
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([])
@@ -53,13 +96,11 @@ export default function CategoriesPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Category | null>(null)
   const [name, setName] = useState('')
-  const [sortOrder, setSortOrder] = useState(0)
 
   // Subcategory dialog
   const [subDialogOpen, setSubDialogOpen] = useState(false)
   const [editingSub, setEditingSub] = useState<Subcategory | null>(null)
   const [subName, setSubName] = useState('')
-  const [subSortOrder, setSubSortOrder] = useState(0)
   const [subCategoryId, setSubCategoryId] = useState('')
 
   // Expanded categories (show subcategories)
@@ -106,14 +147,12 @@ export default function CategoriesPage() {
   function openCreateCategory() {
     setEditing(null)
     setName('')
-    setSortOrder(categories.length)
     setDialogOpen(true)
   }
 
   function openEditCategory(cat: Category) {
     setEditing(cat)
     setName(cat.name)
-    setSortOrder(cat.sort_order)
     setDialogOpen(true)
   }
 
@@ -124,7 +163,7 @@ export default function CategoriesPage() {
     if (editing) {
       const { error } = await supabase
         .from('categories')
-        .update({ name, sort_order: sortOrder })
+        .update({ name })
         .eq('id', editing.id)
 
       if (error) {
@@ -135,7 +174,7 @@ export default function CategoriesPage() {
     } else {
       const { error } = await supabase
         .from('categories')
-        .insert({ name, sort_order: sortOrder, tenant_id: tenantId })
+        .insert({ name, sort_order: categories.length, tenant_id: tenantId })
 
       if (error) {
         toast.error(error.code === '23505' ? 'このカテゴリ名は既に存在します' : error.message)
@@ -176,8 +215,6 @@ export default function CategoriesPage() {
     setEditingSub(null)
     setSubName('')
     setSubCategoryId(categoryId)
-    const catSubs = subcategories.filter((s) => s.category_id === categoryId)
-    setSubSortOrder(catSubs.length)
     setSubDialogOpen(true)
   }
 
@@ -185,7 +222,6 @@ export default function CategoriesPage() {
     setEditingSub(sub)
     setSubName(sub.name)
     setSubCategoryId(sub.category_id)
-    setSubSortOrder(sub.sort_order)
     setSubDialogOpen(true)
   }
 
@@ -196,7 +232,7 @@ export default function CategoriesPage() {
     if (editingSub) {
       const { error } = await supabase
         .from('subcategories')
-        .update({ name: subName, sort_order: subSortOrder, category_id: subCategoryId })
+        .update({ name: subName, category_id: subCategoryId })
         .eq('id', editingSub.id)
 
       if (error) {
@@ -205,9 +241,10 @@ export default function CategoriesPage() {
       }
       toast.success('サブカテゴリを更新しました')
     } else {
+      const catSubs = subcategories.filter((s) => s.category_id === subCategoryId)
       const { error } = await supabase
         .from('subcategories')
-        .insert({ name: subName, sort_order: subSortOrder, category_id: subCategoryId, tenant_id: tenantId })
+        .insert({ name: subName, sort_order: catSubs.length, category_id: subCategoryId, tenant_id: tenantId })
 
       if (error) {
         toast.error(error.message)
@@ -243,6 +280,70 @@ export default function CategoriesPage() {
     fetchData()
   }
 
+  // --- Drag & Drop ---
+  async function handleCategoryDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = categories.findIndex((c) => c.id === active.id)
+    const newIndex = categories.findIndex((c) => c.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reordered = [...categories]
+    const [moved] = reordered.splice(oldIndex, 1)
+    reordered.splice(newIndex, 0, moved)
+
+    // Optimistic update
+    setCategories(reordered.map((c, i) => ({ ...c, sort_order: i })))
+
+    // Persist
+    const updates = reordered.map((c, i) =>
+      supabase.from('categories').update({ sort_order: i }).eq('id', c.id)
+    )
+    const results = await Promise.all(updates)
+    if (results.some((r) => r.error)) {
+      toast.error('並び替えに失敗しました')
+      fetchData()
+    }
+  }
+
+  async function handleSubDragEnd(event: DragEndEvent, categoryId: string) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const catSubs = subcategories.filter((s) => s.category_id === categoryId)
+    const oldIndex = catSubs.findIndex((s) => s.id === active.id)
+    const newIndex = catSubs.findIndex((s) => s.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reordered = [...catSubs]
+    const [moved] = reordered.splice(oldIndex, 1)
+    reordered.splice(newIndex, 0, moved)
+
+    // Optimistic update
+    setSubcategories((prev) => {
+      const others = prev.filter((s) => s.category_id !== categoryId)
+      return [...others, ...reordered.map((s, i) => ({ ...s, sort_order: i }))].sort((a, b) => a.sort_order - b.sort_order)
+    })
+
+    // Persist
+    const updates = reordered.map((s, i) =>
+      supabase.from('subcategories').update({ sort_order: i }).eq('id', s.id)
+    )
+    const results = await Promise.all(updates)
+    if (results.some((r) => r.error)) {
+      toast.error('並び替えに失敗しました')
+      fetchData()
+    }
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  )
+
+  const categoryIds = useMemo(() => categories.map((c) => c.id), [categories])
+
   return (
     <div className="space-y-6">
       <AdminHeader
@@ -271,15 +372,6 @@ export default function CategoriesPage() {
                     onChange={(e) => setName(e.target.value)}
                     placeholder="例: ポケモンカード"
                     required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sort_order">表示順</Label>
-                  <Input
-                    id="sort_order"
-                    type="number"
-                    value={sortOrder}
-                    onChange={(e) => setSortOrder(Number(e.target.value))}
                   />
                 </div>
                 <Button type="submit" className="w-full">
@@ -324,14 +416,6 @@ export default function CategoriesPage() {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label>表示順</Label>
-              <Input
-                type="number"
-                value={subSortOrder}
-                onChange={(e) => setSubSortOrder(Number(e.target.value))}
-              />
-            </div>
             <Button type="submit" className="w-full">
               {editingSub ? '更新' : '作成'}
             </Button>
@@ -339,27 +423,28 @@ export default function CategoriesPage() {
         </DialogContent>
       </Dialog>
 
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleCategoryDragEnd}>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-10"></TableHead>
-              <TableHead className="w-16">順序</TableHead>
               <TableHead>名前</TableHead>
               <TableHead className="w-24">状態</TableHead>
               <TableHead className="w-40 text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
+          <SortableContext items={categoryIds} strategy={verticalListSortingStrategy}>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                   読み込み中...
                 </TableCell>
               </TableRow>
             ) : categories.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                   カテゴリがありません
                 </TableCell>
               </TableRow>
@@ -367,20 +452,23 @@ export default function CategoriesPage() {
               categories.map((cat) => {
                 const catSubs = subcategories.filter((s) => s.category_id === cat.id)
                 const isExpanded = expandedCategories.has(cat.id)
+                const subIds = catSubs.map((s) => s.id)
                 return (
                   <>
-                    <TableRow key={cat.id}>
+                    <SortableRow key={cat.id} id={cat.id}>
                       <TableCell>
-                        {catSubs.length > 0 ? (
-                          <button type="button" onClick={() => toggleExpand(cat.id)} className="p-1">
-                            {isExpanded
-                              ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                              : <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            }
-                          </button>
-                        ) : null}
+                        <div className="flex items-center gap-1">
+                          <DragHandle />
+                          {catSubs.length > 0 ? (
+                            <button type="button" onClick={() => toggleExpand(cat.id)} className="p-1">
+                              {isExpanded
+                                ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              }
+                            </button>
+                          ) : null}
+                        </div>
                       </TableCell>
-                      <TableCell>{cat.sort_order}</TableCell>
                       <TableCell className="font-medium">
                         {cat.name}
                         {catSubs.length > 0 && (
@@ -441,64 +529,81 @@ export default function CategoriesPage() {
                           </AlertDialog>
                         </div>
                       </TableCell>
-                    </TableRow>
-                    {isExpanded && catSubs.map((sub) => (
-                      <TableRow key={sub.id} className="bg-muted/30">
-                        <TableCell></TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{sub.sort_order}</TableCell>
-                        <TableCell className="text-sm pl-8">{sub.name}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={sub.is_active ? 'default' : 'secondary'}
-                            className="cursor-pointer text-xs"
-                            onClick={() => toggleSubcategoryActive(sub)}
-                          >
-                            {sub.is_active ? '有効' : '無効'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEditSubcategory(sub)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>サブカテゴリを削除</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    「{sub.name}」を削除しますか？商品が紐付いている場合は削除できません。
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDeleteSubcategory(sub.id)}
-                                  >
-                                    削除
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
+                    </SortableRow>
+                    {isExpanded && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="p-0">
+                          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleSubDragEnd(e, cat.id)}>
+                          <SortableContext items={subIds} strategy={verticalListSortingStrategy}>
+                          <Table>
+                            <TableBody>
+                              {catSubs.map((sub) => (
+                                <SortableRow key={sub.id} id={sub.id}>
+                                  <TableCell className="w-10 pl-6">
+                                    <DragHandle />
+                                  </TableCell>
+                                  <TableCell className="text-sm pl-8">{sub.name}</TableCell>
+                                  <TableCell className="w-24">
+                                    <Badge
+                                      variant={sub.is_active ? 'default' : 'secondary'}
+                                      className="cursor-pointer text-xs"
+                                      onClick={() => toggleSubcategoryActive(sub)}
+                                    >
+                                      {sub.is_active ? '有効' : '無効'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="w-40 text-right">
+                                    <div className="flex justify-end gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => openEditSubcategory(sub)}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                      <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                          <Button variant="ghost" size="icon">
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                          </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                            <AlertDialogTitle>サブカテゴリを削除</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                              「{sub.name}」を削除しますか？商品が紐付いている場合は削除できません。
+                                            </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                                            <AlertDialogAction
+                                              onClick={() => handleDeleteSubcategory(sub.id)}
+                                            >
+                                              削除
+                                            </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                      </AlertDialog>
+                                    </div>
+                                  </TableCell>
+                                </SortableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                          </SortableContext>
+                          </DndContext>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </>
                 )
               })
             )}
           </TableBody>
+          </SortableContext>
         </Table>
       </div>
+      </DndContext>
     </div>
   )
 }
