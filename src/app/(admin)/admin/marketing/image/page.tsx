@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import type { Product, Category, Subcategory } from '@/types/database'
 
 const SETTING_KEY = 'sns_post_default_products'
-const MAX_ITEMS = 44
+const COLS = 8
 
 type Trend = 'up' | 'down' | 'flat'
 
@@ -67,7 +67,6 @@ export default function MarketingImagePage() {
       return
     }
 
-    // Build a map of latest previous price per product from price history
     const prevPriceMap = new Map<string, number>()
     if (historyResult.data) {
       for (const h of historyResult.data) {
@@ -110,15 +109,8 @@ export default function MarketingImagePage() {
   function toggleProduct(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        if (next.size >= MAX_ITEMS) {
-          toast.warning(`最大${MAX_ITEMS}商品まで選択できます`)
-          return prev
-        }
-        next.add(id)
-      }
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -149,7 +141,6 @@ export default function MarketingImagePage() {
       const { toPng } = await import('html-to-image')
       const options = { quality: 1, pixelRatio: 2 }
 
-      // 2回呼びしてフォント安定
       await toPng(previewRef.current, options)
       const dataUrl = await toPng(previewRef.current, options)
 
@@ -173,7 +164,7 @@ export default function MarketingImagePage() {
     <div>
       <AdminHeader
         title="SNS価格画像生成"
-        description="X投稿用の買取価格画像を自動生成します（1920×1080 / 最大44商品）"
+        description="X投稿用の買取価格画像を自動生成します（1920×1080）"
       />
 
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -185,7 +176,7 @@ export default function MarketingImagePage() {
                 <CardTitle className="text-base">掲載する商品</CardTitle>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">
-                    {selectedIds.size} / {MAX_ITEMS} 件
+                    {selectedIds.size} 件選択中
                   </span>
                   <Button variant="outline" size="sm" onClick={saveDefaults} disabled={saving} className="gap-1">
                     <Save className="h-3.5 w-3.5" />
@@ -297,8 +288,10 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
   const updatedAt = fmt(today)
   const validUntil = fmt(validUntilDate)
 
-  const displayProducts = products.slice(0, MAX_ITEMS)
-  const infoSpan = Math.max(48 - displayProducts.length, 4)
+  // Calculate grid: always 8 columns, rows based on product count + info area
+  const rows = Math.ceil((products.length + COLS) / COLS) // +COLS for info area (1 row worth)
+  const totalCells = rows * COLS
+  const infoSpan = Math.max(totalCells - products.length, 4)
 
   return (
     <div
@@ -310,7 +303,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
         position: 'relative',
         overflow: 'hidden',
         fontFamily: '"Noto Sans JP", sans-serif',
-        padding: '40px 48px',
+        padding: '24px 36px',
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
@@ -318,32 +311,32 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
     >
       {/* Palm leaf decorations */}
       <div style={{ position: 'absolute', top: -30, right: -30, opacity: 0.12, pointerEvents: 'none' }}>
-        <PalmLeaf size={280} color="#1a1a1a" rotate={25} />
+        <PalmLeaf size={220} color="#1a1a1a" rotate={25} />
       </div>
       <div style={{ position: 'absolute', bottom: -40, left: -40, opacity: 0.1, pointerEvents: 'none' }}>
-        <PalmLeaf size={260} color="#1a1a1a" rotate={-150} />
+        <PalmLeaf size={200} color="#1a1a1a" rotate={-150} />
       </div>
 
-      {/* Header */}
+      {/* Header - compact */}
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 18, position: 'relative', zIndex: 2, gap: 20, minHeight: 300,
+        marginBottom: 10, position: 'relative', zIndex: 2, gap: 16,
       }}>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+        <div style={{ flexShrink: 0 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/assets/logo-full.png"
             alt="買取スクエア"
-            style={{ height: 300, width: 300, objectFit: 'contain', display: 'block' }}
+            style={{ height: 160, width: 160, objectFit: 'contain', display: 'block' }}
             crossOrigin="anonymous"
           />
         </div>
 
         {/* Main title area */}
-        <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 170 }}>
+        <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           {/* Sunburst SVG */}
-          <svg viewBox="-100 -100 200 200" style={{ position: 'absolute', width: 640, height: 200, opacity: 0.85, pointerEvents: 'none' }}>
+          <svg viewBox="-100 -100 200 200" style={{ position: 'absolute', width: 480, height: 160, opacity: 0.85, pointerEvents: 'none' }}>
             <defs>
               <radialGradient id="burstFade">
                 <stop offset="0%" stopColor="#dc2626" stopOpacity="0" />
@@ -365,24 +358,24 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
           </svg>
 
           {/* Title */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, transform: 'rotate(-2.5deg)' }}>
-            <div style={{ color: '#dc2626', fontSize: 60, fontWeight: 900, WebkitTextStroke: '4px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(4px 4px 0 #111)' }}>★</div>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, transform: 'rotate(-2.5deg)' }}>
+            <div style={{ color: '#dc2626', fontSize: 40, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</div>
             <h1 style={{
               margin: 0, fontFamily: '"Noto Sans JP", sans-serif',
-              fontSize: 168, fontWeight: 900, lineHeight: 0.92, letterSpacing: '0.04em',
-              color: '#fff', WebkitTextStroke: '14px #111', paintOrder: 'stroke fill',
-              textShadow: '0 0 0 #111, 10px 10px 0 #dc2626, 16px 16px 0 #111',
+              fontSize: 110, fontWeight: 900, lineHeight: 0.92, letterSpacing: '0.04em',
+              color: '#fff', WebkitTextStroke: '10px #111', paintOrder: 'stroke fill',
+              textShadow: '0 0 0 #111, 7px 7px 0 #dc2626, 11px 11px 0 #111',
               position: 'relative', whiteSpace: 'nowrap',
             }}>高価買取</h1>
-            <div style={{ color: '#dc2626', fontSize: 60, fontWeight: 900, WebkitTextStroke: '4px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(4px 4px 0 #111)' }}>★</div>
+            <div style={{ color: '#dc2626', fontSize: 40, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</div>
 
             {/* Top label */}
             <div style={{
-              position: 'absolute', top: -52, left: '50%', transform: 'translateX(-50%)',
-              background: '#dc2626', color: '#fff', padding: '5px 24px',
-              fontSize: 22, fontWeight: 900, letterSpacing: '0.2em',
+              position: 'absolute', top: -36, left: '50%', transform: 'translateX(-50%)',
+              background: '#dc2626', color: '#fff', padding: '4px 18px',
+              fontSize: 16, fontWeight: 900, letterSpacing: '0.2em',
               fontFamily: '"Noto Sans JP", sans-serif', borderRadius: 2,
-              whiteSpace: 'nowrap', border: '3px solid #111', boxShadow: '3px 3px 0 #111',
+              whiteSpace: 'nowrap', border: '2px solid #111', boxShadow: '2px 2px 0 #111',
             }}>
               ポケモンカードBOX 買取価格表
             </div>
@@ -390,71 +383,78 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
         </div>
 
         {/* Right: 3 badges */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, minWidth: 270 }}>
-          <div style={{ background: '#fff', border: '3px solid #111', padding: '10px 18px', borderRadius: 10, transform: 'rotate(3deg)', boxShadow: '5px 5px 0 #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 900, color: '#dc2626', lineHeight: 1, letterSpacing: '0.05em' }}>★ 全種 ★</div>
-            <div style={{ fontSize: 30, fontWeight: 900, color: '#111', lineHeight: 1.05, marginTop: 4 }}>シュリンクあり！</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, minWidth: 220 }}>
+          <div style={{ background: '#fff', border: '2px solid #111', padding: '6px 14px', borderRadius: 8, transform: 'rotate(3deg)', boxShadow: '4px 4px 0 #111', textAlign: 'center' }}>
+            <div style={{ fontSize: 14, fontWeight: 900, color: '#dc2626', lineHeight: 1, letterSpacing: '0.05em' }}>★ 全種 ★</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#111', lineHeight: 1.05, marginTop: 2 }}>シュリンクあり！</div>
           </div>
-          <div style={{ background: '#111', color: '#FCD34D', padding: '10px 18px', borderRadius: 10, transform: 'rotate(-2.5deg)', boxShadow: '5px 5px 0 #dc2626', border: '3px solid #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: '#fff', letterSpacing: '0.2em', opacity: 0.85 }}>FAST PAYMENT</div>
-            <div style={{ fontSize: 30, fontWeight: 900, lineHeight: 1.05, marginTop: 2, letterSpacing: '0.02em' }}>到着日振込！</div>
+          <div style={{ background: '#111', color: '#FCD34D', padding: '6px 14px', borderRadius: 8, transform: 'rotate(-2.5deg)', boxShadow: '4px 4px 0 #dc2626', border: '2px solid #111', textAlign: 'center' }}>
+            <div style={{ fontSize: 10, fontWeight: 900, color: '#fff', letterSpacing: '0.2em', opacity: 0.85 }}>FAST PAYMENT</div>
+            <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1.05, marginTop: 1, letterSpacing: '0.02em' }}>到着日振込！</div>
           </div>
-          <div style={{ background: '#dc2626', color: '#fff', padding: '10px 18px', borderRadius: 10, transform: 'rotate(2.5deg)', boxShadow: '5px 5px 0 #111', border: '3px solid #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: '#FCD34D', letterSpacing: '0.2em' }}>FREE SHIPPING</div>
-            <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.05, marginTop: 2, letterSpacing: '0.02em' }}>
-              着払<span style={{ fontSize: 34, color: '#FCD34D' }}>10</span>箱から可能！
+          <div style={{ background: '#dc2626', color: '#fff', padding: '6px 14px', borderRadius: 8, transform: 'rotate(2.5deg)', boxShadow: '4px 4px 0 #111', border: '2px solid #111', textAlign: 'center' }}>
+            <div style={{ fontSize: 10, fontWeight: 900, color: '#FCD34D', letterSpacing: '0.2em' }}>FREE SHIPPING</div>
+            <div style={{ fontSize: 20, fontWeight: 900, lineHeight: 1.05, marginTop: 1, letterSpacing: '0.02em' }}>
+              着払<span style={{ fontSize: 26, color: '#FCD34D' }}>10</span>箱から可能！
             </div>
           </div>
         </div>
       </header>
 
       {/* Red gradient line */}
-      <div style={{ height: 4, background: 'linear-gradient(90deg, #dc2626 0%, #f59e0b 50%, #dc2626 100%)', marginBottom: 18, position: 'relative', zIndex: 2 }} />
+      <div style={{ height: 3, background: 'linear-gradient(90deg, #dc2626 0%, #f59e0b 50%, #dc2626 100%)', marginBottom: 8, position: 'relative', zIndex: 2 }} />
 
-      {/* Product grid 8×6 */}
+      {/* Product grid */}
       <div style={{
         flex: 1, display: 'grid',
-        gridTemplateColumns: 'repeat(8, 1fr)', gridTemplateRows: 'repeat(6, 1fr)',
-        gap: 8, position: 'relative', zIndex: 2,
+        gridTemplateColumns: `repeat(${COLS}, 1fr)`,
+        gridTemplateRows: `repeat(${rows}, 1fr)`,
+        gap: 6, position: 'relative', zIndex: 2,
+        minHeight: 0,
       }}>
-        {displayProducts.map((product) => (
+        {products.map((product) => (
           <div key={product.id} style={{
             background: '#fff', border: '2px solid #111', borderRadius: 4,
-            padding: '6px 6px 8px', display: 'flex', flexDirection: 'column',
-            position: 'relative', boxShadow: '2px 2px 0 #111',
+            padding: '4px 4px 6px', display: 'flex', flexDirection: 'column',
+            overflow: 'hidden', boxShadow: '2px 2px 0 #111', minHeight: 0,
           }}>
-            {product.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={product.image_url}
-                alt={product.name}
-                style={{ width: '100%', aspectRatio: '4/3', objectFit: 'contain', flex: 1, marginBottom: 4 }}
-                crossOrigin="anonymous"
-              />
-            ) : (
-              <div style={{
-                width: '100%', aspectRatio: '4/3',
-                background: 'rgba(0,0,0,0.04)', border: '1px dashed rgba(0,0,0,0.18)',
-                borderRadius: 4, flex: 1, marginBottom: 4,
-              }} />
-            )}
+            {/* Image area - fills available space */}
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>
+              {product.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={product.image_url}
+                  alt={product.name}
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <div style={{
+                  width: '100%', height: '100%',
+                  background: 'rgba(0,0,0,0.04)', border: '1px dashed rgba(0,0,0,0.18)',
+                  borderRadius: 4,
+                }} />
+              )}
+            </div>
+            {/* Product name */}
             <div style={{
-              fontSize: 15, fontWeight: 800, color: '#111', textAlign: 'center',
-              lineHeight: 1.15, minHeight: 34, display: 'flex',
-              alignItems: 'center', justifyContent: 'center', padding: '0 2px',
+              fontSize: 12, fontWeight: 800, color: '#111', textAlign: 'center',
+              lineHeight: 1.15, marginTop: 2, flexShrink: 0,
+              overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
             }}>
               {product.name}
             </div>
+            {/* Price tag */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 5, marginTop: 2, background: '#111', padding: '6px 4px', borderRadius: 3,
+              gap: 3, marginTop: 2, background: '#111', padding: '4px 3px', borderRadius: 3, flexShrink: 0,
             }}>
               {product.trend !== 'flat' && (
-                <span style={{ color: product.trend === 'up' ? '#4ade80' : '#fca5a5', fontSize: 13, fontWeight: 900 }}>
+                <span style={{ color: product.trend === 'up' ? '#4ade80' : '#fca5a5', fontSize: 10, fontWeight: 900 }}>
                   {product.trend === 'up' ? '▲' : '▼'}
                 </span>
               )}
-              <span style={{ color: '#FCD34D', fontSize: 24, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.01em' }}>
+              <span style={{ color: '#FCD34D', fontSize: 18, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.01em' }}>
                 ¥{product.price.toLocaleString('ja-JP')}
               </span>
             </div>
@@ -462,19 +462,19 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
         ))}
 
         {/* Information area */}
-        {displayProducts.length > 0 && (
+        {products.length > 0 && (
           <div style={{
             gridColumn: `span ${infoSpan}`, background: '#111', color: '#FCD34D',
-            borderRadius: 6, padding: '12px 18px', display: 'flex',
+            borderRadius: 6, padding: '8px 14px', display: 'flex',
             alignItems: 'center', justifyContent: 'space-between', border: '2px solid #111',
           }}>
             <div>
-              <div style={{ fontSize: 13, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.1em' }}>VALID UNTIL</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginTop: 2 }}>{validUntil} まで有効</div>
+              <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.1em' }}>VALID UNTIL</div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', marginTop: 1 }}>{validUntil} まで有効</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 13, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.1em' }}>UPDATED</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginTop: 2 }}>{updatedAt}</div>
+              <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.1em' }}>UPDATED</div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', marginTop: 1 }}>{updatedAt}</div>
             </div>
           </div>
         )}
@@ -482,8 +482,8 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
 
       {/* Footer */}
       <footer style={{
-        marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        fontSize: 15, color: '#111', fontWeight: 600, position: 'relative', zIndex: 2,
+        marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        fontSize: 13, color: '#111', fontWeight: 600, position: 'relative', zIndex: 2,
       }}>
         <span>※ 買取価格は状態・在庫状況により変動する場合がございます。</span>
         <span style={{ fontWeight: 900 }}>kaitorisquare.net</span>
