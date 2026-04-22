@@ -51,6 +51,8 @@ export default function MarketingImagePage() {
         .from('products')
         .select('*, category:categories(*), subcategory:subcategories(*)')
         .eq('is_active', true)
+        .eq('category_id', 'db02ec12-d529-453c-a749-53da99e05533')
+        .eq('subcategory_id', '7fc8c032-c373-438a-bc14-6a9e8c113767')
         .order('sort_order'),
       supabase.from('app_settings').select('value').eq('key', SETTING_KEY).maybeSingle(),
       supabase
