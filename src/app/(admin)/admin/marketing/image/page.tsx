@@ -423,23 +423,21 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
       {/* Red gradient line */}
       <div style={{ position: 'absolute', top: padY + headerH + 8, left: padX, right: padX, height: lineH, background: 'linear-gradient(90deg, #dc2626 0%, #f59e0b 50%, #dc2626 100%)', zIndex: 2 }} />
 
-      {/* Product grid — absolute positioned with explicit pixel sizes */}
-      <div style={{
-        position: 'absolute', top: gridTop, left: padX,
-        width: gridW, height: gridH,
-        display: 'grid',
-        gridTemplateColumns: `repeat(${cols}, ${cellW}px)`,
-        gridTemplateRows: `repeat(${rows}, ${cellH}px)`,
-        gap: gap, zIndex: 2,
-      }}>
-        {products.map((product) => (
+      {/* Product cards — each individually positioned by pixel coordinates */}
+      {products.map((product, index) => {
+        const col = index % cols
+        const row = Math.floor(index / cols)
+        const x = padX + col * (cellW + gap)
+        const y = gridTop + row * (cellH + gap)
+        return (
           <div key={product.id} style={{
+            position: 'absolute', left: x, top: y, width: cellW, height: cellH,
             background: '#fff', border: '2px solid #111', borderRadius: 4,
             padding: `${cardPadV}px 4px`,
             display: 'flex', flexDirection: 'column',
-            overflow: 'hidden', boxShadow: '2px 2px 0 #111',
+            overflow: 'hidden', boxShadow: '2px 2px 0 #111', zIndex: 2,
+            boxSizing: 'border-box',
           }}>
-            {/* Product image — fixed pixel height */}
             {product.image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -455,7 +453,6 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
                 borderRadius: 4,
               }} />
             )}
-            {/* Product name */}
             <div style={{
               fontSize: nameFontSize, fontWeight: 800, color: '#111', textAlign: 'center',
               lineHeight: 1.15, height: nameH, marginTop: 2,
@@ -463,7 +460,6 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
             }}>
               {product.name}
             </div>
-            {/* Price tag */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               gap: 3, marginTop: 2, background: '#111', height: priceH, borderRadius: 3,
@@ -478,14 +474,24 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
               </span>
             </div>
           </div>
-        ))}
+        )
+      })}
 
-        {/* Information area */}
-        {products.length > 0 && (
+      {/* Information area — positioned after last product */}
+      {products.length > 0 && (() => {
+        const infoCol = products.length % cols
+        const infoRow = Math.floor(products.length / cols)
+        const remainCols = cols - infoCol
+        const x = padX + infoCol * (cellW + gap)
+        const y = gridTop + infoRow * (cellH + gap)
+        const w = remainCols * cellW + (remainCols - 1) * gap
+        return (
           <div style={{
-            gridColumn: `span ${infoSpan}`, background: '#111', color: '#FCD34D',
+            position: 'absolute', left: x, top: y, width: w, height: cellH,
+            background: '#111', color: '#FCD34D',
             borderRadius: 6, padding: '4px 14px', display: 'flex',
             alignItems: 'center', justifyContent: 'space-between', border: '2px solid #111',
+            zIndex: 2, boxSizing: 'border-box',
           }}>
             <div>
               <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.1em' }}>VALID UNTIL</div>
@@ -496,8 +502,8 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
               <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginTop: 1 }}>{updatedAt}</div>
             </div>
           </div>
-        )}
-      </div>
+        )
+      })()}
 
       {/* Footer */}
       <footer style={{
