@@ -473,39 +473,27 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
             }}>
               {product.name}
             </div>
-            {product.price_no_shrink != null ? (
-              <div style={{
-                marginTop: 2, background: '#111', height: priceH, borderRadius: 3,
-                display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '1px 3px',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
-                  <span style={{ color: '#fff', fontSize: Math.floor(priceFontSize * 0.5), fontWeight: 700 }}>封</span>
-                  <span style={{ color: '#FCD34D', fontSize: Math.floor(priceFontSize * 0.8), fontWeight: 900, lineHeight: 1 }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 1, marginTop: 2, background: '#111', height: priceH, borderRadius: 3,
+            }}>
+              {product.price_no_shrink != null ? (
+                <span style={{ color: '#FCD34D', fontSize: Math.floor(priceFontSize * 0.85), fontWeight: 900, lineHeight: 1 }}>
+                  ¥{product.price.toLocaleString('ja-JP')}<span style={{ color: '#9ca3af', margin: '0 1px' }}>/</span><span style={{ color: '#ccc' }}>¥{product.price_no_shrink.toLocaleString('ja-JP')}</span>
+                </span>
+              ) : (
+                <>
+                  {product.trend !== 'flat' && (
+                    <span style={{ color: product.trend === 'up' ? '#4ade80' : '#fca5a5', fontSize: Math.floor(priceFontSize * 0.55), fontWeight: 900 }}>
+                      {product.trend === 'up' ? '▲' : '▼'}
+                    </span>
+                  )}
+                  <span style={{ color: '#FCD34D', fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.01em' }}>
                     ¥{product.price.toLocaleString('ja-JP')}
                   </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
-                  <span style={{ color: '#9ca3af', fontSize: Math.floor(priceFontSize * 0.5), fontWeight: 700 }}>開</span>
-                  <span style={{ color: '#9ca3af', fontSize: Math.floor(priceFontSize * 0.7), fontWeight: 900, lineHeight: 1 }}>
-                    ¥{product.price_no_shrink.toLocaleString('ja-JP')}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                gap: 3, marginTop: 2, background: '#111', height: priceH, borderRadius: 3,
-              }}>
-                {product.trend !== 'flat' && (
-                  <span style={{ color: product.trend === 'up' ? '#4ade80' : '#fca5a5', fontSize: Math.floor(priceFontSize * 0.55), fontWeight: 900 }}>
-                    {product.trend === 'up' ? '▲' : '▼'}
-                  </span>
-                )}
-                <span style={{ color: '#FCD34D', fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.01em' }}>
-                  ¥{product.price.toLocaleString('ja-JP')}
-                </span>
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </div>
         )
       })}
