@@ -46,6 +46,7 @@ export interface Product {
   subcategory_id: string | null
   name: string
   model_number: string | null
+  set_number: string | null
   price: number
   is_active: boolean
   show_in_price_list: boolean
