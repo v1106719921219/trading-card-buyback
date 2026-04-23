@@ -127,6 +127,11 @@ export default function ProductsPage() {
   const [csvPreview, setCsvPreview] = useState<{ name: string; modelNumber: string; setNumber: string; imageUrl: string; category: string; categoryId: string; subcategory: string; subcategoryId: string; price: number; showInPriceList?: boolean; isActive?: boolean; isUpdate: boolean; error?: string }[]>([])
   const [csvImporting, setCsvImporting] = useState(false)
 
+  // インライン画像アップロード
+  const [inlineUploadingId, setInlineUploadingId] = useState<string | null>(null)
+  const inlineImageInputRef = useRef<HTMLInputElement>(null)
+  const inlineUploadTargetId = useRef<string | null>(null)
+
   // 千葉同期
   const [syncing, setSyncing] = useState(false)
 
@@ -268,6 +273,37 @@ async function syncToChiba() {
     setFormPriceNoShrink(product.price_no_shrink ?? null)
     setFormImageUrl(product.image_url ?? null)
     setDialogOpen(true)
+  }
+
+  async function handleInlineImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const productId = inlineUploadTargetId.current
+    if (!file || !productId) return
+    setInlineUploadingId(productId)
+    const ext = file.name.split('.').pop()
+    const path = `${Date.now()}.${ext}`
+    const { error } = await supabase.storage
+      .from('product-images')
+      .upload(path, file, { upsert: true })
+    if (error) {
+      toast.error('画像のアップロードに失敗しました')
+      setInlineUploadingId(null)
+      return
+    }
+    const { data } = supabase.storage.from('product-images').getPublicUrl(path)
+    const { error: updateError } = await supabase
+      .from('products')
+      .update({ image_url: data.publicUrl })
+      .eq('id', productId)
+    setInlineUploadingId(null)
+    if (updateError) {
+      toast.error('画像の保存に失敗しました')
+      return
+    }
+    toast.success('画像をアップロードしました')
+    fetchData()
+    // input をリセット
+    if (inlineImageInputRef.current) inlineImageInputRef.current.value = ''
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1094,12 +1130,25 @@ async function syncToChiba() {
                     <DragHandle />
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    {product.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded" />
-                    ) : (
-                      <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
-                    )}
+                    <button
+                      type="button"
+                      className="cursor-pointer hover:opacity-70 transition-opacity"
+                      title="クリックして画像をアップロード"
+                      disabled={inlineUploadingId === product.id}
+                      onClick={() => {
+                        inlineUploadTargetId.current = product.id
+                        inlineImageInputRef.current?.click()
+                      }}
+                    >
+                      {inlineUploadingId === product.id ? (
+                        <RefreshCw className="h-5 w-5 text-muted-foreground animate-spin" />
+                      ) : product.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded" />
+                      ) : (
+                        <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
+                      )}
+                    </button>
                   </TableCell>
                   <TableCell className="font-medium">{product.name}</TableCell>
                   <TableCell className="text-sm text-muted-foreground hidden md:table-cell">
@@ -1195,8 +1244,16 @@ async function syncToChiba() {
       </div>
       </DndContext>
       <p className="text-sm text-muted-foreground">
-        {filteredProducts.length}件の商品（価格をクリックしてインライン編集）
+        {filteredProducts.length}件の商品（価格をクリックしてインライン編集・画像をクリックしてアップロード）
       </p>
+      {/* 隠しファイル入力（インライン画像アップロード用） */}
+      <input
+        ref={inlineImageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleInlineImageUpload}
+      />
     </div>
   )
 }
