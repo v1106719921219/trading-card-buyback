@@ -87,7 +87,7 @@ export default function MarketingImagePage() {
     if (noShrinkResult.data) {
       for (const ns of noShrinkResult.data) {
         const baseName = ns.name.replace(/\s*シュリンク無し\s*$/, '').trim()
-        noShrinkPriceMap.set(baseName, ns.price)
+        if (ns.price > 0) noShrinkPriceMap.set(baseName, ns.price)
       }
     }
 
