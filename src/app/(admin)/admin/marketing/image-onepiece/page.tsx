@@ -485,7 +485,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
             }}>
               {product.price_no_shrink != null ? (
                 <span style={{ color: GOLD, fontSize: Math.floor(priceFontSize * 0.82), fontWeight: 900, lineHeight: 1, textShadow: `0 1px 0 ${INK}` }}>
-                  ¥{product.price.toLocaleString('ja-JP')}<span style={{ color: 'rgba(245,194,66,0.4)', margin: '0 2px' }}>/</span><span style={{ color: 'rgba(254,246,224,0.7)' }}>¥{product.price_no_shrink.toLocaleString('ja-JP')}<span style={{ fontSize: Math.floor(priceFontSize * 0.4), marginLeft: 1 }}>CT</span></span>
+                  ¥{product.price.toLocaleString('ja-JP')}<span style={{ color: 'rgba(245,194,66,0.4)', margin: '0 2px' }}>/</span><span style={{ color: 'rgba(254,246,224,0.7)' }}>¥{product.price_no_shrink.toLocaleString('ja-JP')}<span style={{ fontSize: Math.floor(priceFontSize * 0.4), marginLeft: 1 }}>カートン</span></span>
                 </span>
               ) : (
                 <span style={{ color: GOLD, fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, textShadow: `0 1px 0 ${INK}` }}>
