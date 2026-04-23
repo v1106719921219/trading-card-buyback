@@ -32,7 +32,8 @@ export default function MarketingImagePage() {
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const previewRef = useRef<HTMLDivElement>(null)
+  const previewRef1 = useRef<HTMLDivElement>(null)
+  const previewRef2 = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
   // Noto Sans JPをページに動的に読み込む
@@ -147,8 +148,19 @@ export default function MarketingImagePage() {
     else toast.success('デフォルト選択を保存しました')
   }
 
+  async function downloadRef(ref: React.RefObject<HTMLDivElement | null>, filename: string) {
+    if (!ref.current) return
+    const { toPng } = await import('html-to-image')
+    const options = { quality: 1, pixelRatio: 2 }
+    await toPng(ref.current, options) // warm up
+    const dataUrl = await toPng(ref.current, options)
+    const a = document.createElement('a')
+    a.href = dataUrl
+    a.download = filename
+    a.click()
+  }
+
   async function handleDownload() {
-    if (!previewRef.current) return
     setDownloading(true)
     try {
       await document.fonts.load('700 16px "Noto Sans JP"')
@@ -156,17 +168,15 @@ export default function MarketingImagePage() {
       await document.fonts.load('900 16px "Noto Sans JP"')
       await document.fonts.ready
 
-      const { toPng } = await import('html-to-image')
-      const options = { quality: 1, pixelRatio: 2 }
-
-      await toPng(previewRef.current, options)
-      const dataUrl = await toPng(previewRef.current, options)
-
-      const a = document.createElement('a')
-      a.href = dataUrl
-      a.download = `買取価格表_${new Date().toLocaleDateString('ja-JP').replace(/\//g, '')}.png`
-      a.click()
-      toast.success('画像をダウンロードしました')
+      const dateStr = new Date().toLocaleDateString('ja-JP').replace(/\//g, '')
+      if (page2Products.length > 0) {
+        await downloadRef(previewRef1, `買取価格表_1_${dateStr}.png`)
+        await downloadRef(previewRef2, `買取価格表_2_${dateStr}.png`)
+        toast.success('2枚の画像をダウンロードしました')
+      } else {
+        await downloadRef(previewRef1, `買取価格表_${dateStr}.png`)
+        toast.success('画像をダウンロードしました')
+      }
     } catch (e) {
       console.error(e)
       toast.error('画像の生成に失敗しました')
@@ -177,6 +187,12 @@ export default function MarketingImagePage() {
 
   const selectedProducts = products.filter((p) => selectedIds.has(p.id))
   const noImageCount = selectedProducts.filter((p) => !p.image_url).length
+
+  // Split into 2 pages if more than 32 products
+  const splitAt = Math.ceil(selectedProducts.length / 2)
+  const needsSplit = selectedProducts.length > 32
+  const page1Products = needsSplit ? selectedProducts.slice(0, splitAt) : selectedProducts
+  const page2Products = needsSplit ? selectedProducts.slice(splitAt) : []
 
   return (
     <div>
@@ -253,21 +269,31 @@ export default function MarketingImagePage() {
         {/* 右カラム: プレビュー */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">プレビュー（1920×1080 / X推奨 16:9）</p>
+            <p className="text-sm text-muted-foreground">
+              プレビュー（1920×1080）{needsSplit && '— 2枚に分割'}
+            </p>
             <Button onClick={handleDownload} disabled={downloading || selectedIds.size === 0} className="gap-2">
               <Download className="h-4 w-4" />
-              {downloading ? '生成中...' : 'PNG ダウンロード'}
+              {downloading ? '生成中...' : needsSplit ? '2枚ダウンロード' : 'PNG ダウンロード'}
             </Button>
           </div>
 
-          <div className="overflow-auto border rounded-lg bg-muted/30">
-            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px' }}>
-              <PriceImageCanvas
-                ref={previewRef}
-                products={selectedProducts}
-              />
+          <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
+            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
+              <PriceImageCanvas ref={previewRef1} products={page1Products} pageLabel={needsSplit ? '①' : undefined} />
             </div>
           </div>
+
+          {page2Products.length > 0 && (
+            <>
+              <p className="text-sm text-muted-foreground">2枚目</p>
+              <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
+                <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
+                  <PriceImageCanvas ref={previewRef2} products={page2Products} pageLabel="②" />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -295,7 +321,8 @@ function PalmLeaf({ size, color, rotate }: { size: number; color: string; rotate
 // --- Main SNS Price Image Canvas (1920 × 1080) ---
 const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
   products: ProductWithTrend[]
-}>(({ products }, ref) => {
+  pageLabel?: string
+}>(({ products, pageLabel }, ref) => {
   const today = new Date()
   const validUntilDate = new Date(today)
   validUntilDate.setDate(validUntilDate.getDate() + 7)
@@ -309,12 +336,12 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
   // --- Explicit pixel layout (no flex dependency) ---
   const W = 1920
   const H = 1080
-  const padX = 36
-  const padY = 20
+  const padX = 24
+  const padY = 16
   const headerH = 100
-  const footerH = 24
+  const footerH = 22
   const lineH = 3
-  const gap = 6
+  const gap = 5
 
   const gridTop = padY + headerH + 8 + lineH + 8
   const gridH = H - gridTop - padY - footerH - 6
@@ -328,10 +355,10 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
   const cellH = Math.floor((gridH - gap * (rows - 1)) / rows)
 
   // Card inner sizes — proportional to cell height
-  const nameH = Math.max(Math.min(Math.floor(cellH * 0.16), 26), 14)
-  const priceH = Math.max(Math.min(Math.floor(cellH * 0.2), 28), 18)
-  const cardPadV = 3
-  const imgH = Math.max(cellH - nameH - priceH - cardPadV * 2 - 6, 10) // 6 = margins
+  const nameH = Math.max(Math.min(Math.floor(cellH * 0.16), 24), 14)
+  const priceH = Math.max(Math.min(Math.floor(cellH * 0.2), 26), 18)
+  const cardPadV = 2
+  const imgH = Math.max(cellH - nameH - priceH - cardPadV * 2 - 4, 10) // 4 = margins
   const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.6), 13), 8)
   const priceFontSize = Math.max(Math.min(Math.floor(priceH * 0.7), 20), 12)
 
