@@ -110,9 +110,15 @@ export default function SinglePromoImagePage() {
   async function saveDefaults() {
     setSaving(true)
     const value = JSON.stringify({ singles: Array.from(selectedSingleIds), promos: Array.from(selectedPromoIds) })
-    const { error } = await supabase
-      .from('app_settings')
-      .upsert({ key: SETTING_KEY, value, description: 'シングル・プロモ画像のデフォルト掲載商品', tenant_id: 'aaaaaaaa-0000-0000-0000-000000000001' }, { onConflict: 'key' })
+    const tenantId = 'aaaaaaaa-0000-0000-0000-000000000001'
+    // Check if row exists
+    const { data: existing } = await supabase.from('app_settings').select('key').eq('key', SETTING_KEY).maybeSingle()
+    let error
+    if (existing) {
+      ({ error } = await supabase.from('app_settings').update({ value }).eq('key', SETTING_KEY))
+    } else {
+      ({ error } = await supabase.from('app_settings').insert({ key: SETTING_KEY, value, description: 'シングル・プロモ画像のデフォルト掲載商品', tenant_id: tenantId }))
+    }
     setSaving(false)
     if (error) toast.error('保存に失敗しました')
     else toast.success('デフォルト選択を保存しました')

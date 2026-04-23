@@ -133,13 +133,15 @@ export default function MarketingImagePage() {
 
   async function saveDefaults() {
     setSaving(true)
-    const ids = Array.from(selectedIds)
-    const { error } = await supabase
-      .from('app_settings')
-      .upsert(
-        { key: SETTING_KEY, value: JSON.stringify(ids), description: 'SNS投稿文のデフォルト掲載商品IDリスト', tenant_id: 'aaaaaaaa-0000-0000-0000-000000000001' },
-        { onConflict: 'key' }
-      )
+    const value = JSON.stringify(Array.from(selectedIds))
+    const tenantId = 'aaaaaaaa-0000-0000-0000-000000000001'
+    const { data: existing } = await supabase.from('app_settings').select('key').eq('key', SETTING_KEY).maybeSingle()
+    let error
+    if (existing) {
+      ({ error } = await supabase.from('app_settings').update({ value }).eq('key', SETTING_KEY))
+    } else {
+      ({ error } = await supabase.from('app_settings').insert({ key: SETTING_KEY, value, description: 'SNS投稿文のデフォルト掲載商品IDリスト', tenant_id: tenantId }))
+    }
     setSaving(false)
     if (error) toast.error('保存に失敗しました')
     else toast.success('デフォルト選択を保存しました')
