@@ -360,8 +360,8 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
         {/* Right: 3 badges — vertical */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, minWidth: 270 }}>
           <div style={{ background: '#fff', border: '3px solid #111', padding: '10px 18px', borderRadius: 10, transform: 'rotate(3deg)', boxShadow: '5px 5px 0 #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 900, color: '#dc2626', lineHeight: 1, letterSpacing: '0.05em' }}>★ 状態 ★</div>
-            <div style={{ fontSize: 30, fontWeight: 900, color: '#111', lineHeight: 1.05, marginTop: 4 }}>美品買取強化！</div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#dc2626', lineHeight: 1, letterSpacing: '0.05em' }}>★ BULK ★</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#111', lineHeight: 1.05, marginTop: 4 }}>大量買取募集中！</div>
           </div>
           <div style={{ background: '#111', color: '#FCD34D', padding: '10px 18px', borderRadius: 10, transform: 'rotate(-2.5deg)', boxShadow: '5px 5px 0 #dc2626', border: '3px solid #111', textAlign: 'center' }}>
             <div style={{ fontSize: 12, fontWeight: 900, color: '#fff', letterSpacing: '0.2em', opacity: 0.85 }}>FAST PAYMENT</div>
