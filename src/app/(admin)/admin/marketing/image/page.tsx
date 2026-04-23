@@ -302,12 +302,9 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
   const gridH = H - gridTop - padY - footerH - 6
   const gridW = W - padX * 2
 
-  // Grid dimensions
+  // Grid dimensions — no info area, all cells for products
   const cols = COLS
-  const infoMinSpan = 4
-  const totalCells = Math.max(products.length + infoMinSpan, cols)
-  const rows = Math.ceil(totalCells / cols)
-  const infoSpan = Math.max(rows * cols - products.length, infoMinSpan)
+  const rows = Math.ceil(products.length / cols)
 
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellH = Math.floor((gridH - gap * (rows - 1)) / rows)
@@ -352,7 +349,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
         <img
           src="/assets/logo-full.png"
           alt="買取スクエア"
-          style={{ height: 140, width: 140, objectFit: 'contain', display: 'block', flexShrink: 0 }}
+          style={{ height: 200, width: 200, objectFit: 'contain', display: 'block', flexShrink: 0, marginTop: -30, marginBottom: -30 }}
           crossOrigin="anonymous"
         />
 
@@ -460,43 +457,42 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
             }}>
               {product.name}
             </div>
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 3, marginTop: 2, background: '#111', height: priceH, borderRadius: 3,
-            }}>
-              {product.trend !== 'flat' && (
-                <span style={{ color: product.trend === 'up' ? '#4ade80' : '#fca5a5', fontSize: Math.floor(priceFontSize * 0.55), fontWeight: 900 }}>
-                  {product.trend === 'up' ? '▲' : '▼'}
+            {product.price_no_shrink != null ? (
+              <div style={{
+                marginTop: 2, background: '#111', height: priceH, borderRadius: 3,
+                display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '1px 3px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                  <span style={{ color: '#fff', fontSize: Math.floor(priceFontSize * 0.5), fontWeight: 700 }}>封</span>
+                  <span style={{ color: '#FCD34D', fontSize: Math.floor(priceFontSize * 0.8), fontWeight: 900, lineHeight: 1 }}>
+                    ¥{product.price.toLocaleString('ja-JP')}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                  <span style={{ color: '#9ca3af', fontSize: Math.floor(priceFontSize * 0.5), fontWeight: 700 }}>開</span>
+                  <span style={{ color: '#9ca3af', fontSize: Math.floor(priceFontSize * 0.7), fontWeight: 900, lineHeight: 1 }}>
+                    ¥{product.price_no_shrink.toLocaleString('ja-JP')}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                gap: 3, marginTop: 2, background: '#111', height: priceH, borderRadius: 3,
+              }}>
+                {product.trend !== 'flat' && (
+                  <span style={{ color: product.trend === 'up' ? '#4ade80' : '#fca5a5', fontSize: Math.floor(priceFontSize * 0.55), fontWeight: 900 }}>
+                    {product.trend === 'up' ? '▲' : '▼'}
+                  </span>
+                )}
+                <span style={{ color: '#FCD34D', fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.01em' }}>
+                  ¥{product.price.toLocaleString('ja-JP')}
                 </span>
-              )}
-              <span style={{ color: '#FCD34D', fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.01em' }}>
-                ¥{product.price.toLocaleString('ja-JP')}
-              </span>
-            </div>
+              </div>
+            )}
           </div>
         )
       })}
-
-      {/* Information area — positioned after last product */}
-      {products.length > 0 && (() => {
-        const infoCol = products.length % cols
-        const infoRow = Math.floor(products.length / cols)
-        const remainCols = cols - infoCol
-        const x = padX + infoCol * (cellW + gap)
-        const y = gridTop + infoRow * (cellH + gap)
-        const w = remainCols * cellW + (remainCols - 1) * gap
-        return (
-          <div style={{
-            position: 'absolute', left: x, top: y, width: w, height: cellH,
-            background: '#111', color: '#FCD34D',
-            borderRadius: 6, padding: '4px 14px', display: 'flex',
-            alignItems: 'center', justifyContent: 'space-between', border: '2px solid #111',
-            zIndex: 2, boxSizing: 'border-box',
-          }}>
-            <div style={{ fontSize: 15, fontWeight: 900, color: '#fff' }}>{updatedAt}</div>
-          </div>
-        )
-      })()}
 
       {/* Footer */}
       <footer style={{
@@ -505,7 +501,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
         fontSize: 12, color: '#111', fontWeight: 600, zIndex: 2,
       }}>
         <span>※ 買取価格は状態・在庫状況により変動する場合がございます。</span>
-        <span style={{ fontWeight: 900 }}>kaitorisquare.net</span>
+        <span style={{ fontWeight: 900 }}>更新日：{updatedAt}</span>
       </footer>
     </div>
   )

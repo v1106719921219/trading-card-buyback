@@ -108,6 +108,7 @@ export default function ProductsPage() {
   const [formCategoryId, setFormCategoryId] = useState('')
   const [formSubcategoryId, setFormSubcategoryId] = useState('none')
   const [formPrice, setFormPrice] = useState(0)
+  const [formPriceNoShrink, setFormPriceNoShrink] = useState<number | null>(null)
   const [formImageUrl, setFormImageUrl] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
 
@@ -251,6 +252,7 @@ async function syncToChiba() {
     setFormCategoryId(categories[0]?.id || '')
     setFormSubcategoryId('none')
     setFormPrice(0)
+    setFormPriceNoShrink(null)
     setFormImageUrl(null)
     setDialogOpen(true)
   }
@@ -263,6 +265,7 @@ async function syncToChiba() {
     setFormCategoryId(product.category_id)
     setFormSubcategoryId(product.subcategory_id || 'none')
     setFormPrice(product.price)
+    setFormPriceNoShrink(product.price_no_shrink ?? null)
     setFormImageUrl(product.image_url ?? null)
     setDialogOpen(true)
   }
@@ -291,7 +294,7 @@ async function syncToChiba() {
     e.preventDefault()
 
     if (editing) {
-      const updateData: Record<string, unknown> = { name: formName, model_number: formModelNumber || null, set_number: formSetNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice }
+      const updateData: Record<string, unknown> = { name: formName, model_number: formModelNumber || null, set_number: formSetNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, price_no_shrink: formPriceNoShrink }
       if (formImageUrl !== null) updateData.image_url = formImageUrl
       if (formPrice === 0) updateData.show_in_price_list = false
       const { error } = await supabase
@@ -313,7 +316,7 @@ async function syncToChiba() {
     } else {
       const { error } = await supabase
         .from('products')
-        .insert({ name: formName, model_number: formModelNumber || null, set_number: formSetNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, show_in_price_list: formPrice > 0, tenant_id: tenantId, ...(formImageUrl !== null ? { image_url: formImageUrl } : {}) })
+        .insert({ name: formName, model_number: formModelNumber || null, set_number: formSetNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, price_no_shrink: formPriceNoShrink, show_in_price_list: formPrice > 0, tenant_id: tenantId, ...(formImageUrl !== null ? { image_url: formImageUrl } : {}) })
 
       if (error) {
         toast.error(error.code === '23505' ? 'この商品名は既に存在します' : error.message)
@@ -881,7 +884,7 @@ async function syncToChiba() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>買取価格（円）</Label>
+                    <Label>買取価格・シュリンク付き（円）</Label>
                     <Input
                       type="text"
                       inputMode="numeric"
@@ -890,6 +893,20 @@ async function syncToChiba() {
                       onChange={(e) => setFormPrice(Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
                       onFocus={(e) => e.target.select()}
                       required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>買取価格・シュリンク無し（円）<span className="text-muted-foreground text-xs ml-1">任意</span></Label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={formPriceNoShrink == null ? '' : formPriceNoShrink}
+                      placeholder="未設定"
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^0-9]/g, '')
+                        setFormPriceNoShrink(v === '' ? null : Number(v))
+                      }}
+                      onFocus={(e) => e.target.select()}
                     />
                   </div>
                   <div className="space-y-2">

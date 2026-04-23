@@ -48,6 +48,7 @@ export interface Product {
   model_number: string | null
   set_number: string | null
   price: number
+  price_no_shrink: number | null
   is_active: boolean
   show_in_price_list: boolean
   sort_order: number
