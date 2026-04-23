@@ -46,7 +46,7 @@ export default function MarketingImagePage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const [productsResult, settingResult, historyResult] = await Promise.all([
+    const [productsResult, cartonResult, settingResult, historyResult] = await Promise.all([
       supabase
         .from('products')
         .select('*, category:categories(*), subcategory:subcategories(*)')
@@ -54,6 +54,12 @@ export default function MarketingImagePage() {
         .eq('category_id', '3fbd50ad-f5b6-4541-b08b-f87d107dae9c')
         .eq('subcategory_id', '09daefe5-d36f-4ccd-931b-e42f3191ff4a')
         .order('sort_order'),
+      supabase
+        .from('products')
+        .select('name, price')
+        .eq('is_active', true)
+        .eq('category_id', '3fbd50ad-f5b6-4541-b08b-f87d107dae9c')
+        .eq('subcategory_id', '424d3a2b-daad-4246-8263-a1cbaa4a0d8c'),
       supabase.from('app_settings').select('value').eq('key', SETTING_KEY).maybeSingle(),
       supabase
         .from('product_price_history')
@@ -76,6 +82,15 @@ export default function MarketingImagePage() {
       }
     }
 
+    // Build carton price map: strip "カートン"/"ボックス" to match
+    const cartonPriceMap = new Map<string, number>()
+    if (cartonResult.data) {
+      for (const c of cartonResult.data) {
+        const baseName = c.name.replace(/\s*(カートン|ボックス)\s*$/i, '').trim()
+        if (c.price > 0) cartonPriceMap.set(baseName, c.price)
+      }
+    }
+
     const prods = ((productsResult.data || []) as ProductWithRelations[]).map((p): ProductWithTrend => {
       const prevPrice = prevPriceMap.get(p.id)
       let trend: Trend = 'flat'
@@ -83,7 +98,9 @@ export default function MarketingImagePage() {
         if (p.price > prevPrice) trend = 'up'
         else if (p.price < prevPrice) trend = 'down'
       }
-      return { ...p, trend }
+      const baseName = p.name.replace(/\s*(カートン|ボックス)\s*$/i, '').trim()
+      const cartonPrice = cartonPriceMap.get(baseName) ?? null
+      return { ...p, price_no_shrink: cartonPrice, trend }
     })
 
     setProducts(prods)
@@ -466,9 +483,15 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
               height: priceH, display: 'flex', alignItems: 'center', justifyContent: 'center',
               borderTop: `2px solid ${GOLD}`,
             }}>
-              <span style={{ color: GOLD, fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, textShadow: `0 1px 0 ${INK}` }}>
-                ¥{product.price.toLocaleString('ja-JP')}
-              </span>
+              {product.price_no_shrink != null ? (
+                <span style={{ color: GOLD, fontSize: Math.floor(priceFontSize * 0.82), fontWeight: 900, lineHeight: 1, textShadow: `0 1px 0 ${INK}` }}>
+                  ¥{product.price.toLocaleString('ja-JP')}<span style={{ color: 'rgba(245,194,66,0.4)', margin: '0 2px' }}>/</span><span style={{ color: 'rgba(254,246,224,0.7)' }}>¥{product.price_no_shrink.toLocaleString('ja-JP')}<span style={{ fontSize: Math.floor(priceFontSize * 0.4), marginLeft: 1 }}>CT</span></span>
+                </span>
+              ) : (
+                <span style={{ color: GOLD, fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, textShadow: `0 1px 0 ${INK}` }}>
+                  ¥{product.price.toLocaleString('ja-JP')}
+                </span>
+              )}
             </div>
           </div>
         )
