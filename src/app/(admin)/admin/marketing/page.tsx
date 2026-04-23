@@ -13,6 +13,9 @@ import { toast } from 'sonner'
 import type { Product, Category, Subcategory } from '@/types/database'
 
 const SETTING_KEY = 'sns_post_default_products'
+const CATEGORY_ID = 'db02ec12-d529-453c-a749-53da99e05533'
+const SHRINK_SUBCATEGORY_ID = '7fc8c032-c373-438a-bc14-6a9e8c113767'
+const NO_SHRINK_SUBCATEGORY_ID = '9c1bdee7-e844-4be7-a298-de73d8af5670'
 
 const DEFAULT_HEADER = `🔥🔥10BOX以上の買取依頼で着払OK🔥🔥`
 
@@ -25,15 +28,16 @@ http://lin.ee/MYCtHk9`
 type ProductWithRelations = Product & {
   category: Category | null
   subcategory: Subcategory | null
+  price_no_shrink?: number | null
 }
 
 function formatProductLine(product: ProductWithRelations): string {
-  const subcategoryName = product.subcategory?.name ?? ''
-  const nameWithSub = subcategoryName.includes('シュリンク付')
-    ? `${product.name}（${subcategoryName}）`
-    : product.name
   const price = product.price.toLocaleString('ja-JP')
-  return `${nameWithSub}🔥\n👉【${price}円】`
+  if (product.price_no_shrink && product.price_no_shrink > 0) {
+    const noShrinkPrice = product.price_no_shrink.toLocaleString('ja-JP')
+    return `${product.name}🔥\n👉【${price}円 / シュリ無 ${noShrinkPrice}円】`
+  }
+  return `${product.name}🔥\n👉【${price}円】`
 }
 
 export default function MarketingPage() {
@@ -49,13 +53,20 @@ export default function MarketingPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
 
-    const [productsResult, settingResult] = await Promise.all([
+    const [productsResult, noShrinkResult, settingResult] = await Promise.all([
       supabase
         .from('products')
         .select('*, category:categories(*), subcategory:subcategories(*)')
         .eq('is_active', true)
-        .eq('show_in_price_list', true)
+        .eq('category_id', CATEGORY_ID)
+        .eq('subcategory_id', SHRINK_SUBCATEGORY_ID)
         .order('sort_order'),
+      supabase
+        .from('products')
+        .select('name, price')
+        .eq('is_active', true)
+        .eq('category_id', CATEGORY_ID)
+        .eq('subcategory_id', NO_SHRINK_SUBCATEGORY_ID),
       supabase
         .from('app_settings')
         .select('value')
@@ -69,7 +80,19 @@ export default function MarketingPage() {
       return
     }
 
-    const prods = (productsResult.data || []) as ProductWithRelations[]
+    // Build no-shrink price map
+    const noShrinkPriceMap = new Map<string, number>()
+    if (noShrinkResult.data) {
+      for (const ns of noShrinkResult.data) {
+        const baseName = ns.name.replace(/\s*シュリンク無し\s*$/, '').trim()
+        if (ns.price > 0) noShrinkPriceMap.set(baseName, ns.price)
+      }
+    }
+
+    const prods = ((productsResult.data || []) as ProductWithRelations[]).map((p) => ({
+      ...p,
+      price_no_shrink: noShrinkPriceMap.get(p.name) ?? null,
+    }))
     setProducts(prods)
 
     // 保存済みのデフォルト選択があればそれを使用、なければ全選択
@@ -111,20 +134,18 @@ export default function MarketingPage() {
 
   async function saveDefaults() {
     setSaving(true)
-    const ids = Array.from(selectedIds)
-    const { error } = await supabase
-      .from('app_settings')
-      .upsert(
-        { key: SETTING_KEY, value: JSON.stringify(ids), description: 'SNS投稿文のデフォルト掲載商品IDリスト' },
-        { onConflict: 'key' }
-      )
-
-    setSaving(false)
-    if (error) {
-      toast.error('保存に失敗しました')
+    const value = JSON.stringify(Array.from(selectedIds))
+    const tenantId = 'aaaaaaaa-0000-0000-0000-000000000001'
+    const { data: existing } = await supabase.from('app_settings').select('key').eq('key', SETTING_KEY).maybeSingle()
+    let error
+    if (existing) {
+      ({ error } = await supabase.from('app_settings').update({ value }).eq('key', SETTING_KEY))
     } else {
-      toast.success('デフォルト選択を保存しました')
+      ({ error } = await supabase.from('app_settings').insert({ key: SETTING_KEY, value, description: 'SNS投稿文のデフォルト掲載商品IDリスト', tenant_id: tenantId }))
     }
+    setSaving(false)
+    if (error) toast.error('保存に失敗しました')
+    else toast.success('デフォルト選択を保存しました')
   }
 
   const selectedProducts = products.filter((p) => selectedIds.has(p.id))
@@ -212,8 +233,6 @@ export default function MarketingPage() {
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                   {products.map((product) => {
-                    const subcategoryName = product.subcategory?.name ?? ''
-                    const hasShrink = subcategoryName.includes('シュリンク付')
                     return (
                       <label
                         key={product.id}
@@ -223,22 +242,17 @@ export default function MarketingPage() {
                           checked={selectedIds.has(product.id)}
                           onCheckedChange={() => toggleProduct(product.id)}
                         />
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium truncate block">
-                            {product.name}
-                            {hasShrink && (
-                              <span className="text-muted-foreground">（{subcategoryName}）</span>
-                            )}
-                          </span>
-                          {product.category && (
-                            <span className="text-xs text-muted-foreground">
-                              {product.category.name}
-                            </span>
+                        <span className="flex-1 text-sm font-medium truncate">{product.name}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Badge variant="secondary" className="tabular-nums text-xs">
+                            {product.price.toLocaleString('ja-JP')}円
+                          </Badge>
+                          {product.price_no_shrink != null && product.price_no_shrink > 0 && (
+                            <Badge variant="outline" className="tabular-nums text-xs text-muted-foreground">
+                              シュリ無{product.price_no_shrink.toLocaleString('ja-JP')}円
+                            </Badge>
                           )}
                         </div>
-                        <Badge variant="secondary" className="shrink-0 tabular-nums">
-                          {product.price.toLocaleString('ja-JP')}円
-                        </Badge>
                       </label>
                     )
                   })}
