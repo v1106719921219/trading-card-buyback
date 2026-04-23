@@ -4,13 +4,15 @@ import { ArrowRight, Flame, Zap, Banknote, Truck } from 'lucide-react'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
 import { PriceTicker } from '@/components/public/price-ticker'
+import { getTenant } from '@/lib/tenant'
 
 const CATEGORIES = [
   { name: 'ポケモンカード', color: '#D4A017', label: 'POKEMON TCG' },
   { name: 'ワンピースカード', color: '#DC2626', label: 'ONE PIECE TCG' },
 ]
 
-export default function HomePage() {
+export default async function HomePage() {
+  const tenant = await getTenant()
   return (
     <div className="min-h-screen bg-background pb-16 sm:pb-0">
       <Header />
@@ -128,8 +130,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Price ticker */}
-      <PriceTicker />
+      {/* Price ticker - 千葉店では非表示 */}
+      {tenant?.slug !== 'chiba' && <PriceTicker />}
 
       {/* How it works */}
       <section className="py-14 sm:py-20 md:py-24">
