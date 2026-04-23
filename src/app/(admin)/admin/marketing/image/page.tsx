@@ -389,14 +389,24 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         zIndex: 2, gap: 16,
       }}>
-        {/* Logo */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/assets/logo-full.png"
-          alt="買取スクエア"
-          style={{ height: 160, width: 160, objectFit: 'contain', display: 'block', flexShrink: 0, marginTop: -20, marginBottom: -20 }}
-          crossOrigin="anonymous"
-        />
+        {/* Logo in circle frame */}
+        <div style={{
+          width: 150, height: 150, borderRadius: '50%',
+          background: '#fff', border: '4px solid #f5c242',
+          boxShadow: '0 0 0 2px #111, 0 6px 20px rgba(0,0,0,0.3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'relative', flexShrink: 0, marginTop: -15, marginBottom: -15,
+        }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/logo-full.png" alt="買取スクエア" style={{ height: 120, width: 120, objectFit: 'contain' }} crossOrigin="anonymous" />
+          <div style={{
+            position: 'absolute', bottom: -12, left: '50%', transform: 'translateX(-50%)',
+            background: '#dc2626', color: '#fff', padding: '2px 12px',
+            fontSize: 10, fontWeight: 900, letterSpacing: '0.25em',
+            border: '2px solid #f5c242', borderRadius: 2, whiteSpace: 'nowrap',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+          }}>KAITORI SQUARE</div>
+        </div>
 
         {/* Main title area */}
         <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>

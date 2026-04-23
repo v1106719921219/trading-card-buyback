@@ -330,13 +330,24 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         zIndex: 2, gap: 20,
       }}>
-        {/* Logo — large */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/assets/logo-full.png" alt="買取スクエア"
-          style={{ height: 240, width: 240, objectFit: 'contain', display: 'block', flexShrink: 0 }}
-          crossOrigin="anonymous"
-        />
+        {/* Logo in circle frame */}
+        <div style={{
+          width: 210, height: 210, borderRadius: '50%',
+          background: '#fff', border: '5px solid #f5c242',
+          boxShadow: '0 0 0 3px #111, 0 10px 30px rgba(0,0,0,0.3)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'relative', flexShrink: 0,
+        }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/logo-full.png" alt="買取スクエア" style={{ height: 180, width: 180, objectFit: 'contain' }} crossOrigin="anonymous" />
+          <div style={{
+            position: 'absolute', bottom: -14, left: '50%', transform: 'translateX(-50%)',
+            background: '#dc2626', color: '#fff', padding: '3px 16px',
+            fontSize: 13, fontWeight: 900, letterSpacing: '0.3em',
+            border: '2px solid #f5c242', borderRadius: 2, whiteSpace: 'nowrap',
+            boxShadow: '0 3px 6px rgba(0,0,0,0.3)',
+          }}>KAITORI SQUARE</div>
+        </div>
 
         {/* Title area */}
         <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 170 }}>
