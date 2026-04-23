@@ -352,7 +352,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
         <img
           src="/assets/logo-full.png"
           alt="買取スクエア"
-          style={{ height: headerH, width: headerH, objectFit: 'contain', display: 'block', flexShrink: 0 }}
+          style={{ height: 140, width: 140, objectFit: 'contain', display: 'block', flexShrink: 0 }}
           crossOrigin="anonymous"
         />
 
