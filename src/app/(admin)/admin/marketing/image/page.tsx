@@ -336,15 +336,15 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
   // --- Explicit pixel layout (no flex dependency) ---
   const W = 1920
   const H = 1080
-  const padX = 24
-  const padY = 16
-  const headerH = 100
-  const footerH = 22
+  const padX = 16
+  const padY = 12
+  const headerH = 90
+  const footerH = 18
   const lineH = 3
-  const gap = 5
+  const gap = 3
 
-  const gridTop = padY + headerH + 8 + lineH + 8
-  const gridH = H - gridTop - padY - footerH - 6
+  const gridTop = padY + headerH + 4 + lineH + 4
+  const gridH = H - gridTop - padY - footerH - 4
   const gridW = W - padX * 2
 
   // Grid dimensions — no info area, all cells for products
@@ -354,13 +354,13 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellH = Math.floor((gridH - gap * (rows - 1)) / rows)
 
-  // Card inner sizes — proportional to cell height
-  const nameH = Math.max(Math.min(Math.floor(cellH * 0.16), 24), 14)
-  const priceH = Math.max(Math.min(Math.floor(cellH * 0.2), 26), 18)
+  // Card inner sizes — image takes most space, price is prominent
+  const nameH = Math.max(Math.min(Math.floor(cellH * 0.14), 22), 12)
+  const priceH = Math.max(Math.min(Math.floor(cellH * 0.22), 32), 20)
   const cardPadV = 2
-  const imgH = Math.max(cellH - nameH - priceH - cardPadV * 2 - 4, 10) // 4 = margins
-  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.6), 13), 8)
-  const priceFontSize = Math.max(Math.min(Math.floor(priceH * 0.7), 20), 12)
+  const imgH = Math.max(cellH - nameH - priceH - cardPadV * 2 - 2, 10)
+  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.65), 13), 8)
+  const priceFontSize = Math.max(Math.min(Math.floor(priceH * 0.75), 24), 14)
 
   return (
     <div
@@ -394,7 +394,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
         <img
           src="/assets/logo-full.png"
           alt="買取スクエア"
-          style={{ height: 200, width: 200, objectFit: 'contain', display: 'block', flexShrink: 0, marginTop: -30, marginBottom: -30 }}
+          style={{ height: 160, width: 160, objectFit: 'contain', display: 'block', flexShrink: 0, marginTop: -20, marginBottom: -20 }}
           crossOrigin="anonymous"
         />
 
@@ -474,10 +474,10 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
         return (
           <div key={product.id} style={{
             position: 'absolute', left: x, top: y, width: cellW, height: cellH,
-            background: '#fff', border: '2px solid #111', borderRadius: 4,
-            padding: `${cardPadV}px 4px`,
+            background: '#fff', border: '1.5px solid #111', borderRadius: 3,
+            padding: `${cardPadV}px 3px`,
             display: 'flex', flexDirection: 'column',
-            overflow: 'hidden', boxShadow: '2px 2px 0 #111', zIndex: 2,
+            overflow: 'hidden', boxShadow: '1px 1px 0 #111', zIndex: 2,
             boxSizing: 'border-box',
           }}>
             {product.image_url ? (
