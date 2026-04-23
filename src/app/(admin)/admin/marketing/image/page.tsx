@@ -477,12 +477,13 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               gap: 1, marginTop: 2, background: '#111', height: priceH, borderRadius: 3,
             }}>
-              <span style={{ color: '#FCD34D', fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.01em' }}>
-                ¥{product.price.toLocaleString('ja-JP')}
-              </span>
-              {product.price_no_shrink != null && (
-                <span style={{ color: '#FCD34D', fontSize: Math.floor(priceFontSize * 0.65), fontWeight: 900, lineHeight: 1, marginLeft: 3 }}>
-                  <span style={{ color: '#fff', fontSize: Math.floor(priceFontSize * 0.45), fontWeight: 700 }}>シュリ無</span>¥{product.price_no_shrink.toLocaleString('ja-JP')}
+              {product.price_no_shrink != null ? (
+                <span style={{ color: '#FCD34D', fontSize: Math.floor(priceFontSize * 0.82), fontWeight: 900, lineHeight: 1 }}>
+                  ¥{product.price.toLocaleString('ja-JP')}<span style={{ color: '#777', margin: '0 2px' }}>/</span>¥{product.price_no_shrink.toLocaleString('ja-JP')}<span style={{ fontSize: Math.floor(priceFontSize * 0.45), marginLeft: 1 }}>シュリ無</span>
+                </span>
+              ) : (
+                <span style={{ color: '#FCD34D', fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.01em' }}>
+                  ¥{product.price.toLocaleString('ja-JP')}
                 </span>
               )}
             </div>
