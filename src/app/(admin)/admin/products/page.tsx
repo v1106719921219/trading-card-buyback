@@ -928,7 +928,6 @@ async function syncToChiba() {
                       placeholder="0"
                       onChange={(e) => setFormPrice(Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
                       onFocus={(e) => e.target.select()}
-                      required
                     />
                   </div>
                   <div className="space-y-2">
