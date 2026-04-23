@@ -236,8 +236,8 @@ export default function SinglePromoImagePage() {
               {downloading ? '生成中...' : 'PNG ダウンロード'}
             </Button>
           </div>
-          <div className="overflow-auto border rounded-lg bg-muted/30">
-            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px' }}>
+          <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
+            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
               <SinglePromoCanvas ref={previewRef} singles={selectedSingles} promos={selectedPromos} />
             </div>
           </div>
