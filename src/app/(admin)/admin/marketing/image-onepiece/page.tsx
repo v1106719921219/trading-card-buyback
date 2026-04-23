@@ -258,212 +258,215 @@ export default function MarketingImagePage() {
   )
 }
 
-// --- PalmLeaf SVG decoration ---
-function PalmLeaf({ size, color, rotate }: { size: number; color: string; rotate: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" style={{ transform: `rotate(${rotate}deg)` }}>
-      <g fill={color}>
-        <path d="M50 95 Q48 60 35 40 Q30 50 32 65 Q35 80 48 92 Z" />
-        <path d="M50 95 Q52 60 65 40 Q70 50 68 65 Q65 80 52 92 Z" />
-        <path d="M48 80 Q25 70 10 50 Q20 50 35 60 Q45 68 48 78 Z" />
-        <path d="M52 80 Q75 70 90 50 Q80 50 65 60 Q55 68 52 78 Z" />
-        <path d="M46 60 Q20 55 8 30 Q22 35 38 48 Q45 55 46 58 Z" />
-        <path d="M54 60 Q80 55 92 30 Q78 35 62 48 Q55 55 54 58 Z" />
-        <path d="M48 40 Q30 30 25 10 Q38 18 48 35 Z" />
-        <path d="M52 40 Q70 30 75 10 Q62 18 52 35 Z" />
-      </g>
-    </svg>
-  )
-}
+// --- ONE PIECE DESIGN: Deep Navy × Gold × Red ---
+const NAVY = '#0b2a4a'
+const NAVY_DEEP = '#071a30'
+const GOLD = '#f5c242'
+const GOLD_DEEP = '#c48a1f'
+const RED = '#b91c1c'
+const CREAM = '#fef6e0'
+const INK = '#0a0f1a'
 
-// --- Main SNS Price Image Canvas (1920 × 1080) ---
 const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
   products: ProductWithTrend[]
 }>(({ products }, ref) => {
   const today = new Date()
-  const validUntilDate = new Date(today)
-  validUntilDate.setDate(validUntilDate.getDate() + 7)
-
   const fmt = (d: Date) =>
     `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
-
   const updatedAt = fmt(today)
-  const validUntil = fmt(validUntilDate)
 
-  // --- Explicit pixel layout (no flex dependency) ---
+  // Layout
   const W = 1920
   const H = 1080
-  const padX = 36
-  const padY = 20
-  const headerH = 100
-  const footerH = 24
-  const lineH = 3
-  const gap = 6
+  const padX = 32
+  const padY = 24
+  const headerH = 220
+  const footerH = 28
+  const lineH = 5
+  const gap = 8
 
-  const gridTop = padY + headerH + 8 + lineH + 8
-  const gridH = H - gridTop - padY - footerH - 6
+  const gridTop = padY + headerH + 10 + lineH + 14
+  const gridBottom = H - padY - footerH - 10
+  const gridH = gridBottom - gridTop
   const gridW = W - padX * 2
 
-  // Grid dimensions — no info area, all cells for products
   const cols = COLS
   const rows = Math.ceil(products.length / cols)
-
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellH = Math.floor((gridH - gap * (rows - 1)) / rows)
 
-  // Card inner sizes — proportional to cell height
-  const nameH = Math.max(Math.min(Math.floor(cellH * 0.16), 26), 14)
-  const priceH = Math.max(Math.min(Math.floor(cellH * 0.2), 28), 18)
-  const cardPadV = 3
-  const imgH = Math.max(cellH - nameH - priceH - cardPadV * 2 - 6, 10) // 6 = margins
-  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.6), 13), 8)
-  const priceFontSize = Math.max(Math.min(Math.floor(priceH * 0.7), 20), 12)
+  // Card sizes
+  const nameH = Math.max(Math.min(Math.floor(cellH * 0.16), 34), 14)
+  const priceH = Math.max(Math.min(Math.floor(cellH * 0.2), 36), 20)
+  const cardPad = 7
+  const imgH = Math.max(cellH - nameH - priceH - cardPad - 6, 10)
+  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.55), 15), 9)
+  const priceFontSize = Math.max(Math.min(Math.floor(priceH * 0.72), 26), 14)
+
+  // Extract code prefix from product name (e.g. "OP-1 ROMANCE DOWN ボックス" → "OP-01")
+  function getCode(name: string): string | null {
+    const m = name.match(/^(OP|EB|PRB)-?(\d+)/i)
+    if (!m) return null
+    return `${m[1].toUpperCase()}-${m[2].padStart(2, '0')}`
+  }
+  // Strip code and "ボックス" from name for display
+  function getDisplayName(name: string): string {
+    return name.replace(/^(OP|EB|PRB)-?\d+\s*/i, '').replace(/\s*ボックス$/i, '').trim()
+  }
 
   return (
     <div
       ref={ref}
       style={{
-        width: W,
-        height: H,
-        background: '#FCD34D',
-        position: 'relative',
-        overflow: 'hidden',
+        width: W, height: H,
+        position: 'relative', overflow: 'hidden',
         fontFamily: '"Noto Sans JP", sans-serif',
         boxSizing: 'border-box',
+        background: `radial-gradient(ellipse at 50% 0%, #1a4a7a 0%, ${NAVY} 45%, ${NAVY_DEEP} 100%)`,
+        color: CREAM,
       }}
     >
-      {/* Palm leaf decorations */}
-      <div style={{ position: 'absolute', top: -30, right: -30, opacity: 0.12, pointerEvents: 'none' }}>
-        <PalmLeaf size={220} color="#1a1a1a" rotate={25} />
-      </div>
-      <div style={{ position: 'absolute', bottom: -40, left: -40, opacity: 0.1, pointerEvents: 'none' }}>
-        <PalmLeaf size={200} color="#1a1a1a" rotate={-150} />
-      </div>
+      {/* Wave pattern background */}
+      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.08, pointerEvents: 'none' }} viewBox="0 0 1920 1080" preserveAspectRatio="none">
+        <defs>
+          <pattern id="opWaves" x="0" y="0" width="160" height="80" patternUnits="userSpaceOnUse">
+            <path d="M0 40 Q 40 10, 80 40 T 160 40" stroke={GOLD} strokeWidth="2" fill="none" />
+            <path d="M0 60 Q 40 30, 80 60 T 160 60" stroke={GOLD} strokeWidth="1.5" fill="none" opacity="0.6" />
+          </pattern>
+        </defs>
+        <rect width="1920" height="1080" fill="url(#opWaves)" />
+      </svg>
 
-      {/* Header — absolute, fixed height */}
+      {/* Compass rose decoration (top-right) */}
+      <svg style={{ position: 'absolute', top: -40, right: -40, width: 300, height: 300, opacity: 0.1, pointerEvents: 'none' }} viewBox="-100 -100 200 200">
+        <g stroke={GOLD} strokeWidth="1.5" fill="none">
+          <circle r="90" /><circle r="70" /><circle r="50" />
+          {Array.from({ length: 16 }).map((_, i) => { const a = (i * 360 / 16) * Math.PI / 180; return <line key={i} x1={Math.cos(a) * 50} y1={Math.sin(a) * 50} x2={Math.cos(a) * 90} y2={Math.sin(a) * 90} /> })}
+          {[0, 90, 180, 270].map(deg => { const a = deg * Math.PI / 180; return <polygon key={deg} points={`${Math.cos(a) * 95},${Math.sin(a) * 95} ${Math.cos(a + 0.08) * 40},${Math.sin(a + 0.08) * 40} ${Math.cos(a - 0.08) * 40},${Math.sin(a - 0.08) * 40}`} fill={GOLD} /> })}
+        </g>
+      </svg>
+
+      {/* Helm decoration (bottom-left) */}
+      <svg style={{ position: 'absolute', bottom: -50, left: -50, width: 260, height: 260, opacity: 0.1, pointerEvents: 'none' }} viewBox="-100 -100 200 200">
+        <g stroke={GOLD} strokeWidth="2" fill="none">
+          <circle r="80" /><circle r="60" /><circle r="20" fill={GOLD} />
+          {[0, 45, 90, 135, 180, 225, 270, 315].map(deg => { const a = deg * Math.PI / 180; return <line key={deg} x1={Math.cos(a) * 20} y1={Math.sin(a) * 20} x2={Math.cos(a) * 95} y2={Math.sin(a) * 95} /> })}
+        </g>
+      </svg>
+
+      {/* Header */}
       <header style={{
         position: 'absolute', top: padY, left: padX, right: padX, height: headerH,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        zIndex: 2, gap: 16,
+        zIndex: 2, gap: 18,
       }}>
-        {/* Logo */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/assets/logo-full.png"
-          alt="買取スクエア"
-          style={{ height: 200, width: 200, objectFit: 'contain', display: 'block', flexShrink: 0, marginTop: -30, marginBottom: -30 }}
-          crossOrigin="anonymous"
-        />
+        {/* Logo in gold circle frame */}
+        <div style={{
+          width: 210, height: 210, borderRadius: '50%',
+          background: CREAM, border: `5px solid ${GOLD}`,
+          boxShadow: `0 0 0 3px ${NAVY_DEEP}, 0 10px 30px rgba(0,0,0,0.4)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'relative', flexShrink: 0,
+        }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/assets/logo-full.png" alt="買取スクエア" style={{ height: 180, width: 180, objectFit: 'contain' }} crossOrigin="anonymous" />
+          <div style={{
+            position: 'absolute', bottom: -14, left: '50%', transform: 'translateX(-50%)',
+            background: RED, color: CREAM, padding: '3px 16px',
+            fontSize: 13, fontWeight: 900, letterSpacing: '0.3em',
+            border: `2px solid ${GOLD}`, borderRadius: 2, whiteSpace: 'nowrap',
+            boxShadow: '0 3px 6px rgba(0,0,0,0.4)',
+          }}>KAITORI SQUARE</div>
+        </div>
 
-        {/* Main title area */}
-        <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <svg viewBox="-100 -100 200 200" style={{ position: 'absolute', width: 480, height: 160, opacity: 0.85, pointerEvents: 'none' }}>
+        {/* Title */}
+        <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 190 }}>
+          <svg viewBox="-100 -100 200 200" style={{ position: 'absolute', width: 680, height: 220, opacity: 0.7, pointerEvents: 'none' }}>
             <defs>
-              <radialGradient id="burstFade">
-                <stop offset="0%" stopColor="#dc2626" stopOpacity="0" />
-                <stop offset="40%" stopColor="#dc2626" stopOpacity="0" />
-                <stop offset="100%" stopColor="#dc2626" stopOpacity="0.85" />
-              </radialGradient>
-              <mask id="burstMask">
-                <rect x="-100" y="-100" width="200" height="200" fill="white" />
-                {Array.from({ length: 24 }).map((_, i) => {
-                  const a = (i * 360 / 24) * Math.PI / 180
-                  const a2 = ((i + 0.5) * 360 / 24) * Math.PI / 180
-                  const x1 = Math.cos(a) * 140, y1 = Math.sin(a) * 140
-                  const x2 = Math.cos(a2) * 140, y2 = Math.sin(a2) * 140
-                  return <polygon key={i} points={`0,0 ${x1},${y1} ${x2},${y2}`} fill="black" />
-                })}
-              </mask>
+              <radialGradient id="opGoldBurst"><stop offset="0%" stopColor={GOLD} stopOpacity="0" /><stop offset="42%" stopColor={GOLD} stopOpacity="0" /><stop offset="100%" stopColor={GOLD} stopOpacity="0.55" /></radialGradient>
+              <mask id="opGoldMask"><rect x="-100" y="-100" width="200" height="200" fill="white" />{Array.from({ length: 24 }).map((_, i) => { const a = (i * 360 / 24) * Math.PI / 180; const a2 = ((i + 0.5) * 360 / 24) * Math.PI / 180; return <polygon key={i} points={`0,0 ${Math.cos(a) * 140},${Math.sin(a) * 140} ${Math.cos(a2) * 140},${Math.sin(a2) * 140}`} fill="black" /> })}</mask>
             </defs>
-            <circle cx="0" cy="0" r="140" fill="url(#burstFade)" mask="url(#burstMask)" />
+            <circle cx="0" cy="0" r="140" fill="url(#opGoldBurst)" mask="url(#opGoldMask)" />
           </svg>
-
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, transform: 'rotate(-2deg)' }}>
-            <span style={{ color: '#dc2626', fontSize: 36, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</span>
-            <h1 style={{
-              margin: 0, fontFamily: '"Noto Sans JP", sans-serif',
-              fontSize: 88, fontWeight: 900, lineHeight: 1, letterSpacing: '0.04em',
-              color: '#fff', WebkitTextStroke: '8px #111', paintOrder: 'stroke fill',
-              textShadow: '0 0 0 #111, 6px 6px 0 #dc2626, 10px 10px 0 #111',
-              whiteSpace: 'nowrap',
-            }}>高価買取</h1>
-            <span style={{ color: '#dc2626', fontSize: 36, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</span>
-
-            <div style={{
-              position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)',
-              background: '#dc2626', color: '#fff', padding: '2px 14px',
-              fontSize: 13, fontWeight: 900, letterSpacing: '0.15em',
-              borderRadius: 2, whiteSpace: 'nowrap', border: '2px solid #111', boxShadow: '2px 2px 0 #111',
-            }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, transform: 'rotate(-2deg)' }}>
+            <div style={{ color: GOLD, fontSize: 60, fontWeight: 900, WebkitTextStroke: `4px ${INK}`, paintOrder: 'stroke fill', filter: `drop-shadow(4px 4px 0 ${INK})` }}>★</div>
+            <h1 style={{ margin: 0, fontSize: 152, fontWeight: 900, lineHeight: 0.92, letterSpacing: '0.04em', color: GOLD, WebkitTextStroke: `12px ${INK}`, paintOrder: 'stroke fill', textShadow: `0 0 0 ${INK}, 10px 10px 0 ${RED}, 16px 16px 0 ${INK}`, whiteSpace: 'nowrap' }}>高価買取</h1>
+            <div style={{ color: GOLD, fontSize: 60, fontWeight: 900, WebkitTextStroke: `4px ${INK}`, paintOrder: 'stroke fill', filter: `drop-shadow(4px 4px 0 ${INK})` }}>★</div>
+            <div style={{ position: 'absolute', top: -48, left: '50%', transform: 'translateX(-50%)', background: RED, color: CREAM, padding: '5px 24px', fontSize: 22, fontWeight: 900, letterSpacing: '0.2em', border: `3px solid ${GOLD}`, boxShadow: `4px 4px 0 ${INK}`, whiteSpace: 'nowrap', borderRadius: 2 }}>
               ワンピースカードBOX 買取価格表
             </div>
           </div>
         </div>
 
-        {/* Right: badges — horizontal */}
-        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          <div style={{ background: '#fff', border: '2px solid #111', padding: '5px 10px', borderRadius: 8, transform: 'rotate(2deg)', boxShadow: '3px 3px 0 #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, fontWeight: 900, color: '#dc2626', lineHeight: 1 }}>★ 全種 ★</div>
-            <div style={{ fontSize: 16, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 1 }}>全種取扱！</div>
+        {/* Badges — vertical */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, flexShrink: 0, minWidth: 260 }}>
+          <div style={{ background: CREAM, border: `3px solid ${INK}`, padding: '9px 16px', borderRadius: 10, transform: 'rotate(3deg)', boxShadow: `5px 5px 0 ${GOLD_DEEP}`, textAlign: 'center' }}>
+            <div style={{ fontSize: 16, fontWeight: 900, color: RED, lineHeight: 1, letterSpacing: '0.08em' }}>★ 全種 ★</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: INK, lineHeight: 1.05, marginTop: 3 }}>取扱！</div>
           </div>
-          <div style={{ background: '#111', color: '#FCD34D', padding: '5px 10px', borderRadius: 8, transform: 'rotate(-2deg)', boxShadow: '3px 3px 0 #dc2626', border: '2px solid #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 8, fontWeight: 900, color: '#fff', letterSpacing: '0.15em', opacity: 0.85 }}>FAST PAYMENT</div>
-            <div style={{ fontSize: 16, fontWeight: 900, lineHeight: 1.1, marginTop: 1 }}>到着日振込！</div>
+          <div style={{ background: INK, color: GOLD, padding: '9px 16px', borderRadius: 10, transform: 'rotate(-2deg)', boxShadow: `5px 5px 0 ${RED}`, border: `3px solid ${GOLD}`, textAlign: 'center' }}>
+            <div style={{ fontSize: 11, fontWeight: 900, color: CREAM, letterSpacing: '0.25em', opacity: 0.85 }}>FAST PAYMENT</div>
+            <div style={{ fontSize: 28, fontWeight: 900, lineHeight: 1.05, marginTop: 2 }}>到着日振込！</div>
           </div>
-          <div style={{ background: '#dc2626', color: '#fff', padding: '5px 10px', borderRadius: 8, transform: 'rotate(2deg)', boxShadow: '3px 3px 0 #111', border: '2px solid #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 8, fontWeight: 900, color: '#FCD34D', letterSpacing: '0.15em' }}>FREE SHIPPING</div>
-            <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.1, marginTop: 1 }}>
-              着払<span style={{ fontSize: 18, color: '#FCD34D' }}>10</span>箱〜
-            </div>
+          <div style={{ background: RED, color: CREAM, padding: '9px 16px', borderRadius: 10, transform: 'rotate(2.5deg)', boxShadow: `5px 5px 0 ${INK}`, border: `3px solid ${GOLD}`, textAlign: 'center' }}>
+            <div style={{ fontSize: 11, fontWeight: 900, color: GOLD, letterSpacing: '0.25em' }}>FREE SHIPPING</div>
+            <div style={{ fontSize: 25, fontWeight: 900, lineHeight: 1.05, marginTop: 2 }}>着払<span style={{ fontSize: 32, color: GOLD }}>10</span>箱〜</div>
           </div>
         </div>
       </header>
 
-      {/* Red gradient line */}
-      <div style={{ position: 'absolute', top: padY + headerH + 8, left: padX, right: padX, height: lineH, background: 'linear-gradient(90deg, #dc2626 0%, #f59e0b 50%, #dc2626 100%)', zIndex: 2 }} />
+      {/* Gold gradient line */}
+      <div style={{ position: 'absolute', top: padY + headerH + 10, left: padX, right: padX, height: lineH, background: `linear-gradient(90deg, ${GOLD_DEEP} 0%, ${GOLD} 50%, ${GOLD_DEEP} 100%)`, boxShadow: `0 2px 0 ${INK}`, zIndex: 2 }} />
 
-      {/* Product cards — each individually positioned by pixel coordinates */}
+      {/* Product cards */}
       {products.map((product, index) => {
         const col = index % cols
         const row = Math.floor(index / cols)
         const x = padX + col * (cellW + gap)
         const y = gridTop + row * (cellH + gap)
+        const code = getCode(product.name)
+        const displayName = getDisplayName(product.name)
         return (
           <div key={product.id} style={{
             position: 'absolute', left: x, top: y, width: cellW, height: cellH,
-            background: '#fff', border: '2px solid #111', borderRadius: 4,
-            padding: `${cardPadV}px 4px`,
+            background: CREAM, border: `2.5px solid ${INK}`, borderRadius: 6,
+            padding: `${cardPad}px ${cardPad}px 0`,
             display: 'flex', flexDirection: 'column',
-            overflow: 'hidden', boxShadow: '2px 2px 0 #111', zIndex: 2,
+            overflow: 'hidden', boxShadow: `3px 3px 0 ${GOLD_DEEP}`, zIndex: 2,
             boxSizing: 'border-box',
           }}>
+            {/* Code badge */}
+            {code && (
+              <div style={{
+                position: 'absolute', top: 5, left: 5,
+                background: NAVY, color: GOLD,
+                fontSize: 10, fontWeight: 900, letterSpacing: '0.05em',
+                padding: '1px 6px', borderRadius: 3,
+                border: `1.5px solid ${GOLD}`, zIndex: 3,
+                fontFamily: "'Inter', 'Noto Sans JP', sans-serif",
+              }}>{code}</div>
+            )}
+            {/* Product image */}
             {product.image_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={product.image_url}
-                alt={product.name}
-                style={{ width: '100%', height: imgH, objectFit: 'contain' }}
-                crossOrigin="anonymous"
-              />
+              <img src={product.image_url} alt={product.name} style={{ width: '100%', height: imgH, objectFit: 'contain' }} crossOrigin="anonymous" />
             ) : (
-              <div style={{
-                width: '100%', height: imgH,
-                background: 'rgba(0,0,0,0.04)', border: '1px dashed rgba(0,0,0,0.18)',
-                borderRadius: 4,
-              }} />
+              <div style={{ width: '100%', height: imgH, background: `rgba(11,42,74,0.08)`, border: `1px dashed rgba(11,42,74,0.25)`, borderRadius: 4 }} />
             )}
+            {/* Name */}
             <div style={{
-              fontSize: nameFontSize, fontWeight: 800, color: '#111', textAlign: 'center',
+              fontSize: nameFontSize, fontWeight: 800, color: INK, textAlign: 'center',
               lineHeight: 1.15, height: nameH, marginTop: 2,
               overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {product.name}
-            </div>
+            }}>{displayName}</div>
+            {/* Price */}
             <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 1, marginTop: 2, background: '#111', height: priceH, borderRadius: 3,
+              marginLeft: -cardPad, marginRight: -cardPad,
+              background: `linear-gradient(180deg, ${NAVY} 0%, ${NAVY_DEEP} 100%)`,
+              height: priceH, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              borderTop: `2px solid ${GOLD}`,
             }}>
-              <span style={{ color: '#FCD34D', fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.01em' }}>
+              <span style={{ color: GOLD, fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, textShadow: `0 1px 0 ${INK}` }}>
                 ¥{product.price.toLocaleString('ja-JP')}
               </span>
             </div>
@@ -475,10 +478,10 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
       <footer style={{
         position: 'absolute', bottom: padY, left: padX, right: padX, height: footerH,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        fontSize: 12, color: '#111', fontWeight: 600, zIndex: 2,
+        fontSize: 14, color: CREAM, fontWeight: 600, zIndex: 2,
       }}>
         <span>※ 買取価格は状態・在庫状況により変動する場合がございます。</span>
-        <span style={{ fontWeight: 900 }}>更新日：{updatedAt}</span>
+        <span style={{ fontWeight: 900, color: GOLD, letterSpacing: '0.05em' }}>更新日：{updatedAt}</span>
       </footer>
     </div>
   )
