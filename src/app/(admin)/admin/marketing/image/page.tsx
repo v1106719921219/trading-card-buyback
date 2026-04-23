@@ -288,25 +288,49 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
   const updatedAt = fmt(today)
   const validUntil = fmt(validUntilDate)
 
-  // Calculate grid: always 8 columns, rows based on product count + info area
-  const rows = Math.ceil((products.length + COLS) / COLS) // +COLS for info area (1 row worth)
-  const totalCells = rows * COLS
-  const infoSpan = Math.max(totalCells - products.length, 4)
+  // --- Explicit pixel layout (no flex dependency) ---
+  const W = 1920
+  const H = 1080
+  const padX = 36
+  const padY = 20
+  const headerH = 100
+  const footerH = 24
+  const lineH = 3
+  const gap = 6
+
+  const gridTop = padY + headerH + 8 + lineH + 8
+  const gridH = H - gridTop - padY - footerH - 6
+  const gridW = W - padX * 2
+
+  // Grid dimensions
+  const cols = COLS
+  const infoMinSpan = 4
+  const totalCells = Math.max(products.length + infoMinSpan, cols)
+  const rows = Math.ceil(totalCells / cols)
+  const infoSpan = Math.max(rows * cols - products.length, infoMinSpan)
+
+  const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
+  const cellH = Math.floor((gridH - gap * (rows - 1)) / rows)
+
+  // Card inner sizes — proportional to cell height
+  const nameH = Math.max(Math.min(Math.floor(cellH * 0.16), 26), 14)
+  const priceH = Math.max(Math.min(Math.floor(cellH * 0.2), 28), 18)
+  const cardPadV = 3
+  const imgH = Math.max(cellH - nameH - priceH - cardPadV * 2 - 6, 10) // 6 = margins
+  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.6), 13), 8)
+  const priceFontSize = Math.max(Math.min(Math.floor(priceH * 0.7), 20), 12)
 
   return (
     <div
       ref={ref}
       style={{
-        width: 1920,
-        height: 1080,
+        width: W,
+        height: H,
         background: '#FCD34D',
         position: 'relative',
         overflow: 'hidden',
         fontFamily: '"Noto Sans JP", sans-serif',
-        padding: '24px 36px',
         boxSizing: 'border-box',
-        display: 'flex',
-        flexDirection: 'column',
       }}
     >
       {/* Palm leaf decorations */}
@@ -317,25 +341,23 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
         <PalmLeaf size={200} color="#1a1a1a" rotate={-150} />
       </div>
 
-      {/* Header - compact */}
+      {/* Header — absolute, fixed height */}
       <header style={{
+        position: 'absolute', top: padY, left: padX, right: padX, height: headerH,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 10, position: 'relative', zIndex: 2, gap: 16,
+        zIndex: 2, gap: 16,
       }}>
         {/* Logo */}
-        <div style={{ flexShrink: 0 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/assets/logo-full.png"
-            alt="買取スクエア"
-            style={{ height: 160, width: 160, objectFit: 'contain', display: 'block' }}
-            crossOrigin="anonymous"
-          />
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/assets/logo-full.png"
+          alt="買取スクエア"
+          style={{ height: headerH, width: headerH, objectFit: 'contain', display: 'block', flexShrink: 0 }}
+          crossOrigin="anonymous"
+        />
 
         {/* Main title area */}
         <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          {/* Sunburst SVG */}
           <svg viewBox="-100 -100 200 200" style={{ position: 'absolute', width: 480, height: 160, opacity: 0.85, pointerEvents: 'none' }}>
             <defs>
               <radialGradient id="burstFade">
@@ -357,104 +379,101 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
             <circle cx="0" cy="0" r="140" fill="url(#burstFade)" mask="url(#burstMask)" />
           </svg>
 
-          {/* Title */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, transform: 'rotate(-2.5deg)' }}>
-            <div style={{ color: '#dc2626', fontSize: 40, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</div>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, transform: 'rotate(-2deg)' }}>
+            <span style={{ color: '#dc2626', fontSize: 36, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</span>
             <h1 style={{
               margin: 0, fontFamily: '"Noto Sans JP", sans-serif',
-              fontSize: 110, fontWeight: 900, lineHeight: 0.92, letterSpacing: '0.04em',
-              color: '#fff', WebkitTextStroke: '10px #111', paintOrder: 'stroke fill',
-              textShadow: '0 0 0 #111, 7px 7px 0 #dc2626, 11px 11px 0 #111',
-              position: 'relative', whiteSpace: 'nowrap',
+              fontSize: 88, fontWeight: 900, lineHeight: 1, letterSpacing: '0.04em',
+              color: '#fff', WebkitTextStroke: '8px #111', paintOrder: 'stroke fill',
+              textShadow: '0 0 0 #111, 6px 6px 0 #dc2626, 10px 10px 0 #111',
+              whiteSpace: 'nowrap',
             }}>高価買取</h1>
-            <div style={{ color: '#dc2626', fontSize: 40, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</div>
+            <span style={{ color: '#dc2626', fontSize: 36, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</span>
 
-            {/* Top label */}
             <div style={{
-              position: 'absolute', top: -36, left: '50%', transform: 'translateX(-50%)',
-              background: '#dc2626', color: '#fff', padding: '4px 18px',
-              fontSize: 16, fontWeight: 900, letterSpacing: '0.2em',
-              fontFamily: '"Noto Sans JP", sans-serif', borderRadius: 2,
-              whiteSpace: 'nowrap', border: '2px solid #111', boxShadow: '2px 2px 0 #111',
+              position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)',
+              background: '#dc2626', color: '#fff', padding: '2px 14px',
+              fontSize: 13, fontWeight: 900, letterSpacing: '0.15em',
+              borderRadius: 2, whiteSpace: 'nowrap', border: '2px solid #111', boxShadow: '2px 2px 0 #111',
             }}>
               ポケモンカードBOX 買取価格表
             </div>
           </div>
         </div>
 
-        {/* Right: 3 badges */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, minWidth: 220 }}>
-          <div style={{ background: '#fff', border: '2px solid #111', padding: '6px 14px', borderRadius: 8, transform: 'rotate(3deg)', boxShadow: '4px 4px 0 #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 14, fontWeight: 900, color: '#dc2626', lineHeight: 1, letterSpacing: '0.05em' }}>★ 全種 ★</div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: '#111', lineHeight: 1.05, marginTop: 2 }}>シュリンクあり！</div>
+        {/* Right: badges — horizontal */}
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <div style={{ background: '#fff', border: '2px solid #111', padding: '5px 10px', borderRadius: 8, transform: 'rotate(2deg)', boxShadow: '3px 3px 0 #111', textAlign: 'center' }}>
+            <div style={{ fontSize: 10, fontWeight: 900, color: '#dc2626', lineHeight: 1 }}>★ 全種 ★</div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 1 }}>シュリンクあり！</div>
           </div>
-          <div style={{ background: '#111', color: '#FCD34D', padding: '6px 14px', borderRadius: 8, transform: 'rotate(-2.5deg)', boxShadow: '4px 4px 0 #dc2626', border: '2px solid #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, fontWeight: 900, color: '#fff', letterSpacing: '0.2em', opacity: 0.85 }}>FAST PAYMENT</div>
-            <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1.05, marginTop: 1, letterSpacing: '0.02em' }}>到着日振込！</div>
+          <div style={{ background: '#111', color: '#FCD34D', padding: '5px 10px', borderRadius: 8, transform: 'rotate(-2deg)', boxShadow: '3px 3px 0 #dc2626', border: '2px solid #111', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, fontWeight: 900, color: '#fff', letterSpacing: '0.15em', opacity: 0.85 }}>FAST PAYMENT</div>
+            <div style={{ fontSize: 16, fontWeight: 900, lineHeight: 1.1, marginTop: 1 }}>到着日振込！</div>
           </div>
-          <div style={{ background: '#dc2626', color: '#fff', padding: '6px 14px', borderRadius: 8, transform: 'rotate(2.5deg)', boxShadow: '4px 4px 0 #111', border: '2px solid #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, fontWeight: 900, color: '#FCD34D', letterSpacing: '0.2em' }}>FREE SHIPPING</div>
-            <div style={{ fontSize: 20, fontWeight: 900, lineHeight: 1.05, marginTop: 1, letterSpacing: '0.02em' }}>
-              着払<span style={{ fontSize: 26, color: '#FCD34D' }}>10</span>箱から可能！
+          <div style={{ background: '#dc2626', color: '#fff', padding: '5px 10px', borderRadius: 8, transform: 'rotate(2deg)', boxShadow: '3px 3px 0 #111', border: '2px solid #111', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, fontWeight: 900, color: '#FCD34D', letterSpacing: '0.15em' }}>FREE SHIPPING</div>
+            <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.1, marginTop: 1 }}>
+              着払<span style={{ fontSize: 18, color: '#FCD34D' }}>10</span>箱〜
             </div>
           </div>
         </div>
       </header>
 
       {/* Red gradient line */}
-      <div style={{ height: 3, background: 'linear-gradient(90deg, #dc2626 0%, #f59e0b 50%, #dc2626 100%)', marginBottom: 8, position: 'relative', zIndex: 2 }} />
+      <div style={{ position: 'absolute', top: padY + headerH + 8, left: padX, right: padX, height: lineH, background: 'linear-gradient(90deg, #dc2626 0%, #f59e0b 50%, #dc2626 100%)', zIndex: 2 }} />
 
-      {/* Product grid */}
+      {/* Product grid — absolute positioned with explicit pixel sizes */}
       <div style={{
-        flex: 1, display: 'grid',
-        gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-        gridTemplateRows: `repeat(${rows}, 1fr)`,
-        gap: 6, position: 'relative', zIndex: 2,
-        minHeight: 0,
+        position: 'absolute', top: gridTop, left: padX,
+        width: gridW, height: gridH,
+        display: 'grid',
+        gridTemplateColumns: `repeat(${cols}, ${cellW}px)`,
+        gridTemplateRows: `repeat(${rows}, ${cellH}px)`,
+        gap: gap, zIndex: 2,
       }}>
         {products.map((product) => (
           <div key={product.id} style={{
             background: '#fff', border: '2px solid #111', borderRadius: 4,
-            padding: '4px 4px 6px', display: 'flex', flexDirection: 'column',
-            overflow: 'hidden', boxShadow: '2px 2px 0 #111', minHeight: 0,
+            padding: `${cardPadV}px 4px`,
+            display: 'flex', flexDirection: 'column',
+            overflow: 'hidden', boxShadow: '2px 2px 0 #111',
           }}>
-            {/* Image area - fills available space */}
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0 }}>
-              {product.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={product.image_url}
-                  alt={product.name}
-                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                  crossOrigin="anonymous"
-                />
-              ) : (
-                <div style={{
-                  width: '100%', height: '100%',
-                  background: 'rgba(0,0,0,0.04)', border: '1px dashed rgba(0,0,0,0.18)',
-                  borderRadius: 4,
-                }} />
-              )}
-            </div>
+            {/* Product image — fixed pixel height */}
+            {product.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={product.image_url}
+                alt={product.name}
+                style={{ width: '100%', height: imgH, objectFit: 'contain' }}
+                crossOrigin="anonymous"
+              />
+            ) : (
+              <div style={{
+                width: '100%', height: imgH,
+                background: 'rgba(0,0,0,0.04)', border: '1px dashed rgba(0,0,0,0.18)',
+                borderRadius: 4,
+              }} />
+            )}
             {/* Product name */}
             <div style={{
-              fontSize: 12, fontWeight: 800, color: '#111', textAlign: 'center',
-              lineHeight: 1.15, marginTop: 2, flexShrink: 0,
-              overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+              fontSize: nameFontSize, fontWeight: 800, color: '#111', textAlign: 'center',
+              lineHeight: 1.15, height: nameH, marginTop: 2,
+              overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               {product.name}
             </div>
             {/* Price tag */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 3, marginTop: 2, background: '#111', padding: '4px 3px', borderRadius: 3, flexShrink: 0,
+              gap: 3, marginTop: 2, background: '#111', height: priceH, borderRadius: 3,
             }}>
               {product.trend !== 'flat' && (
-                <span style={{ color: product.trend === 'up' ? '#4ade80' : '#fca5a5', fontSize: 10, fontWeight: 900 }}>
+                <span style={{ color: product.trend === 'up' ? '#4ade80' : '#fca5a5', fontSize: Math.floor(priceFontSize * 0.55), fontWeight: 900 }}>
                   {product.trend === 'up' ? '▲' : '▼'}
                 </span>
               )}
-              <span style={{ color: '#FCD34D', fontSize: 18, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.01em' }}>
+              <span style={{ color: '#FCD34D', fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.01em' }}>
                 ¥{product.price.toLocaleString('ja-JP')}
               </span>
             </div>
@@ -465,16 +484,16 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
         {products.length > 0 && (
           <div style={{
             gridColumn: `span ${infoSpan}`, background: '#111', color: '#FCD34D',
-            borderRadius: 6, padding: '8px 14px', display: 'flex',
+            borderRadius: 6, padding: '4px 14px', display: 'flex',
             alignItems: 'center', justifyContent: 'space-between', border: '2px solid #111',
           }}>
             <div>
-              <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.1em' }}>VALID UNTIL</div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', marginTop: 1 }}>{validUntil} まで有効</div>
+              <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.1em' }}>VALID UNTIL</div>
+              <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginTop: 1 }}>{validUntil} まで有効</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.1em' }}>UPDATED</div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', marginTop: 1 }}>{updatedAt}</div>
+              <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.1em' }}>UPDATED</div>
+              <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginTop: 1 }}>{updatedAt}</div>
             </div>
           </div>
         )}
@@ -482,8 +501,9 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
 
       {/* Footer */}
       <footer style={{
-        marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        fontSize: 13, color: '#111', fontWeight: 600, position: 'relative', zIndex: 2,
+        position: 'absolute', bottom: padY, left: padX, right: padX, height: footerH,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        fontSize: 12, color: '#111', fontWeight: 600, zIndex: 2,
       }}>
         <span>※ 買取価格は状態・在庫状況により変動する場合がございます。</span>
         <span style={{ fontWeight: 900 }}>kaitorisquare.net</span>
