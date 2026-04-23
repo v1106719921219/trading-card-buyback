@@ -275,30 +275,28 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
     `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
   const updatedAt = fmt(today)
 
-  // Layout
+  // Layout — match reference design
   const W = 1920
   const H = 1080
-  const padX = 36
-  const padY = 20
-  const headerH = 100
-  const footerH = 24
-  const lineH = 3
-  const sectionTitleH = 36
-  const gap = 8
+  const padX = 40
+  const padY = 28
+  const headerH = 260
+  const footerH = 28
+  const lineH = 4
+  const sectionTitleH = 42
+  const sectionGap = 12
 
-  const gridTop = padY + headerH + 8 + lineH + 8
-  const gridBottom = H - padY - footerH - 6
-  const totalGridH = gridBottom - gridTop
+  const contentTop = padY + headerH + 14 + lineH + 14
+  const contentBottom = H - padY - footerH - 8
+  const totalContentH = contentBottom - contentTop
   const gridW = W - padX * 2
 
-  // Split space between sections proportionally
-  const totalItems = singles.length + promos.length
-  const singleRatio = totalItems > 0 ? singles.length / totalItems : 0.5
-  const singleSectionH = Math.floor((totalGridH - gap) * Math.max(singleRatio, 0.3))
-  const promoSectionH = totalGridH - gap - singleSectionH
+  // Split sections evenly (50/50)
+  const singleSectionH = Math.floor((totalContentH - sectionGap) / 2)
+  const promoSectionH = totalContentH - sectionGap - singleSectionH
 
-  const singleGridTop = gridTop
-  const promoGridTop = gridTop + singleSectionH + gap
+  const singleTop = contentTop
+  const promoTop = contentTop + singleSectionH + sectionGap
 
   return (
     <div
@@ -314,68 +312,71 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
     >
       {/* Palm leaf decorations */}
       <div style={{ position: 'absolute', top: -30, right: -30, opacity: 0.12, pointerEvents: 'none' }}>
-        <PalmLeaf size={220} color="#1a1a1a" rotate={25} />
+        <PalmLeaf size={280} color="#1a1a1a" rotate={25} />
       </div>
       <div style={{ position: 'absolute', bottom: -40, left: -40, opacity: 0.1, pointerEvents: 'none' }}>
-        <PalmLeaf size={200} color="#1a1a1a" rotate={-150} />
+        <PalmLeaf size={260} color="#1a1a1a" rotate={-150} />
       </div>
 
-      {/* Header */}
+      {/* Header — large, matching reference */}
       <header style={{
         position: 'absolute', top: padY, left: padX, right: padX, height: headerH,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        zIndex: 2, gap: 16,
+        zIndex: 2, gap: 20,
       }}>
+        {/* Logo — large */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/assets/logo-full.png" alt="買取スクエア"
-          style={{ height: 200, width: 200, objectFit: 'contain', display: 'block', flexShrink: 0, marginTop: -30, marginBottom: -30 }}
+          style={{ height: 240, width: 240, objectFit: 'contain', display: 'block', flexShrink: 0 }}
           crossOrigin="anonymous"
         />
 
-        <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <svg viewBox="-100 -100 200 200" style={{ position: 'absolute', width: 480, height: 160, opacity: 0.85, pointerEvents: 'none' }}>
+        {/* Title area */}
+        <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 170 }}>
+          <svg viewBox="-100 -100 200 200" style={{ position: 'absolute', width: 640, height: 200, opacity: 0.85, pointerEvents: 'none' }}>
             <defs>
               <radialGradient id="burstFade2"><stop offset="0%" stopColor="#dc2626" stopOpacity="0" /><stop offset="40%" stopColor="#dc2626" stopOpacity="0" /><stop offset="100%" stopColor="#dc2626" stopOpacity="0.85" /></radialGradient>
               <mask id="burstMask2"><rect x="-100" y="-100" width="200" height="200" fill="white" />{Array.from({ length: 24 }).map((_, i) => { const a = (i * 360 / 24) * Math.PI / 180; const a2 = ((i + 0.5) * 360 / 24) * Math.PI / 180; return <polygon key={i} points={`0,0 ${Math.cos(a) * 140},${Math.sin(a) * 140} ${Math.cos(a2) * 140},${Math.sin(a2) * 140}`} fill="black" /> })}</mask>
             </defs>
             <circle cx="0" cy="0" r="140" fill="url(#burstFade2)" mask="url(#burstMask2)" />
           </svg>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, transform: 'rotate(-2deg)' }}>
-            <span style={{ color: '#dc2626', fontSize: 36, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</span>
-            <h1 style={{ margin: 0, fontSize: 88, fontWeight: 900, lineHeight: 1, letterSpacing: '0.04em', color: '#fff', WebkitTextStroke: '8px #111', paintOrder: 'stroke fill', textShadow: '0 0 0 #111, 6px 6px 0 #dc2626, 10px 10px 0 #111', whiteSpace: 'nowrap' }}>高価買取</h1>
-            <span style={{ color: '#dc2626', fontSize: 36, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</span>
-            <div style={{ position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)', background: '#dc2626', color: '#fff', padding: '2px 14px', fontSize: 13, fontWeight: 900, letterSpacing: '0.15em', borderRadius: 2, whiteSpace: 'nowrap', border: '2px solid #111', boxShadow: '2px 2px 0 #111' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, transform: 'rotate(-2.5deg)' }}>
+            <div style={{ color: '#dc2626', fontSize: 60, fontWeight: 900, WebkitTextStroke: '4px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(4px 4px 0 #111)' }}>★</div>
+            <h1 style={{ margin: 0, fontSize: 160, fontWeight: 900, lineHeight: 0.92, letterSpacing: '0.04em', color: '#fff', WebkitTextStroke: '14px #111', paintOrder: 'stroke fill', textShadow: '0 0 0 #111, 10px 10px 0 #dc2626, 16px 16px 0 #111', whiteSpace: 'nowrap' }}>高価買取</h1>
+            <div style={{ color: '#dc2626', fontSize: 60, fontWeight: 900, WebkitTextStroke: '4px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(4px 4px 0 #111)' }}>★</div>
+            <div style={{ position: 'absolute', top: -48, left: '50%', transform: 'translateX(-50%)', background: '#dc2626', color: '#fff', padding: '5px 24px', fontSize: 22, fontWeight: 900, letterSpacing: '0.2em', borderRadius: 2, whiteSpace: 'nowrap', border: '3px solid #111', boxShadow: '3px 3px 0 #111' }}>
               ポケモンカード シングル＆プロモ 買取価格表
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          <div style={{ background: '#fff', border: '2px solid #111', padding: '5px 10px', borderRadius: 8, transform: 'rotate(2deg)', boxShadow: '3px 3px 0 #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, fontWeight: 900, color: '#dc2626', lineHeight: 1 }}>★ 状態 ★</div>
-            <div style={{ fontSize: 16, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 1 }}>美品買取強化！</div>
+        {/* Right: 3 badges — vertical */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, minWidth: 270 }}>
+          <div style={{ background: '#fff', border: '3px solid #111', padding: '10px 18px', borderRadius: 10, transform: 'rotate(3deg)', boxShadow: '5px 5px 0 #111', textAlign: 'center' }}>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#dc2626', lineHeight: 1, letterSpacing: '0.05em' }}>★ 状態 ★</div>
+            <div style={{ fontSize: 30, fontWeight: 900, color: '#111', lineHeight: 1.05, marginTop: 4 }}>美品買取強化！</div>
           </div>
-          <div style={{ background: '#111', color: '#FCD34D', padding: '5px 10px', borderRadius: 8, transform: 'rotate(-2deg)', boxShadow: '3px 3px 0 #dc2626', border: '2px solid #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 8, fontWeight: 900, color: '#fff', letterSpacing: '0.15em', opacity: 0.85 }}>FAST PAYMENT</div>
-            <div style={{ fontSize: 16, fontWeight: 900, lineHeight: 1.1, marginTop: 1 }}>到着日振込！</div>
+          <div style={{ background: '#111', color: '#FCD34D', padding: '10px 18px', borderRadius: 10, transform: 'rotate(-2.5deg)', boxShadow: '5px 5px 0 #dc2626', border: '3px solid #111', textAlign: 'center' }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: '#fff', letterSpacing: '0.2em', opacity: 0.85 }}>FAST PAYMENT</div>
+            <div style={{ fontSize: 30, fontWeight: 900, lineHeight: 1.05, marginTop: 2 }}>到着日振込！</div>
           </div>
-          <div style={{ background: '#dc2626', color: '#fff', padding: '5px 10px', borderRadius: 8, transform: 'rotate(2deg)', boxShadow: '3px 3px 0 #111', border: '2px solid #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 8, fontWeight: 900, color: '#FCD34D', letterSpacing: '0.15em' }}>BULK OK</div>
-            <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.1, marginTop: 1 }}>まとめ買取歓迎！</div>
+          <div style={{ background: '#dc2626', color: '#fff', padding: '10px 18px', borderRadius: 10, transform: 'rotate(2.5deg)', boxShadow: '5px 5px 0 #111', border: '3px solid #111', textAlign: 'center' }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: '#FCD34D', letterSpacing: '0.2em' }}>BULK OK</div>
+            <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.05, marginTop: 2 }}>まとめ買取歓迎！</div>
           </div>
         </div>
       </header>
 
       {/* Red gradient line */}
-      <div style={{ position: 'absolute', top: padY + headerH + 8, left: padX, right: padX, height: lineH, background: 'linear-gradient(90deg, #dc2626 0%, #f59e0b 50%, #dc2626 100%)', zIndex: 2 }} />
+      <div style={{ position: 'absolute', top: padY + headerH + 14, left: padX, right: padX, height: lineH, background: 'linear-gradient(90deg, #dc2626 0%, #f59e0b 50%, #dc2626 100%)', zIndex: 2 }} />
 
       {/* Single cards section */}
       {singles.length > 0 && (
         <SectionRenderer
           title="シングルカード" subtitle="SINGLE CARDS"
-          items={singles} top={singleGridTop} height={singleSectionH}
-          padX={padX} gridW={gridW} sectionTitleH={sectionTitleH} cardGap={8}
+          items={singles} top={singleTop} height={singleSectionH}
+          padX={padX} gridW={gridW} sectionTitleH={sectionTitleH} cardGap={10}
         />
       )}
 
@@ -383,8 +384,8 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
       {promos.length > 0 && (
         <SectionRenderer
           title="プロモカード" subtitle="PROMO CARDS"
-          items={promos} top={promoGridTop} height={promoSectionH}
-          padX={padX} gridW={gridW} sectionTitleH={sectionTitleH} cardGap={8}
+          items={promos} top={promoTop} height={promoSectionH}
+          padX={padX} gridW={gridW} sectionTitleH={sectionTitleH} cardGap={10}
         />
       )}
 
@@ -392,7 +393,7 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
       <footer style={{
         position: 'absolute', bottom: padY, left: padX, right: padX, height: footerH,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        fontSize: 12, color: '#111', fontWeight: 600, zIndex: 2,
+        fontSize: 14, color: '#111', fontWeight: 600, zIndex: 2,
       }}>
         <span>※ 買取価格は状態・在庫状況により変動する場合がございます。</span>
         <span style={{ fontWeight: 900 }}>更新日：{updatedAt}</span>
@@ -413,11 +414,11 @@ function SectionRenderer({ title, subtitle, items, top, height, padX, gridW, sec
   const cardW = Math.floor((gridW - cardGap * (cols - 1)) / cols)
 
   // Card inner sizes
-  const cardPadV = 6
-  const nameH = 30
-  const priceH = 28
-  const nameFontSize = 12
-  const priceFontSize = 18
+  const cardPadV = 8
+  const nameH = 36
+  const priceH = 32
+  const nameFontSize = 14
+  const priceFontSize = 22
   const imgH = cardAreaH - cardPadV * 2 - nameH - priceH - 8
 
   return (
@@ -429,18 +430,18 @@ function SectionRenderer({ title, subtitle, items, top, height, padX, gridW, sec
       }}>
         <div style={{
           background: '#111', color: '#FCD34D',
-          padding: '4px 16px', fontSize: 20, fontWeight: 900,
-          letterSpacing: '0.08em', border: '2px solid #111',
-          borderRadius: 5, boxShadow: '3px 3px 0 #dc2626', whiteSpace: 'nowrap',
+          padding: '6px 20px', fontSize: 26, fontWeight: 900,
+          letterSpacing: '0.08em', border: '3px solid #111',
+          borderRadius: 6, boxShadow: '4px 4px 0 #dc2626', whiteSpace: 'nowrap',
         }}>
           {title}
         </div>
-        <div style={{ fontSize: 11, fontWeight: 900, color: '#78350f', letterSpacing: '0.25em' }}>{subtitle}</div>
-        <div style={{ flex: 1, height: 2, background: 'repeating-linear-gradient(90deg, #111 0 6px, transparent 6px 12px)' }} />
+        <div style={{ fontSize: 14, fontWeight: 900, color: '#78350f', letterSpacing: '0.3em' }}>{subtitle}</div>
+        <div style={{ flex: 1, height: 3, background: 'repeating-linear-gradient(90deg, #111 0 8px, transparent 8px 16px)' }} />
         <div style={{
-          fontSize: 13, fontWeight: 900, color: '#111',
+          fontSize: 16, fontWeight: 900, color: '#111',
           background: '#fff', border: '2px solid #111',
-          padding: '2px 10px', borderRadius: 999,
+          padding: '3px 12px', borderRadius: 999,
         }}>
           {items.length}種
         </div>
@@ -483,10 +484,10 @@ function SectionRenderer({ title, subtitle, items, top, height, padX, gridW, sec
             {/* Price */}
             <div style={{
               marginLeft: -6, marginRight: -6,
-              background: product.price === 0 ? '#6b7280' : '#111',
+              background: product.price === 0 ? '#dc2626' : '#111',
               height: priceH, display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <span style={{ color: '#FCD34D', fontSize: priceFontSize, fontWeight: 900, lineHeight: 1 }}>
+              <span style={{ color: product.price === 0 ? '#fff' : '#FCD34D', fontSize: priceFontSize, fontWeight: 900, lineHeight: 1 }}>
                 {product.price === 0 ? '応談' : `¥${product.price.toLocaleString('ja-JP')}`}
               </span>
             </div>
