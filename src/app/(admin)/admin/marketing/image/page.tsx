@@ -137,7 +137,7 @@ export default function MarketingImagePage() {
     const { error } = await supabase
       .from('app_settings')
       .upsert(
-        { key: SETTING_KEY, value: JSON.stringify(ids), description: 'SNS投稿文のデフォルト掲載商品IDリスト' },
+        { key: SETTING_KEY, value: JSON.stringify(ids), description: 'SNS投稿文のデフォルト掲載商品IDリスト', tenant_id: 'aaaaaaaa-0000-0000-0000-000000000001' },
         { onConflict: 'key' }
       )
     setSaving(false)
