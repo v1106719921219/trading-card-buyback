@@ -46,7 +46,7 @@ export default function MarketingImagePage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const [productsResult, settingResult, historyResult] = await Promise.all([
+    const [productsResult, noShrinkResult, settingResult, historyResult] = await Promise.all([
       supabase
         .from('products')
         .select('*, category:categories(*), subcategory:subcategories(*)')
@@ -54,6 +54,12 @@ export default function MarketingImagePage() {
         .eq('category_id', 'db02ec12-d529-453c-a749-53da99e05533')
         .eq('subcategory_id', '7fc8c032-c373-438a-bc14-6a9e8c113767')
         .order('sort_order'),
+      supabase
+        .from('products')
+        .select('name, price')
+        .eq('is_active', true)
+        .eq('category_id', 'db02ec12-d529-453c-a749-53da99e05533')
+        .eq('subcategory_id', '9c1bdee7-e844-4be7-a298-de73d8af5670'),
       supabase.from('app_settings').select('value').eq('key', SETTING_KEY).maybeSingle(),
       supabase
         .from('product_price_history')
@@ -76,6 +82,15 @@ export default function MarketingImagePage() {
       }
     }
 
+    // Build no-shrink price map: match by name (strip "シュリンク無し" suffix)
+    const noShrinkPriceMap = new Map<string, number>()
+    if (noShrinkResult.data) {
+      for (const ns of noShrinkResult.data) {
+        const baseName = ns.name.replace(/\s*シュリンク無し\s*$/, '').trim()
+        noShrinkPriceMap.set(baseName, ns.price)
+      }
+    }
+
     const prods = ((productsResult.data || []) as ProductWithRelations[]).map((p): ProductWithTrend => {
       const prevPrice = prevPriceMap.get(p.id)
       let trend: Trend = 'flat'
@@ -83,7 +98,8 @@ export default function MarketingImagePage() {
         if (p.price > prevPrice) trend = 'up'
         else if (p.price < prevPrice) trend = 'down'
       }
-      return { ...p, trend }
+      const noShrinkPrice = noShrinkPriceMap.get(p.name) ?? null
+      return { ...p, price_no_shrink: noShrinkPrice, trend }
     })
 
     setProducts(prods)
