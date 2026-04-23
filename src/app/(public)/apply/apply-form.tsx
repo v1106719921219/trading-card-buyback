@@ -560,12 +560,27 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                         className="flex items-center justify-between p-3 rounded-md hover:bg-muted/50 cursor-pointer"
                         onClick={() => addToCart(product)}
                       >
-                        <div>
-                          <p className="font-medium">{product.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {product.category?.name}
-                            {product.subcategory?.name && <span className="ml-1">/ {product.subcategory.name}</span>}
-                          </p>
+                        <div className="flex items-center gap-3">
+                          {product.image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={product.image_url}
+                              alt=""
+                              loading="lazy"
+                              className="w-10 h-10 object-cover rounded shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded bg-muted flex items-center justify-center shrink-0">
+                              <ShoppingCart className="h-4 w-4 text-muted-foreground/40" />
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-medium">{product.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {product.category?.name}
+                              {product.subcategory?.name && <span className="ml-1">/ {product.subcategory.name}</span>}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="font-semibold text-primary">
