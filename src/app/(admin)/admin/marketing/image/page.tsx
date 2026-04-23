@@ -493,14 +493,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
             alignItems: 'center', justifyContent: 'space-between', border: '2px solid #111',
             zIndex: 2, boxSizing: 'border-box',
           }}>
-            <div>
-              <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.1em' }}>VALID UNTIL</div>
-              <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginTop: 1 }}>{validUntil} まで有効</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, letterSpacing: '0.1em' }}>UPDATED</div>
-              <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginTop: 1 }}>{updatedAt}</div>
-            </div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: '#fff' }}>{updatedAt}</div>
           </div>
         )
       })()}
