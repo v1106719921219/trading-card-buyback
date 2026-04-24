@@ -53,6 +53,7 @@ export interface Product {
   show_in_price_list: boolean
   sort_order: number
   image_url: string | null
+  wanted_quantity: number
   created_at: string
   updated_at: string
   // joined

@@ -48,6 +48,8 @@ const navItems = [
   { href: '/admin/marketing/image', label: 'ポケモンBOX画像', icon: ImageIcon },
   { href: '/admin/marketing/image-single', label: 'ポケモンシングル画像', icon: ImageIcon },
   { href: '/admin/marketing/image-onepiece', label: 'ワンピBOX画像', icon: ImageIcon },
+  { href: '/admin/marketing/image-psa10', label: 'PSA10買取画像', icon: ImageIcon },
+  { href: '/admin/marketing/image-psa10-boost', label: 'PSA10強化画像', icon: ImageIcon },
   { href: '/admin/payments', label: '振込管理', icon: CreditCard },
   { href: '/admin/payment-verification', label: '振込確認', icon: ShieldCheck },
   { href: '/admin/returns', label: '返品管理', icon: Undo2 },
