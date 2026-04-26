@@ -27,6 +27,7 @@ export default function SinglePromoImagePage() {
   const [promos, setPromos] = useState<ProductWithRelations[]>([])
   const [selectedSingleIds, setSelectedSingleIds] = useState<Set<string>>(new Set())
   const [selectedPromoIds, setSelectedPromoIds] = useState<Set<string>>(new Set())
+  const [highPriceIds, setHighPriceIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -93,6 +94,14 @@ export default function SinglePromoImagePage() {
 
   function toggleSingle(id: string) {
     setSelectedSingleIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleHighPrice(id: string) {
+    setHighPriceIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id); else next.add(id)
       return next
@@ -179,7 +188,7 @@ export default function SinglePromoImagePage() {
               {loading ? <p className="text-sm text-muted-foreground">読み込み中...</p> : (
                 <div className="space-y-1.5 max-h-[30vh] overflow-y-auto pr-1">
                   {singles.map((product) => (
-                    <label key={product.id} className="flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted transition-colors">
+                    <div key={product.id} className="flex items-center gap-3 rounded-md border px-3 py-2 hover:bg-muted transition-colors">
                       <Checkbox checked={selectedSingleIds.has(product.id)} onCheckedChange={() => toggleSingle(product.id)} />
                       {product.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -189,7 +198,12 @@ export default function SinglePromoImagePage() {
                       )}
                       <span className="flex-1 text-sm truncate">{product.name}</span>
                       <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">{product.price.toLocaleString('ja-JP')}円</Badge>
-                    </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleHighPrice(product.id)}
+                        className={`shrink-0 text-xs px-2 py-0.5 rounded-full border font-bold ${highPriceIds.has(product.id) ? 'bg-red-500 text-white border-red-500' : 'bg-white text-gray-400 border-gray-300'}`}
+                      >高額</button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -208,7 +222,7 @@ export default function SinglePromoImagePage() {
               {loading ? <p className="text-sm text-muted-foreground">読み込み中...</p> : (
                 <div className="space-y-1.5 max-h-[30vh] overflow-y-auto pr-1">
                   {promos.map((product) => (
-                    <label key={product.id} className="flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted transition-colors">
+                    <div key={product.id} className="flex items-center gap-3 rounded-md border px-3 py-2 hover:bg-muted transition-colors">
                       <Checkbox checked={selectedPromoIds.has(product.id)} onCheckedChange={() => togglePromo(product.id)} />
                       {product.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -218,7 +232,12 @@ export default function SinglePromoImagePage() {
                       )}
                       <span className="flex-1 text-sm truncate">{product.name}</span>
                       <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">{product.price.toLocaleString('ja-JP')}円</Badge>
-                    </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleHighPrice(product.id)}
+                        className={`shrink-0 text-xs px-2 py-0.5 rounded-full border font-bold ${highPriceIds.has(product.id) ? 'bg-red-500 text-white border-red-500' : 'bg-white text-gray-400 border-gray-300'}`}
+                      >高額</button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -244,7 +263,7 @@ export default function SinglePromoImagePage() {
           </div>
           <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
             <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
-              <SinglePromoCanvas ref={previewRef} singles={selectedSingles} promos={selectedPromos} />
+              <SinglePromoCanvas ref={previewRef} singles={selectedSingles} promos={selectedPromos} highPriceIds={highPriceIds} />
             </div>
           </div>
         </div>
@@ -257,7 +276,8 @@ export default function SinglePromoImagePage() {
 const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
   singles: ProductWithRelations[]
   promos: ProductWithRelations[]
-}>(({ singles, promos }, ref) => {
+  highPriceIds: Set<string>
+}>(({ singles, promos, highPriceIds }, ref) => {
   const today = new Date()
   const fmt = (d: Date) =>
     `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
@@ -310,6 +330,7 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
           title="シングルカード" subtitle="SINGLE CARDS"
           items={singles} top={singleTop} height={singleSectionH}
           padX={padX} gridW={gridW} sectionTitleH={sectionTitleH} cardGap={8}
+          highPriceIds={highPriceIds}
         />
       )}
 
@@ -319,6 +340,7 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
           title="プロモカード" subtitle="PROMO CARDS"
           items={promos} top={promoTop} height={promoSectionH}
           padX={padX} gridW={gridW} sectionTitleH={sectionTitleH} cardGap={8}
+          highPriceIds={highPriceIds}
         />
       )}
 
@@ -340,9 +362,10 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
 SinglePromoCanvas.displayName = 'SinglePromoCanvas'
 
 // --- Section renderer ---
-function SectionRenderer({ title, subtitle, items, top, height, padX, gridW, sectionTitleH, cardGap }: {
+function SectionRenderer({ title, subtitle, items, top, height, padX, gridW, sectionTitleH, cardGap, highPriceIds }: {
   title: string; subtitle: string; items: ProductWithRelations[]
   top: number; height: number; padX: number; gridW: number; sectionTitleH: number; cardGap: number
+  highPriceIds: Set<string>
 }) {
   const cols = items.length || 1
   const cardAreaTop = top + sectionTitleH + 4
@@ -363,7 +386,7 @@ function SectionRenderer({ title, subtitle, items, top, height, padX, gridW, sec
       {/* Cards */}
       {items.map((product, index) => {
         const x = padX + index * (cardW + cardGap)
-        const isHighPrice = product.price >= 10000
+        const isHighPrice = highPriceIds.has(product.id)
         return (
           <div key={product.id} style={{
             position: 'absolute', left: x, top: cardAreaTop, width: cardW, height: cardAreaH,
