@@ -283,24 +283,29 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
     `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
   const updatedAt = fmt(today)
 
-  // Layout — matched to background image positions
+  // Layout — pixel-matched to background image
   const W = 1920
   const H = 1080
   const padX = 30
-  const headerH = 270  // Background image header area
-  const footerH = 40
-  const sectionTitleH = 44
-  const sectionGap = 6
   const gridW = W - padX * 2
 
-  const contentTop = headerH
-  const contentBottom = H - footerH
-  const totalContentH = contentBottom - contentTop
-  const singleSectionH = Math.floor((totalContentH - sectionGap) / 2)
-  const promoSectionH = totalContentH - sectionGap - singleSectionH
+  // Positions matched to background image layout
+  const singleTitleH = 40    // シングルカード title bar in bg
+  const promoTitleH = 40     // プロモカード title bar in bg
 
-  const singleTop = contentTop
-  const promoTop = contentTop + singleSectionH + sectionGap
+  const singleTitleTop = 262  // Where "シングルカード" bar starts in bg
+  const singleCardTop = singleTitleTop + singleTitleH + 4
+  const singleCardBottom = 592
+
+  const promoTitleTop = 598   // Where "プロモカード" bar starts in bg
+  const promoCardTop = promoTitleTop + promoTitleH + 4
+  const promoCardBottom = 1036
+
+  const singleTop = singleTitleTop
+  const singleSectionH = singleCardBottom - singleTitleTop
+  const promoTop = promoTitleTop
+  const promoSectionH = promoCardBottom - promoTitleTop
+  const sectionTitleH = singleTitleH
 
   return (
     <div
