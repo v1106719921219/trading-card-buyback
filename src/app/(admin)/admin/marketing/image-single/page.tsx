@@ -269,7 +269,7 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
   const padY = 24
   const headerH = 240
   const footerH = 36
-  const sectionTitleH = 40
+  const sectionTitleH = 48
   const sectionGap = 8
 
   const contentTop = padY + headerH + 8
@@ -336,17 +336,17 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
         {/* Left: Logo + tagline */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, gap: 6 }}>
           <div style={{
-            width: 150, height: 150, borderRadius: '50%',
-            background: '#fff', border: '4px solid #f5c242',
+            width: 190, height: 190, borderRadius: '50%',
+            background: '#fff', border: '5px solid #f5c242',
             boxShadow: '0 0 0 3px #111, 0 8px 24px rgba(0,0,0,0.3)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/assets/logo-full.png" alt="買取スクエア" style={{ height: 130, width: 130, objectFit: 'contain' }} crossOrigin="anonymous" />
+            <img src="/assets/logo-full.png" alt="買取スクエア" style={{ height: 160, width: 160, objectFit: 'contain' }} crossOrigin="anonymous" />
           </div>
           <div style={{
-            background: '#111', color: '#fff', padding: '3px 14px',
-            fontSize: 11, fontWeight: 900, letterSpacing: '0.25em',
+            background: '#111', color: '#fff', padding: '4px 16px',
+            fontSize: 13, fontWeight: 900, letterSpacing: '0.25em',
             borderRadius: 2, whiteSpace: 'nowrap',
           }}>買取スクエア KAITORI SQUARE</div>
         </div>
@@ -354,8 +354,8 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
         {/* Left-of-center: CTA text */}
         <div style={{
           transform: 'rotate(-4deg)',
-          color: '#fff', fontSize: 26, fontWeight: 900,
-          textShadow: '2px 2px 0 #111, -1px -1px 0 #111, 1px -1px 0 #111, -1px 1px 0 #111',
+          color: '#fff', fontSize: 36, fontWeight: 900,
+          textShadow: '3px 3px 0 #111, -1px -1px 0 #111, 1px -1px 0 #111, -1px 1px 0 #111',
           lineHeight: 1.3, whiteSpace: 'nowrap', flexShrink: 0,
         }}>
           カードを売るなら<br />今がチャンス！
@@ -372,14 +372,14 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
             <circle cx="0" cy="0" r="140" fill="url(#burstFadeSP)" mask="url(#burstMaskSP)" />
           </svg>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, transform: 'rotate(-2deg)' }}>
-            <div style={{ color: '#dc2626', fontSize: 52, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</div>
-            <h1 style={{ margin: 0, fontSize: 130, fontWeight: 900, lineHeight: 0.92, letterSpacing: '0.04em', color: '#fff', WebkitTextStroke: '12px #111', paintOrder: 'stroke fill', textShadow: '0 0 0 #111, 8px 8px 0 #dc2626, 14px 14px 0 #111', whiteSpace: 'nowrap' }}>高価買取</h1>
-            <div style={{ color: '#dc2626', fontSize: 52, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</div>
+            <div style={{ color: '#dc2626', fontSize: 60, fontWeight: 900, WebkitTextStroke: '4px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(4px 4px 0 #111)' }}>★</div>
+            <h1 style={{ margin: 0, fontSize: 158, fontWeight: 900, lineHeight: 0.92, letterSpacing: '0.04em', color: '#fff', WebkitTextStroke: '14px #111', paintOrder: 'stroke fill', textShadow: '0 0 0 #111, 10px 10px 0 #dc2626, 16px 16px 0 #111', whiteSpace: 'nowrap' }}>高価買取</h1>
+            <div style={{ color: '#dc2626', fontSize: 60, fontWeight: 900, WebkitTextStroke: '4px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(4px 4px 0 #111)' }}>★</div>
             {/* Top banner */}
             <div style={{
-              position: 'absolute', top: -42, left: '50%', transform: 'translateX(-50%)',
-              background: '#dc2626', color: '#fff', padding: '5px 22px',
-              fontSize: 20, fontWeight: 900, letterSpacing: '0.18em',
+              position: 'absolute', top: -50, left: '50%', transform: 'translateX(-50%)',
+              background: '#dc2626', color: '#fff', padding: '6px 28px',
+              fontSize: 24, fontWeight: 900, letterSpacing: '0.18em',
               borderRadius: 2, whiteSpace: 'nowrap', border: '3px solid #111',
               boxShadow: '3px 3px 0 #111',
             }}>
@@ -389,18 +389,18 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
         </div>
 
         {/* Right: 3 CTA badges */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, minWidth: 250 }}>
-          <div style={{ background: '#fff', border: '3px solid #111', padding: '8px 16px', borderRadius: 10, transform: 'rotate(2.5deg)', boxShadow: '4px 4px 0 #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, fontWeight: 900, color: '#dc2626', letterSpacing: '0.15em', lineHeight: 1 }}>BULK BUY</div>
-            <div style={{ fontSize: 24, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 2 }}>大量買取募集中！</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, minWidth: 280 }}>
+          <div style={{ background: '#fff', border: '3px solid #111', padding: '10px 20px', borderRadius: 10, transform: 'rotate(2.5deg)', boxShadow: '5px 5px 0 #111', textAlign: 'center' }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: '#dc2626', letterSpacing: '0.15em', lineHeight: 1 }}>BULK BUY</div>
+            <div style={{ fontSize: 30, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 3 }}>大量買取募集中！</div>
           </div>
-          <div style={{ background: '#fff', border: '3px solid #111', padding: '8px 16px', borderRadius: 10, transform: 'rotate(-2deg)', boxShadow: '4px 4px 0 #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, fontWeight: 900, color: '#dc2626', letterSpacing: '0.15em', lineHeight: 1 }}>FAST PAYMENT</div>
-            <div style={{ fontSize: 24, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 2 }}>到着日振込！</div>
+          <div style={{ background: '#fff', border: '3px solid #111', padding: '10px 20px', borderRadius: 10, transform: 'rotate(-2deg)', boxShadow: '5px 5px 0 #111', textAlign: 'center' }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: '#dc2626', letterSpacing: '0.15em', lineHeight: 1 }}>FAST PAYMENT</div>
+            <div style={{ fontSize: 30, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 3 }}>到着日振込！</div>
           </div>
-          <div style={{ background: '#fff', border: '3px solid #111', padding: '8px 16px', borderRadius: 10, transform: 'rotate(2deg)', boxShadow: '4px 4px 0 #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, fontWeight: 900, color: '#dc2626', letterSpacing: '0.15em', lineHeight: 1 }}>BULK OK 🛒</div>
-            <div style={{ fontSize: 24, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 2 }}>まとめ買取歓迎！</div>
+          <div style={{ background: '#fff', border: '3px solid #111', padding: '10px 20px', borderRadius: 10, transform: 'rotate(2deg)', boxShadow: '5px 5px 0 #111', textAlign: 'center' }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: '#dc2626', letterSpacing: '0.15em', lineHeight: 1 }}>BULK OK 🛒</div>
+            <div style={{ fontSize: 30, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 3 }}>まとめ買取歓迎！</div>
           </div>
         </div>
       </header>
@@ -447,11 +447,11 @@ function SectionRenderer({ title, subtitle, items, top, height, padX, gridW, sec
   const cardAreaH = height - sectionTitleH - 4
   const cardW = Math.floor((gridW - cardGap * (cols - 1)) / cols)
 
-  const nameH = 34
-  const priceH = 34
+  const nameH = 40
+  const priceH = 42
   const cardPadV = 6
-  const nameFontSize = cols > 8 ? 11 : 13
-  const priceFontSize = cols > 8 ? 18 : 22
+  const nameFontSize = cols > 8 ? 12 : 15
+  const priceFontSize = cols > 8 ? 22 : 28
   const imgH = cardAreaH - cardPadV * 2 - nameH - priceH - 6
 
   return (
@@ -465,15 +465,15 @@ function SectionRenderer({ title, subtitle, items, top, height, padX, gridW, sec
         boxSizing: 'border-box',
       }}>
         <div style={{
-          color: '#FCD34D', fontSize: 22, fontWeight: 900,
+          color: '#FCD34D', fontSize: 28, fontWeight: 900,
           letterSpacing: '0.08em', whiteSpace: 'nowrap',
         }}>
           {title}
         </div>
-        <div style={{ fontSize: 12, fontWeight: 900, color: '#999', letterSpacing: '0.25em' }}>{subtitle}</div>
+        <div style={{ fontSize: 16, fontWeight: 900, color: '#999', letterSpacing: '0.25em' }}>{subtitle}</div>
         <div style={{ flex: 1, height: 0, borderTop: '2px dotted rgba(255,255,255,0.25)' }} />
         <div style={{
-          fontSize: 14, fontWeight: 900, color: '#111',
+          fontSize: 17, fontWeight: 900, color: '#111',
           background: '#FCD34D', border: '2px solid #FCD34D',
           padding: '2px 14px', borderRadius: 999, whiteSpace: 'nowrap',
         }}>
@@ -496,9 +496,9 @@ function SectionRenderer({ title, subtitle, items, top, height, padX, gridW, sec
             {/* 高額買取 badge */}
             {isHighPrice && (
               <div style={{
-                position: 'absolute', top: 4, right: 4,
-                width: 42, height: 42, borderRadius: '50%',
-                background: '#dc2626', border: '2px solid #fff',
+                position: 'absolute', top: 6, right: 6,
+                width: 52, height: 52, borderRadius: '50%',
+                background: '#dc2626', border: '3px solid #fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexDirection: 'column', zIndex: 3,
                 boxShadow: '1px 1px 4px rgba(0,0,0,0.3)',
