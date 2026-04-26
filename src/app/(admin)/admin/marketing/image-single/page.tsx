@@ -358,30 +358,7 @@ function SectionRenderer({ title, subtitle, items, top, height, padX, gridW, sec
 
   return (
     <>
-      {/* Section title bar */}
-      <div style={{
-        position: 'absolute', top, left: padX, width: gridW, height: sectionTitleH,
-        background: '#111', borderRadius: 6,
-        display: 'flex', alignItems: 'center', gap: 10, zIndex: 2,
-        padding: '0 16px',
-        boxSizing: 'border-box',
-      }}>
-        <div style={{
-          color: '#FCD34D', fontSize: 28, fontWeight: 900,
-          letterSpacing: '0.08em', whiteSpace: 'nowrap',
-        }}>
-          {title}
-        </div>
-        <div style={{ fontSize: 16, fontWeight: 900, color: '#999', letterSpacing: '0.25em' }}>{subtitle}</div>
-        <div style={{ flex: 1, height: 0, borderTop: '2px dotted rgba(255,255,255,0.25)' }} />
-        <div style={{
-          fontSize: 17, fontWeight: 900, color: '#111',
-          background: '#FCD34D', border: '2px solid #FCD34D',
-          padding: '2px 14px', borderRadius: 999, whiteSpace: 'nowrap',
-        }}>
-          全{items.length}種
-        </div>
-      </div>
+      {/* Section title is part of background image — skip rendering */}
 
       {/* Cards */}
       {items.map((product, index) => {
