@@ -289,20 +289,21 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
   const padX = 30
   const gridW = W - padX * 2
 
-  // Positions matched to 1920×1080 background image
-  const sectionTitleH = 42
+  // Positions matched to 1920×1080 background image (empty template)
+  // Background has: card frames with gray image area + name line + black price bar with "¥"
+  // We only overlay: product image, product name text, price number, 高額買取 badge
 
-  const singleCardTop = 345   // カード描画開始Y (セクションタイトル下)
-  const singleCardBottom = 628
+  // シングルカード section — 8 card frames
+  const singleImgTop = 295       // カード枠内の画像エリア開始Y
+  const singleImgBottom = 456    // 画像エリア終了Y
+  const singleNameY = 460        // 商品名テキストY
+  const singlePriceY = 490       // 価格バー内のテキストY
 
-  const promoCardTop = 680
-  const promoCardBottom = 1032
-
-  // For SectionRenderer compatibility
-  const singleTop = singleCardTop - sectionTitleH - 4
-  const singleSectionH = singleCardBottom - singleTop
-  const promoTop = promoCardTop - sectionTitleH - 4
-  const promoSectionH = promoCardBottom - promoTop
+  // プロモカード section — 7(+1) card frames
+  const promoImgTop = 576
+  const promoImgBottom = 810
+  const promoNameY = 815
+  const promoPriceY = 855
 
   return (
     <div
@@ -324,27 +325,65 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
         crossOrigin="anonymous"
       />
 
-      {/* Dynamic content overlaid on top */}
+      {/* Dynamic content — only images, names, prices overlaid on card frames */}
 
-      {/* Single cards section */}
-      {singles.length > 0 && (
-        <SectionRenderer
-          title="シングルカード" subtitle="SINGLE CARDS"
-          items={singles} top={singleTop} height={singleSectionH}
-          padX={padX} gridW={gridW} sectionTitleH={sectionTitleH} cardGap={8}
-          highPriceIds={highPriceIds}
-        />
-      )}
+      {/* Singles */}
+      {singles.map((product, i) => {
+        const cardSlotW = gridW / 8
+        const x = padX + i * cardSlotW
+        const isHigh = highPriceIds.has(product.id)
+        return (
+          <React.Fragment key={product.id}>
+            {/* Product image */}
+            {product.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={product.image_url} alt={product.name} crossOrigin="anonymous"
+                style={{ position: 'absolute', left: x + 12, top: singleImgTop, width: cardSlotW - 24, height: singleImgBottom - singleImgTop, objectFit: 'contain', zIndex: 2 }} />
+            ) : null}
+            {/* Product name */}
+            <div style={{ position: 'absolute', left: x + 4, top: singleNameY, width: cardSlotW - 8, textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#111', zIndex: 2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+              {product.name}
+            </div>
+            {/* Price number */}
+            <div style={{ position: 'absolute', left: x + 4, top: singlePriceY, width: cardSlotW - 8, textAlign: 'center', fontSize: 26, fontWeight: 900, color: '#FCD34D', zIndex: 2 }}>
+              ¥{product.price.toLocaleString('ja-JP')}
+            </div>
+            {/* 高額買取 badge */}
+            {isHigh && (
+              <div style={{ position: 'absolute', left: x + cardSlotW - 52, top: singleImgTop - 4, width: 48, height: 48, borderRadius: '50%', background: '#dc2626', border: '3px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, boxShadow: '1px 1px 4px rgba(0,0,0,0.3)' }}>
+                <span style={{ color: '#fff', fontSize: 10, fontWeight: 900, lineHeight: 1.1, textAlign: 'center' }}>高額<br />買取</span>
+              </div>
+            )}
+          </React.Fragment>
+        )
+      })}
 
-      {/* Promo cards section */}
-      {promos.length > 0 && (
-        <SectionRenderer
-          title="プロモカード" subtitle="PROMO CARDS"
-          items={promos} top={promoTop} height={promoSectionH}
-          padX={padX} gridW={gridW} sectionTitleH={sectionTitleH} cardGap={8}
-          highPriceIds={highPriceIds}
-        />
-      )}
+      {/* Promos */}
+      {promos.map((product, i) => {
+        const cardSlotW = gridW / 7
+        const x = padX + i * cardSlotW
+        const isHigh = highPriceIds.has(product.id)
+        return (
+          <React.Fragment key={product.id}>
+            {product.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={product.image_url} alt={product.name} crossOrigin="anonymous"
+                style={{ position: 'absolute', left: x + 12, top: promoImgTop, width: cardSlotW - 24, height: promoImgBottom - promoImgTop, objectFit: 'contain', zIndex: 2 }} />
+            ) : null}
+            <div style={{ position: 'absolute', left: x + 4, top: promoNameY, width: cardSlotW - 8, textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#111', zIndex: 2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+              {product.name}
+            </div>
+            <div style={{ position: 'absolute', left: x + 4, top: promoPriceY, width: cardSlotW - 8, textAlign: 'center', fontSize: 26, fontWeight: 900, color: '#FCD34D', zIndex: 2 }}>
+              ¥{product.price.toLocaleString('ja-JP')}
+            </div>
+            {isHigh && (
+              <div style={{ position: 'absolute', left: x + cardSlotW - 52, top: promoImgTop - 4, width: 48, height: 48, borderRadius: '50%', background: '#dc2626', border: '3px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, boxShadow: '1px 1px 4px rgba(0,0,0,0.3)' }}>
+                <span style={{ color: '#fff', fontSize: 10, fontWeight: 900, lineHeight: 1.1, textAlign: 'center' }}>高額<br />買取</span>
+              </div>
+            )}
+          </React.Fragment>
+        )
+      })}
 
       {/* Cover background footer text and render dynamic footer */}
       <div style={{
@@ -363,93 +402,4 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
 })
 SinglePromoCanvas.displayName = 'SinglePromoCanvas'
 
-// --- Section renderer ---
-function SectionRenderer({ title, subtitle, items, top, height, padX, gridW, sectionTitleH, cardGap, highPriceIds }: {
-  title: string; subtitle: string; items: ProductWithRelations[]
-  top: number; height: number; padX: number; gridW: number; sectionTitleH: number; cardGap: number
-  highPriceIds: Set<string>
-}) {
-  const cols = items.length || 1
-  const cardAreaTop = top + sectionTitleH + 4
-  const cardAreaH = height - sectionTitleH - 4
-  const cardW = Math.floor((gridW - cardGap * (cols - 1)) / cols)
-
-  const nameH = 40
-  const priceH = 42
-  const cardPadV = 6
-  const nameFontSize = cols > 8 ? 12 : 15
-  const priceFontSize = cols > 8 ? 22 : 28
-  const imgH = cardAreaH - cardPadV * 2 - nameH - priceH - 6
-
-  return (
-    <>
-      {/* Section title is part of background image — skip rendering */}
-
-      {/* Cards */}
-      {items.map((product, index) => {
-        const x = padX + index * (cardW + cardGap)
-        const isHighPrice = highPriceIds.has(product.id)
-        return (
-          <div key={product.id} style={{
-            position: 'absolute', left: x, top: cardAreaTop, width: cardW, height: cardAreaH,
-            background: '#fff', border: '2px solid #111', borderRadius: 8,
-            padding: `${cardPadV}px 6px 0`, display: 'flex', flexDirection: 'column',
-            overflow: 'hidden', boxShadow: '2px 2px 0 rgba(0,0,0,0.15)', zIndex: 2,
-            boxSizing: 'border-box',
-          }}>
-            {/* 高額買取 badge */}
-            {isHighPrice && (
-              <div style={{
-                position: 'absolute', top: 6, right: 6,
-                width: 52, height: 52, borderRadius: '50%',
-                background: '#dc2626', border: '3px solid #fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexDirection: 'column', zIndex: 3,
-                boxShadow: '1px 1px 4px rgba(0,0,0,0.3)',
-              }}>
-                <span style={{ color: '#fff', fontSize: 9, fontWeight: 900, lineHeight: 1.1, textAlign: 'center' }}>高額<br />買取</span>
-              </div>
-            )}
-            {/* Card image */}
-            {product.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={product.image_url} alt={product.name}
-                style={{ width: '100%', height: imgH, objectFit: 'contain' }}
-                crossOrigin="anonymous"
-              />
-            ) : (
-              <div style={{
-                width: '100%', height: imgH,
-                background: 'rgba(0,0,0,0.04)', border: '1px dashed rgba(0,0,0,0.15)',
-                borderRadius: 4,
-              }} />
-            )}
-            {/* Name */}
-            <div style={{
-              fontSize: nameFontSize, fontWeight: 800, color: '#111', textAlign: 'center',
-              lineHeight: 1.15, height: nameH, marginTop: 2,
-              overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {product.name}
-            </div>
-            {/* Price bar */}
-            <div style={{
-              marginLeft: -6, marginRight: -6,
-              background: product.price === 0 ? '#dc2626' : '#111',
-              height: priceH, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderRadius: '0 0 6px 6px',
-            }}>
-              <span style={{
-                color: product.price === 0 ? '#fff' : '#FCD34D',
-                fontSize: priceFontSize, fontWeight: 900, lineHeight: 1,
-              }}>
-                {product.price === 0 ? '応談' : `¥${product.price.toLocaleString('ja-JP')}`}
-              </span>
-            </div>
-          </div>
-        )
-      })}
-    </>
-  )
-}
+// SectionRenderer removed — content is now overlaid directly on background card frames
