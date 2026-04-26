@@ -289,23 +289,20 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
   const padX = 30
   const gridW = W - padX * 2
 
-  // Positions matched to background image layout
-  const singleTitleH = 40    // シングルカード title bar in bg
-  const promoTitleH = 40     // プロモカード title bar in bg
+  // Positions matched to 1920×1080 background image
+  const sectionTitleH = 42
 
-  const singleTitleTop = 262  // Where "シングルカード" bar starts in bg
-  const singleCardTop = singleTitleTop + singleTitleH + 4
-  const singleCardBottom = 592
+  const singleCardTop = 345   // カード描画開始Y (セクションタイトル下)
+  const singleCardBottom = 628
 
-  const promoTitleTop = 598   // Where "プロモカード" bar starts in bg
-  const promoCardTop = promoTitleTop + promoTitleH + 4
-  const promoCardBottom = 1036
+  const promoCardTop = 680
+  const promoCardBottom = 1032
 
-  const singleTop = singleTitleTop
-  const singleSectionH = singleCardBottom - singleTitleTop
-  const promoTop = promoTitleTop
-  const promoSectionH = promoCardBottom - promoTitleTop
-  const sectionTitleH = singleTitleH
+  // For SectionRenderer compatibility
+  const singleTop = singleCardTop - sectionTitleH - 4
+  const singleSectionH = singleCardBottom - singleTop
+  const promoTop = promoCardTop - sectionTitleH - 4
+  const promoSectionH = promoCardBottom - promoTop
 
   return (
     <div
@@ -323,7 +320,7 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
       <img
         src="/assets/single-promo-bg.jpg"
         alt=""
-        style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, objectFit: 'cover', zIndex: 0 }}
+        style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, zIndex: 0 }}
         crossOrigin="anonymous"
       />
 
