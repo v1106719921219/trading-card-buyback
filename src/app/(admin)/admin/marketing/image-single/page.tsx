@@ -322,15 +322,18 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
         />
       )}
 
-      {/* Footer — overlaid on background */}
-      <footer style={{
-        position: 'absolute', bottom: 8, left: padX, right: padX, height: 30,
+      {/* Cover background footer text and render dynamic footer */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: 44,
+        background: 'linear-gradient(135deg, #FCD34D 0%, #f59e0b 100%)',
+        zIndex: 2,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        fontSize: 14, color: '#333', fontWeight: 700, zIndex: 2,
+        padding: '0 36px',
+        fontSize: 14, color: '#333', fontWeight: 700,
       }}>
         <span>※ 買取価格は状態・在庫状況により変動する場合がございます。※ 美品の価格となります。キズ・白かけ等がある場合は減額となります。</span>
-        <span style={{ fontWeight: 900, whiteSpace: 'nowrap', marginLeft: 20 }}>更新日：{updatedAt}</span>
-      </footer>
+        <span style={{ fontWeight: 900, color: '#111', whiteSpace: 'nowrap', marginLeft: 20 }}>更新日：{updatedAt}</span>
+      </div>
     </div>
   )
 })
