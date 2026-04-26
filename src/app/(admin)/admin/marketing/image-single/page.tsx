@@ -253,7 +253,7 @@ export default function SinglePromoImagePage() {
   )
 }
 
-// --- Canvas (1920 × 1080) ---
+// --- Canvas (1920 × 1080) — Background image template approach ---
 const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
   singles: ProductWithRelations[]
   promos: ProductWithRelations[]
@@ -263,20 +263,19 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
     `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
   const updatedAt = fmt(today)
 
+  // Layout — matched to background image positions
   const W = 1920
   const H = 1080
-  const padX = 36
-  const padY = 24
-  const headerH = 240
-  const footerH = 36
-  const sectionTitleH = 48
-  const sectionGap = 8
-
-  const contentTop = padY + headerH + 8
-  const contentBottom = H - padY - footerH - 4
-  const totalContentH = contentBottom - contentTop
+  const padX = 30
+  const headerH = 270  // Background image header area
+  const footerH = 40
+  const sectionTitleH = 44
+  const sectionGap = 6
   const gridW = W - padX * 2
 
+  const contentTop = headerH
+  const contentBottom = H - footerH
+  const totalContentH = contentBottom - contentTop
   const singleSectionH = Math.floor((totalContentH - sectionGap) / 2)
   const promoSectionH = totalContentH - sectionGap - singleSectionH
 
@@ -288,129 +287,29 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
       ref={ref}
       style={{
         width: W, height: H,
-        background: 'linear-gradient(135deg, #FCD34D 0%, #f59e0b 100%)',
         position: 'relative',
         overflow: 'hidden',
         fontFamily: '"Noto Sans JP", sans-serif',
         boxSizing: 'border-box',
       }}
     >
-      {/* Diagonal stripe pattern overlay */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-        backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(0,0,0,0.05) 20px, rgba(0,0,0,0.05) 22px)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
+      {/* Background template image — provides all decorative effects */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/assets/single-promo-bg.jpg"
+        alt=""
+        style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, objectFit: 'cover', zIndex: 0 }}
+        crossOrigin="anonymous"
+      />
 
-      {/* Corner accent shapes — top-left */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, width: 180, height: 180,
-        background: 'linear-gradient(135deg, rgba(0,0,0,0.7) 0%, transparent 70%)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
-      {/* Corner accent — top-right */}
-      <div style={{
-        position: 'absolute', top: 0, right: 0, width: 180, height: 180,
-        background: 'linear-gradient(225deg, rgba(220,38,38,0.6) 0%, transparent 70%)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
-      {/* Corner accent — bottom-left */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, width: 180, height: 180,
-        background: 'linear-gradient(45deg, rgba(220,38,38,0.5) 0%, transparent 70%)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
-      {/* Corner accent — bottom-right */}
-      <div style={{
-        position: 'absolute', bottom: 0, right: 0, width: 180, height: 180,
-        background: 'linear-gradient(315deg, rgba(0,0,0,0.6) 0%, transparent 70%)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
-
-      {/* Header */}
-      <header style={{
-        position: 'absolute', top: padY, left: padX, right: padX, height: headerH,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        zIndex: 2, gap: 16,
-      }}>
-        {/* Left: Logo + tagline */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, gap: 6 }}>
-          <div style={{
-            width: 190, height: 190, borderRadius: '50%',
-            background: '#fff', border: '5px solid #f5c242',
-            boxShadow: '0 0 0 3px #111, 0 8px 24px rgba(0,0,0,0.3)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/assets/logo-full.png" alt="買取スクエア" style={{ height: 160, width: 160, objectFit: 'contain' }} crossOrigin="anonymous" />
-          </div>
-          <div style={{
-            background: '#111', color: '#fff', padding: '4px 16px',
-            fontSize: 13, fontWeight: 900, letterSpacing: '0.25em',
-            borderRadius: 2, whiteSpace: 'nowrap',
-          }}>買取スクエア KAITORI SQUARE</div>
-        </div>
-
-        {/* Left-of-center: CTA text */}
-        <div style={{
-          transform: 'rotate(-4deg)',
-          color: '#fff', fontSize: 36, fontWeight: 900,
-          textShadow: '3px 3px 0 #111, -1px -1px 0 #111, 1px -1px 0 #111, -1px 1px 0 #111',
-          lineHeight: 1.3, whiteSpace: 'nowrap', flexShrink: 0,
-        }}>
-          カードを売るなら<br />今がチャンス！
-        </div>
-
-        {/* Center: Title */}
-        <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 160 }}>
-          {/* Sunburst behind title */}
-          <svg viewBox="-100 -100 200 200" style={{ position: 'absolute', width: 560, height: 180, opacity: 0.8, pointerEvents: 'none' }}>
-            <defs>
-              <radialGradient id="burstFadeSP"><stop offset="0%" stopColor="#dc2626" stopOpacity="0" /><stop offset="40%" stopColor="#dc2626" stopOpacity="0" /><stop offset="100%" stopColor="#dc2626" stopOpacity="0.75" /></radialGradient>
-              <mask id="burstMaskSP"><rect x="-100" y="-100" width="200" height="200" fill="white" />{Array.from({ length: 24 }).map((_, i) => { const a = (i * 360 / 24) * Math.PI / 180; const a2 = ((i + 0.5) * 360 / 24) * Math.PI / 180; return <polygon key={i} points={`0,0 ${Math.cos(a) * 140},${Math.sin(a) * 140} ${Math.cos(a2) * 140},${Math.sin(a2) * 140}`} fill="black" /> })}</mask>
-            </defs>
-            <circle cx="0" cy="0" r="140" fill="url(#burstFadeSP)" mask="url(#burstMaskSP)" />
-          </svg>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, transform: 'rotate(-2deg)' }}>
-            <div style={{ color: '#dc2626', fontSize: 60, fontWeight: 900, WebkitTextStroke: '4px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(4px 4px 0 #111)' }}>★</div>
-            <h1 style={{ margin: 0, fontSize: 158, fontWeight: 900, lineHeight: 0.92, letterSpacing: '0.04em', color: '#fff', WebkitTextStroke: '14px #111', paintOrder: 'stroke fill', textShadow: '0 0 0 #111, 10px 10px 0 #dc2626, 16px 16px 0 #111', whiteSpace: 'nowrap' }}>高価買取</h1>
-            <div style={{ color: '#dc2626', fontSize: 60, fontWeight: 900, WebkitTextStroke: '4px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(4px 4px 0 #111)' }}>★</div>
-            {/* Top banner */}
-            <div style={{
-              position: 'absolute', top: -50, left: '50%', transform: 'translateX(-50%)',
-              background: '#dc2626', color: '#fff', padding: '6px 28px',
-              fontSize: 24, fontWeight: 900, letterSpacing: '0.18em',
-              borderRadius: 2, whiteSpace: 'nowrap', border: '3px solid #111',
-              boxShadow: '3px 3px 0 #111',
-            }}>
-              ポケモンカード シングル＆プロモ 買取価格表
-            </div>
-          </div>
-        </div>
-
-        {/* Right: 3 CTA badges */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0, minWidth: 280 }}>
-          <div style={{ background: '#fff', border: '3px solid #111', padding: '10px 20px', borderRadius: 10, transform: 'rotate(2.5deg)', boxShadow: '5px 5px 0 #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: '#dc2626', letterSpacing: '0.15em', lineHeight: 1 }}>BULK BUY</div>
-            <div style={{ fontSize: 30, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 3 }}>大量買取募集中！</div>
-          </div>
-          <div style={{ background: '#fff', border: '3px solid #111', padding: '10px 20px', borderRadius: 10, transform: 'rotate(-2deg)', boxShadow: '5px 5px 0 #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: '#dc2626', letterSpacing: '0.15em', lineHeight: 1 }}>FAST PAYMENT</div>
-            <div style={{ fontSize: 30, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 3 }}>到着日振込！</div>
-          </div>
-          <div style={{ background: '#fff', border: '3px solid #111', padding: '10px 20px', borderRadius: 10, transform: 'rotate(2deg)', boxShadow: '5px 5px 0 #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: '#dc2626', letterSpacing: '0.15em', lineHeight: 1 }}>BULK OK 🛒</div>
-            <div style={{ fontSize: 30, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 3 }}>まとめ買取歓迎！</div>
-          </div>
-        </div>
-      </header>
+      {/* Dynamic content overlaid on top */}
 
       {/* Single cards section */}
       {singles.length > 0 && (
         <SectionRenderer
           title="シングルカード" subtitle="SINGLE CARDS"
           items={singles} top={singleTop} height={singleSectionH}
-          padX={padX} gridW={gridW} sectionTitleH={sectionTitleH} cardGap={10}
+          padX={padX} gridW={gridW} sectionTitleH={sectionTitleH} cardGap={8}
         />
       )}
 
@@ -419,15 +318,15 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
         <SectionRenderer
           title="プロモカード" subtitle="PROMO CARDS"
           items={promos} top={promoTop} height={promoSectionH}
-          padX={padX} gridW={gridW} sectionTitleH={sectionTitleH} cardGap={10}
+          padX={padX} gridW={gridW} sectionTitleH={sectionTitleH} cardGap={8}
         />
       )}
 
-      {/* Footer */}
+      {/* Footer — overlaid on background */}
       <footer style={{
-        position: 'absolute', bottom: padY, left: padX, right: padX, height: footerH,
+        position: 'absolute', bottom: 8, left: padX, right: padX, height: 30,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        fontSize: 13, color: '#111', fontWeight: 700, zIndex: 2,
+        fontSize: 14, color: '#333', fontWeight: 700, zIndex: 2,
       }}>
         <span>※ 買取価格は状態・在庫状況により変動する場合がございます。※ 美品の価格となります。キズ・白かけ等がある場合は減額となります。</span>
         <span style={{ fontWeight: 900, whiteSpace: 'nowrap', marginLeft: 20 }}>更新日：{updatedAt}</span>
