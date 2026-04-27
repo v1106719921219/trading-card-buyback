@@ -293,17 +293,17 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
   // Background has: card frames with gray image area + name line + black price bar with "¥"
   // We only overlay: product image, product name text, price number, 高額買取 badge
 
-  // シングルカード section — 8 card frames
-  const singleImgTop = 272       // カード枠内の画像エリア開始Y
-  const singleImgBottom = 418    // 画像エリア終了Y
-  const singleNameY = 422        // 商品名テキストY
-  const singlePriceY = 452       // 価格バー内のテキストY
+  // シングルカード section — 8 card frames (matched to bg image)
+  const singleImgTop = 300
+  const singleImgBottom = 450
+  const singleNameY = 455
+  const singlePriceY = 485
 
-  // プロモカード section — 7(+1) card frames
-  const promoImgTop = 500
-  const promoImgBottom = 690
-  const promoNameY = 694
-  const promoPriceY = 722
+  // プロモカード section — 7 card frames (matched to bg image)
+  const promoImgTop = 575
+  const promoImgBottom = 780
+  const promoNameY = 785
+  const promoPriceY = 815
 
   return (
     <div
