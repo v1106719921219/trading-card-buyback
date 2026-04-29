@@ -16,6 +16,7 @@ const SETTING_KEY = 'sns_single_promo_default_products'
 const CATEGORY_ID = 'db02ec12-d529-453c-a749-53da99e05533'
 const SINGLE_SUBCATEGORY_ID = '19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9'
 const PROMO_SUBCATEGORY_ID = '14d18906-99e2-4efe-81bd-f7e6d0f1972c'
+const SPECIAL_BOX_SUBCATEGORY_NAME = 'スペシャルボックス'
 
 const DEFAULT_HEADER = `🃏ポケモンカード シングル＆プロモ 高価買取中🃏`
 
@@ -38,8 +39,10 @@ function formatProductLine(product: ProductWithRelations): string {
 export default function SinglePromoTextPage() {
   const [singles, setSingles] = useState<ProductWithRelations[]>([])
   const [promos, setPromos] = useState<ProductWithRelations[]>([])
+  const [specialBoxes, setSpecialBoxes] = useState<ProductWithRelations[]>([])
   const [selectedSingleIds, setSelectedSingleIds] = useState<Set<string>>(new Set())
   const [selectedPromoIds, setSelectedPromoIds] = useState<Set<string>>(new Set())
+  const [selectedSpecialBoxIds, setSelectedSpecialBoxIds] = useState<Set<string>>(new Set())
   const [header, setHeader] = useState(DEFAULT_HEADER)
   const [footer, setFooter] = useState(DEFAULT_FOOTER)
   const [loading, setLoading] = useState(true)
@@ -49,7 +52,18 @@ export default function SinglePromoTextPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const [singlesResult, promosResult, settingResult] = await Promise.all([
+
+    // スペシャルボックスのサブカテゴリIDを動的に取得
+    const { data: specialBoxSub } = await supabase
+      .from('subcategories')
+      .select('id')
+      .eq('category_id', CATEGORY_ID)
+      .eq('name', SPECIAL_BOX_SUBCATEGORY_NAME)
+      .maybeSingle()
+
+    const specialBoxSubId = specialBoxSub?.id
+
+    const [singlesResult, promosResult, specialBoxResult, settingResult] = await Promise.all([
       supabase
         .from('products')
         .select('*, category:categories(*), subcategory:subcategories(*)')
@@ -64,10 +78,19 @@ export default function SinglePromoTextPage() {
         .eq('category_id', CATEGORY_ID)
         .eq('subcategory_id', PROMO_SUBCATEGORY_ID)
         .order('sort_order'),
+      specialBoxSubId
+        ? supabase
+            .from('products')
+            .select('*, category:categories(*), subcategory:subcategories(*)')
+            .eq('is_active', true)
+            .eq('category_id', CATEGORY_ID)
+            .eq('subcategory_id', specialBoxSubId)
+            .order('sort_order')
+        : Promise.resolve({ data: [], error: null }),
       supabase.from('app_settings').select('value').eq('key', SETTING_KEY).maybeSingle(),
     ])
 
-    if (singlesResult.error || promosResult.error) {
+    if (singlesResult.error || promosResult.error || specialBoxResult.error) {
       toast.error('商品の取得に失敗しました')
       setLoading(false)
       return
@@ -75,21 +98,26 @@ export default function SinglePromoTextPage() {
 
     const s = (singlesResult.data || []) as ProductWithRelations[]
     const p = (promosResult.data || []) as ProductWithRelations[]
+    const sb = (specialBoxResult.data || []) as ProductWithRelations[]
     setSingles(s)
     setPromos(p)
+    setSpecialBoxes(sb)
 
     if (settingResult.data?.value) {
       try {
-        const saved: { singles: string[]; promos: string[] } = JSON.parse(settingResult.data.value)
+        const saved: { singles: string[]; promos: string[]; specialBoxes?: string[] } = JSON.parse(settingResult.data.value)
         setSelectedSingleIds(new Set(saved.singles.filter((id) => s.some((x) => x.id === id))))
         setSelectedPromoIds(new Set(saved.promos.filter((id) => p.some((x) => x.id === id))))
+        setSelectedSpecialBoxIds(new Set((saved.specialBoxes || []).filter((id) => sb.some((x) => x.id === id))))
       } catch {
         setSelectedSingleIds(new Set(s.map((x) => x.id)))
         setSelectedPromoIds(new Set(p.map((x) => x.id)))
+        setSelectedSpecialBoxIds(new Set(sb.map((x) => x.id)))
       }
     } else {
       setSelectedSingleIds(new Set(s.map((x) => x.id)))
       setSelectedPromoIds(new Set(p.map((x) => x.id)))
+      setSelectedSpecialBoxIds(new Set(sb.map((x) => x.id)))
     }
     setLoading(false)
   }, [supabase])
@@ -102,10 +130,13 @@ export default function SinglePromoTextPage() {
   function togglePromo(id: string) {
     setSelectedPromoIds((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
   }
+  function toggleSpecialBox(id: string) {
+    setSelectedSpecialBoxIds((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
 
   async function saveDefaults() {
     setSaving(true)
-    const value = JSON.stringify({ singles: Array.from(selectedSingleIds), promos: Array.from(selectedPromoIds) })
+    const value = JSON.stringify({ singles: Array.from(selectedSingleIds), promos: Array.from(selectedPromoIds), specialBoxes: Array.from(selectedSpecialBoxIds) })
     const tenantId = 'aaaaaaaa-0000-0000-0000-000000000001'
     const { data: existing } = await supabase.from('app_settings').select('key').eq('key', SETTING_KEY).maybeSingle()
     let error
@@ -121,12 +152,14 @@ export default function SinglePromoTextPage() {
 
   const selectedSingles = singles.filter((p) => selectedSingleIds.has(p.id))
   const selectedPromos = promos.filter((p) => selectedPromoIds.has(p.id))
+  const selectedSpecialBoxProducts = specialBoxes.filter((p) => selectedSpecialBoxIds.has(p.id))
 
   const generatedMessage = [
     header,
     '',
     ...(selectedSingles.length > 0 ? ['【シングルカード】', ...selectedSingles.map(formatProductLine), ''] : []),
     ...(selectedPromos.length > 0 ? ['【プロモカード】', ...selectedPromos.map(formatProductLine), ''] : []),
+    ...(selectedSpecialBoxProducts.length > 0 ? ['【スペシャルボックス】', ...selectedSpecialBoxProducts.map(formatProductLine), ''] : []),
     footer,
   ].join('\n')
 
@@ -189,6 +222,30 @@ export default function SinglePromoTextPage() {
                   {promos.map((p) => (
                     <label key={p.id} className="flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted transition-colors">
                       <Checkbox checked={selectedPromoIds.has(p.id)} onCheckedChange={() => togglePromo(p.id)} />
+                      <span className="flex-1 text-sm truncate">{p.name}</span>
+                      <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">
+                        {p.price > 0 ? `${p.price.toLocaleString('ja-JP')}円` : '応談'}
+                      </Badge>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <CardTitle className="text-base">スペシャルボックス</CardTitle>
+                <span className="text-sm text-muted-foreground">{selectedSpecialBoxIds.size} / {specialBoxes.length} 件</span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? <p className="text-sm text-muted-foreground">読み込み中...</p> : (
+                <div className="space-y-1.5 max-h-[25vh] overflow-y-auto pr-1">
+                  {specialBoxes.map((p) => (
+                    <label key={p.id} className="flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted transition-colors">
+                      <Checkbox checked={selectedSpecialBoxIds.has(p.id)} onCheckedChange={() => toggleSpecialBox(p.id)} />
                       <span className="flex-1 text-sm truncate">{p.name}</span>
                       <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">
                         {p.price > 0 ? `${p.price.toLocaleString('ja-JP')}円` : '応談'}
