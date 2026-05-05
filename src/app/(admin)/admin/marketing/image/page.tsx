@@ -34,6 +34,7 @@ export default function MarketingImagePage() {
   const [saving, setSaving] = useState(false)
   const previewRef1 = useRef<HTMLDivElement>(null)
   const previewRef2 = useRef<HTMLDivElement>(null)
+  const previewRef3 = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
   // Noto Sans JPをページに動的に読み込む
@@ -169,7 +170,12 @@ export default function MarketingImagePage() {
       await document.fonts.ready
 
       const dateStr = new Date().toLocaleDateString('ja-JP').replace(/\//g, '')
-      if (page2Products.length > 0) {
+      if (totalPages >= 3) {
+        await downloadRef(previewRef1, `買取価格表_1_${dateStr}.png`)
+        await downloadRef(previewRef2, `買取価格表_2_${dateStr}.png`)
+        await downloadRef(previewRef3, `買取価格表_3_${dateStr}.png`)
+        toast.success(`${totalPages}枚の画像をダウンロードしました`)
+      } else if (totalPages === 2) {
         await downloadRef(previewRef1, `買取価格表_1_${dateStr}.png`)
         await downloadRef(previewRef2, `買取価格表_2_${dateStr}.png`)
         toast.success('2枚の画像をダウンロードしました')
@@ -188,11 +194,12 @@ export default function MarketingImagePage() {
   const selectedProducts = products.filter((p) => selectedIds.has(p.id))
   const noImageCount = selectedProducts.filter((p) => !p.image_url).length
 
-  // Split into 2 pages if more than 32 products
-  const splitAt = Math.ceil(selectedProducts.length / 2)
-  const needsSplit = selectedProducts.length > 32
-  const page1Products = needsSplit ? selectedProducts.slice(0, splitAt) : selectedProducts
-  const page2Products = needsSplit ? selectedProducts.slice(splitAt) : []
+  // Split into pages of 24 products each (8列×3行)
+  const perPage = 24
+  const totalPages = Math.ceil(selectedProducts.length / perPage)
+  const page1Products = selectedProducts.slice(0, perPage)
+  const page2Products = selectedProducts.slice(perPage, perPage * 2)
+  const page3Products = selectedProducts.slice(perPage * 2, perPage * 3)
 
   return (
     <div>
@@ -270,26 +277,38 @@ export default function MarketingImagePage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              プレビュー（1920×1080）{needsSplit && '— 2枚に分割'}
+              プレビュー（1920×1080）{totalPages > 1 && `— ${totalPages}枚に分割`}
             </p>
             <Button onClick={handleDownload} disabled={downloading || selectedIds.size === 0} className="gap-2">
               <Download className="h-4 w-4" />
-              {downloading ? '生成中...' : needsSplit ? '2枚ダウンロード' : 'PNG ダウンロード'}
+              {downloading ? '生成中...' : totalPages > 1 ? `${totalPages}枚ダウンロード` : 'PNG ダウンロード'}
             </Button>
           </div>
 
+          <p className="text-xs text-muted-foreground">{totalPages > 1 && '1枚目'}</p>
           <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
             <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
-              <PriceImageCanvas ref={previewRef1} products={page1Products} pageLabel={needsSplit ? '①' : undefined} />
+              <PriceImageCanvas ref={previewRef1} products={page1Products} pageLabel={totalPages > 1 ? '①' : undefined} />
             </div>
           </div>
 
           {page2Products.length > 0 && (
             <>
-              <p className="text-sm text-muted-foreground">2枚目</p>
+              <p className="text-xs text-muted-foreground">2枚目</p>
               <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
                 <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
                   <PriceImageCanvas ref={previewRef2} products={page2Products} pageLabel="②" />
+                </div>
+              </div>
+            </>
+          )}
+
+          {page3Products.length > 0 && (
+            <>
+              <p className="text-xs text-muted-foreground">3枚目</p>
+              <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
+                <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
+                  <PriceImageCanvas ref={previewRef3} products={page3Products} pageLabel="③" />
                 </div>
               </div>
             </>
@@ -300,67 +319,37 @@ export default function MarketingImagePage() {
   )
 }
 
-// --- PalmLeaf SVG decoration ---
-function PalmLeaf({ size, color, rotate }: { size: number; color: string; rotate: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" style={{ transform: `rotate(${rotate}deg)` }}>
-      <g fill={color}>
-        <path d="M50 95 Q48 60 35 40 Q30 50 32 65 Q35 80 48 92 Z" />
-        <path d="M50 95 Q52 60 65 40 Q70 50 68 65 Q65 80 52 92 Z" />
-        <path d="M48 80 Q25 70 10 50 Q20 50 35 60 Q45 68 48 78 Z" />
-        <path d="M52 80 Q75 70 90 50 Q80 50 65 60 Q55 68 52 78 Z" />
-        <path d="M46 60 Q20 55 8 30 Q22 35 38 48 Q45 55 46 58 Z" />
-        <path d="M54 60 Q80 55 92 30 Q78 35 62 48 Q55 55 54 58 Z" />
-        <path d="M48 40 Q30 30 25 10 Q38 18 48 35 Z" />
-        <path d="M52 40 Q70 30 75 10 Q62 18 52 35 Z" />
-      </g>
-    </svg>
-  )
-}
-
 // --- Main SNS Price Image Canvas (1920 × 1080) ---
 const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
   products: ProductWithTrend[]
   pageLabel?: string
 }>(({ products, pageLabel }, ref) => {
   const today = new Date()
-  const validUntilDate = new Date(today)
-  validUntilDate.setDate(validUntilDate.getDate() + 7)
-
   const fmt = (d: Date) =>
     `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
-
   const updatedAt = fmt(today)
-  const validUntil = fmt(validUntilDate)
 
-  // --- Explicit pixel layout (no flex dependency) ---
   const W = 1920
   const H = 1080
-  const padX = 16
-  const padY = 12
-  const headerH = 90
-  const footerH = 18
-  const lineH = 3
-  const gap = 3
+  const padX = 4
+  const gap = 1
 
-  const gridTop = padY + headerH + 4 + lineH + 4
-  const gridH = H - gridTop - padY - footerH - 4
+  // Header area (高価買取 etc.) ends around y=310
+  const gridTop = 310
+  const footerH = 20
+  const gridH = H - gridTop - footerH
   const gridW = W - padX * 2
 
-  // Grid dimensions — no info area, all cells for products
   const cols = COLS
-  const rows = Math.ceil(products.length / cols)
+  const rows = 3
 
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellH = Math.floor((gridH - gap * (rows - 1)) / rows)
 
-  // Card inner sizes — image takes most space, price is prominent
-  const nameH = Math.max(Math.min(Math.floor(cellH * 0.14), 22), 12)
-  const priceH = Math.max(Math.min(Math.floor(cellH * 0.22), 32), 20)
-  const cardPadV = 2
-  const imgH = Math.max(cellH - nameH - priceH - cardPadV * 2 - 2, 10)
-  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.65), 13), 8)
-  const priceFontSize = Math.max(Math.min(Math.floor(priceH * 0.75), 24), 14)
+  const priceH = 28
+  const imgH = cellH - priceH
+  const nameFontSize = Math.max(Math.min(Math.floor(cellH * 0.08), 13), 9)
+  const priceFontSize = Math.max(Math.min(Math.floor(priceH * 0.85), 24), 16)
 
   return (
     <div
@@ -368,114 +357,30 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
       style={{
         width: W,
         height: H,
-        background: '#FCD34D',
         position: 'relative',
         overflow: 'hidden',
         fontFamily: '"Noto Sans JP", sans-serif',
         boxSizing: 'border-box',
       }}
     >
-      {/* Palm leaf decorations */}
-      <div style={{ position: 'absolute', top: -30, right: -30, opacity: 0.12, pointerEvents: 'none' }}>
-        <PalmLeaf size={220} color="#1a1a1a" rotate={25} />
-      </div>
-      <div style={{ position: 'absolute', bottom: -40, left: -40, opacity: 0.1, pointerEvents: 'none' }}>
-        <PalmLeaf size={200} color="#1a1a1a" rotate={-150} />
-      </div>
+      {/* Background image */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/assets/pokemon-box-bg.png"
+        alt=""
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: W,
+          height: H,
+          objectFit: 'cover',
+          zIndex: 0,
+        }}
+        crossOrigin="anonymous"
+      />
 
-      {/* Header — absolute, fixed height */}
-      <header style={{
-        position: 'absolute', top: padY, left: padX, right: padX, height: headerH,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        zIndex: 2, gap: 16,
-      }}>
-        {/* Logo in circle frame */}
-        <div style={{
-          width: 86, height: 86, borderRadius: '50%',
-          background: '#fff', border: '3px solid #f5c242',
-          boxShadow: '0 0 0 1.5px #111, 0 4px 12px rgba(0,0,0,0.3)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          position: 'relative', flexShrink: 0,
-        }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/assets/logo-full.png" alt="買取スクエア" style={{ height: 68, width: 68, objectFit: 'contain' }} crossOrigin="anonymous" />
-          <div style={{
-            position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)',
-            background: '#dc2626', color: '#fff', padding: '1px 8px',
-            fontSize: 7, fontWeight: 900, letterSpacing: '0.2em',
-            border: '1.5px solid #f5c242', borderRadius: 2, whiteSpace: 'nowrap',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-          }}>KAITORI SQUARE</div>
-        </div>
-
-        {/* Main title area */}
-        <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <svg viewBox="-100 -100 200 200" style={{ position: 'absolute', width: 480, height: 160, opacity: 0.85, pointerEvents: 'none' }}>
-            <defs>
-              <radialGradient id="burstFade">
-                <stop offset="0%" stopColor="#dc2626" stopOpacity="0" />
-                <stop offset="40%" stopColor="#dc2626" stopOpacity="0" />
-                <stop offset="100%" stopColor="#dc2626" stopOpacity="0.85" />
-              </radialGradient>
-              <mask id="burstMask">
-                <rect x="-100" y="-100" width="200" height="200" fill="white" />
-                {Array.from({ length: 24 }).map((_, i) => {
-                  const a = (i * 360 / 24) * Math.PI / 180
-                  const a2 = ((i + 0.5) * 360 / 24) * Math.PI / 180
-                  const x1 = Math.cos(a) * 140, y1 = Math.sin(a) * 140
-                  const x2 = Math.cos(a2) * 140, y2 = Math.sin(a2) * 140
-                  return <polygon key={i} points={`0,0 ${x1},${y1} ${x2},${y2}`} fill="black" />
-                })}
-              </mask>
-            </defs>
-            <circle cx="0" cy="0" r="140" fill="url(#burstFade)" mask="url(#burstMask)" />
-          </svg>
-
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, transform: 'rotate(-2deg)' }}>
-            <span style={{ color: '#dc2626', fontSize: 36, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</span>
-            <h1 style={{
-              margin: 0, fontFamily: '"Noto Sans JP", sans-serif',
-              fontSize: 88, fontWeight: 900, lineHeight: 1, letterSpacing: '0.04em',
-              color: '#fff', WebkitTextStroke: '8px #111', paintOrder: 'stroke fill',
-              textShadow: '0 0 0 #111, 6px 6px 0 #dc2626, 10px 10px 0 #111',
-              whiteSpace: 'nowrap',
-            }}>高価買取</h1>
-            <span style={{ color: '#dc2626', fontSize: 36, fontWeight: 900, WebkitTextStroke: '3px #111', paintOrder: 'stroke fill', filter: 'drop-shadow(3px 3px 0 #111)' }}>★</span>
-
-            <div style={{
-              position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)',
-              background: '#dc2626', color: '#fff', padding: '2px 14px',
-              fontSize: 13, fontWeight: 900, letterSpacing: '0.15em',
-              borderRadius: 2, whiteSpace: 'nowrap', border: '2px solid #111', boxShadow: '2px 2px 0 #111',
-            }}>
-              ポケモンカードBOX 買取価格表
-            </div>
-          </div>
-        </div>
-
-        {/* Right: badges — horizontal */}
-        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          <div style={{ background: '#fff', border: '2px solid #111', padding: '5px 10px', borderRadius: 8, transform: 'rotate(2deg)', boxShadow: '3px 3px 0 #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, fontWeight: 900, color: '#dc2626', lineHeight: 1 }}>★ 全種 ★</div>
-            <div style={{ fontSize: 16, fontWeight: 900, color: '#111', lineHeight: 1.1, marginTop: 1 }}>シュリンクあり！</div>
-          </div>
-          <div style={{ background: '#111', color: '#FCD34D', padding: '5px 10px', borderRadius: 8, transform: 'rotate(-2deg)', boxShadow: '3px 3px 0 #dc2626', border: '2px solid #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 8, fontWeight: 900, color: '#fff', letterSpacing: '0.15em', opacity: 0.85 }}>FAST PAYMENT</div>
-            <div style={{ fontSize: 16, fontWeight: 900, lineHeight: 1.1, marginTop: 1 }}>到着日振込！</div>
-          </div>
-          <div style={{ background: '#dc2626', color: '#fff', padding: '5px 10px', borderRadius: 8, transform: 'rotate(2deg)', boxShadow: '3px 3px 0 #111', border: '2px solid #111', textAlign: 'center' }}>
-            <div style={{ fontSize: 8, fontWeight: 900, color: '#FCD34D', letterSpacing: '0.15em' }}>FREE SHIPPING</div>
-            <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.1, marginTop: 1 }}>
-              着払<span style={{ fontSize: 18, color: '#FCD34D' }}>10</span>箱〜
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Red gradient line */}
-      <div style={{ position: 'absolute', top: padY + headerH + 8, left: padX, right: padX, height: lineH, background: 'linear-gradient(90deg, #dc2626 0%, #f59e0b 50%, #dc2626 100%)', zIndex: 2 }} />
-
-      {/* Product cards — each individually positioned by pixel coordinates */}
+      {/* Product cards */}
       {products.map((product, index) => {
         const col = index % cols
         const row = Math.floor(index / cols)
@@ -485,36 +390,40 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
           <div key={product.id} style={{
             position: 'absolute', left: x, top: y, width: cellW, height: cellH,
             background: '#fff', border: '1.5px solid #111', borderRadius: 3,
-            padding: `${cardPadV}px 3px`,
-            display: 'flex', flexDirection: 'column',
             overflow: 'hidden', boxShadow: '1px 1px 0 #111', zIndex: 2,
             boxSizing: 'border-box',
           }}>
-            {product.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={product.image_url}
-                alt={product.name}
-                style={{ width: '100%', height: imgH, objectFit: 'contain' }}
-                crossOrigin="anonymous"
-              />
-            ) : (
+            {/* Image fills most of the card */}
+            <div style={{ position: 'relative', width: '100%', height: imgH }}>
+              {product.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={product.image_url}
+                  alt={product.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <div style={{
+                  width: '100%', height: '100%',
+                  background: 'rgba(0,0,0,0.04)',
+                }} />
+              )}
+              {/* Product name overlaid on image bottom */}
               <div style={{
-                width: '100%', height: imgH,
-                background: 'rgba(0,0,0,0.04)', border: '1px dashed rgba(0,0,0,0.18)',
-                borderRadius: 4,
-              }} />
-            )}
-            <div style={{
-              fontSize: nameFontSize, fontWeight: 800, color: '#111', textAlign: 'center',
-              lineHeight: 1.15, height: nameH, marginTop: 2,
-              overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {product.name}
+                position: 'absolute', bottom: 0, left: 0, right: 0,
+                background: 'rgba(0,0,0,0.6)',
+                padding: '2px 3px',
+                fontSize: nameFontSize, fontWeight: 900, color: '#fff', textAlign: 'center',
+                lineHeight: 1.2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+              }}>
+                {product.name}
+              </div>
             </div>
+            {/* Price bar */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 1, marginTop: 2, background: '#111', height: priceH, borderRadius: 3,
+              background: '#111', height: priceH, borderRadius: '0 0 2px 2px',
             }}>
               {product.price_no_shrink != null ? (
                 <span style={{ color: '#FCD34D', fontSize: Math.floor(priceFontSize * 0.82), fontWeight: 900, lineHeight: 1 }}>
@@ -532,9 +441,9 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
 
       {/* Footer */}
       <footer style={{
-        position: 'absolute', bottom: padY, left: padX, right: padX, height: footerH,
+        position: 'absolute', bottom: 4, left: padX, right: padX, height: footerH,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        fontSize: 12, color: '#111', fontWeight: 600, zIndex: 2,
+        fontSize: 14, color: '#111', fontWeight: 700, zIndex: 2,
       }}>
         <span>※ 買取価格は状態・在庫状況により変動する場合がございます。</span>
         <span style={{ fontWeight: 900 }}>更新日：{updatedAt}</span>
