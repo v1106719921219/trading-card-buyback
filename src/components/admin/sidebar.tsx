@@ -67,7 +67,7 @@ function NavLinks({ profile, onNavigate }: { profile: Profile; onNavigate?: () =
   )
 
   return (
-    <nav className="flex-1 space-y-1 p-4">
+    <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
       {filteredItems.map((item) => {
         const isActive =
           item.href === '/admin'
