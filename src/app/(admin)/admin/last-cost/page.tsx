@@ -69,7 +69,6 @@ export default async function LastCostPage({
   }
 
   const { data: orderItems } = await query
-    .order('created_at', { referencedTable: 'orders', ascending: false })
 
   // 商品マスタを取得（現在の価格・カテゴリ情報）
   const { data: products } = await supabase
@@ -103,15 +102,18 @@ export default async function LastCostPage({
     }
   }
 
-  // 商品ごとに最新の仕入単価を抽出
+  // 商品ごとに最新の仕入単価を抽出（日付を比較して最新を選ぶ）
   const lastCostMap = new Map<string, LastCostRow>()
   if (orderItems) {
     for (const item of orderItems) {
       if (!item.product_id) continue
-      if (lastCostMap.has(item.product_id)) continue // 既に最新が入っている
 
       const order = item.orders as unknown as { status: string; created_at: string }
       const master = productMap.get(item.product_id)
+      const existing = lastCostMap.get(item.product_id)
+
+      // 既存より新しい注文なら上書き
+      if (existing && order.created_at <= existing.last_order_date) continue
 
       lastCostMap.set(item.product_id, {
         product_id: item.product_id,
