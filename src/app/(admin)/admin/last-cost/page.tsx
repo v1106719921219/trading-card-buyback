@@ -50,25 +50,24 @@ export default async function LastCostPage({
 
   const supabase = await createClient()
 
-  // 検品完了以降のステータスの注文から、商品ごとの仕入単価を取得
+  // ordersテーブルを起点に、検品完了以降の注文とその明細を取得
   let query = supabase
-    .from('order_items')
+    .from('orders')
     .select(`
-      product_id,
-      product_name,
-      unit_price,
-      orders!inner (
-        status,
-        created_at
+      created_at,
+      order_items (
+        product_id,
+        product_name,
+        unit_price
       )
     `)
-    .in('orders.status', ['検品完了', '振込済', '振込確認済'])
+    .in('status', ['検品完了', '振込済', '振込確認済'])
 
   if (cutoffDate) {
-    query = query.lte('orders.created_at', cutoffDate)
+    query = query.lte('created_at', cutoffDate)
   }
 
-  const { data: orderItems } = await query
+  const { data: orders } = await query
 
   // 商品マスタを取得（現在の価格・カテゴリ情報）
   const { data: products } = await supabase
@@ -104,26 +103,30 @@ export default async function LastCostPage({
 
   // 商品ごとに最新の仕入単価を抽出（日付を比較して最新を選ぶ）
   const lastCostMap = new Map<string, LastCostRow>()
-  if (orderItems) {
-    for (const item of orderItems) {
-      if (!item.product_id) continue
+  if (orders) {
+    for (const order of orders) {
+      const items = order.order_items as unknown as { product_id: string | null; product_name: string; unit_price: number }[]
+      if (!items) continue
 
-      const order = item.orders as unknown as { status: string; created_at: string }
-      const master = productMap.get(item.product_id)
-      const existing = lastCostMap.get(item.product_id)
+      for (const item of items) {
+        if (!item.product_id) continue
 
-      // 既存より新しい注文なら上書き
-      if (existing && order.created_at <= existing.last_order_date) continue
+        const existing = lastCostMap.get(item.product_id)
+        // 既存より新しい注文なら上書き
+        if (existing && order.created_at <= existing.last_order_date) continue
 
-      lastCostMap.set(item.product_id, {
-        product_id: item.product_id,
-        product_name: master?.name ?? item.product_name,
-        model_number: master?.model_number ?? null,
-        category_name: master?.category_name ?? '未分類',
-        current_price: master?.price ?? 0,
-        last_unit_price: item.unit_price,
-        last_order_date: order.created_at,
-      })
+        const master = productMap.get(item.product_id)
+
+        lastCostMap.set(item.product_id, {
+          product_id: item.product_id,
+          product_name: master?.name ?? item.product_name,
+          model_number: master?.model_number ?? null,
+          category_name: master?.category_name ?? '未分類',
+          current_price: master?.price ?? 0,
+          last_unit_price: item.unit_price,
+          last_order_date: order.created_at,
+        })
+      }
     }
   }
 
