@@ -117,9 +117,7 @@ export default function PriceHistoryPage() {
           .order('sort_order'),
         supabase
           .from('order_items')
-          .select('product_name, unit_price, inspected_quantity, order:orders(order_number, created_at, status)')
-          .not('inspected_quantity', 'is', null)
-          .gt('inspected_quantity', 0),
+          .select('product_name, unit_price, quantity, inspected_quantity, order:orders(order_number, created_at, status)'),
       ])
 
       if (historyRes.error) throw historyRes.error
@@ -141,10 +139,14 @@ export default function PriceHistoryPage() {
         // 検品完了・振込済・振込確認済のみ対象
         if (!['検品完了', '振込済', '振込確認済'].includes(order.status)) continue
 
+        // inspected_quantityがあればそれを使い、なければquantityをフォールバック
+        const qty = item.inspected_quantity ?? item.quantity
+        if (!qty || qty <= 0) continue
+
         const record: BuybackRecord = {
           product_name: item.product_name,
           unit_price: item.unit_price,
-          inspected_quantity: item.inspected_quantity,
+          inspected_quantity: qty,
           order_date: order.created_at.split('T')[0],
           order_number: order.order_number,
         }
@@ -152,14 +154,14 @@ export default function PriceHistoryPage() {
         const existing = productMap.get(item.product_name)
         if (existing) {
           existing.records.push(record)
-          existing.total_quantity += item.inspected_quantity
-          existing.total_cost += item.unit_price * item.inspected_quantity
+          existing.total_quantity += qty
+          existing.total_cost += item.unit_price * qty
         } else {
           productMap.set(item.product_name, {
             product_name: item.product_name,
             records: [record],
-            total_quantity: item.inspected_quantity,
-            total_cost: item.unit_price * item.inspected_quantity,
+            total_quantity: qty,
+            total_cost: item.unit_price * qty,
           })
         }
       }
