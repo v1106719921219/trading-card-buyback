@@ -24,6 +24,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Search, Download } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts'
 import type { Category, Subcategory, Product, ProductPriceHistory } from '@/types/database'
 
 type HistoryWithRelations = ProductPriceHistory & {
@@ -42,11 +52,18 @@ type ProductWithRelations = Product & {
   subcategory: Subcategory | null
 }
 
+type BuybackChartItem = {
+  product_name: string
+  unit_price: number
+  total_quantity: number
+}
+
 export default function PriceHistoryPage() {
   const [history, setHistory] = useState<HistoryWithRelations[]>([])
   const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
+  const [buybackData, setBuybackData] = useState<BuybackChartItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterSubcategory, setFilterSubcategory] = useState<string>('all')
@@ -65,7 +82,7 @@ export default function PriceHistoryPage() {
   async function fetchData() {
     setLoading(true)
     try {
-      const [historyRes, productsRes, categoriesRes, subcategoriesRes] = await Promise.all([
+      const [historyRes, productsRes, categoriesRes, subcategoriesRes, orderItemsRes] = await Promise.all([
         supabase
           .from('product_price_history')
           .select('*, product:products(id, name, category_id, subcategory_id, category:categories(*), subcategory:subcategories(*))')
@@ -83,17 +100,42 @@ export default function PriceHistoryPage() {
           .from('subcategories')
           .select('*')
           .order('sort_order'),
+        supabase
+          .from('order_items')
+          .select('product_name, unit_price, inspected_quantity')
+          .not('inspected_quantity', 'is', null)
+          .gt('inspected_quantity', 0),
       ])
 
       if (historyRes.error) throw historyRes.error
       if (productsRes.error) throw productsRes.error
       if (categoriesRes.error) throw categoriesRes.error
       if (subcategoriesRes.error) throw subcategoriesRes.error
+      if (orderItemsRes.error) throw orderItemsRes.error
 
       setHistory(historyRes.data as unknown as HistoryWithRelations[])
       setProducts(productsRes.data as unknown as ProductWithRelations[])
       setCategories(categoriesRes.data)
       setSubcategories(subcategoriesRes.data)
+
+      // 商品名+単価でグルーピングして検品済み数量を合計
+      const itemMap = new Map<string, BuybackChartItem>()
+      for (const item of orderItemsRes.data) {
+        const key = `${item.product_name}_${item.unit_price}`
+        const existing = itemMap.get(key)
+        if (existing) {
+          existing.total_quantity += item.inspected_quantity
+        } else {
+          itemMap.set(key, {
+            product_name: item.product_name,
+            unit_price: item.unit_price,
+            total_quantity: item.inspected_quantity,
+          })
+        }
+      }
+      setBuybackData(
+        Array.from(itemMap.values()).sort((a, b) => b.total_quantity - a.total_quantity)
+      )
     } catch (error) {
       toast.error('データの取得に失敗しました')
       console.error(error)
@@ -274,6 +316,53 @@ export default function PriceHistoryPage() {
           />
         </div>
       </div>
+
+      {/* 買取実績グラフ */}
+      {buybackData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              買取実績（商品別 検品済み数量）
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div style={{ width: '100%', height: Math.max(400, buybackData.length * 36) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={buybackData}
+                  layout="vertical"
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" allowDecimals={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="product_name"
+                    width={200}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <Tooltip
+                    formatter={(value: number | undefined) => [`${value ?? 0}個`, '検品済み数量']}
+                    labelFormatter={(label: unknown) => {
+                      const labelStr = String(label)
+                      const item = buybackData.find((d) => d.product_name === labelStr)
+                      return `${labelStr}（¥${item?.unit_price.toLocaleString()}）`
+                    }}
+                  />
+                  <Bar dataKey="total_quantity" radius={[0, 4, 4, 0]}>
+                    {buybackData.map((_, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={`hsl(${210 + (index * 15) % 60}, 70%, ${50 + (index * 3) % 20}%)`}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 全商品買取価格一覧 */}
       <Card>
