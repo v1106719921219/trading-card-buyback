@@ -360,7 +360,7 @@ export default function PriceHistoryPage() {
         const chartData: ChartRecord[] = selected
           ? selected.records
               .slice()
-              .sort((a, b) => a.order_date.localeCompare(b.order_date))
+              .sort((a, b) => b.order_date.localeCompare(a.order_date))
               .map((r) => ({
                 label: `${r.order_date}  ¥${r.unit_price.toLocaleString()}`,
                 unit_price: r.unit_price,
