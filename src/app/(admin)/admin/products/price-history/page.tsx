@@ -52,10 +52,20 @@ type ProductWithRelations = Product & {
   subcategory: Subcategory | null
 }
 
-type BuybackChartItem = {
+type BuybackRecord = {
   product_name: string
   unit_price: number
+  inspected_quantity: number
+  order_date: string
+  order_number: string
+}
+
+type BuybackProductSummary = {
+  product_name: string
+  records: BuybackRecord[]
   total_quantity: number
+  avg_price: number
+  total_cost: number
 }
 
 export default function PriceHistoryPage() {
@@ -63,7 +73,8 @@ export default function PriceHistoryPage() {
   const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
-  const [buybackData, setBuybackData] = useState<BuybackChartItem[]>([])
+  const [buybackSummary, setBuybackSummary] = useState<BuybackProductSummary[]>([])
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterSubcategory, setFilterSubcategory] = useState<string>('all')
@@ -102,7 +113,7 @@ export default function PriceHistoryPage() {
           .order('sort_order'),
         supabase
           .from('order_items')
-          .select('product_name, unit_price, inspected_quantity')
+          .select('product_name, unit_price, inspected_quantity, order:orders(order_number, created_at, status)')
           .not('inspected_quantity', 'is', null)
           .gt('inspected_quantity', 0),
       ])
@@ -118,23 +129,44 @@ export default function PriceHistoryPage() {
       setCategories(categoriesRes.data)
       setSubcategories(subcategoriesRes.data)
 
-      // 商品名+単価でグルーピングして検品済み数量を合計
-      const itemMap = new Map<string, BuybackChartItem>()
+      // 商品名でグルーピングし、各レコードに日付情報を保持
+      const productMap = new Map<string, BuybackProductSummary>()
       for (const item of orderItemsRes.data) {
-        const key = `${item.product_name}_${item.unit_price}`
-        const existing = itemMap.get(key)
+        const order = item.order as unknown as { order_number: string; created_at: string; status: string } | null
+        if (!order) continue
+        // 検品完了・振込済・振込確認済のみ対象
+        if (!['検品完了', '振込済', '振込確認済'].includes(order.status)) continue
+
+        const record: BuybackRecord = {
+          product_name: item.product_name,
+          unit_price: item.unit_price,
+          inspected_quantity: item.inspected_quantity,
+          order_date: order.created_at.split('T')[0],
+          order_number: order.order_number,
+        }
+
+        const existing = productMap.get(item.product_name)
         if (existing) {
+          existing.records.push(record)
           existing.total_quantity += item.inspected_quantity
+          existing.total_cost += item.unit_price * item.inspected_quantity
         } else {
-          itemMap.set(key, {
+          productMap.set(item.product_name, {
             product_name: item.product_name,
-            unit_price: item.unit_price,
+            records: [record],
             total_quantity: item.inspected_quantity,
+            avg_price: 0,
+            total_cost: item.unit_price * item.inspected_quantity,
           })
         }
       }
-      setBuybackData(
-        Array.from(itemMap.values()).sort((a, b) => b.total_quantity - a.total_quantity)
+      // 平均単価を計算し、日付降順でソート
+      for (const summary of productMap.values()) {
+        summary.avg_price = Math.round(summary.total_cost / summary.total_quantity)
+        summary.records.sort((a, b) => b.order_date.localeCompare(a.order_date))
+      }
+      setBuybackSummary(
+        Array.from(productMap.values()).sort((a, b) => b.total_quantity - a.total_quantity)
       )
     } catch (error) {
       toast.error('データの取得に失敗しました')
@@ -318,18 +350,18 @@ export default function PriceHistoryPage() {
       </div>
 
       {/* 買取実績グラフ */}
-      {buybackData.length > 0 && (
+      {buybackSummary.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              買取実績（商品別 検品済み数量）
+              買取実績（商品別 仕入れ数量・金額）
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div style={{ width: '100%', height: Math.max(400, buybackData.length * 36) }}>
+          <CardContent className="space-y-4">
+            <div style={{ width: '100%', height: Math.max(400, buybackSummary.length * 36) }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={buybackData}
+                  data={buybackSummary}
                   layout="vertical"
                   margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                 >
@@ -345,21 +377,77 @@ export default function PriceHistoryPage() {
                     formatter={(value: number | undefined) => [`${value ?? 0}個`, '検品済み数量']}
                     labelFormatter={(label: unknown) => {
                       const labelStr = String(label)
-                      const item = buybackData.find((d) => d.product_name === labelStr)
-                      return `${labelStr}（¥${item?.unit_price.toLocaleString()}）`
+                      const item = buybackSummary.find((d) => d.product_name === labelStr)
+                      if (!item) return labelStr
+                      return `${labelStr}（平均仕入れ ¥${item.avg_price.toLocaleString()} / 合計 ¥${item.total_cost.toLocaleString()}）`
                     }}
                   />
-                  <Bar dataKey="total_quantity" radius={[0, 4, 4, 0]}>
-                    {buybackData.map((_, index) => (
+                  <Bar
+                    dataKey="total_quantity"
+                    radius={[0, 4, 4, 0]}
+                    cursor="pointer"
+                    onClick={(_: unknown, index: number) => {
+                      const item = buybackSummary[index]
+                      setExpandedProduct(
+                        expandedProduct === item.product_name ? null : item.product_name
+                      )
+                    }}
+                  >
+                    {buybackSummary.map((item, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={`hsl(${210 + (index * 15) % 60}, 70%, ${50 + (index * 3) % 20}%)`}
+                        fill={expandedProduct === item.product_name
+                          ? 'hsl(210, 90%, 45%)'
+                          : `hsl(${210 + (index * 15) % 60}, 70%, ${50 + (index * 3) % 20}%)`
+                        }
                       />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
+
+            {/* 選択商品の明細テーブル */}
+            {expandedProduct && (() => {
+              const selected = buybackSummary.find((d) => d.product_name === expandedProduct)
+              if (!selected) return null
+              return (
+                <Card className="border-primary/30">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">
+                      {selected.product_name} の買取明細
+                      <span className="text-muted-foreground font-normal ml-2">
+                        合計 {selected.total_quantity}個 / 平均仕入れ ¥{selected.avg_price.toLocaleString()} / 総額 ¥{selected.total_cost.toLocaleString()}
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>日付</TableHead>
+                          <TableHead>注文番号</TableHead>
+                          <TableHead className="text-right">買取単価</TableHead>
+                          <TableHead className="text-right">数量</TableHead>
+                          <TableHead className="text-right">小計</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selected.records.map((r, i) => (
+                          <TableRow key={i}>
+                            <TableCell>{r.order_date}</TableCell>
+                            <TableCell className="font-mono text-xs">{r.order_number}</TableCell>
+                            <TableCell className="text-right tabular-nums">¥{r.unit_price.toLocaleString()}</TableCell>
+                            <TableCell className="text-right tabular-nums">{r.inspected_quantity}</TableCell>
+                            <TableCell className="text-right tabular-nums font-medium">¥{(r.unit_price * r.inspected_quantity).toLocaleString()}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              )
+            })()}
           </CardContent>
         </Card>
       )}
