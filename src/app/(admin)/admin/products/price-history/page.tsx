@@ -369,6 +369,27 @@ export default function PriceHistoryPage() {
         const totalQty = buybackRecords.reduce((s, r) => s + r.inspected_quantity, 0)
         const totalCost = buybackRecords.reduce((s, r) => s + r.unit_price * r.inspected_quantity, 0)
 
+        // 直近N個の加重平均仕入れ単価を計算
+        function calcRecentAvg(n: number): { avg: number; actual: number } | null {
+          if (totalQty === 0) return null
+          let remaining = n
+          let cost = 0
+          let counted = 0
+          for (const r of buybackRecords) {
+            const take = Math.min(remaining, r.inspected_quantity)
+            cost += r.unit_price * take
+            counted += take
+            remaining -= take
+            if (remaining <= 0) break
+          }
+          if (counted === 0) return null
+          return { avg: Math.round(cost / counted), actual: counted }
+        }
+
+        const recent10 = calcRecentAvg(10)
+        const recent50 = calcRecentAvg(50)
+        const recent100 = calcRecentAvg(100)
+
         return (
           <Card>
             <CardHeader>
@@ -409,6 +430,35 @@ export default function PriceHistoryPage() {
 
               {!buybackLoading && buybackRecords.length > 0 && (
                 <>
+                  {/* 直近N個の仕入れ単価カード */}
+                  <div className="grid gap-4 grid-cols-3">
+                    {[
+                      { label: '直近10個', data: recent10, target: 10 },
+                      { label: '直近50個', data: recent50, target: 50 },
+                      { label: '直近100個', data: recent100, target: 100 },
+                    ].map(({ label, data, target }) => (
+                      <Card key={label}>
+                        <CardContent className="pt-4 pb-3">
+                          <p className="text-xs text-muted-foreground">{label}の仕入れ単価</p>
+                          {data ? (
+                            <>
+                              <p className="text-xl font-bold tabular-nums mt-1">
+                                ¥{data.avg.toLocaleString()}
+                              </p>
+                              {data.actual < target && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  ※{data.actual}個のデータで算出
+                                </p>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-sm text-muted-foreground mt-1">データなし</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+
                   {/* 棒グラフ: Y軸=日付+単価、バー=数量、棒の右に個数表示 */}
                   <div style={{ width: '100%', height: Math.max(300, chartData.length * 40) }}>
                     <ResponsiveContainer width="100%" height="100%">
