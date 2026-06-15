@@ -33,6 +33,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  LabelList,
 } from 'recharts'
 import type { Category, Subcategory, Product, ProductPriceHistory } from '@/types/database'
 
@@ -62,6 +63,7 @@ type BuybackRecord = {
 
 type BuybackProductSummary = {
   product_name: string
+  chart_label: string
   records: BuybackRecord[]
   total_quantity: number
   avg_price: number
@@ -75,6 +77,7 @@ export default function PriceHistoryPage() {
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
   const [buybackSummary, setBuybackSummary] = useState<BuybackProductSummary[]>([])
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
+  const [showAllProducts, setShowAllProducts] = useState(false)
   const [loading, setLoading] = useState(true)
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterSubcategory, setFilterSubcategory] = useState<string>('all')
@@ -153,6 +156,7 @@ export default function PriceHistoryPage() {
         } else {
           productMap.set(item.product_name, {
             product_name: item.product_name,
+            chart_label: '',
             records: [record],
             total_quantity: item.inspected_quantity,
             avg_price: 0,
@@ -160,10 +164,11 @@ export default function PriceHistoryPage() {
           })
         }
       }
-      // 平均単価を計算し、日付降順でソート
+      // 平均単価を計算し、日付降順でソート、ラベル生成
       for (const summary of productMap.values()) {
         summary.avg_price = Math.round(summary.total_cost / summary.total_quantity)
         summary.records.sort((a, b) => b.order_date.localeCompare(a.order_date))
+        summary.chart_label = `${summary.product_name}（¥${summary.avg_price.toLocaleString()}）`
       }
       setBuybackSummary(
         Array.from(productMap.values()).sort((a, b) => b.total_quantity - a.total_quantity)
@@ -350,107 +355,137 @@ export default function PriceHistoryPage() {
       </div>
 
       {/* 買取実績グラフ */}
-      {buybackSummary.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              買取実績（商品別 仕入れ数量・金額）
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div style={{ width: '100%', height: Math.max(400, buybackSummary.length * 36) }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={buybackSummary}
-                  layout="vertical"
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" allowDecimals={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="product_name"
-                    width={200}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <Tooltip
-                    formatter={(value: number | undefined) => [`${value ?? 0}個`, '検品済み数量']}
-                    labelFormatter={(label: unknown) => {
-                      const labelStr = String(label)
-                      const item = buybackSummary.find((d) => d.product_name === labelStr)
-                      if (!item) return labelStr
-                      return `${labelStr}（平均仕入れ ¥${item.avg_price.toLocaleString()} / 合計 ¥${item.total_cost.toLocaleString()}）`
-                    }}
-                  />
-                  <Bar
-                    dataKey="total_quantity"
-                    radius={[0, 4, 4, 0]}
-                    cursor="pointer"
-                    onClick={(_: unknown, index: number) => {
-                      const item = buybackSummary[index]
-                      setExpandedProduct(
-                        expandedProduct === item.product_name ? null : item.product_name
-                      )
-                    }}
-                  >
-                    {buybackSummary.map((item, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={expandedProduct === item.product_name
-                          ? 'hsl(210, 90%, 45%)'
-                          : `hsl(${210 + (index * 15) % 60}, 70%, ${50 + (index * 3) % 20}%)`
-                        }
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+      {buybackSummary.length > 0 && (() => {
+        const chartSearch = search.toLowerCase()
+        const matchedProducts = chartSearch
+          ? buybackSummary.filter((d) => d.product_name.toLowerCase().includes(chartSearch))
+          : showAllProducts ? buybackSummary : buybackSummary.filter((d) => d.total_quantity >= 2)
+        const hiddenCount = buybackSummary.length - matchedProducts.length
 
-            {/* 選択商品の明細テーブル */}
-            {expandedProduct && (() => {
-              const selected = buybackSummary.find((d) => d.product_name === expandedProduct)
-              if (!selected) return null
-              return (
-                <Card className="border-primary/30">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">
-                      {selected.product_name} の買取明細
-                      <span className="text-muted-foreground font-normal ml-2">
-                        合計 {selected.total_quantity}個 / 平均仕入れ ¥{selected.avg_price.toLocaleString()} / 総額 ¥{selected.total_cost.toLocaleString()}
-                      </span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>日付</TableHead>
-                          <TableHead>注文番号</TableHead>
-                          <TableHead className="text-right">買取単価</TableHead>
-                          <TableHead className="text-right">数量</TableHead>
-                          <TableHead className="text-right">小計</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selected.records.map((r, i) => (
-                          <TableRow key={i}>
-                            <TableCell>{r.order_date}</TableCell>
-                            <TableCell className="font-mono text-xs">{r.order_number}</TableCell>
-                            <TableCell className="text-right tabular-nums">¥{r.unit_price.toLocaleString()}</TableCell>
-                            <TableCell className="text-right tabular-nums">{r.inspected_quantity}</TableCell>
-                            <TableCell className="text-right tabular-nums font-medium">¥{(r.unit_price * r.inspected_quantity).toLocaleString()}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              )
-            })()}
-          </CardContent>
-        </Card>
-      )}
+        return (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">
+                買取実績（商品別 仕入れ数量・金額）
+                <span className="text-muted-foreground font-normal text-sm ml-2">
+                  {matchedProducts.length}件表示
+                  {hiddenCount > 0 && !chartSearch && ` / ${hiddenCount}件非表示`}
+                </span>
+              </CardTitle>
+              {!chartSearch && hiddenCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAllProducts(!showAllProducts)}
+                >
+                  {showAllProducts ? '2個以上のみ表示' : `全${buybackSummary.length}件表示`}
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {matchedProducts.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  該当する商品がありません
+                </p>
+              ) : (
+                <>
+                  <div style={{ width: '100%', height: Math.max(300, matchedProducts.length * 40) }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={matchedProducts}
+                        layout="vertical"
+                        margin={{ top: 5, right: 60, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" allowDecimals={false} />
+                        <YAxis
+                          type="category"
+                          dataKey="chart_label"
+                          width={320}
+                          tick={{ fontSize: 11 }}
+                        />
+                        <Tooltip
+                          formatter={(value: number | undefined) => [`${value ?? 0}個`, '検品済み数量']}
+                          labelFormatter={(label: unknown) => {
+                            const labelStr = String(label)
+                            const item = matchedProducts.find((d) => d.chart_label === labelStr)
+                            if (!item) return labelStr
+                            return `${item.product_name}（平均 ¥${item.avg_price.toLocaleString()} / 総額 ¥${item.total_cost.toLocaleString()}）`
+                          }}
+                        />
+                        <Bar
+                          dataKey="total_quantity"
+                          radius={[0, 4, 4, 0]}
+                          cursor="pointer"
+                          onClick={(_: unknown, index: number) => {
+                            const item = matchedProducts[index]
+                            setExpandedProduct(
+                              expandedProduct === item.product_name ? null : item.product_name
+                            )
+                          }}
+                        >
+                          {matchedProducts.map((item, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={expandedProduct === item.product_name
+                                ? 'hsl(210, 90%, 45%)'
+                                : 'hsl(220, 70%, 55%)'
+                              }
+                            />
+                          ))}
+                          <LabelList dataKey="total_quantity" position="right" fontSize={11} formatter={(v: unknown) => `${v}個`} />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* 選択商品の明細テーブル */}
+                  {expandedProduct && (() => {
+                    const selected = buybackSummary.find((d) => d.product_name === expandedProduct)
+                    if (!selected) return null
+                    return (
+                      <Card className="border-primary/30">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">
+                            {selected.product_name} の買取明細
+                            <span className="text-muted-foreground font-normal ml-2">
+                              合計 {selected.total_quantity}個 / 平均仕入れ ¥{selected.avg_price.toLocaleString()} / 総額 ¥{selected.total_cost.toLocaleString()}
+                            </span>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>日付</TableHead>
+                                <TableHead>注文番号</TableHead>
+                                <TableHead className="text-right">買取単価</TableHead>
+                                <TableHead className="text-right">数量</TableHead>
+                                <TableHead className="text-right">小計</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {selected.records.map((r, i) => (
+                                <TableRow key={i}>
+                                  <TableCell>{r.order_date}</TableCell>
+                                  <TableCell className="font-mono text-xs">{r.order_number}</TableCell>
+                                  <TableCell className="text-right tabular-nums">¥{r.unit_price.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{r.inspected_quantity}</TableCell>
+                                  <TableCell className="text-right tabular-nums font-medium">¥{(r.unit_price * r.inspected_quantity).toLocaleString()}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </CardContent>
+                      </Card>
+                    )
+                  })()}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       {/* 全商品買取価格一覧 */}
       <Card>
