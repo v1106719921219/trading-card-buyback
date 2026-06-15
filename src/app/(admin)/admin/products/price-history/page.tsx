@@ -32,6 +32,7 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts'
 import type { Category, Subcategory, Product, ProductPriceHistory } from '@/types/database'
 
@@ -361,7 +362,7 @@ export default function PriceHistoryPage() {
         const hasExactMatch = products.some((p) => p.name === selectedBuybackProduct)
 
         const chartData: ChartRecord[] = buybackRecords.map((r) => ({
-          label: `${r.order_date}  ¥${r.unit_price.toLocaleString()}`,
+          label: `${r.order_date}  ¥${r.unit_price.toLocaleString()}  ${r.order_number}`,
           unit_price: r.unit_price,
           quantity: r.inspected_quantity,
         }))
@@ -408,16 +409,16 @@ export default function PriceHistoryPage() {
 
               {!buybackLoading && buybackRecords.length > 0 && (
                 <>
-                  {/* 棒グラフ: Y軸=日付+単価、バー=数量 */}
+                  {/* 棒グラフ: Y軸=日付+単価、バー=数量、棒の右に個数表示 */}
                   <div style={{ width: '100%', height: Math.max(300, chartData.length * 40) }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
                         data={chartData}
                         layout="vertical"
-                        margin={{ top: 5, right: 50, left: 20, bottom: 5 }}
+                        margin={{ top: 5, right: 60, left: 20, bottom: 25 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" allowDecimals={false} label={{ value: '数量（個）', position: 'insideBottomRight', offset: -5 }} />
+                        <XAxis type="number" allowDecimals={false} label={{ value: '数量（個）', position: 'insideBottom', offset: -15 }} />
                         <YAxis
                           type="category"
                           dataKey="label"
@@ -433,7 +434,9 @@ export default function PriceHistoryPage() {
                             return `${labelStr} × ${item.quantity}個 = ¥${(item.unit_price * item.quantity).toLocaleString()}`
                           }}
                         />
-                        <Bar dataKey="quantity" fill="hsl(220, 70%, 55%)" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey="quantity" fill="hsl(220, 70%, 55%)" radius={[0, 4, 4, 0]}>
+                          <LabelList dataKey="quantity" position="right" fontSize={11} formatter={(v: unknown) => `${v}個`} />
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
