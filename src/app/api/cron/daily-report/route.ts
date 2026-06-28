@@ -61,7 +61,6 @@ export async function GET(request: Request) {
 
   const topProducts = Object.entries(productTotals)
     .sort(([, a], [, b]) => b.amount - a.amount)
-    .slice(0, 10)
 
   await sendDiscordMessage(today, totalCount, totalAmount, topProducts)
 
@@ -72,7 +71,7 @@ async function sendDiscordMessage(
   date: string,
   count: number,
   amount: number,
-  topProducts: [string, { quantity: number; amount: number; unitPrice: number }][],
+  products: [string, { quantity: number; amount: number; unitPrice: number }][],
 ) {
   const webhookUrl = process.env.DISCORD_REPORT_WEBHOOK_URL
   if (!webhookUrl) return
@@ -81,23 +80,59 @@ async function sendDiscordMessage(
 
   let description = `**振込件数:** ${count}件\n**振込金額:** ¥${amount.toLocaleString()}`
 
-  if (topProducts.length > 0) {
-    description += '\n\n**📦 買取商品ランキング**\n'
-    topProducts.forEach(([name, { quantity, amount: amt, unitPrice }], i) => {
+  if (products.length > 0) {
+    description += '\n\n**📦 買取商品一覧**\n'
+    products.forEach(([name, { quantity, amount: amt, unitPrice }], i) => {
       description += `${i + 1}. ${name} — @¥${unitPrice.toLocaleString()} × ${quantity}点 (¥${amt.toLocaleString()})\n`
     })
   }
 
-  const embed = {
-    title: `📊 ${formattedDate} 買取日報`,
-    description,
-    color: 0x2ecc71,
-    timestamp: new Date().toISOString(),
-  }
+  // Discord Embedは4096文字制限があるため、超える場合は分割送信
+  if (description.length <= 4096) {
+    const embed = {
+      title: `📊 ${formattedDate} 買取日報`,
+      description,
+      color: 0x2ecc71,
+      timestamp: new Date().toISOString(),
+    }
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embeds: [embed] }),
+    })
+  } else {
+    // サマリー部分を先に送信
+    const summaryEmbed = {
+      title: `📊 ${formattedDate} 買取日報`,
+      description: `**振込件数:** ${count}件\n**振込金額:** ¥${amount.toLocaleString()}`,
+      color: 0x2ecc71,
+    }
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embeds: [summaryEmbed] }),
+    })
 
-  await fetch(webhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ embeds: [embed] }),
-  })
+    // 商品一覧を分割送信
+    let chunk = '**📦 買取商品一覧**\n'
+    for (const [name, { quantity, amount: amt, unitPrice }] of products) {
+      const line = `・${name} — @¥${unitPrice.toLocaleString()} × ${quantity}点 (¥${amt.toLocaleString()})\n`
+      if (chunk.length + line.length > 4096) {
+        await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ embeds: [{ description: chunk, color: 0x2ecc71 }] }),
+        })
+        chunk = ''
+      }
+      chunk += line
+    }
+    if (chunk) {
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ embeds: [{ description: chunk, color: 0x2ecc71, timestamp: new Date().toISOString() }] }),
+      })
+    }
+  }
 }
