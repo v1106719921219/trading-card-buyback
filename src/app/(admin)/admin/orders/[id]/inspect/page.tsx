@@ -324,7 +324,7 @@ export default function InspectPage() {
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <div className="flex items-center gap-3">
-        <Link href={`/admin/orders/${orderId}`}>
+        <Link href={order.office_id ? `/admin/offices/${order.office_id}` : '/admin/orders'}>
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
