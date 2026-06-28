@@ -100,7 +100,9 @@ export async function getOfficeOrderCounts(): Promise<OfficeWithCounts[]> {
     ORDER_STATUSES.forEach((s) => {
       if (!(s in statusCounts)) statusCounts[s] = 0
     })
-    const totalOrders = Object.values(statusCounts).reduce((sum, c) => sum + c, 0)
+    const totalOrders = Object.entries(statusCounts)
+      .filter(([status]) => status !== 'キャンセル')
+      .reduce((sum, [, c]) => sum + c, 0)
     return {
       ...office,
       status_counts: statusCounts,
