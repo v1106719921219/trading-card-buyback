@@ -45,14 +45,14 @@ export async function GET(request: Request) {
   const totalCount = orders?.length || 0
 
   // 商品別に集計（金額順）
-  const productTotals: Record<string, { quantity: number; amount: number }> = {}
+  const productTotals: Record<string, { quantity: number; amount: number; unitPrice: number }> = {}
   orders?.forEach((o) => {
     const items = o.order_items as { product_name: string; unit_price: number; inspected_quantity: number | null; quantity: number }[]
     items?.forEach((item) => {
       const qty = item.inspected_quantity ?? item.quantity
       const amount = item.unit_price * qty
       if (!productTotals[item.product_name]) {
-        productTotals[item.product_name] = { quantity: 0, amount: 0 }
+        productTotals[item.product_name] = { quantity: 0, amount: 0, unitPrice: item.unit_price }
       }
       productTotals[item.product_name].quantity += qty
       productTotals[item.product_name].amount += amount
@@ -72,7 +72,7 @@ async function sendDiscordMessage(
   date: string,
   count: number,
   amount: number,
-  topProducts: [string, { quantity: number; amount: number }][],
+  topProducts: [string, { quantity: number; amount: number; unitPrice: number }][],
 ) {
   const webhookUrl = process.env.DISCORD_REPORT_WEBHOOK_URL
   if (!webhookUrl) return
@@ -83,8 +83,8 @@ async function sendDiscordMessage(
 
   if (topProducts.length > 0) {
     description += '\n\n**📦 買取商品ランキング**\n'
-    topProducts.forEach(([name, { quantity, amount: amt }], i) => {
-      description += `${i + 1}. ${name} — ${quantity}点 (¥${amt.toLocaleString()})\n`
+    topProducts.forEach(([name, { quantity, amount: amt, unitPrice }], i) => {
+      description += `${i + 1}. ${name} — @¥${unitPrice.toLocaleString()} × ${quantity}点 (¥${amt.toLocaleString()})\n`
     })
   }
 
