@@ -22,9 +22,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, Eye, ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react'
+import { Search, Eye, ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { ORDER_STATUSES, STATUS_COLORS, ITEMS_PER_PAGE } from '@/lib/constants'
+import { ORDER_STATUSES, STATUS_COLORS } from '@/lib/constants'
 import { extractPrefectureFromAddress, getDeliveryDays, calculateArrivalDate, formatDateJST } from '@/lib/delivery'
 import type { Order, Office, OrderStatus } from '@/types/database'
 
@@ -39,7 +39,6 @@ export default function OfficeOrdersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
-  const [page, setPage] = useState(1)
 
   // 到着日計算用
   const [shippedAtMap, setShippedAtMap] = useState<Map<string, string>>(new Map())
@@ -60,7 +59,6 @@ export default function OfficeOrdersPage() {
 
   async function fetchOrders() {
     setLoading(true)
-    const offset = (page - 1) * ITEMS_PER_PAGE
 
     const excludedStatuses = ['キャンセル', '振込済', '振込確認済']
 
@@ -70,7 +68,6 @@ export default function OfficeOrdersPage() {
       .eq('office_id', officeId)
       .not('status', 'in', `(${excludedStatuses.join(',')})`)
       .order('created_at', { ascending: false })
-      .range(offset, offset + ITEMS_PER_PAGE - 1)
 
     if (statusFilter !== 'all') {
       query = query.eq('status', statusFilter)
@@ -124,11 +121,10 @@ export default function OfficeOrdersPage() {
 
   useEffect(() => {
     fetchOrders()
-  }, [statusFilter, search, page, officeId])
+  }, [statusFilter, search, officeId])
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
-    setPage(1)
     setSearch(searchInput)
   }
 
@@ -208,8 +204,6 @@ export default function OfficeOrdersPage() {
   // 発送済フィルタ時のみグルーピング表示
   const showGrouped = orders.some((o) => o.status === '発送済')
 
-  const totalPages = Math.ceil(total / ITEMS_PER_PAGE)
-
   function renderOrderRow(order: Order) {
     return (
       <TableRow key={order.id}>
@@ -283,10 +277,7 @@ export default function OfficeOrdersPage() {
         </form>
         <Select
           value={statusFilter}
-          onValueChange={(v) => {
-            setStatusFilter(v)
-            setPage(1)
-          }}
+          onValueChange={(v) => setStatusFilter(v)}
         >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="全ステータス" />
@@ -347,32 +338,6 @@ export default function OfficeOrdersPage() {
         </Table>
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {(page - 1) * ITEMS_PER_PAGE + 1}-{Math.min(page * ITEMS_PER_PAGE, total)} / {total}件
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page === 1}
-              onClick={() => setPage(page - 1)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page === totalPages}
-              onClick={() => setPage(page + 1)}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
