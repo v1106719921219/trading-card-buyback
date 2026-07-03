@@ -786,7 +786,7 @@ export default function OrderDetailPage() {
                       <div key={i} className="flex items-center gap-3">
                         <p className="font-mono text-lg">{tn}</p>
                         <a
-                          href={`https://member.kms.kuronekoyamato.co.jp/parcel/detail?pno=${tn}`}
+                          href={`https://jizen.kuronekoyamato.co.jp/jizen/servlet/crjz.b.NQ0010?id=${tn}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
