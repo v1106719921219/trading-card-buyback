@@ -36,7 +36,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil, Plus } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil, Plus, Check, ChevronsUpDown } from 'lucide-react'
 import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice, addOrderItem } from '@/actions/orders'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
@@ -74,6 +77,7 @@ export default function OrderDetailPage() {
   const [addingItem, setAddingItem] = useState(false)
   const [newItemProductId, setNewItemProductId] = useState('')
   const [newItemQuantity, setNewItemQuantity] = useState(1)
+  const [productSearchOpen, setProductSearchOpen] = useState(false)
   const [savingNewItem, setSavingNewItem] = useState(false)
 
   const supabase = createClient()
@@ -597,18 +601,52 @@ export default function OrderDetailPage() {
                   <p className="text-sm font-medium">商品を追加</p>
                   <div className="flex gap-2 items-end">
                     <div className="flex-1">
-                      <Select value={newItemProductId} onValueChange={setNewItemProductId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="商品を選択" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {products.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}（{p.price.toLocaleString()}円）
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={productSearchOpen}
+                            className="w-full justify-between font-normal"
+                          >
+                            {newItemProductId
+                              ? (() => {
+                                  const p = products.find((p) => p.id === newItemProductId)
+                                  return p ? `${p.name}（${p.price.toLocaleString()}円）` : '商品を選択'
+                                })()
+                              : '商品を選択'}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="商品名で検索..." />
+                            <CommandList>
+                              <CommandEmpty>商品が見つかりません</CommandEmpty>
+                              <CommandGroup>
+                                {products.map((p) => (
+                                  <CommandItem
+                                    key={p.id}
+                                    value={`${p.name}（${p.price.toLocaleString()}円）`}
+                                    onSelect={() => {
+                                      setNewItemProductId(p.id)
+                                      setProductSearchOpen(false)
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        newItemProductId === p.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {p.name}（{p.price.toLocaleString()}円）
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="w-24">
                       <Input
