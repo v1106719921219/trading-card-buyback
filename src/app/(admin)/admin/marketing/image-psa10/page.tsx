@@ -16,8 +16,7 @@ const SETTING_KEY = 'sns_psa10_default_products'
 const CATEGORY_ID = 'db02ec12-d529-453c-a749-53da99e05533'
 const PSA10_SUBCATEGORY_ID = '8b34c75d-d7f8-4393-89fe-7685b3f61e5b'
 const TENANT_ID = 'aaaaaaaa-0000-0000-0000-000000000001'
-const COLS = 6
-const MAX_PER_PAGE = 42
+const MAX_PER_PAGE = 48
 
 // Gold palette
 const P = {
@@ -303,18 +302,34 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const gridH = H - gridTop - padY - footerH - 4
   const gridW = W - padX * 2
 
-  const cols = COLS
+  // 枚数に応じて列数を自動計算（カードが縦長 約1.35 に近づく列数を選ぶ）
+  const TARGET_RATIO = 1.35
+  let cols = 6
+  if (products.length > 0) {
+    let bestDiff = Infinity
+    for (let c = 4; c <= 14; c++) {
+      const r = Math.ceil(products.length / c)
+      const w = (gridW - gap * (c - 1)) / c
+      const h = (gridH - gap * (r - 1)) / r
+      const diff = Math.abs(h / w - TARGET_RATIO)
+      if (diff < bestDiff) {
+        bestDiff = diff
+        cols = c
+      }
+    }
+  }
   const rows = Math.ceil(products.length / cols)
 
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellH = rows > 0 ? Math.floor((gridH - gap * (rows - 1)) / rows) : 0
 
   // Card inner layout
-  const nameH = Math.max(Math.min(Math.floor(cellH * 0.14), 28), 12)
-  const priceBarH = Math.max(Math.min(Math.floor(cellH * 0.16), 30), 18)
-  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.65), 11), 8)
-  const priceFontSize = Math.max(Math.min(Math.floor(priceBarH * 0.8), 24), 14)
-  const badgeSize = Math.max(Math.min(Math.floor(cellW * 0.18), 40), 24)
+  const priceBarH = Math.max(Math.min(Math.floor(cellH * 0.14), 34), 20)
+  const nameH = Math.max(Math.min(Math.floor(cellH * 0.11), 26), 14)
+  const imgH = cellH - priceBarH
+  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.62), 13), 8)
+  const priceFontSize = Math.max(Math.min(Math.floor(priceBarH * 0.75), 26), 14)
+  const badgeSize = Math.max(Math.min(Math.floor(cellW * 0.2), 40), 24)
   const psaLogoSize = Math.floor(badgeSize * 0.8)
 
   return (
@@ -436,96 +451,93 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         return (
           <div key={product.id} style={{
             position: 'absolute', left: x, top: y, width: cellW, height: cellH,
-            background: '#0a0a0a',
+            background: '#fff',
+            border: `1.5px solid ${P.BASE}`,
+            borderRadius: 3,
             overflow: 'hidden', zIndex: 2,
             boxSizing: 'border-box',
+            boxShadow: `0 0 6px rgba(212,168,83,0.35)`,
           }}>
-            {/* Card image */}
-            {product.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={product.image_url}
-                alt={product.name}
-                style={{
-                  position: 'absolute', inset: 0,
+            {/* Image area */}
+            <div style={{ position: 'relative', width: '100%', height: imgH, background: '#fff' }}>
+              {product.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={product.image_url}
+                  alt={product.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <div style={{
                   width: '100%', height: '100%',
-                  objectFit: 'cover',
-                }}
-                crossOrigin="anonymous"
-              />
-            ) : (
+                  background: 'repeating-linear-gradient(135deg, #f3f3f3 0 8px, #eaeaea 8px 16px)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'rgba(138,106,42,0.5)', fontSize: 11,
+                  fontWeight: 700, letterSpacing: '0.2em',
+                }}>
+                  NO IMAGE
+                </div>
+              )}
+
+              {/* Top right: PSA10 logo */}
               <div style={{
-                position: 'absolute', inset: 0,
-                background: 'repeating-linear-gradient(135deg, #111 0 8px, #181818 8px 16px)',
+                position: 'absolute', top: 4, right: 4, zIndex: 5,
+                width: badgeSize, height: badgeSize,
+                borderRadius: '50%',
+                background: '#fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'rgba(212,168,83,0.35)', fontSize: 12,
-                fontWeight: 700, letterSpacing: '0.2em',
+                boxShadow: `0 0 0 1.5px ${P.BASE}, 0 2px 6px rgba(0,0,0,0.4)`,
               }}>
-                CARD IMAGE
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/assets/psa10-logo.png" alt="PSA10" style={{
+                  width: psaLogoSize, height: psaLogoSize, objectFit: 'contain',
+                }} crossOrigin="anonymous" />
               </div>
-            )}
 
-            {/* Top right: PSA10 logo */}
-            <div style={{
-              position: 'absolute', top: 6, right: 6, zIndex: 5,
-              width: badgeSize, height: badgeSize,
-              borderRadius: '50%',
-              background: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: `0 0 0 1.5px ${P.BASE}, 0 2px 6px rgba(0,0,0,0.6)`,
-            }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/assets/psa10-logo.png" alt="PSA10" style={{
-                width: psaLogoSize, height: psaLogoSize, objectFit: 'contain',
-              }} crossOrigin="anonymous" />
-            </div>
-
-            {/* Top left: wanted quantity */}
-            <div style={{
-              position: 'absolute', top: 6, left: 6, zIndex: 3,
-              background: 'rgba(0,0,0,0.85)',
-              color: P.LIGHT,
-              padding: '2px 7px',
-              fontSize: 11, fontWeight: 900,
-              letterSpacing: '0.05em',
-              border: `1px solid ${P.BASE}`,
-              borderRadius: 2,
-              boxShadow: `0 0 8px rgba(212,168,83,0.4)`,
-            }}>
-              {wantedQty}点募集
-            </div>
-
-            {/* Bottom: name + price */}
-            <div style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 3,
-              background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.88) 40%, #000 100%)',
-              padding: '24px 4px 0',
-            }}>
+              {/* Top left: wanted quantity */}
               <div style={{
-                fontSize: nameFontSize, fontWeight: 700, color: P.LIGHT,
-                textAlign: 'center', lineHeight: 1.15,
-                minHeight: nameH, display: 'flex', alignItems: 'flex-end',
-                justifyContent: 'center',
-                padding: '0 2px 4px',
-                letterSpacing: '0.01em',
-                textShadow: '0 1px 2px rgba(0,0,0,0.9)',
+                position: 'absolute', top: 4, left: 4, zIndex: 3,
+                background: 'rgba(0,0,0,0.85)',
+                color: P.LIGHT,
+                padding: '1px 6px',
+                fontSize: 10, fontWeight: 900,
+                letterSpacing: '0.05em',
+                border: `1px solid ${P.BASE}`,
+                borderRadius: 2,
+              }}>
+                {wantedQty}点募集
+              </div>
+
+              {/* Name strip over bottom of image */}
+              <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 3,
+                background: 'rgba(0,0,0,0.7)',
+                padding: '2px 3px',
+                fontSize: nameFontSize, fontWeight: 900, color: '#fff',
+                textAlign: 'center', lineHeight: 1.2,
+                overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
               }}>
                 {product.name}
               </div>
-              <div style={{
-                background: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 50%, #7f1d1d 100%)',
-                color: '#fff',
-                textAlign: 'center',
-                fontSize: priceFontSize, fontWeight: 900,
-                padding: '4px 2px',
-                letterSpacing: '-0.01em',
-                borderTop: `1px solid ${P.BASE}`,
+            </div>
+
+            {/* Price bar */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 50%, #7f1d1d 100%)',
+              height: priceBarH,
+              borderTop: `1px solid ${P.BASE}`,
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
+            }}>
+              <span style={{
+                color: '#fff', fontSize: priceFontSize, fontWeight: 900,
+                lineHeight: 1, letterSpacing: '-0.01em',
                 fontFamily: "'Inter', sans-serif",
-                textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
+                textShadow: '0 1px 2px rgba(0,0,0,0.6)',
               }}>
                 ¥{product.price.toLocaleString('ja-JP')}
-              </div>
+              </span>
             </div>
           </div>
         )
