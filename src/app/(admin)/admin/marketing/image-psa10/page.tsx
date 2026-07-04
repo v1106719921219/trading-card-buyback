@@ -282,23 +282,9 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const gridH = gridBottom - gridTop
   const gridW = W - padX * 2
 
-  // 枚数に応じて列数を自動計算（カードが縦長 約1.35 に近づく列数を選ぶ）
-  const TARGET_RATIO = 1.35
-  let cols = 6
-  if (products.length > 0) {
-    let bestDiff = Infinity
-    for (let c = 4; c <= 14; c++) {
-      const r = Math.ceil(products.length / c)
-      const w = (gridW - gap * (c - 1)) / c
-      const h = (gridH - gap * (r - 1)) / r
-      const diff = Math.abs(h / w - TARGET_RATIO)
-      if (diff < bestDiff) {
-        bestDiff = diff
-        cols = c
-      }
-    }
-  }
-  const rows = Math.ceil(products.length / cols)
+  // 12列固定（48件 = 12列×4行でぴったり埋まる）
+  const cols = 12
+  const rows = Math.max(Math.ceil(products.length / cols), 1)
 
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellH = rows > 0 ? Math.floor((gridH - gap * (rows - 1)) / rows) : 0
