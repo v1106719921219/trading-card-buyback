@@ -272,10 +272,6 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const day = today.getDate()
   const updatedDateStr = `${month}月${day}日 更新`
 
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
-  const updatedAt = fmt(today)
-
   const W = 1920
   const H = 1080
   const padX = 12
@@ -314,7 +310,6 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const imgH = cellH - priceBarH
   const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.62), 13), 8)
   const priceFontSize = Math.max(Math.min(Math.floor(priceBarH * 0.75), 26), 14)
-  const badgeSize = Math.max(Math.min(Math.floor(cellW * 0.2), 40), 24)
 
   return (
     <div
@@ -346,7 +341,7 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/assets/logo-full.png" alt="買取スクエア" style={{ width: 200, height: 200, objectFit: 'contain' }} crossOrigin="anonymous" />
+        <img src="/assets/logo-full.png" alt="買取スクエア" style={{ width: 235, height: 235, objectFit: 'contain' }} crossOrigin="anonymous" />
       </div>
 
       {/* Page label next to title */}
@@ -374,7 +369,6 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         const row = Math.floor(index / cols)
         const x = padX + col * (cellW + gap)
         const y = gridTop + row * (cellH + gap)
-        const wantedQty = product.wanted_quantity ?? 5
 
         return (
           <div key={product.id} style={{
@@ -407,38 +401,6 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
                   NO IMAGE
                 </div>
               )}
-
-              {/* Top right: PSA10 badge */}
-              <div style={{
-                position: 'absolute', top: 4, right: 4, zIndex: 5,
-                width: badgeSize, height: badgeSize,
-                borderRadius: '50%',
-                background: 'linear-gradient(180deg, #1a1a1a 0%, #000 100%)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: `0 0 0 1.5px ${P.BASE}, 0 2px 6px rgba(0,0,0,0.4)`,
-              }}>
-                <span style={{
-                  color: P.LIGHT,
-                  fontSize: Math.floor(badgeSize * 0.3),
-                  fontWeight: 900, lineHeight: 1,
-                  letterSpacing: '0.02em',
-                  fontFamily: "'Inter', sans-serif",
-                }}>PSA10</span>
-              </div>
-
-              {/* Top left: wanted quantity */}
-              <div style={{
-                position: 'absolute', top: 4, left: 4, zIndex: 3,
-                background: 'rgba(0,0,0,0.85)',
-                color: P.LIGHT,
-                padding: '1px 6px',
-                fontSize: 10, fontWeight: 900,
-                letterSpacing: '0.05em',
-                border: `1px solid ${P.BASE}`,
-                borderRadius: 2,
-              }}>
-                {wantedQty}点募集
-              </div>
 
               {/* Name strip over bottom of image */}
               <div style={{
@@ -482,12 +444,6 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         letterSpacing: '0.04em', zIndex: 4,
       }}>
         <span>※買取価格は日付当日限り有効です。相場や在庫状況によって予告なく変更になる場合がございます。</span>
-        <span style={{
-          marginLeft: 20,
-          color: P.BASE,
-          fontWeight: 900,
-        }}>kaitorisquare.net</span>
-        <span style={{ marginLeft: 24, fontWeight: 900 }}>更新日：{updatedAt}</span>
       </footer>
     </div>
   )
