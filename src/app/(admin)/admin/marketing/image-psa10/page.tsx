@@ -60,7 +60,7 @@ export default function PSA10ImagePage() {
         .eq('is_active', true)
         .eq('category_id', CATEGORY_ID)
         .eq('subcategory_id', PSA10_SUBCATEGORY_ID)
-        .order('price', { ascending: false }),
+        .order('sort_order'),
       supabase.from('app_settings').select('value').eq('key', SETTING_KEY).maybeSingle(),
     ])
 
