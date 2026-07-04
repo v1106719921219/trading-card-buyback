@@ -315,7 +315,6 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.62), 13), 8)
   const priceFontSize = Math.max(Math.min(Math.floor(priceBarH * 0.75), 26), 14)
   const badgeSize = Math.max(Math.min(Math.floor(cellW * 0.2), 40), 24)
-  const psaLogoSize = Math.floor(badgeSize * 0.8)
 
   return (
     <div
@@ -409,19 +408,22 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
                 </div>
               )}
 
-              {/* Top right: PSA10 logo */}
+              {/* Top right: PSA10 badge */}
               <div style={{
                 position: 'absolute', top: 4, right: 4, zIndex: 5,
                 width: badgeSize, height: badgeSize,
                 borderRadius: '50%',
-                background: '#fff',
+                background: 'linear-gradient(180deg, #1a1a1a 0%, #000 100%)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: `0 0 0 1.5px ${P.BASE}, 0 2px 6px rgba(0,0,0,0.4)`,
               }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/assets/psa10-logo.png" alt="PSA10" style={{
-                  width: psaLogoSize, height: psaLogoSize, objectFit: 'contain',
-                }} crossOrigin="anonymous" />
+                <span style={{
+                  color: P.LIGHT,
+                  fontSize: Math.floor(badgeSize * 0.3),
+                  fontWeight: 900, lineHeight: 1,
+                  letterSpacing: '0.02em',
+                  fontFamily: "'Inter', sans-serif",
+                }}>PSA10</span>
               </div>
 
               {/* Top left: wanted quantity */}
