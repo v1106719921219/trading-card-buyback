@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { CheckCircle, Minus, Package, Plus, Search, Trash2, Truck } from 'lucide-react'
+import { CheckCircle, Clock, Minus, Package, Plus, Search, Trash2, Truck } from 'lucide-react'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
 import { getOfficeById } from '@/actions/offices'
@@ -241,10 +241,14 @@ function CompleteContent() {
         <Card className="text-center">
           <CardHeader>
             <div className="flex justify-center mb-4">
-              <CheckCircle className="h-16 w-16 text-green-500" />
+              {orderStatus === '承認待ち' ? (
+                <Clock className="h-16 w-16 text-amber-500" />
+              ) : (
+                <CheckCircle className="h-16 w-16 text-green-500" />
+              )}
             </div>
             <CardTitle className="text-2xl">
-              {submitted ? '追跡番号を登録しました' : '申込が完了しました'}
+              {submitted ? '追跡番号を登録しました' : orderStatus === '承認待ち' ? '申込を受け付けました' : '申込が完了しました'}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
