@@ -890,7 +890,8 @@ export default function OrderDetailPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-purple-700">
-                  LINE未経由の申込です。内容を確認の上、承認してください。
+                  LINE未経由の申込です。内容を確認の上、承認してください。<br />
+                  承認するとお客様に申込完了メールが送信されます。
                 </p>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
