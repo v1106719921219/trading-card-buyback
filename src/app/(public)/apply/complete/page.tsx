@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { CheckCircle, Clock, Minus, Package, Plus, Search, Trash2, Truck } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Minus, Package, Plus, Search, Trash2, Truck } from 'lucide-react'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
 import { getOfficeById } from '@/actions/offices'
@@ -240,16 +240,23 @@ function CompleteContent() {
       <div className="w-full max-w-lg space-y-4">
         <Card className="text-center">
           <CardHeader>
-            <div className="flex justify-center mb-4">
-              {orderStatus === '承認待ち' ? (
-                <Clock className="h-16 w-16 text-amber-500" />
-              ) : (
-                <CheckCircle className="h-16 w-16 text-green-500" />
-              )}
-            </div>
-            <CardTitle className="text-2xl">
-              {submitted ? '追跡番号を登録しました' : orderStatus === '承認待ち' ? '申込を受け付けました' : '申込が完了しました'}
-            </CardTitle>
+            {orderStatus === '承認待ち' ? (
+              <>
+                <div className="flex justify-center mb-4">
+                  <AlertTriangle className="h-16 w-16 text-red-500" />
+                </div>
+                <CardTitle className="text-2xl text-red-600">承認待ち</CardTitle>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-center mb-4">
+                  <CheckCircle className="h-16 w-16 text-green-500" />
+                </div>
+                <CardTitle className="text-2xl">
+                  {submitted ? '追跡番号を登録しました' : '申込が完了しました'}
+                </CardTitle>
+              </>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             {orderNumber && (
@@ -260,9 +267,8 @@ function CompleteContent() {
             )}
 
             {orderStatus === '承認待ち' && (
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-md">
-                <p className="font-medium text-amber-800 mb-1">承認待ちです</p>
-                <p className="text-sm text-amber-700">
+              <div className="bg-red-50 border border-red-200 p-4 rounded-md">
+                <p className="text-sm text-red-700">
                   お申込みを受け付けましたが、まだ承認されていません。<strong>必ずLINEにてご連絡ください。</strong>LINEでのご連絡が確認できない場合、承認されませんのでご注意ください。承認されるまで発送はお控えください。
                 </p>
               </div>
