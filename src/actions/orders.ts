@@ -56,6 +56,9 @@ export async function createOrder(input: CreateOrderInput) {
     0
   )
 
+  // PayPay銀行の表記を統一
+  const bankName = customer.bank_name === 'PayPay銀行' ? 'PayPay銀行（ペイペイ銀行）' : customer.bank_name
+
   // Create order
   const { data: order, error: orderError } = await supabase
     .from('orders')
@@ -72,7 +75,7 @@ export async function createOrder(input: CreateOrderInput) {
       customer_not_invoice_issuer: customer.customer_not_invoice_issuer,
       invoice_issuer_number: customer.invoice_issuer_number || null,
       customer_identity_method: customer.customer_identity_method,
-      bank_name: customer.bank_name,
+      bank_name: bankName,
       bank_branch: customer.bank_branch,
       bank_account_type: customer.bank_account_type,
       bank_account_number: customer.bank_account_number,
