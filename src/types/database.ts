@@ -1,6 +1,6 @@
 export type UserRole = 'admin' | 'manager' | 'staff'
 
-export type OrderStatus = '申込' | '発送済' | '検品完了' | '振込済' | '振込確認済' | 'キャンセル'
+export type OrderStatus = '承認待ち' | '申込' | '発送済' | '検品完了' | '振込済' | '振込確認済' | 'キャンセル'
 
 export type BankAccountType = '普通' | '当座'
 

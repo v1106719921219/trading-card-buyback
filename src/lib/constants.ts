@@ -1,6 +1,7 @@
 import { OrderStatus, ReturnStatus, BuybackType, InspectionStatus } from '@/types/database'
 
 export const ORDER_STATUSES: OrderStatus[] = [
+  '承認待ち',
   '申込',
   '発送済',
   '検品完了',
@@ -11,6 +12,7 @@ export const ORDER_STATUSES: OrderStatus[] = [
 
 // Valid status transitions (from -> allowed to statuses)
 export const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  '承認待ち': ['申込', 'キャンセル'],
   '申込': ['発送済', 'キャンセル'],
   '発送済': ['検品完了', 'キャンセル'],
   '検品完了': ['振込済', 'キャンセル'],
@@ -20,6 +22,7 @@ export const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 }
 
 export const STATUS_COLORS: Record<OrderStatus, string> = {
+  '承認待ち': 'bg-purple-100 text-purple-800',
   '申込': 'bg-blue-100 text-blue-800',
   '発送済': 'bg-yellow-100 text-yellow-800',
   '検品完了': 'bg-green-100 text-green-800',
@@ -30,6 +33,7 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
 
 // ステータスを1つ前に戻す（admin/managerのみ）
 export const STATUS_REVERT: Partial<Record<OrderStatus, OrderStatus>> = {
+  '申込': '承認待ち',
   '発送済': '申込',
   '検品完了': '発送済',
   '振込済': '検品完了',

@@ -31,7 +31,7 @@ export async function createOrder(input: CreateOrderInput) {
   // Use admin client for public form submission (bypasses RLS)
   const supabase = createAdminClient()
 
-  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type } = parsed.data
+  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type, from_line } = parsed.data
 
   // 重複チェック: 同一テナント・メールアドレスで2分以内の申込があれば既存注文を返す
   const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
@@ -40,7 +40,7 @@ export async function createOrder(input: CreateOrderInput) {
     .select('order_number')
     .eq('tenant_id', tenantId)
     .eq('customer_email', customer.customer_email)
-    .eq('status', '申込')
+    .in('status', ['申込', '承認待ち'])
     .gte('created_at', twoMinutesAgo)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -60,7 +60,7 @@ export async function createOrder(input: CreateOrderInput) {
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert({
-      status: '申込',
+      status: from_line ? '申込' : '承認待ち',
       customer_name: customer.customer_name,
       customer_line_name: customer.customer_line_name || null,
       customer_email: customer.customer_email,
@@ -299,6 +299,10 @@ export async function submitTrackingNumber(orderNumber: string, trackingNumber: 
     return { error: '注文が見つかりません' }
   }
 
+  if (order.status === '承認待ち') {
+    return { error: 'この注文はまだ承認されていません。承認後に追跡番号を登録してください。' }
+  }
+
   if (order.status === '申込') {
     const { error: updateError } = await supabase
       .from('orders')
@@ -439,8 +443,8 @@ export async function updateOrderItems(
     return { error: '注文が見つかりません' }
   }
 
-  if (order.status !== '申込') {
-    return { error: '申込ステータスの注文のみ編集できます' }
+  if (order.status !== '申込' && order.status !== '承認待ち') {
+    return { error: '申込または承認待ちステータスの注文のみ編集できます' }
   }
 
   // Delete existing order items

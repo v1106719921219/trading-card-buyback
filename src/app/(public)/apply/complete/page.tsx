@@ -142,7 +142,7 @@ function CompleteContent() {
   }
 
   // Order items editing
-  const isEditable = orderStatus === '申込'
+  const isEditable = orderStatus === '申込' || orderStatus === '承認待ち'
 
   const totalAmount = orderItems.reduce(
     (sum, item) => sum + item.unit_price * item.quantity,
@@ -252,6 +252,15 @@ function CompleteContent() {
               <div className="bg-muted p-4 rounded-md">
                 <p className="text-sm text-muted-foreground mb-1">注文番号</p>
                 <p className="text-2xl font-bold font-mono">{orderNumber}</p>
+              </div>
+            )}
+
+            {orderStatus === '承認待ち' && (
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-md">
+                <p className="font-medium text-amber-800 mb-1">承認待ちです</p>
+                <p className="text-sm text-amber-700">
+                  お申込みを受け付けました。スタッフが確認後、承認いたします。承認されるまで発送はお控えください。
+                </p>
               </div>
             )}
 

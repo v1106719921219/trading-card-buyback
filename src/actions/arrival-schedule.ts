@@ -85,8 +85,8 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
     const dateProductMap = new Map<string, Map<string, number>>()
 
     for (const order of officeOrders) {
-      // 申込ステータスの注文は未発送として扱う
-      if ((order as { status: string }).status === '申込') {
+      // 申込・承認待ちステータスの注文は未発送として扱う
+      if ((order as { status: string }).status === '申込' || (order as { status: string }).status === '承認待ち') {
         const dateKey = 'not_shipped'
         if (!dateProductMap.has(dateKey)) {
           dateProductMap.set(dateKey, new Map())

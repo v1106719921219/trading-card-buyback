@@ -199,6 +199,25 @@ export default function OrderDetailPage() {
     fetchOrder()
   }
 
+  async function handleApprove() {
+    if (!order || changingStatus) return
+    setChangingStatus(true)
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: '申込' })
+      .eq('id', orderId)
+
+    setChangingStatus(false)
+    if (error) {
+      toast.error(`承認に失敗しました: ${error.message}`)
+      return
+    }
+
+    toast.success('注文を承認しました（ステータス: 申込）')
+    fetchOrder()
+  }
+
   async function handleDelete() {
     if (!order || deleting) return
     setDeleting(true)
@@ -867,6 +886,40 @@ export default function OrderDetailPage() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Status change */}
+          {order.status === '承認待ち' && (
+            <Card className="border-purple-200 bg-purple-50">
+              <CardHeader>
+                <CardTitle className="text-purple-800">承認待ち</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-purple-700">
+                  LINE未経由の申込です。内容を確認の上、承認してください。
+                </p>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button className="w-full bg-purple-600 hover:bg-purple-700" disabled={changingStatus}>
+                      {changingStatus ? '承認中...' : '承認する（申込に変更）'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>この注文を承認しますか？</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        承認すると「申込」ステータスに変更され、お客様が追跡番号を入力・発送できるようになります。
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleApprove}>
+                        承認する
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+          )}
+
           {allowedTransitions.length > 0 && (
             <Card>
               <CardHeader>

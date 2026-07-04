@@ -58,9 +58,10 @@ interface ApplyFormProps {
   priceDate?: string | null
   showAll?: boolean
   arQualityEnabled?: boolean
+  fromLine?: boolean
 }
 
-export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, showAll, arQualityEnabled }: ApplyFormProps) {
+export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, showAll, arQualityEnabled, fromLine }: ApplyFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -301,6 +302,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         shipped_date: shippedDate || undefined,
         price_date: priceDate || undefined,
         buyback_type: cart.some(item => item.product_name.includes('AR')) ? (arQualityEnabled ? selectedBuybackType : 'minimum_guarantee') : undefined,
+        from_line: fromLine ?? false,
       })
 
       setLoading(false)
