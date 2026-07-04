@@ -27,10 +27,6 @@ const P = {
   DARK: '#8a6a2a',
   DEEP: '#5a4518',
 }
-const RED = '#b91c1c'
-
-const GOLD_TEXT_GRADIENT = `linear-gradient(180deg, #fffbe8 0%, #fde8a4 18%, #e8c25c 35%, #d4a853 50%, #8a6a2a 65%, #e8c25c 82%, #fde8a4 100%)`
-const GOLD_METAL_GRADIENT = `linear-gradient(180deg, #fde8a4 0%, #e8c25c 25%, #d4a853 50%, #a88035 75%, #8a6a2a 100%)`
 
 type ProductWithRelations = Product & {
   category: Category | null
@@ -266,16 +262,6 @@ export default function PSA10ImagePage() {
   )
 }
 
-// --- Sparkle SVG ---
-function Sparkle({ size = 24, color = '#fffbe8' }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="-50 -50 100 100" style={{ filter: `drop-shadow(0 0 4px ${color})` }}>
-      <path d="M0 -50 L8 -8 L50 0 L8 8 L0 50 L-8 8 L-50 0 L-8 -8 Z" fill={color} />
-      <circle cx="0" cy="0" r="3" fill="#fff" />
-    </svg>
-  )
-}
-
 // --- PSA10 Canvas (1920x1080) ---
 const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   products: ProductWithRelations[]
@@ -292,14 +278,13 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
 
   const W = 1920
   const H = 1080
-  const padX = 22
-  const padY = 18
-  const headerH = 84
-  const footerH = 28
-  const gap = 2
+  const padX = 12
+  const gap = 3
 
-  const gridTop = padY + headerH + 8 + 8
-  const gridH = H - gridTop - padY - footerH - 4
+  // 背景画像のレイアウトに合わせた座標（ヘッダー帯 ~310px、フッター帯 ~990px〜）
+  const gridTop = 322
+  const gridBottom = 980
+  const gridH = gridBottom - gridTop
   const gridW = W - padX * 2
 
   // 枚数に応じて列数を自動計算（カードが縦長 約1.35 に近づく列数を選ぶ）
@@ -338,7 +323,7 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
       style={{
         width: W,
         height: H,
-        background: 'radial-gradient(ellipse at 50% 0%, #1a1408 0%, #000 60%)',
+        background: '#000',
         position: 'relative',
         overflow: 'hidden',
         fontFamily: '"Noto Sans JP", sans-serif',
@@ -346,99 +331,43 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         color: '#fff',
       }}
     >
-      {/* Background: gold diamond pattern */}
-      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.08, pointerEvents: 'none' }} viewBox="0 0 1920 1080" preserveAspectRatio="none">
-        <defs>
-          <pattern id="psa10-pat" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M20 0 L40 20 L20 40 L0 20 Z" stroke={P.BASE} strokeWidth="0.5" fill="none" />
-          </pattern>
-        </defs>
-        <rect width="1920" height="1080" fill="url(#psa10-pat)" />
-      </svg>
+      {/* Background image */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/assets/psa10-bg.png"
+        alt=""
+        style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, objectFit: 'fill', zIndex: 0 }}
+        crossOrigin="anonymous"
+      />
 
-      {/* Corner gold glow */}
+      {/* Logo inside white circle (top-left of bg) */}
       <div style={{
-        position: 'absolute', top: -200, right: -200, width: 600, height: 600,
-        background: `radial-gradient(circle, ${P.BASE}44 0%, transparent 60%)`,
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'absolute', bottom: -200, left: -200, width: 500, height: 500,
-        background: `radial-gradient(circle, ${P.BASE}33 0%, transparent 60%)`,
-        pointerEvents: 'none',
-      }} />
-
-      {/* Sparkles */}
-      {[
-        { top: 90, left: 200, size: 20 },
-        { top: 50, right: 340, size: 14 },
-        { top: 140, right: 500, size: 18 },
-        { bottom: 70, left: 300, size: 16 },
-        { bottom: 120, right: 280, size: 22 },
-        { top: 500, left: 12, size: 14 },
-        { top: 700, right: 10, size: 16 },
-      ].map((sp, i) => (
-        <div key={i} style={{
-          position: 'absolute',
-          top: 'top' in sp ? sp.top : undefined,
-          bottom: 'bottom' in sp ? sp.bottom : undefined,
-          left: 'left' in sp ? sp.left : undefined,
-          right: 'right' in sp ? sp.right : undefined,
-          zIndex: 3, pointerEvents: 'none', opacity: 0.7,
-        }}>
-          <Sparkle size={sp.size} />
-        </div>
-      ))}
-
-      {/* Header */}
-      <header style={{
-        position: 'absolute', top: padY, left: padX, right: padX, height: headerH,
-        display: 'flex', alignItems: 'center', gap: 16, zIndex: 4,
+        position: 'absolute', left: 100, top: 54, width: 205, height: 205,
+        borderRadius: '50%', zIndex: 4,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        {/* Logo */}
-        <div style={{
-          width: 80, height: 80, borderRadius: '50%',
-          background: '#fff', padding: 3,
-          boxShadow: `0 0 0 3px ${P.BASE}, 0 0 0 5px #111, 0 0 20px ${P.BASE}99, 0 4px 12px rgba(0,0,0,0.4)`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          position: 'relative', flexShrink: 0,
-        }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/assets/logo-full.png" alt="買取スクエア" style={{ height: 64, width: 64, objectFit: 'contain' }} crossOrigin="anonymous" />
-          <div style={{
-            position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)',
-            background: RED, color: '#fff', padding: '1px 8px',
-            fontSize: 7, fontWeight: 900, letterSpacing: '0.2em',
-            border: `1.5px solid ${P.BASE}`, borderRadius: 2, whiteSpace: 'nowrap',
-          }}>KAITORI SQUARE</div>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/assets/logo-full.png" alt="買取スクエア" style={{ width: 160, height: 160, objectFit: 'contain' }} crossOrigin="anonymous" />
+      </div>
 
-        {/* Title - use text-shadow instead of WebkitTextStroke+BackgroundClip */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
-          <h1 style={{
-            margin: 0,
-            fontSize: 48, fontWeight: 900,
-            letterSpacing: '0.04em',
-            lineHeight: 1,
-            whiteSpace: 'nowrap',
-            color: P.BASE,
-            textShadow: `0 0 8px ${P.BASE}88, 0 2px 0 #3a2c10, 0 4px 8px rgba(212,168,83,0.5)`,
-          }}>
-            PSA10買取表{pageLabel ? ` ${pageLabel}` : ''}
-          </h1>
-        </div>
-
-        {/* Update date badge */}
+      {/* Page label next to title */}
+      {pageLabel && (
         <div style={{
-          background: 'linear-gradient(180deg, #dc2626 0%, #b91c1c 50%, #7f1d1d 100%)',
-          color: '#fff',
-          padding: '7px 18px', fontSize: 16, fontWeight: 900,
-          letterSpacing: '0.08em',
-          border: `2px solid ${P.BASE}`,
-          borderRadius: 4, whiteSpace: 'nowrap',
-          boxShadow: '0 4px 10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.25)',
-        }}>{updatedDateStr}</div>
-      </header>
+          position: 'absolute', left: 1480, top: 108, zIndex: 4,
+          fontSize: 72, fontWeight: 900, lineHeight: 1,
+          color: P.LIGHT,
+          textShadow: `0 0 12px ${P.BASE}, 0 2px 4px rgba(0,0,0,0.8)`,
+        }}>{pageLabel}</div>
+      )}
+
+      {/* Update date inside top-right plaque */}
+      <div style={{
+        position: 'absolute', left: 1565, top: 46, width: 315, height: 84, zIndex: 4,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: P.LIGHT, fontSize: 30, fontWeight: 900,
+        letterSpacing: '0.06em', whiteSpace: 'nowrap',
+        textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+      }}>{updatedDateStr}</div>
 
       {/* Product cards - absolute positioning */}
       {products.map((product, index) => {
@@ -545,18 +474,18 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
 
       {/* Footer */}
       <footer style={{
-        position: 'absolute', bottom: padY, left: padX, right: padX, height: footerH,
+        position: 'absolute', top: 1000, left: padX, right: padX, height: 66,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 12, color: '#888',
+        fontSize: 18, color: '#aaa',
         letterSpacing: '0.04em', zIndex: 4,
       }}>
         <span>※買取価格は日付当日限り有効です。相場や在庫状況によって予告なく変更になる場合がございます。</span>
         <span style={{
-          marginLeft: 14,
+          marginLeft: 20,
           color: P.BASE,
           fontWeight: 900,
         }}>kaitorisquare.net</span>
-        <span style={{ marginLeft: 20, fontWeight: 900 }}>更新日：{updatedAt}</span>
+        <span style={{ marginLeft: 24, fontWeight: 900 }}>更新日：{updatedAt}</span>
       </footer>
     </div>
   )
