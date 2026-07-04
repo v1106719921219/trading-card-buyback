@@ -259,7 +259,7 @@ function CompleteContent() {
               <div className="bg-amber-50 border border-amber-200 p-4 rounded-md">
                 <p className="font-medium text-amber-800 mb-1">承認待ちです</p>
                 <p className="text-sm text-amber-700">
-                  お申込みを受け付けました。スタッフが確認後、承認いたします。承認されるまで発送はお控えください。
+                  お申込みを受け付けましたが、まだ承認されていません。<strong>必ずLINEにてご連絡ください。</strong>LINEでのご連絡が確認できない場合、承認されませんのでご注意ください。承認されるまで発送はお控えください。
                 </p>
               </div>
             )}
