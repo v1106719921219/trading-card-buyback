@@ -353,7 +353,10 @@ export default function PaymentsPage() {
                             onCheckedChange={() => toggleVerified(order.id, 'pending')}
                           />
                           {order.bank_verified && (
-                            <span className="text-[10px] text-green-600">発送時確認済</span>
+                            <>
+                              <span className="text-[10px] text-green-600">予定時確認済</span>
+                              <span className="text-[10px] text-red-600 font-medium">振込金額注意</span>
+                            </>
                           )}
                         </div>
                       </TableCell>
