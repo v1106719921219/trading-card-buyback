@@ -40,7 +40,7 @@ import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil, Plus, Check, ChevronsUpDown } from 'lucide-react'
-import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice, addOrderItem } from '@/actions/orders'
+import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice, addOrderItem, approveOrder } from '@/actions/orders'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
 import { STATUS_TRANSITIONS, STATUS_REVERT, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
@@ -203,18 +203,15 @@ export default function OrderDetailPage() {
     if (!order || changingStatus) return
     setChangingStatus(true)
 
-    const { error } = await supabase
-      .from('orders')
-      .update({ status: '申込' })
-      .eq('id', orderId)
+    const result = await approveOrder(orderId)
 
     setChangingStatus(false)
-    if (error) {
-      toast.error(`承認に失敗しました: ${error.message}`)
+    if (result.error) {
+      toast.error(`承認に失敗しました: ${result.error}`)
       return
     }
 
-    toast.success('注文を承認しました（ステータス: 申込）')
+    toast.success('注文を承認しました。確認メールを送信しました。')
     fetchOrder()
   }
 

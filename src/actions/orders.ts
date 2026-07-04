@@ -113,13 +113,16 @@ export async function createOrder(input: CreateOrderInput) {
   }
 
   // Send confirmation email (non-blocking, failure does not affect order)
-  sendOrderConfirmationEmail(
-    customer.customer_email,
-    order.order_number,
-    office_id
-  ).catch((err) => {
-    console.error('[createOrder] Email send error:', err)
-  })
+  // 承認待ちの場合はメール送信しない（承認後に送信）
+  if (from_line) {
+    sendOrderConfirmationEmail(
+      customer.customer_email,
+      order.order_number,
+      office_id
+    ).catch((err) => {
+      console.error('[createOrder] Email send error:', err)
+    })
+  }
 
   // Google Sheets backup
   try {
@@ -254,6 +257,44 @@ export async function updateOrderStatus(
   revalidatePath(`/admin/orders/${orderId}`)
   revalidatePath('/admin/orders')
   revalidatePath('/admin')
+  return { success: true }
+}
+
+export async function approveOrder(orderId: string) {
+  const supabase = await createClient()
+
+  const { data: order, error: fetchError } = await supabase
+    .from('orders')
+    .select('id, status, customer_email, order_number, office_id')
+    .eq('id', orderId)
+    .single()
+
+  if (fetchError || !order) {
+    return { error: '注文が見つかりません' }
+  }
+
+  if (order.status !== '承認待ち') {
+    return { error: 'この注文は承認待ちではありません' }
+  }
+
+  const { error } = await supabase
+    .from('orders')
+    .update({ status: '申込' })
+    .eq('id', orderId)
+
+  if (error) return { error: error.message }
+
+  // 承認後に確認メールを送信
+  sendOrderConfirmationEmail(
+    order.customer_email,
+    order.order_number,
+    order.office_id
+  ).catch((err) => {
+    console.error('[approveOrder] Email send error:', err)
+  })
+
+  revalidatePath(`/admin/orders/${orderId}`)
+  revalidatePath('/admin/orders')
   return { success: true }
 }
 
