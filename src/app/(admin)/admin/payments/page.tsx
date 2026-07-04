@@ -129,8 +129,10 @@ export default function PaymentsPage() {
     toast.success(newValue ? '適格事業者を解除しました' : '適格事業者に設定しました')
   }
 
-  async function toggleVerified(id: string) {
-    const order = orders.find((o) => o.id === id)
+  async function toggleVerified(id: string, listType: 'pending' | 'shipped') {
+    const list = listType === 'pending' ? orders : shippedOrders
+    const setList = listType === 'pending' ? setOrders : setShippedOrders
+    const order = list.find((o) => o.id === id)
     if (!order) return
     const newValue = !order.bank_verified
     const { error } = await supabase
@@ -141,7 +143,7 @@ export default function PaymentsPage() {
       toast.error('口座確認の更新に失敗しました')
       return
     }
-    setOrders(orders.map((o) => o.id === id ? { ...o, bank_verified: newValue } : o))
+    setList(list.map((o) => o.id === id ? { ...o, bank_verified: newValue } : o))
   }
 
   async function toggleAll() {
@@ -345,10 +347,15 @@ export default function PaymentsPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        <Checkbox
-                          checked={order.bank_verified}
-                          onCheckedChange={() => toggleVerified(order.id)}
-                        />
+                        <div className="flex flex-col items-center gap-1">
+                          <Checkbox
+                            checked={order.bank_verified}
+                            onCheckedChange={() => toggleVerified(order.id, 'pending')}
+                          />
+                          {order.bank_verified && (
+                            <span className="text-[10px] text-green-600">発送時確認済</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {((order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)).toLocaleString()}円
@@ -395,6 +402,7 @@ export default function PaymentsPage() {
                   <TableHead>注文番号</TableHead>
                   <TableHead>お客様名</TableHead>
                   <TableHead className="hidden md:table-cell">振込先</TableHead>
+                  <TableHead className="w-20 text-center">口座確認</TableHead>
                   <TableHead className="text-right">振込予定金額</TableHead>
                   <TableHead className="hidden sm:table-cell">申込日</TableHead>
                   <TableHead className="w-12"></TableHead>
@@ -403,13 +411,13 @@ export default function PaymentsPage() {
               <TableBody>
                 {shippedLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       読み込み中...
                     </TableCell>
                   </TableRow>
                 ) : shippedOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       発送済の注文はありません
                     </TableCell>
                   </TableRow>
@@ -452,6 +460,12 @@ export default function PaymentsPage() {
                         ) : (
                           <span className="text-muted-foreground">未登録</span>
                         )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Checkbox
+                          checked={order.bank_verified}
+                          onCheckedChange={() => toggleVerified(order.id, 'shipped')}
+                        />
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {order.total_amount.toLocaleString()}円
