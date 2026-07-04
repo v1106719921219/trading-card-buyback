@@ -347,7 +347,7 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/assets/logo-full.png" alt="買取スクエア" style={{ width: 160, height: 160, objectFit: 'contain' }} crossOrigin="anonymous" />
+        <img src="/assets/logo-full.png" alt="買取スクエア" style={{ width: 200, height: 200, objectFit: 'contain' }} crossOrigin="anonymous" />
       </div>
 
       {/* Page label next to title */}
