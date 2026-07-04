@@ -157,9 +157,8 @@ export default function PSA10ImagePage() {
   const noImageCount = selectedProducts.filter((p) => !p.image_url).length
 
   const needsSplit = selectedProducts.length > MAX_PER_PAGE
-  const splitAt = needsSplit ? Math.ceil(selectedProducts.length / 2) : selectedProducts.length
-  const page1Products = selectedProducts.slice(0, splitAt)
-  const page2Products = needsSplit ? selectedProducts.slice(splitAt) : []
+  const page1Products = selectedProducts.slice(0, MAX_PER_PAGE)
+  const page2Products = needsSplit ? selectedProducts.slice(MAX_PER_PAGE) : []
 
   return (
     <div>
