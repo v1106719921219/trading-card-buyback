@@ -135,15 +135,17 @@ export default function PaymentsPage() {
     const order = list.find((o) => o.id === id)
     if (!order) return
     const newValue = !order.bank_verified
+    // チェック時: どの段階で確認したかを記録（shipped=振込予定時、pending=振込待ち時）
+    const newStage = newValue ? (listType === 'shipped' ? '発送済' as const : '検品完了' as const) : null
     const { error } = await supabase
       .from('orders')
-      .update({ bank_verified: newValue })
+      .update({ bank_verified: newValue, bank_verified_stage: newStage })
       .eq('id', id)
     if (error) {
       toast.error('口座確認の更新に失敗しました')
       return
     }
-    setList(list.map((o) => o.id === id ? { ...o, bank_verified: newValue } : o))
+    setList(list.map((o) => o.id === id ? { ...o, bank_verified: newValue, bank_verified_stage: newStage } : o))
   }
 
   async function toggleAll() {
@@ -352,7 +354,7 @@ export default function PaymentsPage() {
                             checked={order.bank_verified}
                             onCheckedChange={() => toggleVerified(order.id, 'pending')}
                           />
-                          {order.bank_verified && (
+                          {order.bank_verified && order.bank_verified_stage === '発送済' && (
                             <>
                               <span className="text-[10px] text-green-600">予定時確認済</span>
                               <span className="text-[10px] text-red-600 font-medium">振込金額注意</span>
