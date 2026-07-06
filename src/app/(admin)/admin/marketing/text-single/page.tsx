@@ -185,6 +185,21 @@ export default function SinglePromoTextPage() {
             <CardContent><Textarea value={header} onChange={(e) => setHeader(e.target.value)} rows={2} className="resize-none font-mono text-sm" /></CardContent>
           </Card>
 
+          <div className="flex items-center justify-between flex-wrap gap-2 rounded-lg border bg-card px-4 py-3">
+            <p className="text-xs text-muted-foreground">
+              チェックを変更したら「デフォルトとして保存」で次回以降も同じ選択が維持されます
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={saveDefaults} disabled={saving} className="gap-1">
+                <Save className="h-3.5 w-3.5" />
+                デフォルトとして保存
+              </Button>
+              <Button variant="ghost" size="icon" onClick={fetchData} title="再読み込み">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
@@ -262,12 +277,6 @@ export default function SinglePromoTextPage() {
             <CardContent><Textarea value={footer} onChange={(e) => setFooter(e.target.value)} rows={4} className="resize-none font-mono text-sm" /></CardContent>
           </Card>
 
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={saveDefaults} disabled={saving} className="gap-1">
-              <Save className="h-3.5 w-3.5" />デフォルト保存
-            </Button>
-            <Button variant="ghost" size="icon" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
-          </div>
         </div>
 
         <div>

@@ -173,6 +173,19 @@ export default function SinglePromoImagePage() {
 
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2 rounded-lg border bg-card px-4 py-3">
+            <p className="text-xs text-muted-foreground">
+              チェックを変更したら「デフォルトとして保存」で次回以降も同じ選択が維持されます
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">計 {totalSelected} 件選択中</span>
+              <Button variant="outline" size="sm" onClick={saveDefaults} disabled={saving} className="gap-1">
+                <Save className="h-3.5 w-3.5" />
+                デフォルトとして保存
+              </Button>
+            </div>
+          </div>
+
           {/* シングルカード選択 */}
           <Card>
             <CardHeader className="pb-3">
@@ -244,12 +257,6 @@ export default function SinglePromoImagePage() {
             </CardContent>
           </Card>
 
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={saveDefaults} disabled={saving} className="gap-1">
-              <Save className="h-3.5 w-3.5" />デフォルト保存
-            </Button>
-            <span className="text-sm text-muted-foreground self-center">計 {totalSelected} 件選択中</span>
-          </div>
         </div>
 
         {/* プレビュー */}

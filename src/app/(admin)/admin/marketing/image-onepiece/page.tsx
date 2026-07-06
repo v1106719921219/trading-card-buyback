@@ -13,6 +13,8 @@ import { toast } from 'sonner'
 import type { Product, Category, Subcategory } from '@/types/database'
 
 const SETTING_KEY = 'sns_onepiece_box_default_products'
+const BOX_SUBCATEGORY_ID = '09daefe5-d36f-4ccd-931b-e42f3191ff4a'
+const PROMO_SUBCATEGORY_ID = '8f5717b7-0a69-4ca4-b012-85608793695f'
 const COLS = 8
 
 type Trend = 'up' | 'down' | 'flat'
@@ -52,7 +54,7 @@ export default function MarketingImagePage() {
         .select('*, category:categories(*), subcategory:subcategories(*)')
         .eq('is_active', true)
         .eq('category_id', '3fbd50ad-f5b6-4541-b08b-f87d107dae9c')
-        .eq('subcategory_id', '09daefe5-d36f-4ccd-931b-e42f3191ff4a')
+        .in('subcategory_id', [BOX_SUBCATEGORY_ID, PROMO_SUBCATEGORY_ID])
         .order('sort_order'),
       supabase
         .from('products')
@@ -91,15 +93,22 @@ export default function MarketingImagePage() {
       }
     }
 
-    const prods = ((productsResult.data || []) as ProductWithRelations[]).map((p): ProductWithTrend => {
+    const fetched = (productsResult.data || []) as ProductWithRelations[]
+    // BOX → プロモの順に並べる（各グループ内はsort_order順を維持）
+    const ordered = [
+      ...fetched.filter((p) => p.subcategory_id === BOX_SUBCATEGORY_ID),
+      ...fetched.filter((p) => p.subcategory_id === PROMO_SUBCATEGORY_ID),
+    ]
+    const prods = ordered.map((p): ProductWithTrend => {
       const prevPrice = prevPriceMap.get(p.id)
       let trend: Trend = 'flat'
       if (prevPrice != null) {
         if (p.price > prevPrice) trend = 'up'
         else if (p.price < prevPrice) trend = 'down'
       }
+      // カートン価格の併記はBOXのみ（プロモには適用しない）
       const baseName = p.name.replace(/\s*(カートン|ボックス)\s*$/i, '').trim()
-      const cartonPrice = cartonPriceMap.get(baseName) ?? null
+      const cartonPrice = p.subcategory_id === BOX_SUBCATEGORY_ID ? (cartonPriceMap.get(baseName) ?? null) : null
       return { ...p, price_no_shrink: cartonPrice, trend }
     })
 
@@ -217,9 +226,14 @@ export default function MarketingImagePage() {
                 <p className="text-sm text-muted-foreground">読み込み中...</p>
               ) : (
                 <div className="space-y-1.5 max-h-[70vh] overflow-y-auto pr-1">
-                  {products.map((product) => (
+                  {products.map((product, index) => (
+                    <React.Fragment key={product.id}>
+                    {(index === 0 || products[index - 1].subcategory_id !== product.subcategory_id) && (
+                      <p className="text-xs font-semibold text-muted-foreground pt-2 first:pt-0">
+                        {product.subcategory?.name ?? 'その他'}
+                      </p>
+                    )}
                     <label
-                      key={product.id}
                       className="flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
                     >
                       <Checkbox
@@ -244,6 +258,7 @@ export default function MarketingImagePage() {
                         {product.price.toLocaleString('ja-JP')}円
                       </Badge>
                     </label>
+                    </React.Fragment>
                   ))}
                 </div>
               )}

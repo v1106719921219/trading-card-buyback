@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -15,6 +15,9 @@ import type { Product, Category, Subcategory } from '@/types/database'
 const SETTING_KEY = 'sns_onepiece_box_default_products'
 const CATEGORY_ID = '3fbd50ad-f5b6-4541-b08b-f87d107dae9c'
 const BOX_SUBCATEGORY_ID = '09daefe5-d36f-4ccd-931b-e42f3191ff4a'
+const PROMO_SUBCATEGORY_ID = '8f5717b7-0a69-4ca4-b012-85608793695f'
+
+const PROMO_HEADER = `🎁ワンピースプロモカードも高価買取中🎁`
 
 const DEFAULT_HEADER = `🏴‍☠️ワンピースカードBOX 高価買取中🏴‍☠️`
 
@@ -53,7 +56,7 @@ export default function MarketingPage() {
         .select('*, category:categories(*), subcategory:subcategories(*)')
         .eq('is_active', true)
         .eq('category_id', CATEGORY_ID)
-        .eq('subcategory_id', BOX_SUBCATEGORY_ID)
+        .in('subcategory_id', [BOX_SUBCATEGORY_ID, PROMO_SUBCATEGORY_ID])
         .order('sort_order'),
       supabase
         .from('app_settings')
@@ -68,7 +71,12 @@ export default function MarketingPage() {
       return
     }
 
-    const prods = (productsResult.data || []) as ProductWithRelations[]
+    const fetched = (productsResult.data || []) as ProductWithRelations[]
+    // BOX → プロモの順に並べる（各グループ内はsort_order順を維持）
+    const prods = [
+      ...fetched.filter((p) => p.subcategory_id === BOX_SUBCATEGORY_ID),
+      ...fetched.filter((p) => p.subcategory_id === PROMO_SUBCATEGORY_ID),
+    ]
     setProducts(prods)
 
     // 保存済みのデフォルト選択があればそれを使用、なければ全選択
@@ -125,11 +133,16 @@ export default function MarketingPage() {
   }
 
   const selectedProducts = products.filter((p) => selectedIds.has(p.id))
+  const selectedBox = selectedProducts.filter((p) => p.subcategory_id === BOX_SUBCATEGORY_ID)
+  const selectedPromo = selectedProducts.filter((p) => p.subcategory_id === PROMO_SUBCATEGORY_ID)
 
   const generatedMessage = [
     header,
     '',
-    ...selectedProducts.map((p) => formatProductLine(p)),
+    ...selectedBox.map((p) => formatProductLine(p)),
+    ...(selectedPromo.length > 0
+      ? ['', PROMO_HEADER, '', ...selectedPromo.map((p) => formatProductLine(p))]
+      : []),
     '',
     footer,
   ].join('\n')
@@ -208,10 +221,17 @@ export default function MarketingPage() {
                 <p className="text-sm text-muted-foreground">表示対象の商品がありません</p>
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                  {products.map((product) => {
+                  {products.map((product, index) => {
+                    const prevSub = index > 0 ? products[index - 1].subcategory_id : null
+                    const showGroupLabel = product.subcategory_id !== prevSub
                     return (
+                      <React.Fragment key={product.id}>
+                      {showGroupLabel && (
+                        <p className="text-xs font-semibold text-muted-foreground pt-2 first:pt-0">
+                          {product.subcategory?.name ?? 'その他'}
+                        </p>
+                      )}
                       <label
-                        key={product.id}
                         className="flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
                       >
                         <Checkbox
@@ -223,6 +243,7 @@ export default function MarketingPage() {
                           {product.price.toLocaleString('ja-JP')}円
                         </Badge>
                       </label>
+                      </React.Fragment>
                     )
                   })}
                 </div>
