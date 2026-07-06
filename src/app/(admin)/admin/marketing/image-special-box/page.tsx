@@ -209,7 +209,7 @@ export default function SpecialBoxImagePage() {
                       )}
                       <span className="flex-1 text-sm truncate">{product.name}</span>
                       <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">
-                        {product.price > 0 ? `${product.price.toLocaleString('ja-JP')}円` : '応談'}
+                        {product.price > 0 ? `${product.price.toLocaleString('ja-JP')}円` : 'ASK'}
                       </Badge>
                     </label>
                   ))}
@@ -356,7 +356,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
               background: '#111', height: priceH, borderRadius: '0 0 2px 2px',
             }}>
               <span style={{ color: '#FCD34D', fontSize: priceFontSize, fontWeight: 900, lineHeight: 1, letterSpacing: '-0.01em' }}>
-                {product.price > 0 ? `¥${product.price.toLocaleString('ja-JP')}` : '応談'}
+                {product.price > 0 ? `¥${product.price.toLocaleString('ja-JP')}` : 'ASK'}
               </span>
             </div>
           </div>

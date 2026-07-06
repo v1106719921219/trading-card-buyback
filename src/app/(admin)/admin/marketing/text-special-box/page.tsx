@@ -30,7 +30,7 @@ type ProductWithRelations = Product & {
 }
 
 function formatProductLine(product: ProductWithRelations): string {
-  const price = product.price > 0 ? `${product.price.toLocaleString('ja-JP')}円` : '応談'
+  const price = product.price > 0 ? `${product.price.toLocaleString('ja-JP')}円` : 'ASK'
   return `${product.name}🔥\n👉【${price}】`
 }
 
@@ -196,7 +196,7 @@ export default function SpecialBoxTextPage() {
                       <Checkbox checked={selectedIds.has(product.id)} onCheckedChange={() => toggleProduct(product.id)} />
                       <span className="flex-1 text-sm font-medium truncate">{product.name}</span>
                       <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">
-                        {product.price > 0 ? `${product.price.toLocaleString('ja-JP')}円` : '応談'}
+                        {product.price > 0 ? `${product.price.toLocaleString('ja-JP')}円` : 'ASK'}
                       </Badge>
                     </label>
                   ))}

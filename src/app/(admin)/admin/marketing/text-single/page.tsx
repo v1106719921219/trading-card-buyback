@@ -32,7 +32,7 @@ type ProductWithRelations = Product & {
 }
 
 function formatProductLine(product: ProductWithRelations): string {
-  const price = product.price > 0 ? `${product.price.toLocaleString('ja-JP')}円` : '応談'
+  const price = product.price > 0 ? `${product.price.toLocaleString('ja-JP')}円` : 'ASK'
   return `${product.name}👉【${price}】`
 }
 
@@ -215,7 +215,7 @@ export default function SinglePromoTextPage() {
                       <Checkbox checked={selectedSingleIds.has(p.id)} onCheckedChange={() => toggleSingle(p.id)} />
                       <span className="flex-1 text-sm truncate">{p.name}</span>
                       <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">
-                        {p.price > 0 ? `${p.price.toLocaleString('ja-JP')}円` : '応談'}
+                        {p.price > 0 ? `${p.price.toLocaleString('ja-JP')}円` : 'ASK'}
                       </Badge>
                     </label>
                   ))}
@@ -239,7 +239,7 @@ export default function SinglePromoTextPage() {
                       <Checkbox checked={selectedPromoIds.has(p.id)} onCheckedChange={() => togglePromo(p.id)} />
                       <span className="flex-1 text-sm truncate">{p.name}</span>
                       <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">
-                        {p.price > 0 ? `${p.price.toLocaleString('ja-JP')}円` : '応談'}
+                        {p.price > 0 ? `${p.price.toLocaleString('ja-JP')}円` : 'ASK'}
                       </Badge>
                     </label>
                   ))}
@@ -263,7 +263,7 @@ export default function SinglePromoTextPage() {
                       <Checkbox checked={selectedSpecialBoxIds.has(p.id)} onCheckedChange={() => toggleSpecialBox(p.id)} />
                       <span className="flex-1 text-sm truncate">{p.name}</span>
                       <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">
-                        {p.price > 0 ? `${p.price.toLocaleString('ja-JP')}円` : '応談'}
+                        {p.price > 0 ? `${p.price.toLocaleString('ja-JP')}円` : 'ASK'}
                       </Badge>
                     </label>
                   ))}
