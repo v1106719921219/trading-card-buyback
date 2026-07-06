@@ -72,11 +72,10 @@ function NavLinks({ profile, onNavigate }: { profile: Profile; onNavigate?: () =
     <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
       {filteredItems.map((item) => {
         const isActive =
-          item.href === '/admin'
-            ? pathname === '/admin'
-            : item.href === '/admin/products'
-              ? pathname === '/admin/products'
-              : pathname.startsWith(item.href)
+          pathname === item.href ||
+          (pathname.startsWith(item.href + '/') &&
+            // 前方一致は、より具体的なメニュー項目が存在しない場合のみ有効
+            !navItems.some((other) => other.href !== item.href && other.href.startsWith(item.href + '/') && (pathname === other.href || pathname.startsWith(other.href + '/'))))
         return (
           <Link
             key={item.href}
