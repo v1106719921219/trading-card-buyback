@@ -54,16 +54,28 @@ export default async function ApplyPage({
   // price_date 指定時: 指定日の翌日以降に変更された価格履歴から old_price を取得して上書き
   // 指定日の終わり時点の価格を表示するため、翌日0時以降の変更を対象にする
   if (priceDate) {
-    const nextDay = new Date(priceDate + 'T00:00:00+09:00')
-    nextDay.setDate(nextDay.getDate() + 1)
+    // タイムゾーンに依存しない翌日計算（UTC固定で日付演算のみ行う）
+    const nextDay = new Date(priceDate + 'T00:00:00Z')
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1)
     const nextDayStr = nextDay.toISOString().split('T')[0]
-    const { data: historyData } = await supabase
-      .from('product_price_history')
-      .select('product_id, old_price, changed_at')
-      .gte('changed_at', nextDayStr + 'T00:00:00+09:00')
-      .order('changed_at', { ascending: true })
 
-    if (historyData && historyData.length > 0) {
+    // Supabaseの1000行制限を回避するためページネーションで全件取得
+    const historyData: { product_id: string | null; old_price: number; changed_at: string }[] = []
+    const pageSize = 1000
+    for (let page = 0; ; page++) {
+      const { data: chunk } = await supabase
+        .from('product_price_history')
+        .select('product_id, old_price, changed_at')
+        .gte('changed_at', nextDayStr + 'T00:00:00+09:00')
+        .order('changed_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(page * pageSize, (page + 1) * pageSize - 1)
+      if (!chunk || chunk.length === 0) break
+      historyData.push(...chunk)
+      if (chunk.length < pageSize) break
+    }
+
+    if (historyData.length > 0) {
       // 各商品について、指定日以降の最初の変更の old_price を使う
       const priceMap = new Map<string, number>()
       for (const h of historyData) {
