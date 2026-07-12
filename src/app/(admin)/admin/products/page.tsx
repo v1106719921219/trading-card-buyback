@@ -329,6 +329,12 @@ async function syncToChiba() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
+    // セット型番は在庫管理システムとの紐付けキーのため未入力なら警告
+    if (!formSetNumber.trim()) {
+      const ok = confirm('セット型番が未入力です。\nセット型番は在庫管理システムとの自動紐付けに使用されます。\nこのまま保存しますか？')
+      if (!ok) return
+    }
+
     if (editing) {
       const updateData: Record<string, unknown> = { name: formName, model_number: formModelNumber || null, set_number: formSetNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, price_no_shrink: formPriceNoShrink }
       if (formImageUrl !== null) updateData.image_url = formImageUrl
@@ -917,7 +923,13 @@ async function syncToChiba() {
                       value={formSetNumber}
                       onChange={(e) => setFormSetNumber(e.target.value)}
                       placeholder="例: SV8a"
+                      className={!formSetNumber.trim() ? 'border-amber-400' : undefined}
                     />
+                    {!formSetNumber.trim() && (
+                      <p className="text-xs text-amber-600">
+                        未入力です。在庫管理との自動紐付けに使用されます（BOX等はsv8a・OP-15のような型番）
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>買取価格・シュリンク付き（円）</Label>
