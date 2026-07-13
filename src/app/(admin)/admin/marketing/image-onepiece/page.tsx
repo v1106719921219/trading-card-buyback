@@ -34,7 +34,8 @@ export default function MarketingImagePage() {
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const previewRef = useRef<HTMLDivElement>(null)
+  const previewRef1 = useRef<HTMLDivElement>(null)
+  const previewRef2 = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
   // Noto Sans JPをページに動的に読み込む
@@ -157,8 +158,19 @@ export default function MarketingImagePage() {
     else toast.success('デフォルト選択を保存しました')
   }
 
+  async function downloadRef(ref: React.RefObject<HTMLDivElement | null>, filename: string) {
+    if (!ref.current) return
+    const { toPng } = await import('html-to-image')
+    const options = { quality: 1, pixelRatio: 2 }
+    await toPng(ref.current, options)
+    const dataUrl = await toPng(ref.current, options)
+    const a = document.createElement('a')
+    a.href = dataUrl
+    a.download = filename
+    a.click()
+  }
+
   async function handleDownload() {
-    if (!previewRef.current) return
     setDownloading(true)
     try {
       await document.fonts.load('700 16px "Noto Sans JP"')
@@ -166,17 +178,15 @@ export default function MarketingImagePage() {
       await document.fonts.load('900 16px "Noto Sans JP"')
       await document.fonts.ready
 
-      const { toPng } = await import('html-to-image')
-      const options = { quality: 1, pixelRatio: 2 }
-
-      await toPng(previewRef.current, options)
-      const dataUrl = await toPng(previewRef.current, options)
-
-      const a = document.createElement('a')
-      a.href = dataUrl
-      a.download = `買取価格表_${new Date().toLocaleDateString('ja-JP').replace(/\//g, '')}.png`
-      a.click()
-      toast.success('画像をダウンロードしました')
+      const dateStr = new Date().toLocaleDateString('ja-JP').replace(/\//g, '')
+      if (totalPages >= 2) {
+        await downloadRef(previewRef1, `ワンピース買取価格表_1_${dateStr}.png`)
+        await downloadRef(previewRef2, `ワンピース買取価格表_2_${dateStr}.png`)
+        toast.success(`${totalPages}枚の画像をダウンロードしました`)
+      } else {
+        await downloadRef(previewRef1, `ワンピース買取価格表_${dateStr}.png`)
+        toast.success('画像をダウンロードしました')
+      }
     } catch (e) {
       console.error(e)
       toast.error('画像の生成に失敗しました')
@@ -187,6 +197,11 @@ export default function MarketingImagePage() {
 
   const selectedProducts = products.filter((p) => selectedIds.has(p.id))
   const noImageCount = selectedProducts.filter((p) => !p.image_url).length
+
+  const perPage = 24
+  const totalPages = Math.ceil(selectedProducts.length / perPage)
+  const page1Products = selectedProducts.slice(0, perPage)
+  const page2Products = selectedProducts.slice(perPage, perPage * 2)
 
   return (
     <div>
@@ -269,21 +284,38 @@ export default function MarketingImagePage() {
         {/* 右カラム: プレビュー */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">プレビュー（1920×1080 / X推奨 16:9）</p>
+            <p className="text-sm text-muted-foreground">
+              プレビュー（1920×1080 / X推奨 16:9）{totalPages > 1 && ` — ${totalPages}枚に分割`}
+            </p>
             <Button onClick={handleDownload} disabled={downloading || selectedIds.size === 0} className="gap-2">
               <Download className="h-4 w-4" />
-              {downloading ? '生成中...' : 'PNG ダウンロード'}
+              {downloading ? '生成中...' : totalPages > 1 ? `${totalPages}枚ダウンロード` : 'PNG ダウンロード'}
             </Button>
           </div>
 
-          <div className="overflow-auto border rounded-lg bg-muted/30">
-            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px' }}>
+          {totalPages > 1 && <p className="text-xs text-muted-foreground">1枚目</p>}
+          <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
+            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
               <PriceImageCanvas
-                ref={previewRef}
-                products={selectedProducts}
+                ref={previewRef1}
+                products={page1Products}
               />
             </div>
           </div>
+
+          {page2Products.length > 0 && (
+            <>
+              <p className="text-xs text-muted-foreground">2枚目</p>
+              <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
+                <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
+                  <PriceImageCanvas
+                    ref={previewRef2}
+                    products={page2Products}
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -309,7 +341,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
   const gridW = W - padX * 2
 
   const cols = COLS
-  const rows = Math.ceil(products.length / cols)
+  const rows = 3
 
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellH = Math.floor((gridH - gap * (rows - 1)) / rows)
@@ -337,6 +369,18 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
         style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, objectFit: 'cover', zIndex: 0 }}
         crossOrigin="anonymous"
       />
+
+      {/* Title overlay（背景画像のタイトルを上書き） */}
+      <div style={{
+        position: 'absolute', top: 30, left: 545, width: 880, height: 68,
+        background: '#111', borderRadius: 34,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1,
+      }}>
+        <span style={{ color: '#fff', fontSize: 36, fontWeight: 900, letterSpacing: '0.02em', lineHeight: 1 }}>
+          ワンピースカードBOX/プロモ 買取価格表
+        </span>
+      </div>
 
       {/* Product cards */}
       {products.map((product, index) => {
