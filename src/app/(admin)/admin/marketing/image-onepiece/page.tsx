@@ -198,10 +198,13 @@ export default function MarketingImagePage() {
   const selectedProducts = products.filter((p) => selectedIds.has(p.id))
   const noImageCount = selectedProducts.filter((p) => !p.image_url).length
 
-  const perPage = 24
-  const totalPages = Math.ceil(selectedProducts.length / perPage)
-  const page1Products = selectedProducts.slice(0, perPage)
-  const page2Products = selectedProducts.slice(perPage, perPage * 2)
+  // 1枚目: BOX、2枚目: プロモ（BOXが32件を超えた分は2枚目の先頭へ）
+  const perPage = 32
+  const boxProducts = selectedProducts.filter((p) => p.subcategory_id === BOX_SUBCATEGORY_ID)
+  const promoProducts = selectedProducts.filter((p) => p.subcategory_id === PROMO_SUBCATEGORY_ID)
+  const page1Products = boxProducts.slice(0, perPage)
+  const page2Products = [...boxProducts.slice(perPage), ...promoProducts].slice(0, perPage)
+  const totalPages = page2Products.length > 0 ? 2 : 1
 
   return (
     <div>
@@ -341,7 +344,7 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
   const gridW = W - padX * 2
 
   const cols = COLS
-  const rows = 3
+  const rows = 4
 
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellH = Math.floor((gridH - gap * (rows - 1)) / rows)
