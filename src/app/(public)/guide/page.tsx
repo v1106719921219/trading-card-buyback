@@ -161,7 +161,7 @@ export default function GuidePage() {
                 </Table>
               </div>
               <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-5">
-                <p className="text-base text-yellow-300 flex items-start gap-3">
+                <p className="text-base text-yellow-800 flex items-start gap-3">
                   <AlertTriangle className="h-6 w-6 shrink-0 mt-0.5" />
                   <span>
                     <strong>初回のお取引では運転免許証はご利用いただけません。</strong><br />
