@@ -103,7 +103,14 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold mb-3">10. 本人確認書類の偽造・不正利用</h2>
+            <h2 className="text-xl font-bold mb-3">10. キャンセル・返品について</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              買取お申し込み後のお客様都合によるキャンセル・返品はできません。
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold mb-3">11. 本人確認書類の偽造・不正利用</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
               本人以外の書類や偽造書類を使用した場合、法的措置を取らせていただきます。
             </p>

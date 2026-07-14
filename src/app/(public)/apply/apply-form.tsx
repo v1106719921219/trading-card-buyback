@@ -1000,6 +1000,9 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                   <p className="text-xs text-muted-foreground">
                     ※ 実際の買取金額は検品後に確定します
                   </p>
+                  <p className="text-xs font-bold text-red-600">
+                    ※ 買取お申し込み後のお客様都合によるキャンセル・返品はできません
+                  </p>
                 </div>
               </div>
 

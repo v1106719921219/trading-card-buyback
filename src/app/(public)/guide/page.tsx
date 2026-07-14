@@ -133,6 +133,9 @@ export default function GuidePage() {
                 必ずお申込み時に同意された数量をお送りください。超過分は着払いにてご返送いたします。
               </p>
               <p className="text-base sm:text-lg font-bold text-foreground">
+                買取お申し込み後のお客様都合によるキャンセル・返品はできません。
+              </p>
+              <p className="text-base sm:text-lg font-bold text-foreground">
                 必要書類について:
               </p>
               <div className="overflow-x-auto">
