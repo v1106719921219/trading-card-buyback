@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
@@ -50,7 +50,10 @@ import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRol
 export default function OrderDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const orderId = params.id as string
+  // 事務所ページから開いた場合のみ事務所の注文一覧に戻る（?from=office）
+  const fromOffice = searchParams.get('from') === 'office'
 
   const [order, setOrder] = useState<Order | null>(null)
   const [items, setItems] = useState<OrderItem[]>([])
@@ -354,7 +357,7 @@ export default function OrderDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href={order.office_id ? `/admin/offices/${order.office_id}` : '/admin/orders'}>
+        <Link href={fromOffice && order.office_id ? `/admin/offices/${order.office_id}` : '/admin/orders'}>
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>

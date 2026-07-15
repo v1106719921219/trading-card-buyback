@@ -208,7 +208,7 @@ export default function OfficeOrdersPage() {
     return (
       <TableRow key={order.id}>
         <TableCell className="font-mono text-sm">
-          <Link href={`/admin/orders/${order.id}`} className="text-primary hover:underline" title={order.order_number}>
+          <Link href={`/admin/orders/${order.id}?from=office`} className="text-primary hover:underline" title={order.order_number}>
             {order.order_number.replace(/^BB-\d{8}-/, 'BB-')}
           </Link>
         </TableCell>
@@ -238,7 +238,7 @@ export default function OfficeOrdersPage() {
           {new Date(order.created_at).toLocaleDateString('ja-JP')}
         </TableCell>
         <TableCell>
-          <Link href={`/admin/orders/${order.id}`}>
+          <Link href={`/admin/orders/${order.id}?from=office`}>
             <Button variant="ghost" size="icon">
               <Eye className="h-4 w-4" />
             </Button>
