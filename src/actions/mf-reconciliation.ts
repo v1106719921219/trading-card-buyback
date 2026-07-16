@@ -195,12 +195,14 @@ export async function reconcileMfForOrders(
       }
     }
 
-    // 7. 注文と紐付かなかったMF出金のうち、振込らしきもの（摘要に「振込」を含む）
+    // 7. 注文と紐付かなかったMF出金のうち、振込らしきもの（摘要に「振込」を含む、手数料は除外）
     const unmatchedMfTransactions = mfWithdrawals.filter(
       (tx) =>
         !usedTxnIds.has(tx.id) &&
         !duplicateTxnIds.has(tx.id) &&
-        (tx.description.includes('振込') || tx.memo.includes('振込'))
+        (tx.description.includes('振込') || tx.memo.includes('振込')) &&
+        !tx.description.includes('手数料') &&
+        !tx.memo.includes('手数料')
     )
 
     return {
