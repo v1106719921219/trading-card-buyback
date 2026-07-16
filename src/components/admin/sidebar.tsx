@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/sheet'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Profile } from '@/types/database'
 
 const navItems = [
@@ -63,6 +63,19 @@ const navItems = [
 
 function NavLinks({ profile, onNavigate }: { profile: Profile; onNavigate?: () => void }) {
   const pathname = usePathname()
+  const [officeLinks, setOfficeLinks] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('offices')
+      .select('id, name')
+      .eq('is_active', true)
+      .order('name')
+      .then(({ data }) => {
+        if (data) setOfficeLinks(data)
+      })
+  }, [])
 
   const filteredItems = navItems.filter(
     (item) => !item.adminOnly || profile.role === 'admin'
@@ -75,22 +88,45 @@ function NavLinks({ profile, onNavigate }: { profile: Profile; onNavigate?: () =
           pathname === item.href ||
           (pathname.startsWith(item.href + '/') &&
             // 前方一致は、より具体的なメニュー項目が存在しない場合のみ有効
-            !navItems.some((other) => other.href !== item.href && other.href.startsWith(item.href + '/') && (pathname === other.href || pathname.startsWith(other.href + '/'))))
+            !navItems.some((other) => other.href !== item.href && other.href.startsWith(item.href + '/') && (pathname === other.href || pathname.startsWith(other.href + '/'))) &&
+            // 事務所サブメニューが該当する場合は親をハイライトしない
+            !(item.href === '/admin/offices' && officeLinks.some((o) => pathname.startsWith(`/admin/offices/${o.id}`))))
         return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            className={cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-              isActive
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            )}
-          >
-            <item.icon className="h-4 w-4" />
-            {item.label}
-          </Link>
+          <div key={item.href}>
+            <Link
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
+            </Link>
+            {item.href === '/admin/offices' &&
+              officeLinks.map((office) => {
+                const officeHref = `/admin/offices/${office.id}`
+                const officeActive = pathname.startsWith(officeHref)
+                return (
+                  <Link
+                    key={office.id}
+                    href={officeHref}
+                    onClick={onNavigate}
+                    className={cn(
+                      'flex items-center gap-3 rounded-md py-2 pl-10 pr-3 text-sm font-medium transition-colors',
+                      officeActive
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                  >
+                    {office.name}
+                  </Link>
+                )
+              })}
+          </div>
         )
       })}
     </nav>
