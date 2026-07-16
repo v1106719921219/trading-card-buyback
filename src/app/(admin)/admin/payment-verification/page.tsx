@@ -112,6 +112,10 @@ export default function PaymentVerificationPage() {
   }
 
   function toggleConfirmed(id: string) {
+    if (!mfResults) {
+      toast.warning('先に「MF銀行明細と照合」を実行してください')
+      return
+    }
     const next = new Set(confirmedIds)
     if (next.has(id)) next.delete(id)
     else next.add(id)
@@ -119,6 +123,10 @@ export default function PaymentVerificationPage() {
   }
 
   function toggleAll() {
+    if (!mfResults) {
+      toast.warning('先に「MF銀行明細と照合」を実行してください')
+      return
+    }
     if (confirmedIds.size === orders.length) {
       setConfirmedIds(new Set())
     } else {
@@ -199,6 +207,11 @@ export default function PaymentVerificationPage() {
         {mfConnected === false && (
           <span className="text-sm text-yellow-700 dark:text-yellow-400">
             マネーフォワード未連携です。「MF連携する」から認証してください
+          </span>
+        )}
+        {mfConnected && !mfResults && (
+          <span className="text-sm text-muted-foreground">
+            MF照合を実行するまで確認チェックはできません
           </span>
         )}
       </div>
