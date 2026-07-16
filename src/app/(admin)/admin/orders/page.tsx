@@ -30,6 +30,8 @@ import type { Order, OrderItem, OrderStatus, BuybackType, InspectionStatus } fro
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [total, setTotal] = useState(0)
+  // 日別合計（ページ内に表示中の日付について全件ベースで集計）
+  const [dailyTotals, setDailyTotals] = useState<Map<string, { total: number; inspected: number; count: number; unpaid: number }>>(new Map())
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
@@ -382,6 +384,52 @@ export default function OrdersPage() {
 
     setOrders(data || [])
     setTotal(count || 0)
+
+    // 日別合計を全件ベースで集計（表示中ページの日付範囲の注文を全件取得）
+    if (data && data.length > 0) {
+      const times = data.map((o) => new Date(o.created_at).getTime())
+      const rangeStart = new Date(Math.min(...times))
+      rangeStart.setHours(0, 0, 0, 0)
+      const rangeEnd = new Date(Math.max(...times))
+      rangeEnd.setHours(24, 0, 0, 0)
+
+      let totalsQuery = supabase
+        .from('orders')
+        .select('created_at, status, total_amount, inspected_total_amount, inspection_discount')
+        .gte('created_at', rangeStart.toISOString())
+        .lt('created_at', rangeEnd.toISOString())
+
+      if (statusFilter !== 'all') {
+        totalsQuery = totalsQuery.eq('status', statusFilter)
+      }
+      if (search) {
+        totalsQuery = totalsQuery.or(
+          `order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`
+        )
+      }
+
+      const { data: totalsData } = await totalsQuery
+      const map = new Map<string, { total: number; inspected: number; count: number; unpaid: number }>()
+      for (const order of totalsData ?? []) {
+        const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
+        const amount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
+        // 残り振込: まだ振込していない注文（振込済・振込確認済・キャンセルを除く）
+        const isUnpaid = !['振込済', '振込確認済', 'キャンセル'].includes(order.status)
+        const existing = map.get(dateKey)
+        if (existing) {
+          existing.total += order.total_amount
+          existing.inspected += amount
+          existing.count++
+          if (isUnpaid) existing.unpaid += amount
+        } else {
+          map.set(dateKey, { total: order.total_amount, inspected: amount, count: 1, unpaid: isUnpaid ? amount : 0 })
+        }
+      }
+      setDailyTotals(map)
+    } else {
+      setDailyTotals(new Map())
+    }
+
     setLoading(false)
   }
 
@@ -396,21 +444,6 @@ export default function OrdersPage() {
   }
 
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE)
-
-  // 申込日ごとの合計金額を算出
-  const dailyTotals = new Map<string, { total: number; inspected: number; count: number }>()
-  for (const order of orders) {
-    const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
-    const existing = dailyTotals.get(dateKey)
-    const amount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
-    if (existing) {
-      existing.total += order.total_amount
-      existing.inspected += amount
-      existing.count++
-    } else {
-      dailyTotals.set(dateKey, { total: order.total_amount, inspected: amount, count: 1 })
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -526,6 +559,9 @@ export default function OrdersPage() {
                           {dateKey}（{daily.count}件）
                         </TableCell>
                         <TableCell className="text-right font-semibold text-sm py-2">
+                          <span className="text-orange-600 mr-3">
+                            残り振込 {daily.unpaid.toLocaleString()}円
+                          </span>
                           {daily.inspected.toLocaleString()}円
                           {daily.inspected !== daily.total && (
                             <span className="text-xs text-muted-foreground line-through ml-2">
