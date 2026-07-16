@@ -21,14 +21,21 @@ export interface MatchResult {
   nameMatchedButUsed?: boolean
 }
 
+export interface DuplicateSuspect {
+  order: ReconciliationOrder
+  mfTransaction: MFTransaction // 紐付け済みとは別の、同名義・同額のMF出金
+}
+
 export interface ReconciliationResult {
   matches: MatchResult[]
+  duplicateSuspects: DuplicateSuspect[] // 二重振込疑い
   unmatchedMfTransactions: MFTransaction[] // 注文と紐付かなかったMF出金（振込系のみ）
   summary: {
     total: number
     matched: number
     nameMismatch: number
     unmatched: number
+    duplicateSuspects: number
   }
 }
 
@@ -39,6 +46,11 @@ const SMALL_KANA_MAP: Record<string, string> = {
   ヵ: 'カ', ヶ: 'ケ',
 }
 
+// カタカナに酷似した漢字→カタカナ（顧客が「ウメタ二(漢数字)ヨウヘイ」のように誤入力するため）
+const KANJI_LOOKALIKE_MAP: Record<string, string> = {
+  二: 'ニ', 力: 'カ', 工: 'エ', 口: 'ロ', 卜: 'ト', 夕: 'タ', 千: 'チ', 八: 'ハ',
+}
+
 /** 銀行名義照合用にカナ正規化（半角カナ→全角・ひらがな→カタカナ・小書き→大文字・カナ英数字以外除去） */
 function normalizeName(s: string | null | undefined): string {
   if (!s) return ''
@@ -47,6 +59,8 @@ function normalizeName(s: string | null | undefined): string {
   t = t.replace(/[\u3041-\u3096]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 0x60))
   // 小書きカナ→大文字カナ
   t = t.replace(/[ァィゥェォャュョッヮヵヶ]/g, (ch) => SMALL_KANA_MAP[ch] ?? ch)
+  // カタカナ酷似漢字→カタカナ（誤入力対策）
+  t = t.replace(/[二力工口卜夕千八]/g, (ch) => KANJI_LOOKALIKE_MAP[ch] ?? ch)
   // カタカナ・英数字のみ残す（長音符・中点・スペース・株式会社等の漢字は除去）
   t = t.replace(/[^\u30A1-\u30F6A-Za-z0-9]/g, '')
   return t.toUpperCase()
@@ -162,21 +176,43 @@ export async function reconcileMfForOrders(
     // 表示順を振込日順に戻す
     matches.sort((a, b) => a.order.paidDate.localeCompare(b.order.paidDate))
 
-    // 6. 注文と紐付かなかったMF出金のうち、振込らしきもの（摘要に「振込」を含む）
+    // 6. 二重振込疑いの検出:
+    //    紐付け済みの注文と同じ名義＋同じ金額のMF出金が「他にも」残っていれば疑いあり
+    const duplicateSuspects: DuplicateSuspect[] = []
+    const duplicateTxnIds = new Set<string>()
+    for (const m of matches) {
+      if (!m.mfTransaction) continue
+      const holderNorm = normalizeName(m.order.bankAccountHolder)
+      if (!holderNorm) continue
+      for (const tx of mfWithdrawals) {
+        if (usedTxnIds.has(tx.id) || duplicateTxnIds.has(tx.id)) continue
+        if (tx.amount !== m.order.amount) continue
+        const mfText = normalizeName(`${tx.description} ${tx.memo}`)
+        if (namesMatch(holderNorm, mfText)) {
+          duplicateTxnIds.add(tx.id)
+          duplicateSuspects.push({ order: m.order, mfTransaction: tx })
+        }
+      }
+    }
+
+    // 7. 注文と紐付かなかったMF出金のうち、振込らしきもの（摘要に「振込」を含む）
     const unmatchedMfTransactions = mfWithdrawals.filter(
       (tx) =>
         !usedTxnIds.has(tx.id) &&
+        !duplicateTxnIds.has(tx.id) &&
         (tx.description.includes('振込') || tx.memo.includes('振込'))
     )
 
     return {
       matches,
+      duplicateSuspects,
       unmatchedMfTransactions,
       summary: {
         total: matches.length,
         matched: matches.filter((m) => m.matchType === 'matched').length,
         nameMismatch: matches.filter((m) => m.matchType === 'name_mismatch').length,
         unmatched: matches.filter((m) => m.matchType === 'unmatched').length,
+        duplicateSuspects: duplicateSuspects.length,
       },
     }
   } catch (err) {

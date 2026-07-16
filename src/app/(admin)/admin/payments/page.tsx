@@ -38,9 +38,25 @@ import { toast } from 'sonner'
 import { bulkMarkAsPaid } from '@/actions/payments'
 import type { Order } from '@/types/database'
 
+// 同一人物判定用のキー（メール / 銀行口座）
+function personKeys(o: Pick<Order, 'customer_email' | 'bank_name' | 'bank_account_number'>): string[] {
+  const keys: string[] = []
+  if (o.customer_email) keys.push(`email:${o.customer_email.trim().toLowerCase()}`)
+  if (o.bank_name && o.bank_account_number) keys.push(`bank:${o.bank_name}:${o.bank_account_number}`)
+  return keys
+}
+
+interface RepeatWarning {
+  orderNumber: string
+  date: string
+  amount: number
+  kind: 'paid' | 'pending' // paid=直近振込済あり, pending=振込待ち内に同一人物
+}
+
 export default function PaymentsPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [shippedOrders, setShippedOrders] = useState<Order[]>([])
+  const [repeatWarnings, setRepeatWarnings] = useState<Map<string, RepeatWarning[]>>(new Map())
   const [loading, setLoading] = useState(true)
   const [shippedLoading, setShippedLoading] = useState(true)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -73,6 +89,70 @@ export default function PaymentsPage() {
     const checked = sorted.filter((o) => o.payment_checked).map((o) => o.id)
     setSelectedIds(new Set(checked))
     setLoading(false)
+    checkRepeatTransfers(sorted)
+  }
+
+  // 二重振込防止: 同一人物（メール or 銀行口座）の直近60日の振込済注文、
+  // および振込待ち内の同一人物の重複を検出（金額は問わない）
+  async function checkRepeatTransfers(pendingOrders: Order[]) {
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - 60)
+    const { data: paidOrders } = await supabase
+      .from('orders')
+      .select('order_number, customer_email, bank_name, bank_account_number, total_amount, inspected_total_amount, inspection_discount, updated_at')
+      .in('status', ['振込済', '振込確認済'])
+      .gte('updated_at', cutoff.toISOString())
+
+    // キー → 振込済注文リスト
+    const paidByKey = new Map<string, RepeatWarning[]>()
+    for (const p of paidOrders ?? []) {
+      const w: RepeatWarning = {
+        orderNumber: p.order_number,
+        date: String(p.updated_at).slice(0, 10),
+        amount: (p.inspected_total_amount ?? p.total_amount) - (p.inspection_discount ?? 0),
+        kind: 'paid',
+      }
+      for (const key of personKeys(p)) {
+        const list = paidByKey.get(key) ?? []
+        list.push(w)
+        paidByKey.set(key, list)
+      }
+    }
+
+    // キー → 振込待ち内の注文リスト（同一人物の複数申込検出用）
+    const pendingByKey = new Map<string, Order[]>()
+    for (const o of pendingOrders) {
+      for (const key of personKeys(o)) {
+        const list = pendingByKey.get(key) ?? []
+        list.push(o)
+        pendingByKey.set(key, list)
+      }
+    }
+
+    const warnings = new Map<string, RepeatWarning[]>()
+    for (const o of pendingOrders) {
+      const seen = new Set<string>()
+      const list: RepeatWarning[] = []
+      for (const key of personKeys(o)) {
+        for (const w of paidByKey.get(key) ?? []) {
+          if (seen.has(w.orderNumber)) continue
+          seen.add(w.orderNumber)
+          list.push(w)
+        }
+        for (const other of pendingByKey.get(key) ?? []) {
+          if (other.id === o.id || seen.has(other.order_number)) continue
+          seen.add(other.order_number)
+          list.push({
+            orderNumber: other.order_number,
+            date: String(other.updated_at).slice(0, 10),
+            amount: (other.inspected_total_amount ?? other.total_amount) - (other.inspection_discount ?? 0),
+            kind: 'pending',
+          })
+        }
+      }
+      if (list.length > 0) warnings.set(o.id, list)
+    }
+    setRepeatWarnings(warnings)
   }
 
   async function fetchShippedOrders() {
@@ -338,6 +418,15 @@ export default function PaymentsPage() {
                             {!order.customer_not_invoice_issuer ? '適格' : '非適格'}
                           </Badge>
                         </span>
+                        {repeatWarnings.has(order.id) && (
+                          <div className="mt-1 space-y-0.5">
+                            {repeatWarnings.get(order.id)!.map((w) => (
+                              <p key={w.orderNumber} className="text-xs text-red-600 font-medium">
+                                ⚠ {w.kind === 'paid' ? '直近に振込済あり' : '振込待ちに同一人物'}: {w.orderNumber.replace(/^BB-\d{8}-/, 'BB-')}（{w.date.slice(5)} / {w.amount.toLocaleString()}円）
+                              </p>
+                            ))}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm hidden md:table-cell">
                         {order.bank_name} {order.bank_branch}

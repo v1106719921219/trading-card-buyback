@@ -34,6 +34,7 @@ import {
   getMfConnectionStatus,
   reconcileMfForOrders,
   type MatchResult,
+  type DuplicateSuspect,
 } from '@/actions/mf-reconciliation'
 import type { MFTransaction } from '@/lib/mf'
 
@@ -52,6 +53,7 @@ export default function PaymentVerificationPage() {
   const [mfLoading, setMfLoading] = useState(false)
   const [mfResults, setMfResults] = useState<Map<string, MatchResult> | null>(null)
   const [unmatchedMfTxns, setUnmatchedMfTxns] = useState<MFTransaction[]>([])
+  const [duplicateSuspects, setDuplicateSuspects] = useState<DuplicateSuspect[]>([])
 
   const supabase = createClient()
 
@@ -96,7 +98,10 @@ export default function PaymentVerificationPage() {
       }
       setMfResults(new Map(res.matches.map((m) => [m.order.id, m])))
       setUnmatchedMfTxns(res.unmatchedMfTransactions)
-      if (res.summary.nameMismatch === 0 && res.summary.unmatched === 0) {
+      setDuplicateSuspects(res.duplicateSuspects)
+      if (res.summary.duplicateSuspects > 0) {
+        toast.error(`二重振込疑いが${res.summary.duplicateSuspects}件あります！`)
+      } else if (res.summary.nameMismatch === 0 && res.summary.unmatched === 0) {
         toast.success(`全${res.summary.total}件がMF銀行明細と一致しました`)
       } else {
         toast.warning(`要確認: 名義不一致${res.summary.nameMismatch}件 / 未一致${res.summary.unmatched}件`)
@@ -364,6 +369,50 @@ export default function PaymentVerificationPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* 二重振込疑い */}
+      {mfResults && duplicateSuspects.length > 0 && (
+        <div className="space-y-2 rounded-md border border-red-300 bg-red-50 p-4">
+          <h3 className="font-semibold text-red-700">
+            ⚠ 二重振込疑い（{duplicateSuspects.length}件）
+          </h3>
+          <p className="text-sm text-red-700">
+            照合済みの注文と同じ名義・同じ金額のMF出金が他にも見つかりました。二重に振り込んでいないか確認してください
+          </p>
+          <div className="rounded-md border bg-white">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>注文番号</TableHead>
+                  <TableHead>名義</TableHead>
+                  <TableHead className="text-right">金額</TableHead>
+                  <TableHead>重複出金の日付</TableHead>
+                  <TableHead>重複出金の摘要</TableHead>
+                  <TableHead>口座</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {duplicateSuspects.map((d) => (
+                  <TableRow key={d.mfTransaction.id}>
+                    <TableCell className="text-sm font-medium">
+                      <Link href={`/admin/orders/${d.order.id}`} className="underline">
+                        {d.order.orderNumber}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-sm">{d.order.bankAccountHolder}</TableCell>
+                    <TableCell className="text-right font-medium text-red-700">
+                      {d.order.amount.toLocaleString()}円
+                    </TableCell>
+                    <TableCell className="text-sm">{d.mfTransaction.date.slice(0, 10)}</TableCell>
+                    <TableCell className="text-sm">{d.mfTransaction.description || d.mfTransaction.memo}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{d.mfTransaction.accountName}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
 
       {/* 注文と紐付かないMF振込出金 */}
       {mfResults && unmatchedMfTxns.length > 0 && (
