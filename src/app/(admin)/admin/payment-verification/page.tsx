@@ -54,6 +54,7 @@ export default function PaymentVerificationPage() {
   const [mfResults, setMfResults] = useState<Map<string, MatchResult> | null>(null)
   const [unmatchedMfTxns, setUnmatchedMfTxns] = useState<MFTransaction[]>([])
   const [duplicateSuspects, setDuplicateSuspects] = useState<DuplicateSuspect[]>([])
+  const [showMfRequiredDialog, setShowMfRequiredDialog] = useState(false)
 
   const supabase = createClient()
 
@@ -113,7 +114,7 @@ export default function PaymentVerificationPage() {
 
   function toggleConfirmed(id: string) {
     if (!mfResults) {
-      toast.warning('先に「MF銀行明細と照合」を実行してください')
+      setShowMfRequiredDialog(true)
       return
     }
     const next = new Set(confirmedIds)
@@ -124,7 +125,7 @@ export default function PaymentVerificationPage() {
 
   function toggleAll() {
     if (!mfResults) {
-      toast.warning('先に「MF銀行明細と照合」を実行してください')
+      setShowMfRequiredDialog(true)
       return
     }
     if (confirmedIds.size === orders.length) {
@@ -215,6 +216,31 @@ export default function PaymentVerificationPage() {
           </span>
         )}
       </div>
+
+      {/* MF照合が未実行のときの警告ダイアログ */}
+      <AlertDialog open={showMfRequiredDialog} onOpenChange={setShowMfRequiredDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl text-red-600">
+              ⚠ MF照合が未実行です
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              振込確認のチェックをする前に、必ず「MF銀行明細と照合」を実行してください。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>閉じる</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowMfRequiredDialog(false)
+                runMfReconciliation()
+              }}
+            >
+              今すぐ照合する
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Summary */}
       <div className="grid gap-4 md:grid-cols-3">
