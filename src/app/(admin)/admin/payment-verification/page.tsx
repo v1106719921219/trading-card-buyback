@@ -339,7 +339,7 @@ export default function PaymentVerificationPage() {
                             {m.mfTransaction ? (
                               <p className="text-xs text-muted-foreground">
                                 {m.mfTransaction.date.slice(0, 10)}{' '}
-                                {m.mfTransaction.description || m.mfTransaction.partnerName}
+                                {m.mfTransaction.description || m.mfTransaction.memo}
                                 <br />
                                 {m.mfTransaction.amount.toLocaleString()}円
                               </p>
@@ -388,7 +388,7 @@ export default function PaymentVerificationPage() {
                 {unmatchedMfTxns.map((tx) => (
                   <TableRow key={tx.id}>
                     <TableCell className="text-sm">{tx.date.slice(0, 10)}</TableCell>
-                    <TableCell className="text-sm">{tx.description || tx.partnerName}</TableCell>
+                    <TableCell className="text-sm">{tx.description || tx.memo}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{tx.accountName}</TableCell>
                     <TableCell className="text-right font-medium">{tx.amount.toLocaleString()}円</TableCell>
                   </TableRow>

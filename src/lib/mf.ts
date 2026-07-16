@@ -1,21 +1,21 @@
 import { createHash, randomBytes } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// マネーフォワードクラウド会計 API v3
+// マネーフォワードクラウド会計 API v3（通常版。Plusのenterprise-accountingではない）
 const MF_AUTH_URL = 'https://api.biz.moneyforward.com/authorize'
 const MF_TOKEN_URL = 'https://api.biz.moneyforward.com/token'
-const MF_API_BASE = 'https://accounting.moneyforward.com/api/v3'
-const MF_SCOPE = 'mfc/enterprise-accounting/journal.read'
+const MF_API_BASE = 'https://api-accounting.moneyforward.com/api/v3'
+const MF_SCOPE = 'mfc/accounting/transaction.read mfc/accounting/connected_account.read'
 
 export interface MFTransaction {
   id: string
-  date: string
-  amount: number // 絶対値
+  date: string // YYYY-MM-DD
+  amount: number // 正の整数
   isIncome: boolean
-  partnerName: string
-  description: string
-  accountName: string
-  status: string
+  description: string // 取引内容
+  memo: string
+  accountName: string // 連携サービス名（銀行名）
+  journalizingStatus: string // none / registered / excluded など
 }
 
 function getClientCredentials() {
@@ -142,39 +142,57 @@ async function apiGet(path: string, params: Record<string, string>) {
   return res.json()
 }
 
-/** 銀行自動連携の取引を全件取得（未確認＋確認済、ページネーション対応） */
-export async function getMfTransactions(): Promise<MFTransaction[]> {
-  const all: MFTransaction[] = []
-
-  for (const status of ['unconfirmed', 'confirmed']) {
-    let page = 1
-    const perPage = 100
-    for (;;) {
-      const data = await apiGet('/office_members/me/transactions', {
-        page: String(page),
-        per_page: String(perPage),
-        status,
-      })
-      const transactions: Record<string, unknown>[] = data.transactions ?? []
-      if (transactions.length === 0) break
-
-      for (const raw of transactions) {
-        const amount = Number(raw.amount ?? 0)
-        all.push({
-          id: String(raw.id ?? ''),
-          date: String(raw.recognized_at ?? raw.date ?? ''),
-          amount: Math.abs(amount),
-          isIncome: amount > 0,
-          partnerName: String(raw.partner_account_name ?? raw.partner_name ?? ''),
-          description: String(raw.description ?? ''),
-          accountName: String(raw.account_name ?? ''),
-          status,
-        })
+/** 連携サービス（銀行口座等）のID→表示名マップを取得 */
+async function getConnectedAccountNames(): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  try {
+    const data = await apiGet('/connected_accounts', {})
+    for (const acc of data.connected_accounts ?? []) {
+      map.set(String(acc.id), String(acc.name ?? ''))
+      for (const sub of acc.connected_sub_accounts ?? []) {
+        map.set(String(sub.id), `${acc.name ?? ''} ${sub.name ?? ''}`.trim())
       }
-
-      if (transactions.length < perPage) break
-      page++
     }
+  } catch {
+    // 口座名は表示用なので取得失敗しても照合は続行
+  }
+  return map
+}
+
+/** 銀行自動連携の出金明細を取得（期間指定、ページネーション対応） */
+export async function getMfTransactions(startDate: string, endDate: string): Promise<MFTransaction[]> {
+  const accountNames = await getConnectedAccountNames()
+  const all: MFTransaction[] = []
+  let page = 1
+  const perPage = 500
+
+  for (;;) {
+    const data = await apiGet('/transactions', {
+      start_date: startDate,
+      end_date: endDate,
+      side: 'EXPENSE',
+      page: String(page),
+      per_page: String(perPage),
+    })
+    const transactions: Record<string, unknown>[] = data.transactions ?? []
+
+    for (const raw of transactions) {
+      const accountKey = String(raw.connected_sub_account_id ?? raw.connected_account_id ?? '')
+      all.push({
+        id: String(raw.id ?? ''),
+        date: String(raw.date ?? ''),
+        amount: Number(raw.value ?? 0),
+        isIncome: raw.side === 'INCOME',
+        description: String(raw.content ?? ''),
+        memo: String(raw.memo ?? ''),
+        accountName: accountNames.get(accountKey) ?? '',
+        journalizingStatus: String(raw.journalizing_status ?? ''),
+      })
+    }
+
+    const totalPages = Number(data.metadata?.total_pages ?? 1)
+    if (page >= totalPages || transactions.length === 0) break
+    page++
   }
 
   return all

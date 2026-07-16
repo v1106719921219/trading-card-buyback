@@ -115,11 +115,7 @@ export async function reconcileMfForOrders(
     bufferedEnd.setDate(bufferedEnd.getDate() + 3)
     const bufferedEndStr = bufferedEnd.toISOString().slice(0, 10)
 
-    const allMfTxns = await getMfTransactions()
-    const mfWithdrawals = allMfTxns.filter((tx) => {
-      const d = tx.date.slice(0, 10)
-      return !tx.isIncome && d >= startDate && d <= bufferedEndStr
-    })
+    const mfWithdrawals = await getMfTransactions(startDate, bufferedEndStr)
 
     // 5. 突合（金額一致→名義一致の順でグリーディマッチ、1取引=1注文）
     const usedTxnIds = new Set<string>()
@@ -130,7 +126,7 @@ export async function reconcileMfForOrders(
       const holderNorm = normalizeName(order.bankAccountHolder)
       const candidate = mfWithdrawals.find((tx) => {
         if (usedTxnIds.has(tx.id) || tx.amount !== order.amount) return false
-        const mfText = normalizeName(`${tx.partnerName} ${tx.description}`)
+        const mfText = normalizeName(`${tx.description} ${tx.memo}`)
         return namesMatch(holderNorm, mfText)
       })
       if (candidate) {
@@ -161,7 +157,7 @@ export async function reconcileMfForOrders(
     const unmatchedMfTransactions = mfWithdrawals.filter(
       (tx) =>
         !usedTxnIds.has(tx.id) &&
-        (tx.description.includes('振込') || tx.partnerName.includes('振込'))
+        (tx.description.includes('振込') || tx.memo.includes('振込'))
     )
 
     return {
