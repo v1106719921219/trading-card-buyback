@@ -51,13 +51,15 @@ export function getAuthUrl(codeChallenge: string): string {
 
 async function requestToken(body: Record<string, string>) {
   const { clientId, clientSecret } = getClientCredentials()
+  // MFアプリのクライアント認証方式は CLIENT_SECRET_POST（ボディに含めて送信）
   const res = await fetch(MF_TOKEN_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
-    },
-    body: new URLSearchParams(body).toString(),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      ...body,
+      client_id: clientId,
+      client_secret: clientSecret,
+    }).toString(),
   })
   if (!res.ok) {
     const text = await res.text()
