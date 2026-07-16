@@ -92,13 +92,13 @@ export default function PaymentsPage() {
     checkRepeatTransfers(sorted)
   }
 
-  // 二重振込防止: 同一人物（メール or 銀行口座）で「今日振込済」または「同じ金額（別日でも）」の
-  // 注文を検出（直近60日）。振込待ち内の同一人物・同額の重複も検出
+  // 二重振込防止: 同一人物（メール or 銀行口座）で「今日振込済」または「3日以内に同じ金額の振込済」の
+  // 注文を検出。振込待ち内の同一人物・同額の重複も検出
   async function checkRepeatTransfers(pendingOrders: Order[]) {
     const todayJst = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
     const toJstDate = (ts: string) => new Date(ts).toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
     const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - 60)
+    cutoff.setDate(cutoff.getDate() - 3)
     const { data: paidOrders } = await supabase
       .from('orders')
       .select('order_number, customer_email, bank_name, bank_account_number, total_amount, inspected_total_amount, inspection_discount, updated_at')
