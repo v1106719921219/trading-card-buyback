@@ -92,9 +92,11 @@ export default function PaymentsPage() {
     checkRepeatTransfers(sorted)
   }
 
-  // 二重振込防止: 同一人物（メール or 銀行口座）の直近60日の振込済注文、
-  // および振込待ち内の同一人物の重複を検出（金額は問わない）
+  // 二重振込防止: 同一人物（メール or 銀行口座）で「今日振込済」または「同じ金額（別日でも）」の
+  // 注文を検出（直近60日）。振込待ち内の同一人物・同額の重複も検出
   async function checkRepeatTransfers(pendingOrders: Order[]) {
+    const todayJst = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
+    const toJstDate = (ts: string) => new Date(ts).toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - 60)
     const { data: paidOrders } = await supabase
@@ -108,7 +110,7 @@ export default function PaymentsPage() {
     for (const p of paidOrders ?? []) {
       const w: RepeatWarning = {
         orderNumber: p.order_number,
-        date: String(p.updated_at).slice(0, 10),
+        date: toJstDate(String(p.updated_at)),
         amount: (p.inspected_total_amount ?? p.total_amount) - (p.inspection_discount ?? 0),
         kind: 'paid',
       }
@@ -131,21 +133,27 @@ export default function PaymentsPage() {
 
     const warnings = new Map<string, RepeatWarning[]>()
     for (const o of pendingOrders) {
+      const myAmount = (o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount ?? 0)
       const seen = new Set<string>()
       const list: RepeatWarning[] = []
       for (const key of personKeys(o)) {
         for (const w of paidByKey.get(key) ?? []) {
           if (seen.has(w.orderNumber)) continue
+          // 今日振込済 or 同じ金額（別日でも）の場合のみ警告
+          if (w.date !== todayJst && w.amount !== myAmount) continue
           seen.add(w.orderNumber)
           list.push(w)
         }
         for (const other of pendingByKey.get(key) ?? []) {
           if (other.id === o.id || seen.has(other.order_number)) continue
+          const otherAmount = (other.inspected_total_amount ?? other.total_amount) - (other.inspection_discount ?? 0)
+          // 振込待ち内は同じ金額の場合のみ警告（同一人物の複数注文自体は正常）
+          if (otherAmount !== myAmount) continue
           seen.add(other.order_number)
           list.push({
             orderNumber: other.order_number,
-            date: String(other.updated_at).slice(0, 10),
-            amount: (other.inspected_total_amount ?? other.total_amount) - (other.inspection_discount ?? 0),
+            date: toJstDate(String(other.updated_at)),
+            amount: otherAmount,
             kind: 'pending',
           })
         }
@@ -422,7 +430,11 @@ export default function PaymentsPage() {
                           <div className="mt-1 space-y-0.5">
                             {repeatWarnings.get(order.id)!.map((w) => (
                               <p key={w.orderNumber} className="text-xs text-red-600 font-medium">
-                                ⚠ {w.kind === 'paid' ? '直近に振込済あり' : '振込待ちに同一人物'}: {w.orderNumber.replace(/^BB-\d{8}-/, 'BB-')}（{w.date.slice(5)} / {w.amount.toLocaleString()}円）
+                                ⚠ {w.kind === 'pending'
+                                  ? '振込待ちに同一人物・同額'
+                                  : w.date === new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
+                                    ? '本日振込済あり'
+                                    : '同額の振込済あり'}: {w.orderNumber.replace(/^BB-\d{8}-/, 'BB-')}（{w.date.slice(5)} / {w.amount.toLocaleString()}円）
                               </p>
                             ))}
                           </div>
