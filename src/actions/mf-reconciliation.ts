@@ -32,12 +32,21 @@ export interface ReconciliationResult {
   }
 }
 
-/** 銀行名義照合用にカナ正規化（半角カナ→全角・ひらがな→カタカナ・カナ英数字以外除去） */
+// 小書きカナ→大文字カナ（銀行明細では「リョウタ」が「リヨウタ」になるため）
+const SMALL_KANA_MAP: Record<string, string> = {
+  ァ: 'ア', ィ: 'イ', ゥ: 'ウ', ェ: 'エ', ォ: 'オ',
+  ャ: 'ヤ', ュ: 'ユ', ョ: 'ヨ', ッ: 'ツ', ヮ: 'ワ',
+  ヵ: 'カ', ヶ: 'ケ',
+}
+
+/** 銀行名義照合用にカナ正規化（半角カナ→全角・ひらがな→カタカナ・小書き→大文字・カナ英数字以外除去） */
 function normalizeName(s: string | null | undefined): string {
   if (!s) return ''
   let t = s.normalize('NFKC') // 半角カナ→全角カナ、濁点合成、全角英数→半角
   // ひらがな→カタカナ
   t = t.replace(/[\u3041-\u3096]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 0x60))
+  // 小書きカナ→大文字カナ
+  t = t.replace(/[ァィゥェォャュョッヮヵヶ]/g, (ch) => SMALL_KANA_MAP[ch] ?? ch)
   // カタカナ・英数字のみ残す（長音符・中点・スペース・株式会社等の漢字は除去）
   t = t.replace(/[^\u30A1-\u30F6A-Za-z0-9]/g, '')
   return t.toUpperCase()
