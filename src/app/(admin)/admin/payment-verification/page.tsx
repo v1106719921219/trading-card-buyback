@@ -35,6 +35,7 @@ import {
   reconcileMfForOrders,
   type MatchResult,
   type DuplicateSuspect,
+  type MfStatus,
 } from '@/actions/mf-reconciliation'
 import type { MFTransaction } from '@/lib/mf'
 
@@ -49,7 +50,7 @@ export default function PaymentVerificationPage() {
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set())
-  const [mfConnected, setMfConnected] = useState<boolean | null>(null)
+  const [mfStatus, setMfStatus] = useState<MfStatus | null>(null)
   const [mfLoading, setMfLoading] = useState(false)
   const [mfResults, setMfResults] = useState<Map<string, MatchResult> | null>(null)
   const [unmatchedMfTxns, setUnmatchedMfTxns] = useState<MFTransaction[]>([])
@@ -76,7 +77,7 @@ export default function PaymentVerificationPage() {
 
   useEffect(() => {
     fetchOrders()
-    getMfConnectionStatus().then(setMfConnected).catch(() => setMfConnected(false))
+    getMfConnectionStatus().then(setMfStatus).catch(() => setMfStatus('disconnected'))
 
     const params = new URLSearchParams(window.location.search)
     const mfError = params.get('mf_error')
@@ -112,8 +113,11 @@ export default function PaymentVerificationPage() {
     }
   }
 
+  // MF未設定の環境（千葉など）ではMF照合を必須にしない
+  const mfEnabled = mfStatus !== 'unconfigured'
+
   function toggleConfirmed(id: string) {
-    if (!mfResults) {
+    if (mfEnabled && !mfResults) {
       setShowMfRequiredDialog(true)
       return
     }
@@ -124,7 +128,7 @@ export default function PaymentVerificationPage() {
   }
 
   function toggleAll() {
-    if (!mfResults) {
+    if (mfEnabled && !mfResults) {
       setShowMfRequiredDialog(true)
       return
     }
@@ -189,33 +193,35 @@ export default function PaymentVerificationPage() {
         description="銀行の振込履歴を見ながら、振込金額が正しいか確認してください"
       />
 
-      {/* MF照合 */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="outline"
-          onClick={runMfReconciliation}
-          disabled={mfLoading || mfConnected === false}
-        >
-          <RefreshCw className={`mr-2 h-4 w-4 ${mfLoading ? 'animate-spin' : ''}`} />
-          {mfLoading ? 'MF照合中...' : 'MF銀行明細と照合'}
-        </Button>
-        <a href="/api/mf/auth">
-          <Button variant={mfConnected ? 'ghost' : 'default'} size="sm">
-            <Landmark className="mr-2 h-4 w-4" />
-            {mfConnected === null ? '...' : mfConnected ? 'MF再連携' : 'MF連携する'}
+      {/* MF照合（MF未設定の環境では非表示） */}
+      {mfEnabled && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={runMfReconciliation}
+            disabled={mfLoading || mfStatus === 'disconnected'}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${mfLoading ? 'animate-spin' : ''}`} />
+            {mfLoading ? 'MF照合中...' : 'MF銀行明細と照合'}
           </Button>
-        </a>
-        {mfConnected === false && (
-          <span className="text-sm text-yellow-700 dark:text-yellow-400">
-            マネーフォワード未連携です。「MF連携する」から認証してください
-          </span>
-        )}
-        {mfConnected && !mfResults && (
-          <span className="text-sm text-muted-foreground">
-            MF照合を実行するまで確認チェックはできません
-          </span>
-        )}
-      </div>
+          <a href="/api/mf/auth">
+            <Button variant={mfStatus === 'connected' ? 'ghost' : 'default'} size="sm">
+              <Landmark className="mr-2 h-4 w-4" />
+              {mfStatus === null ? '...' : mfStatus === 'connected' ? 'MF再連携' : 'MF連携する'}
+            </Button>
+          </a>
+          {mfStatus === 'disconnected' && (
+            <span className="text-sm text-yellow-700 dark:text-yellow-400">
+              マネーフォワード未連携です。「MF連携する」から認証してください
+            </span>
+          )}
+          {mfStatus === 'connected' && !mfResults && (
+            <span className="text-sm text-muted-foreground">
+              MF照合を実行するまで確認チェックはできません
+            </span>
+          )}
+        </div>
+      )}
 
       {/* MF照合が未実行のときの警告ダイアログ */}
       <AlertDialog open={showMfRequiredDialog} onOpenChange={setShowMfRequiredDialog}>

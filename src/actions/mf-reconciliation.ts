@@ -77,9 +77,15 @@ async function requireAdmin() {
   if (!user) throw new Error('ログインが必要です')
 }
 
-export async function getMfConnectionStatus(): Promise<boolean> {
+export type MfStatus = 'unconfigured' | 'disconnected' | 'connected'
+
+export async function getMfConnectionStatus(): Promise<MfStatus> {
   await requireAdmin()
-  return isMfConnected()
+  // MF環境変数がない環境（千葉など）はMF照合機能自体を無効にする
+  if (!process.env.MF_CLIENT_ID || !process.env.MF_CLIENT_SECRET || !process.env.MF_REDIRECT_URI) {
+    return 'unconfigured'
+  }
+  return (await isMfConnected()) ? 'connected' : 'disconnected'
 }
 
 /**
