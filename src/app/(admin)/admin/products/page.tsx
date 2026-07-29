@@ -223,7 +223,7 @@ async function syncToChiba() {
   }
 
   function handleCsvExport() {
-    const headers = ['カテゴリ', 'サブカテゴリ', '商品名', 'カード型番', 'セット型番', '買取価格', '画像URL', '価格表']
+    const headers = ['カテゴリ', 'サブカテゴリ', '商品名', 'カード型番', 'セット型番', '買取価格', '画像URL', '価格表', '相場(スニダン)', '出品数', '相場更新日']
     const rows = filteredProducts.map((p) => [
       p.category?.name ?? '',
       p.subcategory?.name ?? '',
@@ -233,6 +233,9 @@ async function syncToChiba() {
       String(p.price),
       p.image_url ?? '',
       p.show_in_price_list ? '表示' : '非表示',
+      p.market_price != null ? String(p.market_price) : '',
+      p.market_listing_count != null ? String(p.market_listing_count) : '',
+      p.market_price_updated_at ? new Date(p.market_price_updated_at).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '',
     ])
 
     const escapeField = (v: string) => {
@@ -550,8 +553,9 @@ async function syncToChiba() {
 
       // Parse optional columns: 価格表, 状態（位置はカラム数に依存）
       const optStart = parts.length >= 7 ? 7 : parts.length >= 6 ? 6 : parts.length >= 5 ? 5 : 4
-      const showInPriceList = parts[optStart] ? parts[optStart] !== '非表示' : undefined
-      const isActive = parts[optStart + 1] ? parts[optStart + 1] !== '無効' : undefined
+      const showInPriceList = parts[optStart] === '表示' ? true : parts[optStart] === '非表示' ? false : undefined
+      // 相場列などが混ざっても誤解釈しないよう「有効/無効」のみ受け付ける
+      const isActive = parts[optStart + 1] === '無効' ? false : parts[optStart + 1] === '有効' ? true : undefined
 
       // Check if product already exists (same name + same category)
       const existing = products.find((p) => p.name === name && p.category_id === matchedCat.id)
