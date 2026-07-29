@@ -1018,7 +1018,7 @@ async function syncToChiba() {
                       placeholder="例: https://snkrdunk.com/trading-cards/424297"
                     />
                     <p className="text-xs text-muted-foreground">
-                      設定すると毎朝6時にスニダン相場を自動取得し、買取価格と比較できます
+                      設定すると毎日午前11時にスニダン相場を自動取得し、買取価格と比較できます
                     </p>
                   </div>
                   <div className="space-y-2">
