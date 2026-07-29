@@ -118,6 +118,11 @@ export default function ProductsPage() {
   const [editingPriceValue, setEditingPriceValue] = useState('')
   const editingPriceRef = useRef('')
 
+  // Inline snkrdunk URL editing
+  const [editingUrlId, setEditingUrlId] = useState<string | null>(null)
+  const [editingUrlValue, setEditingUrlValue] = useState('')
+  const editingUrlRef = useRef('')
+
   // Bulk price list toggle
   const [bulkAction, setBulkAction] = useState<'show' | 'hide' | null>(null)
   const [bulkUpdating, setBulkUpdating] = useState(false)
@@ -404,6 +409,22 @@ async function syncToChiba() {
       return
     }
     toast.success('商品を削除しました')
+    fetchData()
+  }
+
+  async function saveInlineUrl(id: string) {
+    const url = editingUrlRef.current.trim()
+    const { error } = await supabase
+      .from('products')
+      .update({ snkrdunk_url: url || null })
+      .eq('id', id)
+
+    if (error) {
+      toast.error('スニダンURLの更新に失敗しました')
+      return
+    }
+    toast.success(url ? 'スニダンURLを設定しました（相場は次回更新時に取得）' : 'スニダンURLを削除しました')
+    setEditingUrlId(null)
     fetchData()
   }
 
@@ -1157,7 +1178,6 @@ async function syncToChiba() {
               <TableHead className="hidden lg:table-cell">サブカテゴリ</TableHead>
               <TableHead className="text-right">買取価格</TableHead>
               <TableHead className="text-right hidden md:table-cell">相場(スニダン)</TableHead>
-              <TableHead className="text-right hidden md:table-cell">還元率</TableHead>
               <TableHead className="w-20">価格表</TableHead>
               <TableHead className="w-20 sm:w-32 text-right">操作</TableHead>
             </TableRow>
@@ -1166,13 +1186,13 @@ async function syncToChiba() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                   読み込み中...
                 </TableCell>
               </TableRow>
             ) : filteredProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                   商品がありません
                 </TableCell>
               </TableRow>
@@ -1248,26 +1268,39 @@ async function syncToChiba() {
                     )}
                   </TableCell>
                   <TableCell className="text-right hidden md:table-cell">
-                    {product.market_price != null ? (
+                    {editingUrlId === product.id ? (
+                      <Input
+                        type="text"
+                        placeholder="スニダンURLを貼り付け"
+                        value={editingUrlValue}
+                        onChange={(e) => { editingUrlRef.current = e.target.value; setEditingUrlValue(e.target.value) }}
+                        className="w-48 h-8 text-xs"
+                        autoFocus
+                        onFocus={(e) => e.target.select()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveInlineUrl(product.id)
+                          if (e.key === 'Escape') setEditingUrlId(null)
+                        }}
+                        onBlur={() => saveInlineUrl(product.id)}
+                      />
+                    ) : (
                       <span
-                        className="text-sm"
-                        title={`出品数: ${product.market_listing_count ?? '-'}件\n更新: ${product.market_price_updated_at ? new Date(product.market_price_updated_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '-'}`}
+                        className="cursor-pointer hover:text-primary text-sm"
+                        title={product.market_price != null
+                          ? `出品数: ${product.market_listing_count ?? '-'}件\n更新: ${product.market_price_updated_at ? new Date(product.market_price_updated_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '-'}\nクリックでURL編集`
+                          : 'クリックでスニダンURLを設定'}
+                        onClick={() => {
+                          setEditingUrlId(product.id)
+                          editingUrlRef.current = product.snkrdunk_url || ''
+                          setEditingUrlValue(product.snkrdunk_url || '')
+                        }}
                       >
-                        {product.market_price.toLocaleString()}円
+                        {product.market_price != null
+                          ? `${product.market_price.toLocaleString()}円`
+                          : product.snkrdunk_url
+                            ? <span className="text-muted-foreground/50">未取得</span>
+                            : <span className="text-muted-foreground/50">URL設定</span>}
                       </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground/50">{product.snkrdunk_url ? '未取得' : '-'}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right hidden md:table-cell">
-                    {product.market_price != null && product.market_price > 0 && product.price > 0 ? (
-                      (() => {
-                        const ratio = Math.round((product.price / product.market_price!) * 100)
-                        const color = ratio >= 90 ? 'text-red-600 font-semibold' : ratio >= 75 ? 'text-amber-600' : 'text-green-700'
-                        return <span className={`text-sm ${color}`}>{ratio}%</span>
-                      })()
-                    ) : (
-                      <span className="text-sm text-muted-foreground/50">-</span>
                     )}
                   </TableCell>
                   <TableCell>
