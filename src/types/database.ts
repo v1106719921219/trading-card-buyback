@@ -54,6 +54,11 @@ export interface Product {
   sort_order: number
   image_url: string | null
   wanted_quantity: number
+  snkrdunk_url: string | null
+  market_price: number | null
+  market_listing_count: number | null
+  market_top5_prices: number[] | null
+  market_price_updated_at: string | null
   created_at: string
   updated_at: string
   // joined

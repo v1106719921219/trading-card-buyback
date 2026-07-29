@@ -109,6 +109,7 @@ export default function ProductsPage() {
   const [formSubcategoryId, setFormSubcategoryId] = useState('none')
   const [formPrice, setFormPrice] = useState(0)
   const [formPriceNoShrink, setFormPriceNoShrink] = useState<number | null>(null)
+  const [formSnkrdunkUrl, setFormSnkrdunkUrl] = useState('')
   const [formImageUrl, setFormImageUrl] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
 
@@ -134,6 +135,9 @@ export default function ProductsPage() {
 
   // 千葉同期
   const [syncing, setSyncing] = useState(false)
+
+  // スニダン相場更新
+  const [refreshingMarket, setRefreshingMarket] = useState(false)
 
   // 美品査定受付トグル
   const [arQualityEnabled, setArQualityEnabled] = useState(false)
@@ -258,6 +262,7 @@ async function syncToChiba() {
     setFormSubcategoryId('none')
     setFormPrice(0)
     setFormPriceNoShrink(null)
+    setFormSnkrdunkUrl('')
     setFormImageUrl(null)
     setDialogOpen(true)
   }
@@ -271,8 +276,28 @@ async function syncToChiba() {
     setFormSubcategoryId(product.subcategory_id || 'none')
     setFormPrice(product.price)
     setFormPriceNoShrink(product.price_no_shrink ?? null)
+    setFormSnkrdunkUrl(product.snkrdunk_url ?? '')
     setFormImageUrl(product.image_url ?? null)
     setDialogOpen(true)
+  }
+
+  async function refreshMarketPrices() {
+    setRefreshingMarket(true)
+    try {
+      const res = await fetch('/api/admin/market-prices', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        toast.success(`相場を${data.updated}件更新しました`)
+        if (data.errors?.length) toast.error(`エラー: ${data.errors.slice(0, 3).join(' / ')}`)
+        fetchData()
+      } else {
+        toast.error(`相場の更新に失敗しました: ${data.error ?? ''}`)
+      }
+    } catch {
+      toast.error('相場の更新に失敗しました')
+    } finally {
+      setRefreshingMarket(false)
+    }
   }
 
   async function handleInlineImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -336,7 +361,7 @@ async function syncToChiba() {
     }
 
     if (editing) {
-      const updateData: Record<string, unknown> = { name: formName, model_number: formModelNumber || null, set_number: formSetNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, price_no_shrink: formPriceNoShrink }
+      const updateData: Record<string, unknown> = { name: formName, model_number: formModelNumber || null, set_number: formSetNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, price_no_shrink: formPriceNoShrink, snkrdunk_url: formSnkrdunkUrl.trim() || null }
       if (formImageUrl !== null) updateData.image_url = formImageUrl
       if (formPrice === 0) updateData.show_in_price_list = false
       const { error } = await supabase
@@ -358,7 +383,7 @@ async function syncToChiba() {
     } else {
       const { error } = await supabase
         .from('products')
-        .insert({ name: formName, model_number: formModelNumber || null, set_number: formSetNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, price_no_shrink: formPriceNoShrink, show_in_price_list: formPrice > 0, tenant_id: tenantId, ...(formImageUrl !== null ? { image_url: formImageUrl } : {}) })
+        .insert({ name: formName, model_number: formModelNumber || null, set_number: formSetNumber || null, category_id: formCategoryId, subcategory_id: formSubcategoryId === 'none' ? null : formSubcategoryId, price: formPrice, price_no_shrink: formPriceNoShrink, snkrdunk_url: formSnkrdunkUrl.trim() || null, show_in_price_list: formPrice > 0, tenant_id: tenantId, ...(formImageUrl !== null ? { image_url: formImageUrl } : {}) })
 
       if (error) {
         toast.error(error.code === '23505' ? 'この商品名は既に存在します' : error.message)
@@ -761,6 +786,10 @@ async function syncToChiba() {
               <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? '同期中...' : '千葉に同期'}
             </Button>
+            <Button variant="outline" onClick={refreshMarketPrices} disabled={refreshingMarket}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${refreshingMarket ? 'animate-spin' : ''}`} />
+              {refreshingMarket ? '相場取得中...' : '相場を更新'}
+            </Button>
             <Button variant="outline" onClick={handleCsvExport}>
               <Download className="mr-2 h-4 w-4" />
               CSVエクスポート
@@ -957,6 +986,17 @@ async function syncToChiba() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label>スニダンURL<span className="text-muted-foreground text-xs ml-1">任意・相場比較用</span></Label>
+                    <Input
+                      value={formSnkrdunkUrl}
+                      onChange={(e) => setFormSnkrdunkUrl(e.target.value)}
+                      placeholder="例: https://snkrdunk.com/trading-cards/424297"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      設定すると毎朝6時にスニダン相場を自動取得し、買取価格と比較できます
+                    </p>
+                  </div>
+                  <div className="space-y-2">
                     <Label>商品画像（SNS画像生成用）</Label>
                     {formImageUrl && (
                       <div className="relative w-20 h-20 rounded border overflow-hidden mb-2">
@@ -1116,6 +1156,8 @@ async function syncToChiba() {
               <TableHead className="hidden sm:table-cell">カテゴリ</TableHead>
               <TableHead className="hidden lg:table-cell">サブカテゴリ</TableHead>
               <TableHead className="text-right">買取価格</TableHead>
+              <TableHead className="text-right hidden md:table-cell">相場(スニダン)</TableHead>
+              <TableHead className="text-right hidden md:table-cell">還元率</TableHead>
               <TableHead className="w-20">価格表</TableHead>
               <TableHead className="w-20 sm:w-32 text-right">操作</TableHead>
             </TableRow>
@@ -1124,13 +1166,13 @@ async function syncToChiba() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                   読み込み中...
                 </TableCell>
               </TableRow>
             ) : filteredProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                   商品がありません
                 </TableCell>
               </TableRow>
@@ -1203,6 +1245,29 @@ async function syncToChiba() {
                       >
                         {product.price.toLocaleString()}円
                       </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right hidden md:table-cell">
+                    {product.market_price != null ? (
+                      <span
+                        className="text-sm"
+                        title={`出品数: ${product.market_listing_count ?? '-'}件\n更新: ${product.market_price_updated_at ? new Date(product.market_price_updated_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '-'}`}
+                      >
+                        {product.market_price.toLocaleString()}円
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground/50">{product.snkrdunk_url ? '未取得' : '-'}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right hidden md:table-cell">
+                    {product.market_price != null && product.market_price > 0 && product.price > 0 ? (
+                      (() => {
+                        const ratio = Math.round((product.price / product.market_price!) * 100)
+                        const color = ratio >= 90 ? 'text-red-600 font-semibold' : ratio >= 75 ? 'text-amber-600' : 'text-green-700'
+                        return <span className={`text-sm ${color}`}>{ratio}%</span>
+                      })()
+                    ) : (
+                      <span className="text-sm text-muted-foreground/50">-</span>
                     )}
                   </TableCell>
                   <TableCell>
