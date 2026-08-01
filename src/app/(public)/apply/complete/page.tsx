@@ -144,6 +144,18 @@ function CompleteContent() {
   // Order items editing
   const isEditable = orderStatus === '申込' || orderStatus === '承認待ち'
 
+  // 編集可能な場合は現在の商品価格を先に読み込む（数量追加分を現在価格で計上するため）
+  useEffect(() => {
+    if (isEditable && products.length === 0) {
+      setProductsLoading(true)
+      getActiveProducts()
+        .then((data) => setProducts(data))
+        .catch(() => {})
+        .finally(() => setProductsLoading(false))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditable])
+
   const totalAmount = orderItems.reduce(
     (sum, item) => sum + item.unit_price * item.quantity,
     0
@@ -153,6 +165,34 @@ function CompleteContent() {
 
   const updateQuantity = useCallback((index: number, delta: number) => {
     setOrderItems((prev) => {
+      const line = prev[index]
+
+      // 数量追加時: 現在の商品価格が注文時と異なる場合は、追加分を現在価格の別行として計上する
+      // （値下げ後に旧価格のまま積み増しされるのを防ぐ）
+      if (delta > 0 && line.product_id) {
+        const current = products.find((p) => p.id === line.product_id)
+        if (current && current.price !== line.unit_price) {
+          const sameLine = prev.findIndex(
+            (item, i) => i !== index && item.product_id === line.product_id && item.unit_price === current.price
+          )
+          if (sameLine >= 0) {
+            if (prev[sameLine].quantity + delta > 999) return prev
+            const next = [...prev]
+            next[sameLine] = { ...next[sameLine], quantity: next[sameLine].quantity + delta }
+            return next
+          }
+          return [
+            ...prev,
+            {
+              product_id: line.product_id,
+              product_name: line.product_name,
+              unit_price: current.price,
+              quantity: delta,
+            },
+          ]
+        }
+      }
+
       const next = [...prev]
       const newQty = next[index].quantity + delta
       if (newQty < 1) return prev
@@ -160,7 +200,7 @@ function CompleteContent() {
       next[index] = { ...next[index], quantity: newQty }
       return next
     })
-  }, [])
+  }, [products])
 
   const removeItem = useCallback((index: number) => {
     setOrderItems((prev) => prev.filter((_, i) => i !== index))
@@ -168,7 +208,10 @@ function CompleteContent() {
 
   const addProduct = useCallback((product: Product) => {
     setOrderItems((prev) => {
-      const existing = prev.findIndex((item) => item.product_id === product.id)
+      // 同一商品でも価格が違う行には合流させない（追加分は現在価格で計上）
+      const existing = prev.findIndex(
+        (item) => item.product_id === product.id && item.unit_price === product.price
+      )
       if (existing >= 0) {
         const next = [...prev]
         next[existing] = { ...next[existing], quantity: next[existing].quantity + 1 }
