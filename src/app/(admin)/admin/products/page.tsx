@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Pencil, Trash2, Search, Upload, Download, Eye, EyeOff, Settings, ImageIcon, RefreshCw, GripVertical } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, Upload, Download, Eye, EyeOff, Settings, ImageIcon, RefreshCw, GripVertical, Link as LinkIcon } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -219,6 +219,23 @@ async function syncToChiba() {
       toast.error('千葉への同期に失敗しました')
     } finally {
       setSyncing(false)
+    }
+  }
+
+  async function copyPriceLockLink() {
+    const now = new Date()
+    const url = `${window.location.origin}/apply?price_at=${encodeURIComponent(now.toISOString())}`
+    const expires = new Date(now.getTime() + 60 * 60 * 1000)
+    const expiresStr = expires.toLocaleTimeString('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success(`価格保証リンクをコピーしました（${expiresStr}まで有効）`)
+    } catch {
+      toast.error('コピーに失敗しました')
     }
   }
 
@@ -807,6 +824,10 @@ async function syncToChiba() {
         description="買取商品の管理"
         actions={
           <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" onClick={copyPriceLockLink}>
+              <LinkIcon className="mr-2 h-4 w-4" />
+              価格保証リンクをコピー
+            </Button>
 <Button variant="outline" onClick={syncToChiba} disabled={syncing}>
               <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? '同期中...' : '千葉に同期'}
