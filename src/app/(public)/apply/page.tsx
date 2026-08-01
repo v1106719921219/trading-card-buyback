@@ -28,7 +28,10 @@ export default async function ApplyPage({
 
   // price_at バリデーション: リンク発行時刻（ISO形式）かつ未来でないこと
   // 指定時刻時点の価格にロックする（price_date より優先）
+  // 有効期限: 発行から1時間。超過した場合はロックせず最新価格を表示
+  const PRICE_LOCK_TTL_MS = 60 * 60 * 1000
   let priceAt: string | null = null
+  let priceLockExpired = false
   if (priceAtParam) {
     // URLエンコードされていない「+09:00」はスペースに化けるため復元
     let normalized = priceAtParam.replace(/ (\d{2}:\d{2})$/, '+$1')
@@ -38,9 +41,13 @@ export default async function ApplyPage({
     }
     const d = new Date(normalized)
     if (!isNaN(d.getTime()) && d <= new Date()) {
-      priceAt = d.toISOString()
-      // 注文に記録される価格基準日（orders.price_date）はJSTの日付で保持
-      priceDate = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
+      if (Date.now() - d.getTime() > PRICE_LOCK_TTL_MS) {
+        priceLockExpired = true
+      } else {
+        priceAt = d.toISOString()
+        // 注文に記録される価格基準日（orders.price_date）はJSTの日付で保持
+        priceDate = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
+      }
     }
   }
 
@@ -139,6 +146,7 @@ export default async function ApplyPage({
       initialOffices={offices}
       priceDate={priceDate}
       priceAt={priceAt}
+      priceLockExpired={priceLockExpired}
       showAll={showAll}
       arQualityEnabled={arQualityEnabled}
       fromLine={fromLine}

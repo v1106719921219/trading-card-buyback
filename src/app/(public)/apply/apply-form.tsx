@@ -57,12 +57,13 @@ interface ApplyFormProps {
   initialOffices: Office[]
   priceDate?: string | null
   priceAt?: string | null
+  priceLockExpired?: boolean
   showAll?: boolean
   arQualityEnabled?: boolean
   fromLine?: boolean
 }
 
-export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, priceAt, showAll, arQualityEnabled, fromLine }: ApplyFormProps) {
+export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, priceAt, priceLockExpired, showAll, arQualityEnabled, fromLine }: ApplyFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -363,6 +364,11 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         </div>
 
         {/* 価格日付バナー */}
+        {priceLockExpired && (
+          <div className="mb-4 rounded-lg border border-orange-300 bg-orange-50 px-4 py-3 text-sm text-orange-800">
+            ご案内した価格の有効期限（1時間）が切れたため、現在の買取価格で表示しています
+          </div>
+        )}
         {priceAt ? (
           <div className="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
             {new Date(priceAt).toLocaleString('ja-JP', {
@@ -372,7 +378,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
               day: 'numeric',
               hour: '2-digit',
               minute: '2-digit',
-            })} 時点の買取価格で表示しています
+            })} 時点の買取価格で表示しています（この価格は発行から1時間有効です）
           </div>
         ) : priceDate ? (
           <div className="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
