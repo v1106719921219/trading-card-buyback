@@ -56,12 +56,13 @@ interface ApplyFormProps {
   initialSubcategories: Subcategory[]
   initialOffices: Office[]
   priceDate?: string | null
+  priceAt?: string | null
   showAll?: boolean
   arQualityEnabled?: boolean
   fromLine?: boolean
 }
 
-export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, showAll, arQualityEnabled, fromLine }: ApplyFormProps) {
+export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, priceAt, showAll, arQualityEnabled, fromLine }: ApplyFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -362,11 +363,22 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         </div>
 
         {/* 価格日付バナー */}
-        {priceDate && (
+        {priceAt ? (
+          <div className="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+            {new Date(priceAt).toLocaleString('ja-JP', {
+              timeZone: 'Asia/Tokyo',
+              year: 'numeric',
+              month: 'numeric',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })} 時点の買取価格で表示しています
+          </div>
+        ) : priceDate ? (
           <div className="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
             {priceDate.replace(/-/g, '/')} 時点の買取価格で表示しています
           </div>
-        )}
+        ) : null}
 
         {/* セクションヘッダー */}
         <div className="text-center mb-8">

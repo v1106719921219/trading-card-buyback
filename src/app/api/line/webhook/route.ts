@@ -146,7 +146,9 @@ async function handlePostback(event: any, tenantId: string, tenantSlug: string) 
 
     const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000'
     const protocol = rootDomain.includes('localhost') ? 'http' : 'https'
-    const applyUrl = `${protocol}://${tenantSlug}.${rootDomain}/apply?line_items=${encoded}`
+    // 価格ロック: Botが金額を提示した時刻（セッション更新時刻）の価格で申込できるようにする
+    const priceAt = encodeURIComponent(session.updated_at ?? new Date().toISOString())
+    const applyUrl = `${protocol}://${tenantSlug}.${rootDomain}/apply?line_items=${encoded}&price_at=${priceAt}`
 
     await sendTextMessage(
       replyToken,

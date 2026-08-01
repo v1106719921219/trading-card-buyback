@@ -12,6 +12,7 @@ export default async function ApplyPage({
 }) {
   const params = await searchParams
   const priceDateParam = typeof params.price_date === 'string' ? params.price_date : undefined
+  const priceAtParam = typeof params.price_at === 'string' ? params.price_at : undefined
   const showAll = params.show_all === 'true'
   const fromLine = params.from === 'line'
 
@@ -22,6 +23,24 @@ export default async function ApplyPage({
     const now = new Date()
     if (!isNaN(d.getTime()) && d <= now) {
       priceDate = priceDateParam
+    }
+  }
+
+  // price_at バリデーション: リンク発行時刻（ISO形式）かつ未来でないこと
+  // 指定時刻時点の価格にロックする（price_date より優先）
+  let priceAt: string | null = null
+  if (priceAtParam) {
+    // URLエンコードされていない「+09:00」はスペースに化けるため復元
+    let normalized = priceAtParam.replace(/ (\d{2}:\d{2})$/, '+$1')
+    // タイムゾーン指定がない場合はJSTとして解釈（手動リンク作成用）
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(normalized)) {
+      normalized += '+09:00'
+    }
+    const d = new Date(normalized)
+    if (!isNaN(d.getTime()) && d <= new Date()) {
+      priceAt = d.toISOString()
+      // 注文に記録される価格基準日（orders.price_date）はJSTの日付で保持
+      priceDate = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
     }
   }
 
@@ -51,14 +70,21 @@ export default async function ApplyPage({
     return (a.sort_order ?? 0) - (b.sort_order ?? 0)
   }) as (Product & { category: Category; subcategory: Subcategory | null })[]
 
-  // price_date 指定時: 指定日の翌日以降に変更された価格履歴から old_price を取得して上書き
-  // 指定日の終わり時点の価格を表示するため、翌日0時以降の変更を対象にする
-  if (priceDate) {
+  // 価格ロックの基準時刻を決定
+  // - price_at 指定時: その時刻（リンク発行時刻）
+  // - price_date 指定時: 指定日の終わり時点（翌日0時JST）
+  let priceCutoff: string | null = null
+  if (priceAt) {
+    priceCutoff = priceAt
+  } else if (priceDate) {
     // タイムゾーンに依存しない翌日計算（UTC固定で日付演算のみ行う）
     const nextDay = new Date(priceDate + 'T00:00:00Z')
     nextDay.setUTCDate(nextDay.getUTCDate() + 1)
-    const nextDayStr = nextDay.toISOString().split('T')[0]
+    priceCutoff = nextDay.toISOString().split('T')[0] + 'T00:00:00+09:00'
+  }
 
+  // 基準時刻以降に変更された価格履歴から old_price を取得して上書き
+  if (priceCutoff) {
     // Supabaseの1000行制限を回避するためページネーションで全件取得
     const historyData: { product_id: string | null; old_price: number; changed_at: string }[] = []
     const pageSize = 1000
@@ -66,7 +92,7 @@ export default async function ApplyPage({
       const { data: chunk } = await supabase
         .from('product_price_history')
         .select('product_id, old_price, changed_at')
-        .gte('changed_at', nextDayStr + 'T00:00:00+09:00')
+        .gte('changed_at', priceCutoff)
         .order('changed_at', { ascending: true })
         .order('id', { ascending: true })
         .range(page * pageSize, (page + 1) * pageSize - 1)
@@ -112,6 +138,7 @@ export default async function ApplyPage({
       initialSubcategories={subcategories}
       initialOffices={offices}
       priceDate={priceDate}
+      priceAt={priceAt}
       showAll={showAll}
       arQualityEnabled={arQualityEnabled}
       fromLine={fromLine}
