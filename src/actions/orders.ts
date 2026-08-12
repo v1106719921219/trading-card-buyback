@@ -458,6 +458,7 @@ export async function getOrdersForCSV(year: number, month: number) {
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items(*), office:offices(name)')
+    .not('customer_name', 'ilike', '【テスト】%')
     .gte('created_at', startDate)
     .lt('created_at', endDate)
     .order('created_at', { ascending: true })

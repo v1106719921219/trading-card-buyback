@@ -36,6 +36,7 @@ export async function GET(request: Request) {
   const { data: orders } = await supabase
     .from('orders')
     .select('id, inspected_total_amount, total_amount, inspection_discount, order_items(product_name, unit_price, inspected_quantity, quantity)')
+    .not('customer_name', 'ilike', '【テスト】%')
     .in('id', orderIds)
 
   const totalAmount = orders?.reduce((sum, o) => {
