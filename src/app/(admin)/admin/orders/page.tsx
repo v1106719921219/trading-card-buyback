@@ -362,7 +362,6 @@ export default function OrdersPage() {
     let query = supabase
       .from('orders')
       .select('*', { count: 'exact' })
-      .not('customer_name', 'ilike', '【テスト】%')
       .order('created_at', { ascending: false })
       .range(offset, offset + ITEMS_PER_PAGE - 1)
 
@@ -397,7 +396,6 @@ export default function OrdersPage() {
       let totalsQuery = supabase
         .from('orders')
         .select('created_at, status, total_amount, inspected_total_amount, inspection_discount')
-        .not('customer_name', 'ilike', '【テスト】%')
         .gte('created_at', rangeStart.toISOString())
         .lt('created_at', rangeEnd.toISOString())
 

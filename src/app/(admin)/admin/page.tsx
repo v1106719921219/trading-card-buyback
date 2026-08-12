@@ -16,7 +16,6 @@ export default async function AdminDashboard() {
   const { data: orders } = await supabase
     .from('orders')
     .select('status')
-    .not('customer_name', 'ilike', '【テスト】%')
 
   const statusCounts: Record<string, number> = {}
   ORDER_STATUSES.forEach((s) => (statusCounts[s] = 0))
@@ -29,7 +28,6 @@ export default async function AdminDashboard() {
   const { count: todayOrders } = await supabase
     .from('orders')
     .select('*', { count: 'exact', head: true })
-    .not('customer_name', 'ilike', '【テスト】%')
     .gte('created_at', `${today}T00:00:00`)
 
   // Get transfer history from order_status_history (when status changed to 振込済)
@@ -37,7 +35,6 @@ export default async function AdminDashboard() {
   const { data: transferHistory } = await supabase
     .from('order_status_history')
     .select('order_id, changed_at, orders(inspected_total_amount, total_amount, inspection_discount)')
-    .not('orders.customer_name', 'ilike', '【テスト】%')
     .eq('new_status', '振込済')
     .order('changed_at', { ascending: false })
 
