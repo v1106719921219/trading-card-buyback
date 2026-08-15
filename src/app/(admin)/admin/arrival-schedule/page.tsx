@@ -100,8 +100,21 @@ export default async function ArrivalSchedulePage({
                         <tbody>
                           {group.products.map((product) => (
                             <tr key={product.product_name} className="border-b last:border-0">
-                              <td className="py-2 pr-4">{product.product_name}</td>
-                              <td className="py-2 text-right font-medium">{product.total_quantity}個</td>
+                              <td className="py-2 pr-4">
+                                <div>{product.product_name}</div>
+                                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                                  {product.orders.map((o) => (
+                                    <Link
+                                      key={o.order_id}
+                                      href={`/admin/orders/${o.order_id}`}
+                                      className="text-xs text-blue-600 hover:underline"
+                                    >
+                                      {o.customer_name}({o.quantity})
+                                    </Link>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="py-2 text-right font-medium align-top">{product.total_quantity}個</td>
                             </tr>
                           ))}
                         </tbody>
