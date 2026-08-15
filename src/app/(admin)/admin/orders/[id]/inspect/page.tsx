@@ -28,7 +28,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { ArrowLeft, Save, Plus, Trash2, ChevronsUpDown, Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { notifyDiscordInspectionIssue } from '@/lib/discord'
@@ -62,6 +72,7 @@ export default function InspectPage() {
   const [products, setProducts] = useState<(Product & { category: Category })[]>([])
   const [inspectionStatus, setInspectionStatus] = useState<InspectionStatus | ''>('')
   const [arrivalDate, setArrivalDate] = useState('')
+  const [openProductSearch, setOpenProductSearch] = useState<string | null>(null)
 
   const isChiba = (process.env.NEXT_PUBLIC_SITE_URL ?? '').includes('chiba')
   const supabase = createClient()
@@ -387,18 +398,43 @@ export default function InspectPage() {
                         </div>
                       ) : (
                         <div className="flex gap-2">
-                          <Select onValueChange={(v) => selectProduct(item.id, v)}>
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="商品を選択" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {products.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <Popover open={openProductSearch === item.id} onOpenChange={(open) => setOpenProductSearch(open ? item.id : null)}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className="flex-1 justify-between font-normal h-10"
+                              >
+                                {item.product_id
+                                  ? products.find((p) => p.id === item.product_id)?.name ?? '商品を選択'
+                                  : '商品を選択'}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="商品名で検索..." />
+                                <CommandList>
+                                  <CommandEmpty>商品が見つかりません</CommandEmpty>
+                                  <CommandGroup>
+                                    {products.map((p) => (
+                                      <CommandItem
+                                        key={p.id}
+                                        value={`${p.name}（${p.price.toLocaleString()}円）`}
+                                        onSelect={() => {
+                                          selectProduct(item.id, p.id)
+                                          setOpenProductSearch(null)
+                                        }}
+                                      >
+                                        <Check className={cn('mr-2 h-4 w-4', item.product_id === p.id ? 'opacity-100' : 'opacity-0')} />
+                                        {p.name}（{p.price.toLocaleString()}円）
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
                           <Button
                             variant="outline"
                             size="sm"
