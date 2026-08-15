@@ -45,6 +45,7 @@ interface InspectItem {
   _inspected_price: number
   _returned: number
   _isNew: boolean
+  _isCustom: boolean
 }
 
 export default function InspectPage() {
@@ -108,6 +109,7 @@ export default function InspectPage() {
         _inspected_price: item.unit_price,
         _returned: item.returned_quantity ?? 0,
         _isNew: false,
+        _isCustom: false,
       }))
     )
     if (productResult.data) {
@@ -153,6 +155,7 @@ export default function InspectPage() {
       _inspected_price: 0,
       _returned: 0,
       _isNew: true,
+      _isCustom: false,
     }])
   }
 
@@ -356,18 +359,60 @@ export default function InspectPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     {item._isNew ? (
-                      <Select onValueChange={(v) => selectProduct(item.id, v)}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="商品を選択" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {products.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      item._isCustom ? (
+                        <div className="flex gap-2">
+                          <Input
+                            type="text"
+                            value={item.product_name}
+                            onChange={(e) =>
+                              setItems(items.map((i) =>
+                                i.id === item.id ? { ...i, product_name: e.target.value } : i
+                              ))
+                            }
+                            className="flex-1 h-10 text-base"
+                            placeholder="商品名を入力（例: 送料キャッシュバック）"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0 h-10 text-xs"
+                            onClick={() =>
+                              setItems(items.map((i) =>
+                                i.id === item.id ? { ...i, _isCustom: false, product_id: null, product_name: '', _inspected_price: 0 } : i
+                              ))
+                            }
+                          >
+                            一覧から選択
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Select onValueChange={(v) => selectProduct(item.id, v)}>
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="商品を選択" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {products.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0 h-10 text-xs"
+                            onClick={() =>
+                              setItems(items.map((i) =>
+                                i.id === item.id ? { ...i, _isCustom: true, product_id: null, product_name: '', _inspected_price: 0 } : i
+                              ))
+                            }
+                          >
+                            任意入力
+                          </Button>
+                        </div>
+                      )
                     ) : (
                       <p className="font-medium text-base">{item.product_name}</p>
                     )}
