@@ -117,6 +117,7 @@ export interface Order {
   arrival_date: string | null
   price_date: string | null
   assigned_to: string | null
+  paid_at: string | null
   tenant_id: string
   created_at: string
   updated_at: string

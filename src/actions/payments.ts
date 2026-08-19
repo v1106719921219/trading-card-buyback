@@ -23,7 +23,7 @@ export async function markAsPaid(orderId: string) {
   // Atomic update: WHERE status = '検品完了' で TOCTOU 防止
   const { data: updated, error: updateError } = await supabase
     .from('orders')
-    .update({ status: '振込済' })
+    .update({ status: '振込済', paid_at: new Date().toISOString() })
     .eq('id', orderId)
     .eq('status', '検品完了')
     .select('*, order_items(*)')

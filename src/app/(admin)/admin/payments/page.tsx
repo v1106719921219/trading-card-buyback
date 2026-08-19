@@ -101,16 +101,16 @@ export default function PaymentsPage() {
     cutoff.setDate(cutoff.getDate() - 3)
     const { data: paidOrders } = await supabase
       .from('orders')
-      .select('order_number, customer_email, bank_name, bank_account_number, total_amount, inspected_total_amount, inspection_discount, updated_at')
+      .select('order_number, customer_email, bank_name, bank_account_number, total_amount, inspected_total_amount, inspection_discount, paid_at')
       .in('status', ['振込済', '振込確認済'])
-      .gte('updated_at', cutoff.toISOString())
+      .gte('paid_at', cutoff.toISOString())
 
     // キー → 振込済注文リスト
     const paidByKey = new Map<string, RepeatWarning[]>()
     for (const p of paidOrders ?? []) {
       const w: RepeatWarning = {
         orderNumber: p.order_number,
-        date: toJstDate(String(p.updated_at)),
+        date: toJstDate(String(p.paid_at)),
         amount: (p.inspected_total_amount ?? p.total_amount) - (p.inspection_discount ?? 0),
         kind: 'paid',
       }
