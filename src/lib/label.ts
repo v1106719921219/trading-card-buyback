@@ -1,7 +1,7 @@
 import JsBarcode from 'jsbarcode'
 
 /**
- * 注文番号のCODE128バーコードラベル（25mm x 15mm）を生成して印刷ダイアログを開く
+ * 注文番号のCODE128バーコードラベル（29mm x 15mm）を生成して印刷ダイアログを開く
  * 1ページ = 1ラベル、count枚分のページを生成
  * PDFではなくHTMLを非表示iframeで印刷する（Safari/Chrome共通で印刷ダイアログが確実に開く方式）
  */
@@ -27,10 +27,10 @@ export function downloadOrderLabelPdf(orderNumber: string, count: number) {
 <head>
 <meta charset="utf-8" />
 <style>
-  @page { size: 25mm 15mm; margin: 0; }
+  @page { size: 29mm 15mm; margin: 0; }
   html, body { margin: 0; padding: 0; }
   .label {
-    width: 25mm;
+    width: 29mm;
     height: 15mm;
     display: flex;
     align-items: center;
@@ -39,7 +39,7 @@ export function downloadOrderLabelPdf(orderNumber: string, count: number) {
     overflow: hidden;
   }
   .label img {
-    max-width: 23mm;
+    max-width: 27mm;
     max-height: 13mm;
     object-fit: contain;
   }
