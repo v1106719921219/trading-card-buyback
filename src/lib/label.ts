@@ -1,25 +1,11 @@
-import JsBarcode from 'jsbarcode'
-
 /**
- * 注文番号のCODE128バーコードラベル（29mm x 15mm）を生成して印刷ダイアログを開く
+ * 注文番号のテキストラベル（29mm x 5mm、バーコードなし）を生成して印刷ダイアログを開く
  * 1ページ = 1ラベル、count枚分のページを生成
  * PDFではなくHTMLを非表示iframeで印刷する（Safari/Chrome共通で印刷ダイアログが確実に開く方式）
  */
 export function downloadOrderLabelPdf(orderNumber: string, count: number) {
-  const canvas = document.createElement('canvas')
-  JsBarcode(canvas, orderNumber, {
-    format: 'CODE128',
-    width: 3,
-    height: 100,
-    displayValue: true,
-    fontSize: 28,
-    textMargin: 4,
-    margin: 8,
-  })
-  const img = canvas.toDataURL('image/png')
-
   const labels = Array.from({ length: count })
-    .map(() => `<div class="label"><img src="${img}" alt="${orderNumber}" /></div>`)
+    .map(() => `<div class="label">${orderNumber}</div>`)
     .join('')
 
   const html = `<!DOCTYPE html>
@@ -27,21 +13,20 @@ export function downloadOrderLabelPdf(orderNumber: string, count: number) {
 <head>
 <meta charset="utf-8" />
 <style>
-  @page { size: 29mm 15mm; margin: 0; }
+  @page { size: 29mm 5mm; margin: 0; }
   html, body { margin: 0; padding: 0; }
   .label {
     width: 29mm;
-    height: 15mm;
+    height: 5mm;
     display: flex;
     align-items: center;
     justify-content: center;
     page-break-after: always;
     overflow: hidden;
-  }
-  .label img {
-    max-width: 27mm;
-    max-height: 13mm;
-    object-fit: contain;
+    font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 3.5mm;
+    font-weight: bold;
+    line-height: 1;
   }
 </style>
 </head>
@@ -68,7 +53,6 @@ export function downloadOrderLabelPdf(orderNumber: string, count: number) {
   frameDoc.write(html)
   frameDoc.close()
 
-  // 画像(データURL)の描画を待ってから印刷
   setTimeout(() => {
     iframe.contentWindow?.focus()
     iframe.contentWindow?.print()
