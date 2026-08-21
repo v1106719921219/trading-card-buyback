@@ -1,5 +1,5 @@
 /**
- * 注文番号のテキストラベル（29mm x 5mm、バーコードなし）を生成して印刷ダイアログを開く
+ * 注文番号のテキストラベル（DK-1201: 29mm x 90mm、バーコードなし）を生成して印刷ダイアログを開く
  * 1ページ = 1ラベル、count枚分のページを生成
  * PDFではなくHTMLを非表示iframeで印刷する（Safari/Chrome共通で印刷ダイアログが確実に開く方式）
  */
@@ -13,20 +13,22 @@ export function downloadOrderLabelPdf(orderNumber: string, count: number) {
 <head>
 <meta charset="utf-8" />
 <style>
-  @page { size: 29mm 5mm; margin: 0; }
+  @page { size: 29mm 90mm; margin: 0; }
   html, body { margin: 0; padding: 0; }
   .label {
     width: 29mm;
-    height: 5mm;
+    height: 90mm;
     display: flex;
     align-items: center;
     justify-content: center;
     page-break-after: always;
     overflow: hidden;
     font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
-    font-size: 3.5mm;
+    font-size: 5mm;
     font-weight: bold;
     line-height: 1;
+    writing-mode: vertical-rl;
+    text-orientation: sideways;
   }
 </style>
 </head>
