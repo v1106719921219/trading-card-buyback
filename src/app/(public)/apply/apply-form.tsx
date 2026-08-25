@@ -50,6 +50,25 @@ const STEPS = [
   { label: '確認', icon: CheckCircle },
 ]
 
+interface PrefillCustomer {
+  customer_name: string | null
+  customer_line_name: string | null
+  customer_email: string | null
+  customer_phone: string | null
+  customer_birth_date: string | null
+  customer_occupation: string | null
+  customer_prefecture: string | null
+  customer_address: string | null
+  customer_not_invoice_issuer: boolean | null
+  invoice_issuer_number: string | null
+  customer_identity_method: string | null
+  bank_name: string | null
+  bank_branch: string | null
+  bank_account_type: string | null
+  bank_account_number: string | null
+  bank_account_holder: string | null
+}
+
 interface ApplyFormProps {
   initialCategories: Category[]
   initialProducts: (Product & { category: Category; subcategory: Subcategory | null })[]
@@ -61,15 +80,18 @@ interface ApplyFormProps {
   showAll?: boolean
   arQualityEnabled?: boolean
   fromLine?: boolean
+  initialCart?: CartItem[]
+  prefillCustomer?: PrefillCustomer | null
+  lineUserToken?: string | null
 }
 
-export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, priceAt, priceLockExpired, showAll, arQualityEnabled, fromLine }: ApplyFormProps) {
+export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, priceAt, priceLockExpired, showAll, arQualityEnabled, fromLine, initialCart, prefillCustomer, lineUserToken }: ApplyFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('all')
-  const [cart, setCart] = useState<CartItem[]>([])
+  const [cart, setCart] = useState<CartItem[]>(initialCart ?? [])
   const [search, setSearch] = useState('')
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>(initialOffices[0]?.id ?? '')
   const [shippedDate, setShippedDate] = useState<string>('')
@@ -82,25 +104,25 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   // Repeater lookup state
   const [lookupEmail, setLookupEmail] = useState('')
   const [lookingUp, setLookingUp] = useState(false)
-  const [customerLoaded, setCustomerLoaded] = useState(false)
+  const [customerLoaded, setCustomerLoaded] = useState(!!prefillCustomer)
 
-  // Customer form
-  const [customerName, setCustomerName] = useState('')
-  const [customerLineName, setCustomerLineName] = useState('')
-  const [customerEmail, setCustomerEmail] = useState('')
-  const [customerPhone, setCustomerPhone] = useState('')
-  const [customerBirthDate, setCustomerBirthDate] = useState('')
-  const [customerOccupation, setCustomerOccupation] = useState('')
-  const [customerPrefecture, setCustomerPrefecture] = useState('')
-  const [customerAddress, setCustomerAddress] = useState('')
-  const [customerNotInvoiceIssuer, setCustomerNotInvoiceIssuer] = useState(true)
-  const [invoiceIssuerNumber, setInvoiceIssuerNumber] = useState('')
-  const [customerIdentityMethod, setCustomerIdentityMethod] = useState('')
-  const [bankName, setBankName] = useState('')
-  const [bankBranch, setBankBranch] = useState('')
-  const [bankAccountType, setBankAccountType] = useState<'普通' | '当座'>('普通')
-  const [bankAccountNumber, setBankAccountNumber] = useState('')
-  const [bankAccountHolder, setBankAccountHolder] = useState('')
+  // Customer form（LINE経由の場合は過去注文の情報を初期値としてプレフィル）
+  const [customerName, setCustomerName] = useState(prefillCustomer?.customer_name ?? '')
+  const [customerLineName, setCustomerLineName] = useState(prefillCustomer?.customer_line_name ?? '')
+  const [customerEmail, setCustomerEmail] = useState(prefillCustomer?.customer_email ?? '')
+  const [customerPhone, setCustomerPhone] = useState(prefillCustomer?.customer_phone ?? '')
+  const [customerBirthDate, setCustomerBirthDate] = useState(prefillCustomer?.customer_birth_date ?? '')
+  const [customerOccupation, setCustomerOccupation] = useState(prefillCustomer?.customer_occupation ?? '')
+  const [customerPrefecture, setCustomerPrefecture] = useState(prefillCustomer?.customer_prefecture ?? '')
+  const [customerAddress, setCustomerAddress] = useState(prefillCustomer?.customer_address ?? '')
+  const [customerNotInvoiceIssuer, setCustomerNotInvoiceIssuer] = useState(prefillCustomer?.customer_not_invoice_issuer ?? true)
+  const [invoiceIssuerNumber, setInvoiceIssuerNumber] = useState(prefillCustomer?.invoice_issuer_number ?? '')
+  const [customerIdentityMethod, setCustomerIdentityMethod] = useState(prefillCustomer?.customer_identity_method ?? '')
+  const [bankName, setBankName] = useState(prefillCustomer?.bank_name ?? '')
+  const [bankBranch, setBankBranch] = useState(prefillCustomer?.bank_branch ?? '')
+  const [bankAccountType, setBankAccountType] = useState<'普通' | '当座'>((prefillCustomer?.bank_account_type as '普通' | '当座') ?? '普通')
+  const [bankAccountNumber, setBankAccountNumber] = useState(prefillCustomer?.bank_account_number ?? '')
+  const [bankAccountHolder, setBankAccountHolder] = useState(prefillCustomer?.bank_account_holder ?? '')
 
   const categories = initialCategories
   const products = initialProducts
@@ -305,6 +327,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         price_date: priceDate || undefined,
         buyback_type: cart.some(item => item.product_name.includes('AR')) ? (arQualityEnabled ? selectedBuybackType : 'minimum_guarantee') : undefined,
         from_line: fromLine ?? false,
+        line_user_token: lineUserToken || undefined,
       })
 
       setLoading(false)

@@ -37,11 +37,13 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { ArrowLeft, Save, Plus, Trash2, ChevronsUpDown, Check, Barcode } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, ChevronsUpDown, Check, Barcode, IdCard, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { notifyDiscordInspectionIssue } from '@/lib/discord'
+import { sendIdReminderLineMessage } from '@/actions/orders'
+import { idReminderMessage } from '@/lib/line-messages'
 import { downloadOrderLabelPdf } from '@/lib/label'
 import type { Order, OrderItem, Product, Category, InspectionStatus } from '@/types/database'
 import { INSPECTION_STATUSES } from '@/lib/constants'
@@ -74,6 +76,8 @@ export default function InspectPage() {
   const [inspectionStatus, setInspectionStatus] = useState<InspectionStatus | ''>('')
   const [arrivalDate, setArrivalDate] = useState('')
   const [openProductSearch, setOpenProductSearch] = useState<string | null>(null)
+  const [idReminderSending, setIdReminderSending] = useState(false)
+  const [showIdReminderFallback, setShowIdReminderFallback] = useState(false)
 
   const isChiba = (process.env.NEXT_PUBLIC_SITE_URL ?? '').includes('chiba')
   const supabase = createClient()
@@ -217,6 +221,32 @@ export default function InspectPage() {
   const labelCount = items
     .filter(isOnePieceBox)
     .reduce((sum, item) => sum + Math.max(0, (item._inspected ?? 0) - item._returned), 0)
+
+  async function handleSendIdReminder() {
+    if (!order || idReminderSending) return
+    setIdReminderSending(true)
+    try {
+      const result = await sendIdReminderLineMessage(order.id)
+      if ('noLineUser' in result && result.noLineUser) {
+        // LINE経由でない注文は自動送信不可 → 定型文コピーで手動送信
+        setShowIdReminderFallback(true)
+      } else if ('error' in result && result.error) {
+        toast.error(result.error)
+      } else {
+        toast.success('本人確認書類のご案内をLINEで送信しました')
+        setOrder({ ...order, id_reminder_sent_at: new Date().toISOString() })
+      }
+    } catch {
+      toast.error('送信に失敗しました')
+    }
+    setIdReminderSending(false)
+  }
+
+  async function handleCopyIdReminder() {
+    if (!order) return
+    await navigator.clipboard.writeText(idReminderMessage(order.order_number))
+    toast.success('定型文をコピーしました')
+  }
 
   function handlePrintLabels() {
     if (!order || labelCount === 0) return
@@ -668,6 +698,35 @@ export default function InspectPage() {
             {items.filter((i) => !i._isNew && i._inspected === null).length}件の検品数量が未入力です
           </p>
         )}
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="outline"
+              size="lg"
+              disabled={idReminderSending}
+              className={order.id_reminder_sent_at ? 'text-green-700 border-green-300' : 'text-amber-700 border-amber-300'}
+            >
+              <IdCard className="mr-2 h-4 w-4" />
+              {order.id_reminder_sent_at
+                ? `本人確認証 連絡済み（${new Date(order.id_reminder_sent_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}）`
+                : '本人確認証忘れ'}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>本人確認書類忘れの連絡を送信しますか？</AlertDialogTitle>
+              <AlertDialogDescription className="whitespace-pre-wrap">
+                {order.customer_name} 様（LINE: {order.customer_line_name || '-'}）の公式LINEに以下を自動送信します。
+                {'\n\n'}{idReminderMessage(order.order_number)}
+                {order.id_reminder_sent_at ? '\n\n※ この注文には既に送信済みです。再送されます。' : ''}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>キャンセル</AlertDialogCancel>
+              <AlertDialogAction onClick={handleSendIdReminder}>送信する</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         {labelCount > 0 && (
           <Button variant="outline" size="lg" onClick={handlePrintLabels}>
             <Barcode className="mr-2 h-4 w-4" />
@@ -699,6 +758,27 @@ export default function InspectPage() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+
+      {/* LINE userId未紐付け注文用フォールバック（手動送信） */}
+      <AlertDialog open={showIdReminderFallback} onOpenChange={setShowIdReminderFallback}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>自動送信できません</AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-wrap">
+              この注文はLINE経由の申込ではないため、お客様のLINEアカウントが紐付いていません。
+              {'\n'}公式LINEの管理画面から「{order.customer_line_name || order.customer_name}」様のトークを開き、以下の定型文を手動で送信してください。
+              {'\n\n'}{idReminderMessage(order.order_number)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>閉じる</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCopyIdReminder}>
+              <Copy className="mr-2 h-4 w-4" />
+              定型文をコピー
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

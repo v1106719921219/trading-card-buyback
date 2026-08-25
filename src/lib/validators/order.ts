@@ -46,6 +46,7 @@ export const createOrderSchema = z.object({
   price_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   buyback_type: z.enum(['ar_quality', 'minimum_guarantee']).optional(),
   from_line: z.boolean().optional(),
+  line_user_token: z.string().max(500).optional(),
 })
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>

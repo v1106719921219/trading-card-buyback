@@ -11,6 +11,8 @@ import { appendOrderToSheet } from '@/lib/google-sheets'
 import { getCurrentUser } from '@/actions/auth'
 import { requireTenantId } from '@/lib/tenant'
 import { requireRole, assertBelongsToTenant, sanitizeError } from '@/lib/security'
+import { verifyLineUserToken, pushTextMessage } from '@/lib/line'
+import { idReminderMessage } from '@/lib/line-messages'
 
 
 export async function createOrder(input: CreateOrderInput) {
@@ -31,7 +33,10 @@ export async function createOrder(input: CreateOrderInput) {
   // Use admin client for public form submission (bypasses RLS)
   const supabase = createAdminClient()
 
-  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type, from_line } = parsed.data
+  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type, from_line, line_user_token } = parsed.data
+
+  // 署名付きトークンからLINE userIdを復元（改ざん・なりすまし防止のためサーバー側で検証）
+  const lineUserId = line_user_token ? verifyLineUserToken(line_user_token) : null
 
   // 重複チェック: 同一テナント・メールアドレスで2分以内の申込があれば既存注文を返す
   const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
@@ -86,6 +91,7 @@ export async function createOrder(input: CreateOrderInput) {
       shipped_date: shipped_date || null,
       price_date: price_date ?? null,
       buyback_type: buyback_type ?? 'minimum_guarantee',
+      line_user_id: lineUserId,
       tenant_id: tenantId,
     })
     .select('id, order_number')
@@ -664,6 +670,46 @@ export async function updateOrderOffice(orderId: string, officeId: string) {
   revalidatePath(`/admin/orders/${orderId}`)
   revalidatePath('/admin/orders')
   return { success: true }
+}
+
+// 本人確認書類の同封忘れをお客様の公式LINEへ自動連絡する
+// 認証済み管理画面から呼ばれる想定（RLSにより未認証は注文を取得できない）
+export async function sendIdReminderLineMessage(orderId: string) {
+  const supabase = await createClient()
+
+  const { data: order, error: fetchError } = await supabase
+    .from('orders')
+    .select('id, order_number, line_user_id, customer_line_name, id_reminder_sent_at')
+    .eq('id', orderId)
+    .single()
+
+  if (fetchError || !order) {
+    return { error: '注文が見つかりません' }
+  }
+
+  if (!order.line_user_id) {
+    // LINE経由でない注文はuserId不明のため自動送信不可 → 手動送信用フォールバック
+    return { noLineUser: true as const }
+  }
+
+  const result = await pushTextMessage(order.line_user_id, idReminderMessage(order.order_number))
+  if (!result.success) {
+    return { error: result.error || 'LINE送信に失敗しました' }
+  }
+
+  const sentAt = new Date().toISOString()
+  const { error: updateError } = await supabase
+    .from('orders')
+    .update({ id_reminder_sent_at: sentAt })
+    .eq('id', orderId)
+
+  if (updateError) {
+    // 送信自体は成功しているため記録失敗は警告に留める
+    console.error('[sendIdReminderLineMessage] 送信記録の保存に失敗:', updateError.message)
+  }
+
+  revalidatePath(`/admin/orders/${orderId}`)
+  return { success: true, sentAt }
 }
 
 export async function deleteOrder(orderId: string) {

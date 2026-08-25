@@ -1,6 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ApplyForm } from './apply-form'
 import { LineConfirmGate } from './line-confirm-gate'
+import { verifyLineUserToken } from '@/lib/line'
+import { lookupCustomerByLineUserId } from '@/actions/customers'
 import type { Category, Product, Office, Subcategory } from '@/types/database'
 
 export const dynamic = 'force-dynamic'
@@ -15,6 +17,19 @@ export default async function ApplyPage({
   const priceAtParam = typeof params.price_at === 'string' ? params.price_at : undefined
   const showAll = params.show_all === 'true'
   const fromLine = params.from === 'line'
+  const lineItemsParam = typeof params.line_items === 'string' ? params.line_items : undefined
+  const luParam = typeof params.lu === 'string' ? params.lu : undefined
+
+  // LINE userIdトークン検証 → 過去注文から顧客情報を自動プレフィル
+  let lineUserToken: string | null = null
+  let prefillCustomer = null
+  if (luParam) {
+    const lineUserId = verifyLineUserToken(luParam)
+    if (lineUserId) {
+      lineUserToken = luParam
+      prefillCustomer = await lookupCustomerByLineUserId(lineUserId)
+    }
+  }
 
   // price_date バリデーション: YYYY-MM-DD 形式かつ未来日でないこと
   let priceDate: string | null = null
@@ -130,6 +145,32 @@ export default async function ApplyPage({
   const subcategories = (subResult.data ?? []) as Subcategory[]
   const offices = (officeResult.data ?? []) as Office[]
 
+  // LINE Botが発行したline_itemsパラメータをカート初期値に変換
+  // 単価は価格ロック反映後の商品マスタ価格を使用する
+  let initialCart: { product_id: string; product_name: string; unit_price: number; quantity: number; category_name: string }[] = []
+  if (lineItemsParam) {
+    try {
+      const decoded = JSON.parse(Buffer.from(lineItemsParam, 'base64url').toString('utf8'))
+      if (Array.isArray(decoded)) {
+        for (const item of decoded) {
+          const product = products.find((p) => p.id === item?.product_id)
+          const quantity = Number(item?.quantity)
+          if (product && Number.isInteger(quantity) && quantity >= 1 && quantity <= 9999) {
+            initialCart.push({
+              product_id: product.id,
+              product_name: product.name,
+              unit_price: product.price,
+              quantity,
+              category_name: product.category?.name || '',
+            })
+          }
+        }
+      }
+    } catch {
+      initialCart = []
+    }
+  }
+
   // 美品査定受付の設定を取得
   const { data: arQualitySetting } = await supabase
     .from('app_settings')
@@ -150,6 +191,9 @@ export default async function ApplyPage({
       showAll={showAll}
       arQualityEnabled={arQualityEnabled}
       fromLine={fromLine}
+      initialCart={initialCart}
+      prefillCustomer={prefillCustomer}
+      lineUserToken={lineUserToken}
     />
   )
 

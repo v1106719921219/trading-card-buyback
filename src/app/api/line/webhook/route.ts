@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseOrderText } from '@/actions/ai-parse-order'
-import { verifySignature, sendTextMessage, sendConfirmationMessage } from '@/lib/line'
+import { verifySignature, sendTextMessage, sendConfirmationMessage, signLineUserId } from '@/lib/line'
 import { getSession, upsertSession, clearSession } from '@/lib/line-session'
 import type { ParsedItem } from '@/lib/line-session'
 
@@ -148,7 +148,10 @@ async function handlePostback(event: any, tenantId: string, tenantSlug: string) 
     const protocol = rootDomain.includes('localhost') ? 'http' : 'https'
     // 価格ロック: Botが金額を提示した時刻（セッション更新時刻）の価格で申込できるようにする
     const priceAt = encodeURIComponent(session.updated_at ?? new Date().toISOString())
-    const applyUrl = `${protocol}://${tenantSlug}.${rootDomain}/apply?line_items=${encoded}&price_at=${priceAt}`
+    // LINE userIdを署名付きトークンとして付与（注文への紐付け＋顧客情報の自動入力用）
+    const luToken = signLineUserId(lineUserId)
+    const luParam = luToken ? `&lu=${encodeURIComponent(luToken)}` : ''
+    const applyUrl = `${protocol}://${tenantSlug}.${rootDomain}/apply?line_items=${encoded}&price_at=${priceAt}${luParam}`
 
     await sendTextMessage(
       replyToken,
