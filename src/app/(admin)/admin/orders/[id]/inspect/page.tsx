@@ -691,8 +691,8 @@ export default function InspectPage() {
         </Card>
       </div>
 
-      {/* Actions - sticky bottom for iPad */}
-      <div className="sticky bottom-0 bg-background border-t py-4 -mx-4 px-4 md:-mx-8 md:px-8 flex items-center justify-end gap-3">
+      {/* Actions */}
+      <div className="bg-background border-t py-4 -mx-4 px-4 md:-mx-8 md:px-8 flex items-center justify-end gap-3">
         {!allInspected && (
           <p className="text-sm text-amber-600 mr-auto">
             {items.filter((i) => !i._isNew && i._inspected === null).length}件の検品数量が未入力です
