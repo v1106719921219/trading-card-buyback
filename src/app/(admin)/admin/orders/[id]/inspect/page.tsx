@@ -698,35 +698,6 @@ export default function InspectPage() {
             {items.filter((i) => !i._isNew && i._inspected === null).length}件の検品数量が未入力です
           </p>
         )}
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="outline"
-              size="lg"
-              disabled={idReminderSending}
-              className={order.id_reminder_sent_at ? 'text-green-700 border-green-300' : 'text-amber-700 border-amber-300'}
-            >
-              <IdCard className="mr-2 h-4 w-4" />
-              {order.id_reminder_sent_at
-                ? `本人確認証 連絡済み（${new Date(order.id_reminder_sent_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}）`
-                : '本人確認証忘れ'}
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>本人確認書類忘れの連絡を送信しますか？</AlertDialogTitle>
-              <AlertDialogDescription className="whitespace-pre-wrap">
-                {order.customer_name} 様（LINE: {order.customer_line_name || '-'}）の公式LINEに以下を自動送信します。
-                {'\n\n'}{idReminderMessage(order.order_number)}
-                {order.id_reminder_sent_at ? '\n\n※ この注文には既に送信済みです。再送されます。' : ''}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>キャンセル</AlertDialogCancel>
-              <AlertDialogAction onClick={handleSendIdReminder}>送信する</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
         {labelCount > 0 && (
           <Button variant="outline" size="lg" onClick={handlePrintLabels}>
             <Barcode className="mr-2 h-4 w-4" />
