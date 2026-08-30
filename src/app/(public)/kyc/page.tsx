@@ -9,6 +9,7 @@ export default async function KycPage({
 }) {
   const params = await searchParams
   const orderNumber = typeof params.order === 'string' ? params.order : undefined
+  const previewStep = typeof params.preview === 'string' ? params.preview : undefined
   const tenant = await getTenant()
 
   if (!tenant) {
@@ -29,7 +30,7 @@ export default async function KycPage({
             古物営業法に基づく本人確認を行います
           </p>
         </div>
-        <KycFlow orderNumber={orderNumber} />
+        <KycFlow orderNumber={orderNumber} previewStep={previewStep} />
       </div>
     </div>
   )

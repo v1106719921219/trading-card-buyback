@@ -28,8 +28,10 @@ interface CapturedImages {
   face: Blob | null
 }
 
-export function KycFlow({ orderNumber }: { orderNumber?: string }) {
-  const [step, setStep] = useState<KycStep>('start')
+export function KycFlow({ orderNumber, previewStep }: { orderNumber?: string; previewStep?: string }) {
+  // ?preview=thickness で厚み撮影画面のみを直接表示（UI確認用・データは作成されない）
+  const isPreview = previewStep === 'thickness'
+  const [step, setStep] = useState<KycStep>(isPreview ? 'id_capture_thickness' : 'start')
   const [kycRequestId, setKycRequestId] = useState<string | null>(null)
   const [customerEmail, setCustomerEmail] = useState('')
   const [customerName, setCustomerName] = useState('')
@@ -76,6 +78,7 @@ export function KycFlow({ orderNumber }: { orderNumber?: string }) {
   }
 
   function handleCapture(imageType: 'id_front' | 'id_thickness' | 'id_back' | 'face', blob: Blob) {
+    if (isPreview) return // プレビューモードでは何も送信せずその場に留まる
     setImages((prev) => ({ ...prev, [imageType]: blob }))
 
     if (imageType === 'id_front') {
