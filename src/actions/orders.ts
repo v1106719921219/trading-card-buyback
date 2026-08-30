@@ -101,8 +101,8 @@ export async function createOrder(input: CreateOrderInput) {
       customer_not_invoice_issuer: customer.customer_not_invoice_issuer,
       invoice_issuer_number: customer.invoice_issuer_number || null,
       customer_identity_method: identityMethod,
-      kyc_request_id: kycRequestId,
-      identity_verified_at: identityVerifiedAt,
+      // eKYC未導入のDB（千葉）にはカラムが無いため、自動パス成立時のみ含める
+      ...(kycRequestId ? { kyc_request_id: kycRequestId, identity_verified_at: identityVerifiedAt } : {}),
       bank_name: bankName,
       bank_branch: customer.bank_branch,
       bank_account_type: customer.bank_account_type,
