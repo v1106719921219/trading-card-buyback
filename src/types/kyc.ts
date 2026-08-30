@@ -2,7 +2,7 @@ export type KycStatus = 'pending' | 'processing' | 'approved' | 'rejected' | 'ex
 
 export type KycMethod = 'image' | 'ic_chip'
 
-export type IdDocumentType = 'driving_license' | 'my_number_card' | 'passport'
+export type IdDocumentType = 'driving_license' | 'my_number_card' | 'passport' | 'health_insurance' | 'residence_card'
 
 export interface KycRequest {
   id: string
@@ -67,6 +67,8 @@ export const ID_DOCUMENT_TYPE_LABELS: Record<IdDocumentType, string> = {
   driving_license: '運転免許証',
   my_number_card: 'マイナンバーカード',
   passport: 'パスポート',
+  health_insurance: '保険証',
+  residence_card: '在留カード',
 }
 
 export const KYC_METHOD_LABELS: Record<KycMethod, string> = {
@@ -75,7 +77,7 @@ export const KYC_METHOD_LABELS: Record<KycMethod, string> = {
 }
 
 /** 裏面撮影が必要な身分証種類 */
-export const REQUIRES_BACK_IMAGE: IdDocumentType[] = ['driving_license']
+export const REQUIRES_BACK_IMAGE: IdDocumentType[] = ['driving_license', 'health_insurance', 'residence_card']
 
 /** 厚み撮影が必要な身分証種類（古物営業法対応） */
-export const REQUIRES_THICKNESS_IMAGE: IdDocumentType[] = ['driving_license', 'my_number_card']
+export const REQUIRES_THICKNESS_IMAGE: IdDocumentType[] = ['driving_license', 'my_number_card', 'residence_card']

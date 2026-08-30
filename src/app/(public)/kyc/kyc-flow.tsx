@@ -28,7 +28,7 @@ interface CapturedImages {
   face: Blob | null
 }
 
-export function KycFlow() {
+export function KycFlow({ orderNumber }: { orderNumber?: string }) {
   const [step, setStep] = useState<KycStep>('start')
   const [kycRequestId, setKycRequestId] = useState<string | null>(null)
   const [customerEmail, setCustomerEmail] = useState('')
@@ -61,6 +61,7 @@ export function KycFlow() {
       customer_email: customerEmail,
       customer_name: customerName,
       id_document_type: type,
+      order_number: orderNumber,
     })
 
     if (result.error) {

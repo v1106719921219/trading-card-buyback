@@ -36,7 +36,19 @@ export async function createKycRequest(input: KycSubmitInput) {
   }
 
   const supabase = createAdminClient()
-  const { customer_email, customer_name, id_document_type } = parsed.data
+  const { customer_email, customer_name, id_document_type, order_number } = parsed.data
+
+  // 注文番号が渡された場合は注文に紐付ける（同一テナントのみ）
+  let orderId: string | null = null
+  if (order_number) {
+    const { data: order } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('order_number', order_number)
+      .maybeSingle()
+    orderId = order?.id ?? null
+  }
 
   // 同一メールの未完了リクエストがあるか確認
   const { data: existing } = await supabase
@@ -61,6 +73,7 @@ export async function createKycRequest(input: KycSubmitInput) {
       customer_email,
       customer_name,
       id_document_type,
+      order_id: orderId,
       kyc_method: 'image',
       status: 'pending',
     })
@@ -270,7 +283,8 @@ export async function reviewKycRequest(input: KycReviewInput) {
     return { error: parsed.error.issues[0].message }
   }
 
-  const { user, error: authError } = await requireRole(['admin', 'manager'])
+  // 検品時にスタッフが確認できるようstaffもレビュー可能（実行者はreviewed_by＋監査ログに記録）
+  const { user, error: authError } = await requireRole(['admin', 'manager', 'staff'])
   if (authError || !user) return { error: authError ?? '認証エラー' }
 
   const supabase = await createClient()
@@ -279,7 +293,7 @@ export async function reviewKycRequest(input: KycReviewInput) {
   // 現在のステータス確認
   const { data: current, error: fetchError } = await supabase
     .from('kyc_requests')
-    .select('id, status, tenant_id')
+    .select('id, status, tenant_id, order_id')
     .eq('id', kyc_request_id)
     .single()
 
@@ -295,7 +309,7 @@ export async function reviewKycRequest(input: KycReviewInput) {
     return { error: '否認理由を入力してください' }
   }
 
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from('kyc_requests')
     .update({
       status: action,
@@ -304,9 +318,28 @@ export async function reviewKycRequest(input: KycReviewInput) {
       rejection_reason: action === 'rejected' ? rejection_reason : null,
     })
     .eq('id', kyc_request_id)
+    .select('id')
 
   if (updateError) {
     return { error: sanitizeError(updateError) }
+  }
+  if (!updated || updated.length === 0) {
+    return { error: 'レビューの保存に失敗しました（権限がない可能性があります）' }
+  }
+
+  // 承認時: 紐付いた注文を本人確認済みにする
+  if (action === 'approved' && current.order_id) {
+    const admin = createAdminClient()
+    const { error: orderError } = await admin
+      .from('orders')
+      .update({
+        kyc_request_id,
+        identity_verified_at: new Date().toISOString(),
+      })
+      .eq('id', current.order_id)
+    if (orderError) {
+      console.error('[KYC] 注文への確認済み反映に失敗:', orderError)
+    }
   }
 
   // 監査ログ
@@ -325,6 +358,101 @@ export async function reviewKycRequest(input: KycReviewInput) {
   revalidatePath(`/admin/kyc/${kyc_request_id}`)
 
   return { success: true }
+}
+
+/**
+ * 検品画面用: 注文に対応する本人確認（eKYC）の状況と書類画像を取得
+ * 紐付き順: 注文に記録されたkyc_request_id → 注文idに紐付くリクエスト → 同一メールの最新リクエスト
+ */
+export async function getOrderKycInfo(orderId: string) {
+  const { user, error: authError } = await requireRole(['admin', 'manager', 'staff'])
+  if (authError || !user) return { error: authError ?? '認証エラー' }
+
+  const supabase = createAdminClient()
+
+  const { data: order } = await supabase
+    .from('orders')
+    .select('id, tenant_id, customer_email, customer_identity_method, kyc_request_id, identity_verified_at')
+    .eq('id', orderId)
+    .single()
+
+  if (!order) return { error: '注文が見つかりません' }
+
+  let kyc: {
+    id: string
+    status: string
+    id_document_type: string
+    id_front_image_path: string | null
+    id_back_image_path: string | null
+    id_thickness_image_path: string | null
+    face_image_path: string | null
+    rejection_reason: string | null
+    reviewed_at: string | null
+  } | null = null
+
+  const kycSelect =
+    'id, status, id_document_type, id_front_image_path, id_back_image_path, id_thickness_image_path, face_image_path, rejection_reason, reviewed_at'
+
+  if (order.kyc_request_id) {
+    const { data } = await supabase
+      .from('kyc_requests')
+      .select(kycSelect)
+      .eq('id', order.kyc_request_id)
+      .maybeSingle()
+    kyc = data
+  }
+  if (!kyc) {
+    const { data } = await supabase
+      .from('kyc_requests')
+      .select(kycSelect)
+      .eq('order_id', order.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    kyc = data
+  }
+  if (!kyc) {
+    const { data } = await supabase
+      .from('kyc_requests')
+      .select(kycSelect)
+      .eq('tenant_id', order.tenant_id)
+      .eq('customer_email', order.customer_email)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    kyc = data
+  }
+
+  const images: { label: string; url: string }[] = []
+  if (kyc) {
+    const paths: [string, string | null][] = [
+      ['身分証（表）', kyc.id_front_image_path],
+      ['身分証（裏）', kyc.id_back_image_path],
+      ['厚み', kyc.id_thickness_image_path],
+      ['顔写真', kyc.face_image_path],
+    ]
+    for (const [label, path] of paths) {
+      if (!path) continue
+      const url = await createSignedUrl(path)
+      if (url) images.push({ label, url })
+    }
+  }
+
+  return {
+    data: {
+      identityMethod: order.customer_identity_method,
+      identityVerifiedAt: order.identity_verified_at,
+      kycId: kyc?.id ?? null,
+      kycStatus: (kyc?.status as import('@/types/kyc').KycStatus) ?? null,
+      documentLabel: kyc
+        ? (await import('@/types/kyc')).ID_DOCUMENT_TYPE_LABELS[
+            kyc.id_document_type as import('@/types/kyc').IdDocumentType
+          ] ?? kyc.id_document_type
+        : null,
+      rejectionReason: kyc?.rejection_reason ?? null,
+      images,
+    },
+  }
 }
 
 /**

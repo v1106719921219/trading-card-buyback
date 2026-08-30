@@ -488,14 +488,33 @@ function CompleteContent() {
                   商品を下記住所までお送りください。到着後、検品を行い、結果をメールにてお知らせいたします。
                 </p>
 
-                {identityMethod && (
+                {identityMethod === 'eKYC確認済み' ? (
+                  <div className="bg-green-50 border border-green-200 p-4 rounded-md text-sm text-left">
+                    <p className="font-medium text-green-800 mb-1">本人確認について</p>
+                    <p className="text-green-700">
+                      本人確認は完了しています。書類の同梱・アップロードは不要です。
+                    </p>
+                  </div>
+                ) : identityMethod?.includes('初回') ? (
                   <div className="bg-amber-50 border border-amber-200 p-4 rounded-md text-sm text-left">
                     <p className="font-medium text-amber-800 mb-1">本人確認書類について</p>
                     <p className="text-amber-700">
-                      <span className="font-medium">{identityMethod}</span>のコピーを商品と同梱の上、お送りください。
+                      <span className="font-medium">{identityMethod.replace('（初回）', '')}</span>
+                      （原本）を商品と同梱の上、お送りください。
                     </p>
                   </div>
-                )}
+                ) : identityMethod ? (
+                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-md text-sm text-left space-y-2">
+                    <p className="font-medium text-blue-800">本人確認書類について</p>
+                    <p className="text-blue-700">
+                      <span className="font-medium">{identityMethod.replace('（2回目以降）', '')}</span>
+                      は同梱不要です。下のボタンからスマホで撮影してアップロードしてください。
+                    </p>
+                    <Link href={`/kyc?order=${orderNumber ?? ''}`}>
+                      <Button className="w-full mt-1">本人確認書類をアップロードする</Button>
+                    </Link>
+                  </div>
+                ) : null}
 
                 <div className="bg-muted p-4 rounded-md text-sm text-left">
                   <p className="font-medium mb-1">送付先</p>

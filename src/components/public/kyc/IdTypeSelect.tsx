@@ -12,6 +12,8 @@ const ID_TYPE_OPTIONS: { type: IdDocumentType; description: string }[] = [
   // TODO [Phase2] マイナンバーカード選択時のICチップ分岐
   { type: 'my_number_card', description: '表面のみ撮影（個人番号面は不要）' },
   { type: 'passport', description: '顔写真ページを撮影してください' },
+  { type: 'health_insurance', description: '表面・裏面の撮影が必要です' },
+  { type: 'residence_card', description: '表面・裏面の撮影が必要です' },
 ]
 
 export function IdTypeSelect({ onSelect }: IdTypeSelectProps) {

@@ -789,7 +789,14 @@ export default function OrderDetailPage() {
                 {order.customer_identity_method && (
                   <>
                     <dt className="text-muted-foreground">本人確認方法</dt>
-                    <dd>{order.customer_identity_method}</dd>
+                    <dd>
+                      {order.customer_identity_method}
+                      {order.identity_verified_at && (
+                        <span className="ml-1.5 inline-block rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-800">
+                          確認済み {new Date(order.identity_verified_at).toLocaleDateString('ja-JP')}
+                        </span>
+                      )}
+                    </dd>
                   </>
                 )}
               </dl>

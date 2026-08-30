@@ -3,9 +3,10 @@ import { z } from 'zod'
 export const kycSubmitSchema = z.object({
   customer_email: z.string().email('正しいメールアドレスを入力してください'),
   customer_name: z.string().min(1, 'お名前を入力してください').max(100),
-  id_document_type: z.enum(['driving_license', 'my_number_card', 'passport'], {
+  id_document_type: z.enum(['driving_license', 'my_number_card', 'passport', 'health_insurance', 'residence_card'], {
     message: '身分証明書の種類を選択してください',
   }),
+  order_number: z.string().max(50).optional(),
 })
 
 export type KycSubmitInput = z.infer<typeof kycSubmitSchema>

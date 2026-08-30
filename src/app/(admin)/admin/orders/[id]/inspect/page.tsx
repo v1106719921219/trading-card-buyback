@@ -44,6 +44,7 @@ import { toast } from 'sonner'
 import { notifyDiscordInspectionIssue } from '@/lib/discord'
 import { sendIdReminderLineMessage } from '@/actions/orders'
 import { getInspectorOptions } from '@/actions/inspection'
+import { getOrderKycInfo, reviewKycRequest } from '@/actions/kyc'
 import { idReminderMessage } from '@/lib/line-messages'
 import type { Order, OrderItem, Product, Category, InspectionStatus } from '@/types/database'
 import { INSPECTION_STATUSES } from '@/lib/constants'
@@ -80,6 +81,48 @@ export default function InspectPage() {
   const [showIdReminderFallback, setShowIdReminderFallback] = useState(false)
   const [inspectors, setInspectors] = useState<string[]>([])
   const [inspectorName, setInspectorName] = useState('')
+
+  interface OrderKycInfo {
+    identityMethod: string | null
+    identityVerifiedAt: string | null
+    kycId: string | null
+    kycStatus: string | null
+    documentLabel: string | null
+    rejectionReason: string | null
+    images: { label: string; url: string }[]
+  }
+  const [kycInfo, setKycInfo] = useState<OrderKycInfo | null>(null)
+  const [kycReviewing, setKycReviewing] = useState(false)
+  const [kycRejectReason, setKycRejectReason] = useState('')
+  const [showKycReject, setShowKycReject] = useState(false)
+
+  async function loadKycInfo() {
+    const result = await getOrderKycInfo(orderId)
+    if ('data' in result && result.data) setKycInfo(result.data)
+  }
+
+  async function handleKycReview(action: 'approved' | 'rejected') {
+    if (!kycInfo?.kycId || kycReviewing) return
+    if (action === 'rejected' && !kycRejectReason.trim()) {
+      toast.error('否認理由を入力してください')
+      return
+    }
+    setKycReviewing(true)
+    const result = await reviewKycRequest({
+      kyc_request_id: kycInfo.kycId,
+      action,
+      rejection_reason: action === 'rejected' ? kycRejectReason.trim() : undefined,
+    })
+    setKycReviewing(false)
+    if (result.error) {
+      toast.error(result.error)
+      return
+    }
+    toast.success(action === 'approved' ? '本人確認を承認しました' : '本人確認を否認しました')
+    setShowKycReject(false)
+    setKycRejectReason('')
+    loadKycInfo()
+  }
 
   const isChiba = (process.env.NEXT_PUBLIC_SITE_URL ?? '').includes('chiba')
   const supabase = createClient()
@@ -152,6 +195,11 @@ export default function InspectPage() {
     if (!isChiba && order) getInspectorOptions(order.office_id).then(setInspectors)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order?.office_id])
+
+  useEffect(() => {
+    loadKycInfo()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId])
 
   function updateItem(id: string, field: '_inspected_price' | '_returned', value: number) {
     setItems(items.map((item) =>
@@ -679,6 +727,74 @@ export default function InspectPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 本人確認 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <IdCard className="h-4 w-4" />
+            本人確認
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted-foreground">申込時の方法:</span>
+            <span className="font-medium">{kycInfo?.identityMethod ?? order.customer_identity_method ?? '未選択'}</span>
+            {kycInfo?.identityVerifiedAt && (
+              <Badge className="bg-green-100 text-green-800">確認済み</Badge>
+            )}
+            {kycInfo?.documentLabel && !kycInfo?.identityVerifiedAt && (
+              <span className="text-muted-foreground">（アップロード書類: {kycInfo.documentLabel}）</span>
+            )}
+          </div>
+
+          {kycInfo?.images && kycInfo.images.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {kycInfo.images.map((img) => (
+                <a key={img.label} href={img.url} target="_blank" rel="noreferrer" className="block text-center">
+                  <img src={img.url} alt={img.label} className="h-28 rounded border object-cover" />
+                  <span className="text-xs text-muted-foreground">{img.label}</span>
+                </a>
+              ))}
+            </div>
+          )}
+
+          {kycInfo?.identityVerifiedAt ? null : kycInfo?.kycStatus === 'processing' ? (
+            <div className="space-y-2">
+              <p className="text-sm text-blue-700">書類がアップロードされています。内容を確認してください。</p>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={() => handleKycReview('approved')} disabled={kycReviewing}>
+                  本人確認OK（承認）
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowKycReject(!showKycReject)} disabled={kycReviewing}>
+                  否認
+                </Button>
+              </div>
+              {showKycReject && (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={kycRejectReason}
+                    onChange={(e) => setKycRejectReason(e.target.value)}
+                    placeholder="否認理由（お客様に表示されます）"
+                    className="max-w-sm"
+                  />
+                  <Button size="sm" variant="destructive" onClick={() => handleKycReview('rejected')} disabled={kycReviewing}>
+                    否認する
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : kycInfo?.kycStatus === 'pending' ? (
+            <p className="text-sm text-amber-600">アップロード未完了です（お客様が撮影を完了していません）</p>
+          ) : kycInfo?.kycStatus === 'rejected' ? (
+            <p className="text-sm text-destructive">否認済み: {kycInfo.rejectionReason ?? '理由未記録'}（再アップロード待ち）</p>
+          ) : (kycInfo?.identityMethod ?? order.customer_identity_method ?? '').includes('初回') ? (
+            <p className="text-sm text-amber-600">初回のお客様です。同梱された原本（住民票/印鑑証明）を確認してください。</p>
+          ) : (
+            <p className="text-sm text-amber-600">書類のアップロードがまだありません。</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Actions */}
       <div className="bg-background border-t py-4 -mx-4 px-4 md:-mx-8 md:px-8 flex flex-wrap items-center justify-end gap-3">

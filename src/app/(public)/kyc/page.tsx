@@ -2,7 +2,13 @@ import { getTenant } from '@/lib/tenant'
 import { redirect } from 'next/navigation'
 import { KycFlow } from './kyc-flow'
 
-export default async function KycPage() {
+export default async function KycPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const params = await searchParams
+  const orderNumber = typeof params.order === 'string' ? params.order : undefined
   const tenant = await getTenant()
 
   if (!tenant) {
@@ -23,7 +29,7 @@ export default async function KycPage() {
             古物営業法に基づく本人確認を行います
           </p>
         </div>
-        <KycFlow />
+        <KycFlow orderNumber={orderNumber} />
       </div>
     </div>
   )

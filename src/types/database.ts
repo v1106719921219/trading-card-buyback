@@ -104,6 +104,8 @@ export interface Order {
   inspection_notes: string | null
   inspected_by: string | null
   inspected_by_name: string | null
+  kyc_request_id: string | null
+  identity_verified_at: string | null
   shipped_date: string | null
   tracking_number: string | null
   notes: string | null

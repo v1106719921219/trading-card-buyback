@@ -64,6 +64,27 @@ export async function createOrder(input: CreateOrderInput) {
   // PayPay銀行の表記を統一
   const bankName = customer.bank_name === 'PayPay銀行' ? 'PayPay銀行（ペイペイ銀行）' : customer.bank_name
 
+  // 過去に承認済みeKYCがある同一人物（メール＋氏名一致）は本人確認を自動パス
+  let kycRequestId: string | null = null
+  let identityVerifiedAt: string | null = null
+  let identityMethod: string = customer.customer_identity_method
+  const { data: approvedKyc } = await supabase
+    .from('kyc_requests')
+    .select('id, customer_name')
+    .eq('tenant_id', tenantId)
+    .eq('customer_email', customer.customer_email)
+    .eq('status', 'approved')
+    .order('reviewed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const normalize = (s: string | null | undefined) => (s ?? '').replace(/[\s　]/g, '')
+  if (approvedKyc && normalize(approvedKyc.customer_name) === normalize(customer.customer_name)) {
+    kycRequestId = approvedKyc.id
+    identityVerifiedAt = new Date().toISOString()
+    identityMethod = 'eKYC確認済み'
+  }
+
   // Create order
   const { data: order, error: orderError } = await supabase
     .from('orders')
@@ -79,7 +100,9 @@ export async function createOrder(input: CreateOrderInput) {
       customer_address: customer.customer_address || null,
       customer_not_invoice_issuer: customer.customer_not_invoice_issuer,
       invoice_issuer_number: customer.invoice_issuer_number || null,
-      customer_identity_method: customer.customer_identity_method,
+      customer_identity_method: identityMethod,
+      kyc_request_id: kycRequestId,
+      identity_verified_at: identityVerifiedAt,
       bank_name: bankName,
       bank_branch: customer.bank_branch,
       bank_account_type: customer.bank_account_type,
