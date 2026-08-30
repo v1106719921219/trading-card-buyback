@@ -105,7 +105,24 @@ export default function MyOrdersPage() {
         </p>
 
         {loading ? (
-          <p className="py-12 text-center text-muted-foreground">読み込み中...</p>
+          // 読み込み中は注文カードと同じ形のスケルトンを表示（体感速度の改善）
+          <div className="space-y-3">
+            {[0, 1].map((i) => (
+              <Card key={i}>
+                <CardContent className="animate-pulse space-y-3 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="h-4 w-28 rounded bg-gray-200" />
+                    <div className="h-5 w-20 rounded-full bg-gray-200" />
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-gray-200" />
+                  <div className="flex items-center justify-between">
+                    <div className="h-4 w-24 rounded bg-gray-200" />
+                    <div className="h-4 w-32 rounded bg-gray-200" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         ) : !inLine ? (
           <Card>
             <CardContent className="space-y-3 py-8 text-center">

@@ -30,15 +30,9 @@ export function initLiff(): Promise<LiffState> {
       // LINEアプリ内ではliff.initが認証（初回の許可含む）を自動処理するので、
       // 追加のliff.login()は呼ばない（呼ぶと許可が二重になり最初の画面に戻ってしまう）
       const idToken = liff.getIDToken()
-      let displayName: string | null = null
-      try {
-        const profile = await liff.getProfile()
-        displayName = profile.displayName ?? null
-      } catch {
-        // プロフィール取得失敗は致命的ではない
-      }
 
-      return { ready: true, inLiff: true, idToken, displayName }
+      // displayNameはどの画面でも未使用のため、getProfile()の往復待ちを省略して初期化を高速化
+      return { ready: true, inLiff: true, idToken, displayName: null }
     } catch (err) {
       console.error('[LIFF] 初期化エラー:', err)
       return empty
