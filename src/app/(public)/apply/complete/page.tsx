@@ -512,10 +512,10 @@ function CompleteContent() {
                 {lineLinkUrl && (
                   <a href={lineLinkUrl}>
                     <Button className="w-full bg-[#06C755] hover:bg-[#06C755]/90 text-white font-bold">
-                      LINEで進捗を受け取る
+                      LINEで進捗を確認する
                     </Button>
                     <span className="mt-1 block text-center text-xs text-muted-foreground">
-                      タップ後、開いたLINEで「送信」を押すと、検品・お振込みの進捗がLINEに届きます
+                      タップ後、開いたLINEで「送信」を押すと、検品・お振込みの進捗をLINE上で確認できるようになります
                     </span>
                   </a>
                 )}
