@@ -44,7 +44,7 @@ import { toast } from 'sonner'
 import { notifyDiscordInspectionIssue } from '@/lib/discord'
 import { sendIdReminderLineMessage } from '@/actions/orders'
 import { idReminderMessage } from '@/lib/line-messages'
-import type { Order, OrderItem, Product, Category, InspectionStatus, Profile } from '@/types/database'
+import type { Order, OrderItem, Product, Category, InspectionStatus } from '@/types/database'
 import { INSPECTION_STATUSES } from '@/lib/constants'
 
 interface InspectItem {
@@ -77,7 +77,6 @@ export default function InspectPage() {
   const [openProductSearch, setOpenProductSearch] = useState<string | null>(null)
   const [idReminderSending, setIdReminderSending] = useState(false)
   const [showIdReminderFallback, setShowIdReminderFallback] = useState(false)
-  const [myProfile, setMyProfile] = useState<Profile | null>(null)
 
   const isChiba = (process.env.NEXT_PUBLIC_SITE_URL ?? '').includes('chiba')
   const supabase = createClient()
@@ -143,19 +142,6 @@ export default function InspectPage() {
   useEffect(() => {
     fetchOrder()
   }, [orderId])
-
-  useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-      setMyProfile(data as Profile | null)
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   function updateItem(id: string, field: '_inspected_price' | '_returned', value: number) {
     setItems(items.map((item) =>
@@ -376,12 +362,6 @@ export default function InspectPage() {
   if (loading || !order) {
     return <div className="p-8 text-center text-muted-foreground">読み込み中...</div>
   }
-
-  // 検品完了は「注文の担当事務所に所属するアカウント」または「admin」のみ（DBトリガーでも強制）
-  const canComplete =
-    !!myProfile &&
-    (myProfile.role === 'admin' ||
-      (!!myProfile.office_id && myProfile.office_id === order.office_id))
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -683,13 +663,9 @@ export default function InspectPage() {
 
       {/* Actions */}
       <div className="bg-background border-t py-4 -mx-4 px-4 md:-mx-8 md:px-8 flex items-center justify-end gap-3">
-        {!allInspected ? (
+        {!allInspected && (
           <p className="text-sm text-amber-600 mr-auto">
             {items.filter((i) => !i._isNew && i._inspected === null).length}件の検品数量が未入力です
-          </p>
-        ) : !canComplete && (
-          <p className="text-sm text-destructive mr-auto">
-            検品完了にできるのは、この注文の担当事務所に所属するアカウントまたは管理者のみです
           </p>
         )}
         <Button variant="outline" size="lg" onClick={handleSave} disabled={saving}>
@@ -698,7 +674,7 @@ export default function InspectPage() {
         </Button>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button size="lg" disabled={!allInspected || !canComplete}>検品完了にする</Button>
+            <Button size="lg" disabled={!allInspected}>検品完了にする</Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>

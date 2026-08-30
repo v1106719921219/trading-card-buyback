@@ -1,13 +1,18 @@
 #!/bin/bash
-# 検品完了の事務所制限マイグレーションを東京・千葉の両Supabaseに適用する
-# 実行: bash scripts/apply-office-guard-migration.sh
+# 指定したマイグレーションSQLを東京・千葉の両Supabaseに適用する
+# 実行: bash scripts/apply-office-guard-migration.sh [マイグレーションファイル名]
+# 引数省略時は supabase/migrations の最新ファイルを適用
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+FILE="${1:-$(ls supabase/migrations/*.sql | sort | tail -1)}"
+[ -f "$FILE" ] || FILE="supabase/migrations/$1"
+echo "適用するSQL: $FILE"
+
 TOKEN_RAW=$(security find-generic-password -s "Supabase CLI" -a supabase -w)
 TOKEN=$(printf '%s' "$TOKEN_RAW" | sed 's/^go-keyring-base64://' | base64 -d 2>/dev/null || printf '%s' "$TOKEN_RAW")
-SQL=$(cat supabase/migrations/20260830000001_add_profile_office_inspection_guard.sql)
+SQL=$(cat "$FILE")
 
 for REF in hbvkaidvrwgskjtvvwfw fqbtulaerxrnekbkjlhu; do
   NAME=$([ "$REF" = "hbvkaidvrwgskjtvvwfw" ] && echo "東京" || echo "千葉")
@@ -22,5 +27,6 @@ for REF in hbvkaidvrwgskjtvvwfw fqbtulaerxrnekbkjlhu; do
 done
 
 # 東京はマイグレーション履歴にも記録（supabase CLI link済みのため）
-supabase migration repair --status applied 20260830000001 2>/dev/null || true
+VERSION=$(basename "$FILE" | cut -d_ -f1)
+supabase migration repair --status applied "$VERSION" 2>/dev/null || true
 echo "完了"

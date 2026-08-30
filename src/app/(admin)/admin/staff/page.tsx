@@ -202,9 +202,6 @@ export default function StaffPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    検品完了にできるのは、注文の担当事務所に所属するアカウントと管理者のみです
-                  </p>
                 </div>
                 <Button type="submit" className="w-full" disabled={submitting}>
                   {submitting ? '追加中...' : '追加'}
