@@ -199,6 +199,10 @@ export default function OrderDetailPage() {
     if (!order || revertingStatus) return
     const revertTo = STATUS_REVERT[order.status as OrderStatus]
     if (!revertTo) return
+    if (order.status === '振込済' && userRole !== 'admin') {
+      toast.error('振込済から検品完了に戻せるのは管理者のみです')
+      return
+    }
     setRevertingStatus(true)
 
     const { error } = await supabase
@@ -986,8 +990,9 @@ export default function OrderDetailPage() {
             </Card>
           )}
 
-          {/* ステータスを戻す */}
-          {userRole && STATUS_REVERT[order.status as OrderStatus] && (
+          {/* ステータスを戻す（振込済→検品完了はadminのみ: 二重振込防止・DBトリガーでも強制） */}
+          {userRole && STATUS_REVERT[order.status as OrderStatus] &&
+            (order.status !== '振込済' || userRole === 'admin') && (
             <Card className="border-amber-300">
               <CardHeader>
                 <CardTitle className="text-sm text-amber-700">ステータスを戻す</CardTitle>
