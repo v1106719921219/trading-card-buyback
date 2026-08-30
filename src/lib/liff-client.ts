@@ -27,17 +27,9 @@ export function initLiff(): Promise<LiffState> {
       // LINEアプリ内で開かれていない（＝普通のブラウザ）場合は紐付けしない
       if (!liff.isInClient()) return empty
 
-      // LINEアプリ内では通常liff.initで自動ログイン済み。まずトークン取得を試す
-      let idToken = liff.getIDToken()
-
-      // 未認証（初回の認可待ちなど）の場合のみログイン。
-      // 戻り先を「今開いている申込ページ」に固定（既定だとトップに戻ってしまうため）
-      if (!idToken && !liff.isLoggedIn()) {
-        liff.login({ redirectUri: window.location.href })
-        return empty // この後リダイレクトで再読み込みされ、認証済みで戻ってくる
-      }
-
-      idToken = liff.getIDToken()
+      // LINEアプリ内ではliff.initが認証（初回の許可含む）を自動処理するので、
+      // 追加のliff.login()は呼ばない（呼ぶと許可が二重になり最初の画面に戻ってしまう）
+      const idToken = liff.getIDToken()
       let displayName: string | null = null
       try {
         const profile = await liff.getProfile()
