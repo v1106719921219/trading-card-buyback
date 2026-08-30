@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const { data: targets, error } = await supabase
     .from('kyc_requests')
     .select(
-      'id, customer_name, customer_email, id_document_type, id_front_image_path, id_thickness_image_path, id_back_image_path, face_image_path, ocr_extracted_name, ocr_extracted_address, ocr_extracted_birth_date, reviewed_at, created_at, order:orders(order_number)'
+      'id, customer_name, customer_email, id_document_type, id_front_image_path, id_thickness_image_path, id_back_image_path, face_image_path, ocr_extracted_name, ocr_extracted_address, ocr_extracted_birth_date, reviewed_at, created_at, order:orders!kyc_requests_order_id_fkey(order_number)'
     )
     .eq('status', 'approved')
     .is('drive_backed_up_at', null)
