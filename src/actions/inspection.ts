@@ -7,7 +7,8 @@ import { getCurrentUser } from '@/actions/auth'
 import { submitInspectionSchema, type SubmitInspectionInput } from '@/lib/validators/inspection'
 
 // 検品者として選択できるスタッフ名一覧（共有アカウント・テスト用は除外）
-// officeIdを渡すとその事務所所属のスタッフのみ返す（所属者が1人もいない場合は全員にフォールバック）
+// 並び順: 注文の担当事務所所属のスタッフ → 所属なしのスタッフ（全事務所共通メンバー）
+// 他事務所所属のスタッフは表示しない
 export async function getInspectorOptions(
   officeId?: string | null
 ): Promise<{ id: string; display_name: string }[]> {
@@ -22,11 +23,9 @@ export async function getInspectorOptions(
     .order('display_name')
 
   const individuals = (data ?? []).filter((p) => !/事務所|テスト/.test(p.display_name))
-  if (officeId) {
-    const officeMembers = individuals.filter((p) => p.office_id === officeId)
-    if (officeMembers.length > 0) return officeMembers.map(({ id, display_name }) => ({ id, display_name }))
-  }
-  return individuals.map(({ id, display_name }) => ({ id, display_name }))
+  const officeMembers = officeId ? individuals.filter((p) => p.office_id === officeId) : []
+  const commonMembers = individuals.filter((p) => !p.office_id)
+  return [...officeMembers, ...commonMembers].map(({ id, display_name }) => ({ id, display_name }))
 }
 
 export async function submitInspection(input: SubmitInspectionInput) {
