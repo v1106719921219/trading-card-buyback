@@ -17,7 +17,7 @@ export function myOrdersLiffUrl(): string {
   return liffId ? `https://liff.line.me/${liffId}?view=orders` : ''
 }
 
-// 申込受付時のメッセージ（ステータス確認ページへ誘導）
+// 申込受付時のメッセージ（このリンク1つでいつでも最新の全ステータスが分かる）
 export function orderReceivedMessage(orderNumber: string, amount: number): string {
   const url = myOrdersLiffUrl()
   return [
@@ -26,24 +26,9 @@ export function orderReceivedMessage(orderNumber: string, amount: number): strin
     `注文番号: ${orderNumber}`,
     `申込金額: ${amount.toLocaleString()}円`,
     '',
-    '現在の状況・進捗はこちらからいつでもご確認いただけます👇',
+    '👇こちらのリンクから、発送・検品・お振込みまでの進捗をいつでもご確認いただけます（このメッセージを保存しておくと便利です）',
     url,
-  ].filter((l) => l !== undefined).join('\n')
-}
-
-// ステータス更新時のメッセージ
-export function orderStatusMessage(orderNumber: string, status: string): string {
-  const label = CUSTOMER_STATUS_LABEL[status] ?? status
-  const url = myOrdersLiffUrl()
-  const lines = [
-    '【買取スクエア】',
-    `ご注文の状況が更新されました。`,
-    `注文番号: ${orderNumber}`,
-    `現在の状況: ${label}`,
-  ]
-  if (status === '振込済') lines.push('お振込みが完了いたしました。ありがとうございました。')
-  lines.push('', '詳しい状況はこちら👇', url)
-  return lines.join('\n')
+  ].join('\n')
 }
 
 export function idReminderMessage(orderNumber: string): string {
