@@ -203,8 +203,7 @@ export function CameraCapture({
                             rx="6"
                             style={{
                               height: '22%',
-                              transform: 'translateY(-11%) skewY(-4deg)',
-                              transformOrigin: 'center',
+                              transform: 'translateY(-11%)',
                             }}
                           />
                         ) : guideType === 'rectangle' ? (
@@ -249,7 +248,6 @@ export function CameraCapture({
                               ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.4)]'
                               : 'border-white/50'
                           }`}
-                          style={{ transform: 'skewY(-4deg)' }}
                         />
                         <p className="mt-3 text-center text-xs font-medium text-white drop-shadow">
                           カードを指でつまんで斜めに傾け、<br />側面（厚み）が枠に入るように撮影
