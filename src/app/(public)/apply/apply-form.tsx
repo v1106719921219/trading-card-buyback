@@ -83,9 +83,10 @@ interface ApplyFormProps {
   initialCart?: CartItem[]
   prefillCustomer?: PrefillCustomer | null
   lineUserToken?: string | null
+  defaultOfficeId?: string
 }
 
-export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, priceAt, priceLockExpired, showAll, arQualityEnabled, fromLine, initialCart, prefillCustomer, lineUserToken }: ApplyFormProps) {
+export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, priceAt, priceLockExpired, showAll, arQualityEnabled, fromLine, initialCart, prefillCustomer, lineUserToken, defaultOfficeId }: ApplyFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -93,7 +94,9 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('all')
   const [cart, setCart] = useState<CartItem[]>(initialCart ?? [])
   const [search, setSearch] = useState('')
-  const [selectedOfficeId, setSelectedOfficeId] = useState<string>(initialOffices[0]?.id ?? '')
+  const [selectedOfficeId, setSelectedOfficeId] = useState<string>(
+    (defaultOfficeId && initialOffices.some(o => o.id === defaultOfficeId) ? defaultOfficeId : null) ?? initialOffices[0]?.id ?? ''
+  )
   const [shippedDate, setShippedDate] = useState<string>('')
   const [aiText, setAiText] = useState('')
   const [aiParsing, setAiParsing] = useState(false)

@@ -19,6 +19,7 @@ export default async function ApplyPage({
   const fromLine = params.from === 'line'
   const lineItemsParam = typeof params.line_items === 'string' ? params.line_items : undefined
   const luParam = typeof params.lu === 'string' ? params.lu : undefined
+  const officeIdParam = typeof params.office_id === 'string' ? params.office_id : undefined
 
   // LINE userIdトークン検証 → 過去注文から顧客情報を自動プレフィル
   let lineUserToken: string | null = null
@@ -194,6 +195,7 @@ export default async function ApplyPage({
       initialCart={initialCart}
       prefillCustomer={prefillCustomer}
       lineUserToken={lineUserToken}
+      defaultOfficeId={officeIdParam}
     />
   )
 
