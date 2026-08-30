@@ -397,6 +397,24 @@ export async function approveOrder(orderId: string) {
   return { success: true }
 }
 
+// LIFF（LINEアプリ内）用: IDトークンを検証して本人の注文一覧＋ステータスを返す
+export async function getMyOrdersByIdToken(idToken: string) {
+  const { verifyLineIdToken } = await import('@/lib/line-verify')
+  const verified = await verifyLineIdToken(idToken)
+  if (!verified?.userId) return []
+
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('orders')
+    .select('order_number, status, total_amount, inspected_total_amount, inspection_discount, tracking_number, office_id, created_at, paid_at')
+    .eq('line_user_id', verified.userId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (error || !data) return []
+  return data
+}
+
 export async function getOrderByOrderNumber(orderNumber: string) {
   // 公開追跡ページ用：テナント絞り込みを行う
   const tenantId = await requireTenantId()

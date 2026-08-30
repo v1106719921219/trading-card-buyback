@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ApplyForm } from './apply-form'
 import { LineConfirmGate } from './line-confirm-gate'
@@ -13,6 +14,8 @@ export default async function ApplyPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const params = await searchParams
+  // LIFFの単一アプリで注文状況ページも開けるよう、?view=orders は /my-orders へ転送
+  if (params.view === 'orders') redirect('/my-orders')
   const priceDateParam = typeof params.price_date === 'string' ? params.price_date : undefined
   const priceAtParam = typeof params.price_at === 'string' ? params.price_at : undefined
   const showAll = params.show_all === 'true'

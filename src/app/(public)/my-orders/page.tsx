@@ -1,0 +1,133 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Header } from '@/components/public/header'
+import { Footer } from '@/components/public/footer'
+import { Package } from 'lucide-react'
+import { initLiff } from '@/lib/liff-client'
+import { getMyOrdersByIdToken } from '@/actions/orders'
+
+// お客様向けのステータス表示（社内ステータスをお客様にわかる言葉に変換）
+const CUSTOMER_STATUS: Record<string, { label: string; color: string; step: number }> = {
+  '承認待ち': { label: '受付確認中', color: 'bg-purple-100 text-purple-800', step: 1 },
+  '申込': { label: '受付完了（発送待ち）', color: 'bg-blue-100 text-blue-800', step: 2 },
+  '発送済': { label: '発送済み（到着待ち）', color: 'bg-yellow-100 text-yellow-800', step: 3 },
+  '検品完了': { label: '検品完了（お振込準備中）', color: 'bg-green-100 text-green-800', step: 4 },
+  '振込済': { label: 'お振込み完了', color: 'bg-emerald-100 text-emerald-800', step: 5 },
+  '振込確認済': { label: 'お取引完了', color: 'bg-gray-100 text-gray-700', step: 5 },
+  'キャンセル': { label: 'キャンセル', color: 'bg-red-100 text-red-800', step: 0 },
+}
+
+interface MyOrder {
+  order_number: string
+  status: string
+  total_amount: number
+  inspected_total_amount: number | null
+  inspection_discount: number | null
+  tracking_number: string | null
+  created_at: string
+}
+
+export default function MyOrdersPage() {
+  const [loading, setLoading] = useState(true)
+  const [inLine, setInLine] = useState(true)
+  const [orders, setOrders] = useState<MyOrder[]>([])
+
+  useEffect(() => {
+    initLiff().then(async (state) => {
+      if (!state.inLiff || !state.idToken) {
+        setInLine(false)
+        setLoading(false)
+        return
+      }
+      const data = await getMyOrdersByIdToken(state.idToken)
+      setOrders(data as MyOrder[])
+      setLoading(false)
+    })
+  }, [])
+
+  return (
+    <div className="min-h-screen bg-muted/50">
+      <Header />
+      <div className="mx-auto max-w-2xl px-4 py-8">
+        <h1 className="mb-1 text-xl font-bold">お申込み状況</h1>
+        <p className="mb-6 text-sm text-muted-foreground">
+          あなたのお申込みと進捗をご確認いただけます
+        </p>
+
+        {loading ? (
+          <p className="py-12 text-center text-muted-foreground">読み込み中...</p>
+        ) : !inLine ? (
+          <Card>
+            <CardContent className="space-y-3 py-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                このページは公式LINEのメニューから開いてください。
+              </p>
+              <Link href="/tracking">
+                <Button variant="outline">注文番号で確認する</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        ) : orders.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              お申込みはまだありません。
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {orders.map((o) => {
+              const s = CUSTOMER_STATUS[o.status] ?? { label: o.status, color: 'bg-gray-100 text-gray-700', step: 0 }
+              const amount = (o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount ?? 0)
+              return (
+                <Card key={o.order_number}>
+                  <CardContent className="space-y-2 py-4">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 font-mono text-sm">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                        {o.order_number.replace(/^BB-\d{8}-/, 'BB-')}
+                      </span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${s.color}`}>
+                        {s.label}
+                      </span>
+                    </div>
+
+                    {/* 進捗バー */}
+                    {s.step > 0 && (
+                      <div className="flex items-center gap-1 pt-1">
+                        {['受付', '発送', '検品', '振込'].map((label, i) => {
+                          const reached = s.step >= i + 2
+                          return (
+                            <div key={label} className="flex-1 text-center">
+                              <div className={`h-1.5 rounded-full ${reached ? 'bg-orange-500' : 'bg-gray-200'}`} />
+                              <span className={`mt-0.5 block text-[10px] ${reached ? 'text-orange-600' : 'text-gray-400'}`}>
+                                {label}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1 text-sm">
+                      <span className="text-muted-foreground">
+                        {new Date(o.created_at).toLocaleDateString('ja-JP')} 申込
+                      </span>
+                      <span className="font-medium">
+                        {s.step >= 4 ? 'お振込金額' : '申込金額'} {amount.toLocaleString()}円
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+      </div>
+      <Footer />
+    </div>
+  )
+}
