@@ -126,11 +126,14 @@ export async function createOrder(input: CreateOrderInput) {
     }
   }
 
+  // LINE本人確認済み（LIFF/Bot経由でline_user_idが紐付いた）または従来のfrom_lineは承認不要
+  const isLineVerified = !!lineUserId || !!from_line
+
   // Create order
   const { data: order, error: orderError } = await supabase
     .from('orders')
     .insert({
-      status: from_line ? '申込' : '承認待ち',
+      status: isLineVerified ? '申込' : '承認待ち',
       customer_name: customer.customer_name,
       customer_line_name: customer.customer_line_name || null,
       customer_email: customer.customer_email,
@@ -208,8 +211,8 @@ export async function createOrder(input: CreateOrderInput) {
   }
 
   // Send confirmation email (non-blocking, failure does not affect order)
-  // 承認待ちの場合はメール送信しない（承認後に送信）
-  if (from_line) {
+  // 承認待ちの場合はメール送信しない（承認後に送信）。LINE検証済みは即送信
+  if (isLineVerified) {
     sendOrderConfirmationEmail(
       customer.customer_email,
       order.order_number,
