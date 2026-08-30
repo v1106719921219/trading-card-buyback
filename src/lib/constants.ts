@@ -3,6 +3,9 @@ import { OrderStatus, ReturnStatus, BuybackType, InspectionStatus } from '@/type
 // 公式LINE友だち追加URL（Webからの申込はすべてLINE経由に統一）
 export const OFFICIAL_LINE_URL = 'https://lin.ee/UlPHTOoU'
 
+// 公式LINEのベーシックID（連携用の定型文送信リンクに使用）
+export const OFFICIAL_LINE_BASIC_ID = '@215txiig'
+
 export const ORDER_STATUSES: OrderStatus[] = [
   '承認待ち',
   '申込',

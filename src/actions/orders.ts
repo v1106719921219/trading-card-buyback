@@ -413,6 +413,17 @@ export async function approveOrder(orderId: string) {
 }
 
 // LIFF（LINEアプリ内）用: IDトークンを検証して本人の注文一覧＋ステータスを返す
+// 完了画面用: LINE連携リンク（公式LINEを開き「連携 <署名トークン>」を定型文として送れる）
+// お客様が送信すると、Webhookがその注文にLINE IDを紐付ける（自動返信はしない）
+export async function getLineLinkUrl(orderNumber: string): Promise<string | null> {
+  const { signOrderNumber } = await import('@/lib/line')
+  const { OFFICIAL_LINE_BASIC_ID } = await import('@/lib/constants')
+  const token = signOrderNumber(orderNumber)
+  if (!token) return null
+  const text = `連携 ${token}`
+  return `https://line.me/R/oaMessage/${OFFICIAL_LINE_BASIC_ID}/?${encodeURIComponent(text)}`
+}
+
 // 検品完了時に減額があれば、LINE連携済みのお客様へ自動通知する（減額なし・未連携は何もしない）
 export async function notifyReductionLine(orderId: string) {
   const supabase = createAdminClient()

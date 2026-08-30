@@ -17,17 +17,15 @@ export function myOrdersLiffUrl(): string {
   return liffId ? `https://liff.line.me/${liffId}?view=orders` : ''
 }
 
-// 申込受付時のメッセージ（このリンク1つでいつでも最新の全ステータスが分かる）
+// 申込受付時のメッセージ
 export function orderReceivedMessage(orderNumber: string, amount: number): string {
-  const url = myOrdersLiffUrl()
   return [
     '【買取スクエア】',
-    'お申込みありがとうございます。',
+    'お申込みを受け付けました。ありがとうございます。',
     `注文番号: ${orderNumber}`,
     `申込金額: ${amount.toLocaleString()}円`,
     '',
-    '👇こちらのリンクから、発送・検品・お振込みまでの進捗をいつでもご確認いただけます（このメッセージを保存しておくと便利です）',
-    url,
+    '検品・お振込みの進捗は、こちらのLINEにてご連絡いたします。',
   ].join('\n')
 }
 
@@ -39,7 +37,6 @@ export function reductionMessage(
   note: string | null
 ): string {
   const diff = originalAmount - finalAmount
-  const url = myOrdersLiffUrl()
   const lines = [
     '【買取スクエア】',
     '検品が完了し、査定金額が確定しました。',
@@ -49,7 +46,7 @@ export function reductionMessage(
     `査定後の金額: ${finalAmount.toLocaleString()}円（−${diff.toLocaleString()}円）`,
   ]
   if (note && note.trim()) lines.push('', `理由: ${note.trim()}`)
-  lines.push('', '査定結果の詳細・PDFはこちらからご確認いただけます👇', url)
+  lines.push('', 'ご不明点はこのLINEにてお問い合わせください。')
   return lines.join('\n')
 }
 

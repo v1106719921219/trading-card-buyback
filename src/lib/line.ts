@@ -134,6 +134,33 @@ export function verifyLineUserToken(token: string): string | null {
   }
 }
 
+// 注文番号を改ざん防止して連携用に埋め込む署名付きトークン（LINEで送ってもらう定型文に使う）
+export function signOrderNumber(orderNumber: string): string | null {
+  const secret = process.env.LINE_CHANNEL_SECRET
+  if (!secret) return null
+  const payload = Buffer.from(orderNumber, 'utf8').toString('base64url')
+  const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url').slice(0, 22)
+  return `${payload}.${sig}`
+}
+
+export function verifyOrderToken(token: string): string | null {
+  const secret = process.env.LINE_CHANNEL_SECRET
+  if (!secret) return null
+  const dot = token.lastIndexOf('.')
+  if (dot <= 0) return null
+  const payload = token.slice(0, dot)
+  const sig = token.slice(dot + 1)
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url').slice(0, 22)
+  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+    return null
+  }
+  try {
+    return Buffer.from(payload, 'base64url').toString('utf8')
+  } catch {
+    return null
+  }
+}
+
 export async function sendConfirmationMessage(
   replyToken: string,
   items: ParsedItem[],

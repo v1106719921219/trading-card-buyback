@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { parseOrderText } from '@/actions/ai-parse-order'
-import { verifySignature, sendTextMessage, sendConfirmationMessage, signLineUserId } from '@/lib/line'
+import { verifySignature, sendTextMessage, signLineUserId, verifyOrderToken } from '@/lib/line'
 import { getSession, upsertSession, clearSession } from '@/lib/line-session'
 import type { ParsedItem } from '@/lib/line-session'
 
@@ -67,57 +66,40 @@ async function processEvents(events: any[], tenantId: string, tenantSlug: string
 }
 
 async function handleTextMessage(event: any, tenantId: string, tenantSlug: string) {
-  const replyToken = event.replyToken
   const lineUserId = event.source?.userId
-  const userMessage = event.message.text
+  const userMessage: string = event.message.text ?? ''
 
-  if (!lineUserId || !replyToken) return
+  if (!lineUserId) return
 
-  const supabase = createAdminClient()
+  // 「連携 <署名トークン>」を受け取ったら、その注文にLINE IDを紐付ける
+  const m = userMessage.match(/連携[\s:：]*([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/)
+  if (m) {
+    const orderNumber = verifyOrderToken(m[1])
+    if (orderNumber) {
+      const supabase = createAdminClient()
+      // 本人のLINEに紐付け（既に別IDが入っていても本人が送ってきたら上書き）
+      const { data: updated } = await supabase
+        .from('orders')
+        .update({ line_user_id: lineUserId })
+        .eq('order_number', orderNumber)
+        .eq('tenant_id', tenantId)
+        .select('order_number, total_amount')
+        .maybeSingle()
 
-  // テナントの商品を取得
-  const { data: products } = await supabase
-    .from('products')
-    .select('id, name, price')
-    .eq('tenant_id', tenantId)
-    .eq('is_active', true)
-    .eq('show_in_price_list', true)
-    .gt('price', 0)
-
-  if (!products || products.length === 0) {
-    await sendTextMessage(replyToken, '現在、買取対象の商品が登録されていません。')
+      // 連携できたら、申込完了メッセージ（状況確認リンク付き）を送る
+      if (updated) {
+        const { pushTextMessage } = await import('@/lib/line')
+        const { orderReceivedMessage } = await import('@/lib/line-messages')
+        await pushTextMessage(
+          lineUserId,
+          orderReceivedMessage(updated.order_number, updated.total_amount)
+        ).catch((err) => console.error('[LINE連携] 申込完了送信エラー:', err))
+      }
+    }
     return
   }
 
-  // AI解析
-  const result = await parseOrderText(
-    userMessage,
-    products.map((p) => ({ id: p.id, name: p.name, price: p.price }))
-  )
-
-  if (result.items.length === 0) {
-    await sendTextMessage(
-      replyToken,
-      '申し訳ありません。お送りいただいた内容から商品を特定できませんでした。\n\n商品名と数量を記載してお送りください。\n例: ピカチュウex 10枚'
-    )
-    return
-  }
-
-  // 合計金額を計算
-  const totalAmount = result.items.reduce(
-    (sum, item) => sum + item.unit_price * item.quantity,
-    0
-  )
-
-  // セッションに保存
-  await upsertSession(lineUserId, tenantId, {
-    state: 'awaiting_confirmation',
-    parsed_items: result.items,
-    raw_text: userMessage,
-  })
-
-  // 確認メッセージを送信
-  await sendConfirmationMessage(replyToken, result.items, totalAmount)
+  // それ以外のメッセージは手動運用のため自動応答しない（スタッフがチャットで対応）
 }
 
 async function handlePostback(event: any, tenantId: string, tenantSlug: string) {
