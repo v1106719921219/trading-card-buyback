@@ -24,12 +24,12 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, Mail, MapPin, Search, ArrowRight, ArrowLeft, Check, Send } from 'lucide-react'
+import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, MapPin, Search, ArrowRight, ArrowLeft, Check, Send } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
 import { createOrder } from '@/actions/orders'
-import { lookupCustomerByEmail, getLinePrefillByIdToken } from '@/actions/customers'
+import { getLinePrefillByIdToken } from '@/actions/customers'
 import { checkKycForApply, getEkycRolloutEnabled } from '@/actions/kyc'
 import { KycFlow } from '@/app/(public)/kyc/kyc-flow'
 import { initLiff, type LiffState } from '@/lib/liff-client'
@@ -108,8 +108,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [showBuybackDialog, setShowBuybackDialog] = useState(false)
 
   // Repeater lookup state
-  const [lookupEmail, setLookupEmail] = useState('')
-  const [lookingUp, setLookingUp] = useState(false)
   const [customerLoaded, setCustomerLoaded] = useState(!!prefillCustomer)
 
   // Customer form（LINE経由の場合は過去注文の情報を初期値としてプレフィル）
@@ -172,24 +170,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     setBankAccountNumber(data.bank_account_number || '')
     setBankAccountHolder(data.bank_account_holder || '')
     setCustomerLoaded(true)
-  }
-
-  async function handleLookupCustomer() {
-    if (!lookupEmail.trim()) {
-      toast.error('メールアドレスを入力してください')
-      return
-    }
-    setLookingUp(true)
-    const data = await lookupCustomerByEmail(lookupEmail.trim())
-    setLookingUp(false)
-
-    if (!data) {
-      toast.error('該当する注文が見つかりませんでした')
-      return
-    }
-
-    fillCustomerFields(data)
-    toast.success('前回の情報を読み込みました')
   }
 
   const filteredSubcategories = subcategories.filter((s) => selectedCategory !== 'all' ? s.category_id === selectedCategory : true)
@@ -822,7 +802,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
             <CardHeader>
               <CardTitle>お客様情報</CardTitle>
               <CardDescription>
-                以前ご利用いただいた方は、メールアドレスで前回の情報を読み込めます
+                買取に必要なお客様情報をご入力ください
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -831,45 +811,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                   <CheckCircle className="mr-1 inline h-4 w-4" />
                   LINE本人確認済みのため、お客様情報を自動入力しました。内容をご確認ください。
                 </div>
-              )}
-              {!customerLoaded ? (
-                <>
-                  <div className="rounded-lg border bg-blue-50 p-4 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-5 w-5 text-blue-600" />
-                      <h3 className="font-medium text-blue-900">リピーターの方</h3>
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        type="email"
-                        placeholder="前回申込時のメールアドレスを入力"
-                        value={lookupEmail}
-                        onChange={(e) => setLookupEmail(e.target.value)}
-                        className="flex-1 bg-white"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleLookupCustomer()
-                        }}
-                      />
-                      <Button
-                        onClick={handleLookupCustomer}
-                        disabled={lookingUp}
-                        variant="outline"
-                        className="bg-white"
-                      >
-                        <Search className="h-4 w-4 mr-1" />
-                        {lookingUp ? '検索中...' : '情報を読み込む'}
-                      </Button>
-                    </div>
-                  </div>
-                  <Separator />
-                </>
-              ) : (
-                <>
-                  <div className="rounded-lg border bg-green-50 p-3 flex items-center gap-2 text-green-800">
-                    <CheckCircle className="h-5 w-5" />
-                    <span className="text-sm font-medium">前回の情報を読み込みました</span>
-                  </div>
-                </>
               )}
 
               <div className="space-y-4">

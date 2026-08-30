@@ -4,24 +4,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const CUSTOMER_COLUMNS = 'customer_name, customer_line_name, customer_email, customer_phone, customer_birth_date, customer_occupation, customer_prefecture, customer_address, customer_not_invoice_issuer, invoice_issuer_number, customer_identity_method, bank_name, bank_branch, bank_account_type, bank_account_number, bank_account_holder'
 
-export async function lookupCustomerByEmail(email: string) {
-  const supabase = createAdminClient()
-
-  const { data, error } = await supabase
-    .from('orders')
-    .select(CUSTOMER_COLUMNS)
-    .eq('customer_email', email)
-    // テストデータ（【テスト】プレフィックス付き）は引き込み対象から除外
-    .not('customer_name', 'ilike', '【テスト】%')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-
-  if (error || !data) {
-    return null
-  }
-
-  return data
+// メールアドレスでの過去情報引き込みは廃止（無認証で個人情報＋口座が引けるためセキュリティ上停止）。
+// リピーターの自動入力はLINE本人確認済み（getLinePrefillByIdToken）経由のみ。
+export async function lookupCustomerByEmail(_email: string): Promise<null> {
+  return null
 }
 
 // LIFF（LINEアプリ内で開いた申込）用: IDトークンを検証して本人の過去情報を返す
