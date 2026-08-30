@@ -769,6 +769,19 @@ export default function OrderDetailPage() {
                     <dd>{order.customer_line_name}</dd>
                   </>
                 )}
+                <dt className="text-muted-foreground">LINE連携</dt>
+                <dd>
+                  {order.line_user_id ? (
+                    <span className="inline-flex flex-wrap items-center gap-1.5">
+                      <Badge className="bg-green-100 text-green-800">連携済み</Badge>
+                      <span className="font-mono text-xs text-muted-foreground break-all">
+                        {order.line_user_id}
+                      </span>
+                    </span>
+                  ) : (
+                    <Badge variant="outline" className="text-muted-foreground">未連携</Badge>
+                  )}
+                </dd>
                 <dt className="text-muted-foreground">メール</dt>
                 <dd>{order.customer_email}</dd>
                 {order.customer_phone && (
