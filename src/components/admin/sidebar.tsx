@@ -39,6 +39,7 @@ import type { Profile } from '@/types/database'
 const navItems = [
   { href: '/admin', label: 'ダッシュボード', icon: LayoutDashboard },
   { href: '/admin/orders', label: '注文管理', icon: ShoppingCart },
+  { href: '/admin/kyc', label: '本人確認', icon: IdCard },
   { href: '/admin/offices', label: '事務所別管理', icon: Building2 },
   { href: '/admin/arrival-schedule', label: '到着予定', icon: Calendar },
   { href: '/admin/products', label: '商品管理', icon: Package },
@@ -55,7 +56,6 @@ const navItems = [
   { href: '/admin/marketing/image-onepiece', label: 'ワンピBOX画像', icon: ImageIcon },
   { href: '/admin/marketing/image-psa10', label: 'PSA10買取画像', icon: ImageIcon },
   { href: '/admin/marketing/image-psa10-boost', label: 'PSA10強化画像', icon: ImageIcon },
-  { href: '/admin/kyc', label: '本人確認', icon: IdCard },
   { href: '/admin/payments', label: '振込管理', icon: CreditCard },
   { href: '/admin/payment-verification', label: '振込確認', icon: ShieldCheck },
   { href: '/admin/returns', label: '返品管理', icon: Undo2 },
