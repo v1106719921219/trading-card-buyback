@@ -126,8 +126,9 @@ export async function createOrder(input: CreateOrderInput) {
     }
   }
 
-  // LINE本人確認済み（LIFF/Bot経由でline_user_idが紐付いた）または従来のfrom_lineは承認不要
-  const isLineVerified = !!lineUserId || !!from_line
+  // 承認不要（すぐ「申込」）にするのは、従来のBot経由（from_line）のみ。
+  // LIFF/Web経由は「承認待ち」にして、スタッフが手動で送ったリンク経由か確認してから承認する
+  const isLineVerified = !!from_line
 
   // Create order
   const { data: order, error: orderError } = await supabase
