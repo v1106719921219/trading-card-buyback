@@ -136,26 +136,31 @@ export default function GuidePage() {
                 買取お申し込み後のお客様都合によるキャンセル・返品はできません。
               </p>
               <p className="text-base sm:text-lg font-bold text-foreground">
-                必要書類について:
+                本人確認について:
+              </p>
+              <p className="text-base sm:text-lg text-foreground">
+                本人確認は、お申込みの際に<strong>スマートフォンでの撮影（eKYC）</strong>で行います。
+                以下いずれかの<strong>顔写真付き身分証</strong>をご用意ください。書類の同梱は不要です。
               </p>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="border-border">
-                      <TableHead className="text-muted-foreground text-base w-1/3">回数</TableHead>
-                      <TableHead className="text-muted-foreground text-base">必要書類</TableHead>
+                      <TableHead className="text-muted-foreground text-base">ご利用いただける身分証</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     <TableRow className="border-border">
-                      <TableCell className="font-bold text-base text-foreground">初回</TableCell>
-                      <TableCell className="text-base text-foreground">住民票 または 印鑑証明書</TableCell>
+                      <TableCell className="text-base text-foreground">運転免許証</TableCell>
                     </TableRow>
                     <TableRow className="border-border">
-                      <TableCell className="font-bold text-base text-foreground">2回目以降</TableCell>
-                      <TableCell className="text-base text-foreground">
-                        運転免許証 / パスポート / マイナンバーカード などの身分証コピー
-                      </TableCell>
+                      <TableCell className="text-base text-foreground">マイナンバーカード</TableCell>
+                    </TableRow>
+                    <TableRow className="border-border">
+                      <TableCell className="text-base text-foreground">在留カード</TableCell>
+                    </TableRow>
+                    <TableRow className="border-border">
+                      <TableCell className="text-base text-foreground">パスポート</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
@@ -164,8 +169,8 @@ export default function GuidePage() {
                 <p className="text-base text-yellow-800 flex items-start gap-3">
                   <AlertTriangle className="h-6 w-6 shrink-0 mt-0.5" />
                   <span>
-                    <strong>初回のお取引では運転免許証はご利用いただけません。</strong><br />
-                    初回は必ず住民票または印鑑証明書をご用意ください。
+                    本人確認書類（顔写真・氏名など）と、振込先口座の名義が一致している必要があります。<br />
+                    一度ご本人確認が完了した方は、2回目以降の撮影は不要です。
                   </span>
                 </p>
               </div>

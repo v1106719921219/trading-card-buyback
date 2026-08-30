@@ -8,14 +8,12 @@ export const orderItemSchema = z.object({
   quantity: z.number().int().min(1).max(9999),
 })
 
+// 本人確認はeKYC（顔写真＋写真付き身分証の撮影）のみ。以下の4種類に対応
 export const IDENTITY_METHODS = [
-  '住民票原本（初回）',
-  '印鑑証明原本（初回）',
-  '運転免許証（2回目以降）',
-  'パスポート（2回目以降）',
-  'マイナンバーカード（2回目以降）',
-  '保険証（2回目以降）',
-  '在留カード（2回目以降）',
+  '運転免許証',
+  'マイナンバーカード',
+  '在留カード',
+  'パスポート',
 ] as const
 
 export const customerInfoSchema = z.object({

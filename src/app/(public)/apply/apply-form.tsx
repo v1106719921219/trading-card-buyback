@@ -317,7 +317,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 申込前の本人確認（eKYC）: 2回目以降の方法は撮影必須。承認済みの人は自動スキップ
+  // 申込前の本人確認（eKYC）: 本人確認は全てeKYCで撮影必須。承認済みの人は自動スキップ
   const [ekycRollout, setEkycRollout] = useState(false)
   const [kycStatus, setKycStatus] = useState<'checking' | 'verified' | 'submitted' | 'none'>('none')
   const [showKycDialog, setShowKycDialog] = useState(false)
@@ -326,8 +326,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     getEkycRolloutEnabled().then(setEkycRollout)
   }, [])
 
-  const needsKyc =
-    ekycRollout && customerIdentityMethod.includes('2回目以降')
+  const needsKyc = ekycRollout && !!customerIdentityMethod
   const kycDone = kycStatus === 'verified' || kycStatus === 'submitted'
 
   useEffect(() => {
@@ -1161,7 +1160,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                     ) : (
                       <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
                         <p className="text-sm text-amber-800">
-                          申込の確定前に、本人確認書類（{customerIdentityMethod.replace('（2回目以降）', '')}）の撮影が必要です。書類の同梱は不要になります。
+                          申込の確定前に、本人確認書類（{customerIdentityMethod}）の撮影が必要です。書類の同梱は不要です。
                         </p>
                         <Button type="button" onClick={() => setShowKycDialog(true)} className="w-full">
                           本人確認書類を撮影する

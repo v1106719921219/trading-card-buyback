@@ -211,7 +211,7 @@ export default function SettingsPage() {
               <div className="space-y-0.5">
                 <Label htmlFor="ekyc_rollout_toggle">eKYCアップロード案内（テスト展開用）</Label>
                 <p className="text-sm text-muted-foreground">
-                  ONにすると申込完了画面で2回目以降のお客様に書類アップロードを案内します（OFFの間は従来のコピー同梱案内）
+                  ONにすると申込時にeKYC（本人確認書類の撮影）を必須にします（OFFの間はeKYCなし）
                 </p>
               </div>
               <Switch

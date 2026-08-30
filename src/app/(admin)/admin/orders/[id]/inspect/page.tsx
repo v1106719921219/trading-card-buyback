@@ -789,8 +789,6 @@ export default function InspectPage() {
             <p className="text-sm text-amber-600">アップロード未完了です（お客様が撮影を完了していません）</p>
           ) : kycInfo?.kycStatus === 'rejected' ? (
             <p className="text-sm text-destructive">否認済み: {kycInfo.rejectionReason ?? '理由未記録'}（再アップロード待ち）</p>
-          ) : (kycInfo?.identityMethod ?? order.customer_identity_method ?? '').includes('初回') ? (
-            <p className="text-sm text-amber-600">初回のお客様です。同梱された原本（住民票/印鑑証明）を確認してください。</p>
           ) : (
             <p className="text-sm text-amber-600">書類のアップロードがまだありません。</p>
           )}

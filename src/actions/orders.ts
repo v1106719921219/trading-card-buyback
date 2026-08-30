@@ -34,6 +34,8 @@ export async function createOrder(input: CreateOrderInput) {
   // Use admin client for public form submission (bypasses RLS)
   const supabase = createAdminClient()
 
+  try {
+
   const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type, from_line, line_user_token, line_id_token } = parsed.data
 
   // LINE userIdの復元（改ざん・なりすまし防止のためサーバー側で検証）
@@ -94,9 +96,10 @@ export async function createOrder(input: CreateOrderInput) {
     identityMethod = 'eKYC確認済み'
   }
 
-  // 展開フラグON時: 2回目以降の本人確認方法は「申込前のeKYC提出」が必須（初回の原本同梱は対象外）
+  // 展開フラグON時: 本人確認はeKYC必須。申込前のeKYC提出がなければ受け付けない
+  // （eKYC確認済みで自動パスした場合はkycRequestIdが入っているのでスキップ）
   let pendingKycId: string | null = null
-  if (!kycRequestId && identityMethod.includes('2回目以降')) {
+  if (!kycRequestId) {
     const { data: rolloutSetting } = await supabase
       .from('app_settings')
       .select('value')
@@ -271,6 +274,10 @@ export async function createOrder(input: CreateOrderInput) {
   }
 
   return { success: true, order_number: order.order_number, office_id }
+  } catch (err) {
+    console.error('[createOrder] エラー:', err)
+    return { error: '申込の送信中にエラーが発生しました。少し待ってからもう一度お試しください' }
+  }
 }
 
 export async function getOrders(

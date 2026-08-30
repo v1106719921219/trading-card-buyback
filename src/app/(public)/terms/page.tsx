@@ -11,27 +11,21 @@ export default function TermsPage() {
 
         <div className="prose prose-sm max-w-none space-y-8">
           <section>
-            <h2 className="text-xl font-bold mb-3">1. 初回取引について</h2>
+            <h2 className="text-xl font-bold mb-3">1. 本人確認について</h2>
             <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-              初回のお取引時には、以下いずれかの書類をご提出いただきます。
-            </p>
-            <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-              <li>住民票の写し</li>
-              <li>印鑑証明書の写し</li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-bold mb-3">2. 2回目以降の本人確認</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-              2回目以降の取引では、以下のいずれかのコピーを提出いただきます。
+              お取引には、古物営業法に基づく本人確認を行います。本人確認はお申込みの際に、
+              スマートフォンでの撮影（eKYC）にて実施し、以下いずれかの顔写真付き身分証をご利用いただきます。
             </p>
             <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
               <li>運転免許証</li>
-              <li>パスポート</li>
               <li>マイナンバーカード</li>
-              <li>健康保険証</li>
+              <li>在留カード</li>
+              <li>パスポート</li>
             </ul>
+            <p className="text-sm text-muted-foreground leading-relaxed mt-3">
+              本人確認書類の氏名と、振込先口座の名義が一致している必要があります。
+              一度ご本人確認が完了した方は、2回目以降のお取引での撮影は不要です。
+            </p>
           </section>
 
           <section>

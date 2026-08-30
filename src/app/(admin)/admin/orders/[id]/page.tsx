@@ -1157,9 +1157,7 @@ export default function OrderDetailPage() {
                 </Link>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  {(order.customer_identity_method ?? '').includes('初回')
-                    ? '初回のお客様: 原本の同梱を検品時に確認してください'
-                    : '書類のアップロードはまだありません'}
+                  書類のアップロードはまだありません
                 </p>
               )}
             </CardContent>
