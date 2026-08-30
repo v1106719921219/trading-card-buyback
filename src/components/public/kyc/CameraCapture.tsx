@@ -238,7 +238,7 @@ export function CameraCapture({
                           style={{ aspectRatio: 1.586 }}
                         />
                         <p className="mt-3 text-center text-xs font-medium text-white drop-shadow">
-                          カードを指でつまんで斜めに傾け、<br />側面（厚み）が見えるように撮影
+                          表面（顔写真・氏名）が見える状態のまま、<br />少しだけ傾けて厚み（側面）も一緒に写るように撮影
                         </p>
                       </div>
                     ) : guideType === 'rectangle' ? (
@@ -271,7 +271,7 @@ export function CameraCapture({
                       {!captureReady
                         ? 'カメラを合わせています...'
                         : guideType === 'thickness'
-                          ? 'カードの厚みが見えるように撮影してください'
+                          ? '表面と厚みが両方見えるように撮影してください'
                           : '枠内に合わせて撮影してください'}
                     </span>
                   </div>

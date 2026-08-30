@@ -191,7 +191,7 @@ export function KycFlow({ orderNumber }: { orderNumber?: string }) {
       {step === 'id_capture_thickness' && (
         <CameraCapture
           title="身分証明書の厚みを撮影"
-          description="カードを斜めに傾けて、側面（厚み）が見えるように撮影してください"
+          description="表面の記載が見える状態のまま少し傾けて、厚み（側面）も一緒に写るように撮影してください"
           guideType="thickness"
           facingMode="environment"
           onCapture={(blob) => handleCapture('id_thickness', blob)}
