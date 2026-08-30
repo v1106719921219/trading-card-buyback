@@ -180,7 +180,7 @@ export function CameraCapture({
                 autoPlay
                 playsInline
                 muted
-                className="w-full"
+                className="w-full max-h-[52vh] object-cover"
                 style={{
                   transform: facingMode === 'user' ? 'scaleX(-1)' : undefined,
                 }}
@@ -315,9 +315,9 @@ export function CameraCapture({
           </>
         ) : (
           <>
-            <div className="overflow-hidden rounded-lg">
+            <div className="overflow-hidden rounded-lg bg-black">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={preview} alt="プレビュー" className="w-full" />
+              <img src={preview} alt="プレビュー" className="w-full max-h-[52vh] object-contain" />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleRetake} className="flex-1">
