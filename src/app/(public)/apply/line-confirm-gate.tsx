@@ -1,17 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Header } from '@/components/public/header'
 import { Footer } from '@/components/public/footer'
+import { initLiff } from '@/lib/liff-client'
 
 export function LineConfirmGate({ children }: { children: React.ReactNode }) {
   const [confirmed, setConfirmed] = useState(false)
   const [checked, setChecked] = useState(false)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    // LINEアプリ内（LIFF）から来た人はLINE経由が明らかなのでゲートを省略
+    initLiff().then((state) => {
+      if (state.inLiff) setConfirmed(true)
+      setReady(true)
+    })
+  }, [])
 
   if (confirmed) {
     return <>{children}</>
+  }
+
+  // LIFF判定が終わるまでは空表示（LINEユーザーにゲートを一瞬見せないため）
+  if (!ready) {
+    return <div className="min-h-screen bg-muted/50" />
   }
 
   return (
