@@ -159,3 +159,11 @@
    - 追跡番号を入力するためのフィールドが用意されているはずです。追跡番号を入力し、必要に応じて「送信」ボタンをクリックして情報を保存します。
 
 このように、追加する分だけを入力することが可能ですので、全てを再入力する必要はありません。具体的な操作については、実際の画面を確認しながら進めることをお勧めします。何か他にご質問があればお知らせください。
+
+---
+
+## 古物台帳バックアップの保存先
+- **注文台帳スプレッドシート**: https://docs.google.com/spreadsheets/d/1PX1CswlyImfMfVN9mvx6NYW6spWKeqahHR8pXbRLoXs/edit
+  - 申込のたびにApps Script Webhook（env: `GOOGLE_APPS_SCRIPT_URL`）経由で1行自動追記
+- **eKYC本人確認データ**: マイドライブ「古物台帳_本人確認」フォルダ（年月/日付_氏名_注文番号）
+  - 毎日3:30JSTのcron `kyc-drive-backup` がApps Script（`scripts/kyc-drive-backup.gs`、env: `GOOGLE_KYC_BACKUP_SCRIPT_URL`）経由で保存
