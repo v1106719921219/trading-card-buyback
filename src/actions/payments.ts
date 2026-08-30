@@ -40,9 +40,9 @@ export async function markAsPaid(orderId: string) {
   // 振込完了をLINEで通知（メールは全廃）。査定結果PDFは査定状況からダウンロード
   const amount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
   let notified = false
-  if (order.line_user_id) {
+  if (order.line_push_user_id) {
     const result = await pushTextMessage(
-      order.line_user_id,
+      order.line_push_user_id,
       paymentCompletedMessage(order.order_number, amount)
     ).catch((err) => {
       console.error('[markAsPaid] LINE送信エラー:', err)
@@ -58,7 +58,7 @@ export async function markAsPaid(orderId: string) {
   if (!notified) {
     return {
       success: true,
-      warning: order.line_user_id
+      warning: order.line_push_user_id
         ? 'ステータスは更新しましたが、LINE通知の送信に失敗しました'
         : 'ステータスは更新しました（LINE未連携のためお客様への通知は送信されていません）',
     }

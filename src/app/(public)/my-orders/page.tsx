@@ -48,6 +48,14 @@ export default function MyOrdersPage() {
   }
 
   useEffect(() => {
+    // ?u=<署名トークン> があればそれで本人特定（LIFF不要・本物アカウント用）
+    const u = new URLSearchParams(window.location.search).get('u')
+    if (u) {
+      setIdToken(u)
+      loadOrders(u).finally(() => setLoading(false))
+      return
+    }
+    // なければLIFF（LINEアプリ内）で本人特定
     initLiff().then(async (state) => {
       if (!state.inLiff || !state.idToken) {
         setInLine(false)

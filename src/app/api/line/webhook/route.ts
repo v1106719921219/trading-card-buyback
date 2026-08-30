@@ -77,10 +77,10 @@ async function handleTextMessage(event: any, tenantId: string, tenantSlug: strin
     const orderNumber = verifyOrderToken(m[1])
     if (orderNumber) {
       const supabase = createAdminClient()
-      // 本人のLINEに紐付け（既に別IDが入っていても本人が送ってきたら上書き）
+      // 送信用のLINE ID（本物アカウント）を紐付け。閲覧用のline_user_id(LIFF)とは別に持つ
       const { data: updated } = await supabase
         .from('orders')
-        .update({ line_user_id: lineUserId })
+        .update({ line_push_user_id: lineUserId })
         .eq('order_number', orderNumber)
         .eq('tenant_id', tenantId)
         .select('order_number, total_amount')

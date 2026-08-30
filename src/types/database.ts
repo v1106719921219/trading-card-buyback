@@ -116,6 +116,7 @@ export interface Order {
   notes: string | null
   customer_line_name: string | null
   line_user_id: string | null
+  line_push_user_id: string | null
   id_reminder_sent_at: string | null
   customer_birth_date: string | null
   customer_occupation: string | null

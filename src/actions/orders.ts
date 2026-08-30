@@ -213,15 +213,9 @@ export async function createOrder(input: CreateOrderInput) {
     }
   }
 
-  // お客様連絡はLINEに一本化（メールは全廃）
-
-  // LINE連携済みの申込は、受付＋状況確認ページへの案内をLINEに自動送信
-  if (lineUserId) {
-    pushTextMessage(
-      lineUserId,
-      orderReceivedMessage(order.order_number, total_amount)
-    ).catch((err) => console.error('[createOrder] LINE送信エラー:', err))
-  }
+  // お客様連絡はLINEに一本化（メールは全廃）。
+  // 申込完了メッセージは、完了画面の「進捗を受け取る」ボタン→本物アカウントへの連携時に
+  // webhookから送信する（createOrder時点のlineUserIdはLIFF・別プロバイダーで本物アカウントに届かないため）。
 
   // Google Sheets backup
   try {
@@ -368,7 +362,7 @@ export async function approveOrder(orderId: string) {
 
   const { data: order, error: fetchError } = await supabase
     .from('orders')
-    .select('id, status, customer_email, order_number, office_id, line_user_id, total_amount')
+    .select('id, status, customer_email, order_number, office_id, line_push_user_id, total_amount')
     .eq('id', orderId)
     .single()
 
@@ -387,10 +381,10 @@ export async function approveOrder(orderId: string) {
 
   if (error) return { error: error.message }
 
-  // 承認後、LINE連携済みなら受付メッセージを送信（メールは全廃）
-  if (order.line_user_id) {
+  // 承認後、本物アカウント連携済みなら受付メッセージを送信（メールは全廃）
+  if (order.line_push_user_id) {
     pushTextMessage(
-      order.line_user_id,
+      order.line_push_user_id,
       orderReceivedMessage(order.order_number, order.total_amount)
     ).catch((err) => console.error('[approveOrder] LINE送信エラー:', err))
   }
@@ -417,32 +411,41 @@ export async function notifyReductionLine(orderId: string) {
   const supabase = createAdminClient()
   const { data: order } = await supabase
     .from('orders')
-    .select('order_number, line_user_id, total_amount, inspected_total_amount, inspection_discount, inspection_notes')
+    .select('order_number, line_push_user_id, total_amount, inspected_total_amount, inspection_discount, inspection_notes')
     .eq('id', orderId)
     .single()
 
-  if (!order?.line_user_id) return
+  if (!order?.line_push_user_id) return
   const original = order.total_amount
   const final = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
   if (final >= original) return // 減額なし（同額・増額）は送らない
 
   const { reductionMessage } = await import('@/lib/line-messages')
   await pushTextMessage(
-    order.line_user_id,
+    order.line_push_user_id,
     reductionMessage(order.order_number, original, final, order.inspection_notes)
   ).catch((err) => console.error('[notifyReductionLine] LINE送信エラー:', err))
 }
 
-export async function getMyOrdersByIdToken(idToken: string) {
+// 本人のLINE IDを特定する（自前の署名トークン u= か、LIFFのIDトークンのどちらでも可）
+async function resolveLineUserId(token: string): Promise<string | null> {
+  const { verifyLineUserToken } = await import('@/lib/line')
+  const own = verifyLineUserToken(token)
+  if (own) return own
   const { verifyLineIdToken } = await import('@/lib/line-verify')
-  const verified = await verifyLineIdToken(idToken)
-  if (!verified?.userId) return []
+  const v = await verifyLineIdToken(token)
+  return v?.userId ?? null
+}
+
+export async function getMyOrdersByIdToken(idToken: string) {
+  const userId = await resolveLineUserId(idToken)
+  if (!userId) return []
 
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('orders')
     .select('order_number, status, total_amount, inspected_total_amount, inspection_discount, tracking_number, office_id, created_at, paid_at')
-    .eq('line_user_id', verified.userId)
+    .eq('line_user_id', userId)
     .order('created_at', { ascending: false })
     .limit(50)
 
@@ -452,17 +455,16 @@ export async function getMyOrdersByIdToken(idToken: string) {
 
 // LIFF（LINEアプリ内）用: IDトークンで本人確認し、自分の注文の査定結果PDFを取得
 export async function getMyInspectionPdf(idToken: string, orderNumber: string) {
-  const { verifyLineIdToken } = await import('@/lib/line-verify')
   const { generateInspectionPdf } = await import('@/lib/pdf')
-  const verified = await verifyLineIdToken(idToken)
-  if (!verified?.userId) return { error: 'LINEの本人確認に失敗しました' }
+  const userId = await resolveLineUserId(idToken)
+  if (!userId) return { error: 'LINEの本人確認に失敗しました' }
 
   const supabase = createAdminClient()
   const { data: order } = await supabase
     .from('orders')
     .select('*, order_items(*)')
     .eq('order_number', orderNumber)
-    .eq('line_user_id', verified.userId)
+    .eq('line_user_id', userId)
     .maybeSingle()
 
   if (!order) return { error: '注文が見つかりません' }
@@ -487,9 +489,8 @@ export async function submitTrackingByIdToken(
   if (!orderNumber || !trackingNumber.trim()) {
     return { error: '追跡番号を入力してください' }
   }
-  const { verifyLineIdToken } = await import('@/lib/line-verify')
-  const verified = await verifyLineIdToken(idToken)
-  if (!verified?.userId) return { error: 'LINEの本人確認に失敗しました' }
+  const userId = await resolveLineUserId(idToken)
+  if (!userId) return { error: 'LINEの本人確認に失敗しました' }
 
   const supabase = createAdminClient()
   // 本人のLINEに紐付いた注文であることを確認（他人の注文には登録できない）
@@ -497,7 +498,7 @@ export async function submitTrackingByIdToken(
     .from('orders')
     .select('id, status, tracking_number')
     .eq('order_number', orderNumber)
-    .eq('line_user_id', verified.userId)
+    .eq('line_user_id', userId)
     .maybeSingle()
 
   if (!order) return { error: '注文が見つかりません' }
@@ -891,7 +892,7 @@ export async function sendIdReminderLineMessage(orderId: string) {
 
   const { data: order, error: fetchError } = await supabase
     .from('orders')
-    .select('id, order_number, line_user_id, customer_line_name, id_reminder_sent_at')
+    .select('id, order_number, line_push_user_id, customer_line_name, id_reminder_sent_at')
     .eq('id', orderId)
     .single()
 
@@ -899,12 +900,12 @@ export async function sendIdReminderLineMessage(orderId: string) {
     return { error: '注文が見つかりません' }
   }
 
-  if (!order.line_user_id) {
-    // LINE経由でない注文はuserId不明のため自動送信不可 → 手動送信用フォールバック
+  if (!order.line_push_user_id) {
+    // 本物アカウント未連携の注文はuserId不明のため自動送信不可 → 手動送信用フォールバック
     return { noLineUser: true as const }
   }
 
-  const result = await pushTextMessage(order.line_user_id, idReminderMessage(order.order_number))
+  const result = await pushTextMessage(order.line_push_user_id, idReminderMessage(order.order_number))
   if (!result.success) {
     return { error: result.error || 'LINE送信に失敗しました' }
   }
