@@ -193,20 +193,7 @@ export function CameraCapture({
                     <defs>
                       <mask id="guide-mask">
                         <rect width="100%" height="100%" fill="white" />
-                        {guideType === 'thickness' ? (
-                          <rect
-                            x="7.5%"
-                            y="50%"
-                            width="85%"
-                            height="0"
-                            fill="black"
-                            rx="6"
-                            style={{
-                              height: '22%',
-                              transform: 'translateY(-11%)',
-                            }}
-                          />
-                        ) : guideType === 'rectangle' ? (
+                        {guideType === 'thickness' || guideType === 'rectangle' ? (
                           <rect
                             x="7.5%"
                             y="50%"
@@ -240,17 +227,18 @@ export function CameraCapture({
                   {/* 緑色のガイド枠 */}
                   <div className="absolute inset-0 flex items-center justify-center">
                     {guideType === 'thickness' ? (
-                      // 厚み撮影用: カードを斜めに傾けて側面（厚み）を見せる細長い枠
+                      // 厚み撮影用: 枠はカード型のまま、撮影方法の案内を表示
                       <div className="flex w-[85%] flex-col items-center">
                         <div
-                          className={`h-[3.5rem] w-full rounded-md border-[3px] transition-colors duration-300 ${
+                          className={`w-full rounded-lg border-[3px] transition-colors duration-300 ${
                             captureReady
                               ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.4)]'
                               : 'border-white/50'
                           }`}
+                          style={{ aspectRatio: 1.586 }}
                         />
                         <p className="mt-3 text-center text-xs font-medium text-white drop-shadow">
-                          カードを指でつまんで斜めに傾け、<br />側面（厚み）が枠に入るように撮影
+                          カードを指でつまんで斜めに傾け、<br />側面（厚み）が見えるように撮影
                         </p>
                       </div>
                     ) : guideType === 'rectangle' ? (
