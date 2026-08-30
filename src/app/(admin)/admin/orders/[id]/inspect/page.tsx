@@ -78,8 +78,8 @@ export default function InspectPage() {
   const [openProductSearch, setOpenProductSearch] = useState<string | null>(null)
   const [idReminderSending, setIdReminderSending] = useState(false)
   const [showIdReminderFallback, setShowIdReminderFallback] = useState(false)
-  const [inspectors, setInspectors] = useState<{ id: string; display_name: string }[]>([])
-  const [inspectorId, setInspectorId] = useState('')
+  const [inspectors, setInspectors] = useState<string[]>([])
+  const [inspectorName, setInspectorName] = useState('')
 
   const isChiba = (process.env.NEXT_PUBLIC_SITE_URL ?? '').includes('chiba')
   const supabase = createClient()
@@ -116,7 +116,7 @@ export default function InspectPage() {
     setInspectionNotes(orderData.inspection_notes ?? '')
     setInspectionStatus(orderData.inspection_status ?? '')
     setArrivalDate(orderData.arrival_date ?? '')
-    setInspectorId(orderData.inspected_by ?? '')
+    setInspectorName(orderData.inspected_by_name ?? '')
     setItems(
       ((orderResult.data as Order).order_items || []).map((item) => ({
         id: item.id,
@@ -350,8 +350,7 @@ export default function InspectPage() {
   }
 
   async function handleComplete() {
-    const inspector = inspectors.find((i) => i.id === inspectorId)
-    if (!isChiba && !inspector) {
+    if (!isChiba && !inspectorName) {
       toast.error('検品者を選択してください')
       return
     }
@@ -364,9 +363,7 @@ export default function InspectPage() {
       .update({
         status: '検品完了',
         inspection_status: null,
-        ...(inspector
-          ? { inspected_by: inspector.id, inspected_by_name: inspector.display_name }
-          : {}),
+        ...(inspectorName ? { inspected_by_name: inspectorName } : {}),
       })
       .eq('id', orderId)
 
@@ -695,13 +692,13 @@ export default function InspectPage() {
             <Label className="whitespace-nowrap text-sm">
               検品者 <span className="text-destructive">*</span>
             </Label>
-            <Select value={inspectorId} onValueChange={setInspectorId}>
+            <Select value={inspectorName} onValueChange={setInspectorName}>
               <SelectTrigger className="w-36">
                 <SelectValue placeholder="選択してください" />
               </SelectTrigger>
               <SelectContent>
-                {inspectors.map((i) => (
-                  <SelectItem key={i.id} value={i.id}>{i.display_name}</SelectItem>
+                {inspectors.map((name) => (
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -713,7 +710,7 @@ export default function InspectPage() {
         </Button>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button size="lg" disabled={!allInspected || (!isChiba && !inspectorId)}>検品完了にする</Button>
+            <Button size="lg" disabled={!allInspected || (!isChiba && !inspectorName)}>検品完了にする</Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -721,7 +718,7 @@ export default function InspectPage() {
               <AlertDialogDescription>
                 検品後合計: {inspectedTotal.toLocaleString()}円
                 {difference !== 0 && ` （申告比: ${difference > 0 ? '+' : ''}${difference.toLocaleString()}円）`}
-                {!isChiba && `　検品者: ${inspectors.find((i) => i.id === inspectorId)?.display_name ?? '未選択'}`}
+                {!isChiba && `　検品者: ${inspectorName || '未選択'}`}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

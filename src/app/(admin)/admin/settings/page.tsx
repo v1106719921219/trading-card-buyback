@@ -7,10 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { MapPin, Settings } from 'lucide-react'
+import { MapPin, Settings, ClipboardCheck } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { createClient } from '@/lib/supabase/client'
 import { updateOffice } from '@/actions/offices'
+import { getInspectorNameSettings, saveInspectorNameSettings } from '@/actions/inspection'
 import { toast } from 'sonner'
 import type { AppSetting, Office } from '@/types/database'
 
@@ -25,6 +26,12 @@ export default function SettingsPage() {
   const [savingOffice, setSavingOffice] = useState<string | null>(null)
   const [arQualityEnabled, setArQualityEnabled] = useState(false)
   const [savingArQuality, setSavingArQuality] = useState(false)
+
+  // 検品者リスト（検品入力の選択肢・東京のみ）
+  const isChiba = (process.env.NEXT_PUBLIC_SITE_URL ?? '').includes('chiba')
+  const [inspectorCommon, setInspectorCommon] = useState('')
+  const [inspectorByOffice, setInspectorByOffice] = useState<Record<string, string>>({})
+  const [savingInspectors, setSavingInspectors] = useState(false)
 
   const supabase = createClient()
 
@@ -64,9 +71,31 @@ export default function SettingsPage() {
     setOfficeEdits(edits)
   }
 
+  async function fetchInspectorNames() {
+    if (isChiba) return
+    const data = await getInspectorNameSettings()
+    setInspectorCommon(data.common)
+    setInspectorByOffice(data.byOffice)
+  }
+
   useEffect(() => {
-    Promise.all([fetchSettings(), fetchOffices()]).then(() => setLoading(false))
+    Promise.all([fetchSettings(), fetchOffices(), fetchInspectorNames()]).then(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  async function handleSaveInspectors() {
+    setSavingInspectors(true)
+    const result = await saveInspectorNameSettings({
+      common: inspectorCommon,
+      byOffice: inspectorByOffice,
+    })
+    setSavingInspectors(false)
+    if (result.error) {
+      toast.error(result.error)
+      return
+    }
+    toast.success('検品者リストを保存しました')
+  }
 
   async function handleSave() {
     for (const setting of settings) {
@@ -159,6 +188,46 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* 検品者リスト（東京のみ） */}
+      {!isChiba && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5" />
+              検品者リスト
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              検品入力画面で選択できる名前です（表示用のみ・アカウント不要）。カンマ区切りで入力してください。
+            </p>
+            <div className="space-y-1">
+              <Label>全事務所共通</Label>
+              <Input
+                value={inspectorCommon}
+                onChange={(e) => setInspectorCommon(e.target.value)}
+                placeholder="例: 滑川, 小山田, 奥出"
+              />
+            </div>
+            {offices.filter((o) => o.is_active).map((office) => (
+              <div key={office.id} className="space-y-1">
+                <Label>{office.name} 専用</Label>
+                <Input
+                  value={inspectorByOffice[office.id] ?? ''}
+                  onChange={(e) =>
+                    setInspectorByOffice({ ...inspectorByOffice, [office.id]: e.target.value })
+                  }
+                  placeholder="この事務所の注文でのみ表示する名前"
+                />
+              </div>
+            ))}
+            <Button onClick={handleSaveInspectors} disabled={savingInspectors}>
+              {savingInspectors ? '保存中...' : '検品者リストを保存'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Office management */}
       <Card>
         <CardHeader>
@@ -235,7 +304,7 @@ export default function SettingsPage() {
             <p className="text-muted-foreground">設定がありません</p>
           ) : (
             <>
-              {settings.map((setting) => (
+              {settings.filter((s) => !s.key.startsWith('inspector_names')).map((setting) => (
                 <div key={setting.key} className="space-y-1">
                   <Label htmlFor={setting.key}>{setting.key}</Label>
                   {setting.description && (
