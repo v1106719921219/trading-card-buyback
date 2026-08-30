@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MapPin, Package } from 'lucide-react'
 import { getArrivalSchedule } from '@/actions/arrival-schedule'
+import { trackingBadgeClass } from '@/lib/yamato-status'
 import { formatDateJST } from '@/lib/delivery'
 import Link from 'next/link'
 
@@ -104,13 +105,25 @@ export default async function ArrivalSchedulePage({
                                 <div>{product.product_name}</div>
                                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                                   {product.orders.map((o) => (
-                                    <Link
-                                      key={o.order_id}
-                                      href={`/admin/orders/${o.order_id}`}
-                                      className="text-xs text-blue-600 hover:underline"
-                                    >
-                                      {o.customer_name}({o.quantity})
-                                    </Link>
+                                    <span key={o.order_id} className="inline-flex items-center gap-1">
+                                      <Link
+                                        href={`/admin/orders/${o.order_id}`}
+                                        className="text-xs text-blue-600 hover:underline"
+                                      >
+                                        {o.customer_name}({o.quantity})
+                                      </Link>
+                                      {o.tracking_status && (
+                                        <span
+                                          className={`rounded-full px-1.5 py-0 text-[10px] font-medium ${
+                                            o.tracking_delivered
+                                              ? 'bg-green-100 text-green-800'
+                                              : trackingBadgeClass(o.tracking_status)
+                                          }`}
+                                        >
+                                          {o.tracking_status}
+                                        </span>
+                                      )}
+                                    </span>
                                   ))}
                                 </div>
                               </td>

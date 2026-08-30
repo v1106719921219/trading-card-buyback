@@ -108,6 +108,11 @@ export interface Order {
   identity_verified_at: string | null
   shipped_date: string | null
   tracking_number: string | null
+  // ヤマト追跡の自動チェック結果（キー=数字のみの追跡番号）。cronが更新する
+  tracking_statuses: Record<
+    string,
+    { status: string; summary?: string | null; last_event?: string | null; checked_at: string }
+  > | null
   notes: string | null
   customer_line_name: string | null
   line_user_id: string | null

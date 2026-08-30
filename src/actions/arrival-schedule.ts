@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { extractPrefectureFromAddress, getDeliveryDays, calculateArrivalDate, formatDateJST } from '@/lib/delivery'
+import { isDeliveredStatus, type TrackingStatuses } from '@/lib/yamato-status'
 import type { Office } from '@/types/database'
 
 export interface ArrivalProductOrder {
@@ -9,6 +10,23 @@ export interface ArrivalProductOrder {
   order_number: string
   customer_name: string
   quantity: number
+  // ヤマト追跡の自動チェック結果から導出した表示用ラベル（未チェックはnull）
+  tracking_status: string | null
+  tracking_delivered: boolean
+}
+
+// 注文の追跡ステータス（複数個口対応）から一覧表示用のラベルを作る
+function deriveTrackingStatus(statuses: TrackingStatuses | null): {
+  label: string | null
+  delivered: boolean
+} {
+  const entries = Object.values(statuses ?? {})
+  if (entries.length === 0) return { label: null, delivered: false }
+  const deliveredCount = entries.filter((e) => isDeliveredStatus(e.status)).length
+  if (deliveredCount === entries.length) return { label: '到着済み', delivered: true }
+  if (deliveredCount > 0) return { label: '一部到着', delivered: true }
+  const moving = entries.find((e) => !e.status.includes('未登録') && !e.status.includes('誤り'))
+  return { label: (moving ?? entries[0]).status, delivered: false }
 }
 
 export interface ArrivalProduct {
@@ -34,7 +52,7 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
   // 注文を取得（order_itemsも一緒に）
   let query = supabase
     .from('orders')
-    .select('id, order_number, customer_name, customer_prefecture, office_id, shipped_date, status, order_items(product_name, quantity)')
+    .select('id, order_number, customer_name, customer_prefecture, office_id, shipped_date, status, tracking_statuses, order_items(product_name, quantity)')
 
   if (includeApplied) {
     query = query.in('status', ['発送済', '申込'])
@@ -97,6 +115,9 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
         dateProductMap.set(dateKey, new Map())
       }
       const productMap = dateProductMap.get(dateKey)!
+      const tracking = deriveTrackingStatus(
+        (order as { tracking_statuses?: TrackingStatuses | null }).tracking_statuses ?? null
+      )
       for (const item of items) {
         const existing = productMap.get(item.product_name)
         const orderInfo: ArrivalProductOrder = {
@@ -104,6 +125,8 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
           order_number: order.order_number,
           customer_name: order.customer_name,
           quantity: item.quantity,
+          tracking_status: tracking.label,
+          tracking_delivered: tracking.delivered,
         }
         if (existing) {
           existing.total += item.quantity

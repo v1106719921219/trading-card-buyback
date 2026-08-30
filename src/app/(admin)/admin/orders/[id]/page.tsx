@@ -44,6 +44,7 @@ import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybac
 import { getOrderKycInfo } from '@/actions/kyc'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
+import { normalizeTrackingNumber, trackingBadgeClass } from '@/lib/yamato-status'
 import { STATUS_TRANSITIONS, STATUS_REVERT, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
 import { toast } from 'sonner'
 import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole, BuybackType, InspectionStatus, Product } from '@/types/database'
@@ -871,9 +872,19 @@ export default function OrderDetailPage() {
               <CardContent className="space-y-4">
                 {order.tracking_number && (
                   <div className="space-y-2">
-                    {order.tracking_number.split('\n').filter(Boolean).map((tn, i) => (
-                      <div key={i} className="flex items-center gap-3">
+                    {order.tracking_number.split('\n').filter(Boolean).map((tn, i) => {
+                      const ts = order.tracking_statuses?.[normalizeTrackingNumber(tn)]
+                      return (
+                      <div key={i} className="flex flex-wrap items-center gap-3">
                         <p className="font-mono text-lg">{tn}</p>
+                        {ts && (
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${trackingBadgeClass(ts.status)}`}>
+                            {ts.status}
+                          </span>
+                        )}
+                        {ts?.last_event && (
+                          <span className="text-xs text-muted-foreground">最終更新 {ts.last_event}</span>
+                        )}
                         <a
                           href={`https://jizen.kuronekoyamato.co.jp/jizen/servlet/crjz.b.NQ0010?id=${tn}`}
                           target="_blank"
@@ -884,7 +895,8 @@ export default function OrderDetailPage() {
                           <ExternalLink className="h-3 w-3" />
                         </a>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
                 {order.status !== '申込' && (
