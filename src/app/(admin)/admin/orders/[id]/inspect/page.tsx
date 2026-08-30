@@ -37,14 +37,13 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { ArrowLeft, Save, Plus, Trash2, ChevronsUpDown, Check, Barcode, IdCard, Copy } from 'lucide-react'
+import { ArrowLeft, Save, Plus, Trash2, ChevronsUpDown, Check, IdCard, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { notifyDiscordInspectionIssue } from '@/lib/discord'
 import { sendIdReminderLineMessage } from '@/actions/orders'
 import { idReminderMessage } from '@/lib/line-messages'
-import { downloadOrderLabelPdf } from '@/lib/label'
 import type { Order, OrderItem, Product, Category, InspectionStatus } from '@/types/database'
 import { INSPECTION_STATUSES } from '@/lib/constants'
 
@@ -207,21 +206,6 @@ export default function InspectPage() {
   // 既存商品（_isNew=false）が全て入力済みかどうか
   const allInspected = items.filter((i) => !i._isNew).every((i) => i._inspected !== null)
 
-  // ワンピースカードBOXの検品数量合計（バーコードラベル印刷用）
-  const isOnePieceBox = (item: InspectItem) => {
-    const product = item.product_id ? products.find((p) => p.id === item.product_id) : null
-    if (product) {
-      return (
-        (product.category?.name ?? '').includes('ワンピース') &&
-        (product.subcategory?.name ?? '').toUpperCase().includes('BOX')
-      )
-    }
-    return item.product_name.includes('ワンピース') && item.product_name.toUpperCase().includes('BOX')
-  }
-  const labelCount = items
-    .filter(isOnePieceBox)
-    .reduce((sum, item) => sum + Math.max(0, (item._inspected ?? 0) - item._returned), 0)
-
   async function handleSendIdReminder() {
     if (!order || idReminderSending) return
     setIdReminderSending(true)
@@ -248,11 +232,6 @@ export default function InspectPage() {
     toast.success('定型文をコピーしました')
   }
 
-  function handlePrintLabels() {
-    if (!order || labelCount === 0) return
-    downloadOrderLabelPdf(order.order_number, labelCount)
-    toast.success(`ラベルPDF（${labelCount}枚分）を生成しました`)
-  }
   const inspectedTotal = inspectedSubtotal - discount
   const difference = inspectedTotal - originalTotal
 
@@ -377,16 +356,7 @@ export default function InspectPage() {
     toast.success('検品が完了しました')
 
     const officeId = order?.office_id
-    const nextUrl = officeId ? `/admin/offices/${officeId}` : `/admin/orders`
-
-    // ワンピースBOXがあればバーコードラベルの印刷ダイアログを開いてから遷移
-    if (labelCount > 0 && order) {
-      downloadOrderLabelPdf(order.order_number, labelCount)
-      toast.success(`ワンピースBOXラベル（${labelCount}枚分）の印刷を開きました`)
-      setTimeout(() => router.push(nextUrl), 1500)
-    } else {
-      router.push(nextUrl)
-    }
+    router.push(officeId ? `/admin/offices/${officeId}` : `/admin/orders`)
   }
 
   if (loading || !order) {
@@ -697,12 +667,6 @@ export default function InspectPage() {
           <p className="text-sm text-amber-600 mr-auto">
             {items.filter((i) => !i._isNew && i._inspected === null).length}件の検品数量が未入力です
           </p>
-        )}
-        {labelCount > 0 && (
-          <Button variant="outline" size="lg" onClick={handlePrintLabels}>
-            <Barcode className="mr-2 h-4 w-4" />
-            BOXラベル（{labelCount}枚）
-          </Button>
         )}
         <Button variant="outline" size="lg" onClick={handleSave} disabled={saving}>
           <Save className="mr-2 h-4 w-4" />
