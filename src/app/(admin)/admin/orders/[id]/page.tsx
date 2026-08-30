@@ -70,6 +70,9 @@ export default function OrderDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [userProfile, setUserProfile] = useState<{ id: string; display_name: string } | null>(null)
+
+  // 検品者必須化・検品完了の直接変更制限は東京のみ（千葉は従来通り）
+  const isChiba = (process.env.NEXT_PUBLIC_SITE_URL ?? '').includes('chiba')
   const [duplicateOrders, setDuplicateOrders] = useState<{ id: string; order_number: string; status: string; created_at: string; total_amount: number }[]>([])
   const [editingQuantities, setEditingQuantities] = useState(false)
   const [editItems, setEditItems] = useState<{ id: string; quantity: number; unit_price: number }[]>([])
@@ -169,9 +172,9 @@ export default function OrderDetailPage() {
     if (!newStatus || !order || changingStatus) return
     setChangingStatus(true)
 
-    // 検品完了への直接変更はadminのみ（それ以外は検品入力を通る）。実行者を検品者として記録する
+    // 検品完了への直接変更はadminのみ（それ以外は検品入力を通る）。実行者を検品者として記録する（東京のみ）
     const update: Record<string, unknown> = { status: newStatus }
-    if (newStatus === '検品完了' && userProfile) {
+    if (!isChiba && newStatus === '検品完了' && userProfile) {
       update.inspected_by = userProfile.id
       update.inspected_by_name = userProfile.display_name
     }
@@ -363,9 +366,9 @@ export default function OrderDetailPage() {
     return <div className="p-8 text-center text-muted-foreground">読み込み中...</div>
   }
 
-  // 検品完了への直接変更はadminのみ。それ以外のスタッフは検品入力画面（検品者選択必須）を通す
+  // 検品完了への直接変更はadminのみ（東京のみ）。それ以外のスタッフは検品入力画面（検品者選択必須）を通す
   const allowedTransitions = (STATUS_TRANSITIONS[order.status as OrderStatus] || []).filter(
-    (s) => s !== '検品完了' || userRole === 'admin'
+    (s) => isChiba || s !== '検品完了' || userRole === 'admin'
   )
 
   return (

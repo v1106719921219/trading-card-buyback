@@ -148,7 +148,9 @@ export default function InspectPage() {
   }, [orderId])
 
   useEffect(() => {
-    getInspectorOptions().then(setInspectors)
+    // 検品者の選択必須化は東京のみ（千葉は従来通り）
+    if (!isChiba) getInspectorOptions().then(setInspectors)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function updateItem(id: string, field: '_inspected_price' | '_returned', value: number) {
@@ -349,7 +351,7 @@ export default function InspectPage() {
 
   async function handleComplete() {
     const inspector = inspectors.find((i) => i.id === inspectorId)
-    if (!inspector) {
+    if (!isChiba && !inspector) {
       toast.error('検品者を選択してください')
       return
     }
@@ -362,8 +364,9 @@ export default function InspectPage() {
       .update({
         status: '検品完了',
         inspection_status: null,
-        inspected_by: inspector.id,
-        inspected_by_name: inspector.display_name,
+        ...(inspector
+          ? { inspected_by: inspector.id, inspected_by_name: inspector.display_name }
+          : {}),
       })
       .eq('id', orderId)
 
@@ -687,28 +690,30 @@ export default function InspectPage() {
             {items.filter((i) => !i._isNew && i._inspected === null).length}件の検品数量が未入力です
           </p>
         )}
-        <div className="flex items-center gap-2">
-          <Label className="whitespace-nowrap text-sm">
-            検品者 <span className="text-destructive">*</span>
-          </Label>
-          <Select value={inspectorId} onValueChange={setInspectorId}>
-            <SelectTrigger className="w-36">
-              <SelectValue placeholder="選択してください" />
-            </SelectTrigger>
-            <SelectContent>
-              {inspectors.map((i) => (
-                <SelectItem key={i.id} value={i.id}>{i.display_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {!isChiba && (
+          <div className="flex items-center gap-2">
+            <Label className="whitespace-nowrap text-sm">
+              検品者 <span className="text-destructive">*</span>
+            </Label>
+            <Select value={inspectorId} onValueChange={setInspectorId}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="選択してください" />
+              </SelectTrigger>
+              <SelectContent>
+                {inspectors.map((i) => (
+                  <SelectItem key={i.id} value={i.id}>{i.display_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <Button variant="outline" size="lg" onClick={handleSave} disabled={saving}>
           <Save className="mr-2 h-4 w-4" />
           一時保存
         </Button>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button size="lg" disabled={!allInspected || !inspectorId}>検品完了にする</Button>
+            <Button size="lg" disabled={!allInspected || (!isChiba && !inspectorId)}>検品完了にする</Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -716,7 +721,7 @@ export default function InspectPage() {
               <AlertDialogDescription>
                 検品後合計: {inspectedTotal.toLocaleString()}円
                 {difference !== 0 && ` （申告比: ${difference > 0 ? '+' : ''}${difference.toLocaleString()}円）`}
-                {'　'}検品者: {inspectors.find((i) => i.id === inspectorId)?.display_name ?? '未選択'}
+                {!isChiba && `　検品者: ${inspectors.find((i) => i.id === inspectorId)?.display_name ?? '未選択'}`}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
