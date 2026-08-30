@@ -14,7 +14,7 @@ export const CUSTOMER_STATUS_LABEL: Record<string, string> = {
 // 注文状況ページ（LINEアプリ内で開くと本人の全注文とステータスが見られる）
 export function myOrdersLiffUrl(): string {
   const liffId = process.env.NEXT_PUBLIC_LIFF_ID
-  return liffId ? `https://liff.line.me/${liffId}?view=orders` : ''
+  return liffId ? `https://liff.line.me/${liffId}/my-orders` : ''
 }
 
 // 申込受付時のメッセージ
