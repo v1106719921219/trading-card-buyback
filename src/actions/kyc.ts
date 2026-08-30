@@ -9,8 +9,6 @@ import { requireRole, sanitizeError } from '@/lib/security'
 import { kycSubmitSchema, kycReviewSchema } from '@/lib/validators/kyc'
 import { writeKycAuditLog } from '@/lib/kyc/audit'
 import { createSignedUrl } from '@/lib/kyc/storage'
-import { runOcr } from '@/lib/kyc/ocr'
-import { runFaceMatch } from '@/lib/kyc/face-match'
 import { runAiKycReview, type AiKycReview } from '@/lib/kyc/ai-review'
 import { ID_DOCUMENT_TYPE_LABELS } from '@/types/kyc'
 import type { KycSubmitInput, KycReviewInput } from '@/lib/validators/kyc'
@@ -132,48 +130,36 @@ export async function submitKycRequest(kycRequestId: string) {
     return { error: '必要な画像がアップロードされていません' }
   }
 
-  // OCR・顔認証スタブ実行（Phase 2で実API統合）
-  const [ocrResult, faceMatchResult] = await Promise.all([
-    runOcr(kycRequest.id_front_image_path),
-    runFaceMatch(kycRequest.id_front_image_path, kycRequest.face_image_path),
-  ])
+  try {
+    const { error: updateError } = await supabase
+      .from('kyc_requests')
+      .update({ status: 'processing' })
+      .eq('id', kycRequestId)
 
-  const { error: updateError } = await supabase
-    .from('kyc_requests')
-    .update({
-      status: 'processing',
-      ocr_result: ocrResult.raw,
-      ocr_extracted_name: ocrResult.name,
-      ocr_extracted_address: ocrResult.address,
-      ocr_extracted_birth_date: ocrResult.birthDate,
-      face_match_score: faceMatchResult.score,
-      face_match_passed: faceMatchResult.passed,
+    if (updateError) {
+      return { error: sanitizeError(updateError) }
+    }
+
+    // 監査ログ
+    writeKycAuditLog({
+      tenantId,
+      kycRequestId,
+      action: 'request_submitted',
+      details: {},
+    }).catch((err) => console.error('[KYC] Audit log error:', err))
+
+    // AI自動審査（レスポンス返却後にバックグラウンドで実行。問題なければ自動承認、疑義があれば人間の確認待ち）
+    after(async () => {
+      await runAiReviewAndApply(kycRequestId, tenantId).catch((err) =>
+        console.error('[KYC AI] バックグラウンド審査エラー:', err)
+      )
     })
-    .eq('id', kycRequestId)
 
-  if (updateError) {
-    return { error: sanitizeError(updateError) }
+    return { success: true }
+  } catch (err) {
+    console.error('[submitKycRequest] エラー:', err)
+    return { error: '送信中にエラーが発生しました。もう一度お試しください' }
   }
-
-  // 監査ログ
-  writeKycAuditLog({
-    tenantId,
-    kycRequestId,
-    action: 'request_submitted',
-    details: {
-      ocr_stub: true,
-      face_match_stub: true,
-    },
-  }).catch((err) => console.error('[KYC] Audit log error:', err))
-
-  // AI自動審査（レスポンス返却後にバックグラウンドで実行。問題なければ自動承認、疑義があれば人間の確認待ち）
-  after(async () => {
-    await runAiReviewAndApply(kycRequestId, tenantId).catch((err) =>
-      console.error('[KYC AI] バックグラウンド審査エラー:', err)
-    )
-  })
-
-  return { success: true }
 }
 
 /** AI審査を実行し、結果をkyc_requestsに反映する（pass=自動承認、それ以外=人間確認待ちのまま） */
