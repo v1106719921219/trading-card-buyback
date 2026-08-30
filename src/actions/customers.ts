@@ -32,11 +32,11 @@ export async function getLinePrefillByIdToken(idToken: string) {
 
   if (!customer) return null
 
-  // eKYC承認済みか確認（本人確認が取れている人のみ自動入力）
+  // eKYC承認済みか確認（LINE本人＝line_user_idで照合。本人確認が取れている人のみ自動入力）
   const { data: kyc } = await supabase
     .from('kyc_requests')
     .select('id')
-    .eq('customer_email', customer.customer_email)
+    .eq('line_user_id', verified.userId)
     .eq('status', 'approved')
     .limit(1)
     .maybeSingle()
