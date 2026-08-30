@@ -31,25 +31,26 @@ interface CapturedImages {
 export function KycFlow({
   orderNumber,
   previewStep,
-  initialEmail,
   initialName,
+  lineIdToken,
   onComplete,
 }: {
   orderNumber?: string
   previewStep?: string
-  // 申込フォーム埋め込み用: メール・氏名を引き継いで入力ステップをスキップ
-  initialEmail?: string
+  // 申込フォーム埋め込み用: 氏名を引き継いで入力ステップをスキップ
   initialName?: string
-  onComplete?: () => void
+  // LINE本人でeKYCを紐付けるためのLIFF IDトークン（メールは廃止）
+  lineIdToken?: string
+  onComplete?: (kycRequestId: string) => void
 }) {
   // ?preview=thickness で厚み撮影画面のみを直接表示（UI確認用・データは作成されない）
   const isPreview = previewStep === 'thickness'
-  const embedded = !!(initialEmail && initialName)
+  const embedded = !!initialName
   const [step, setStep] = useState<KycStep>(
     isPreview ? 'id_capture_thickness' : embedded ? 'id_type' : 'start'
   )
   const [kycRequestId, setKycRequestId] = useState<string | null>(null)
-  const [customerEmail, setCustomerEmail] = useState(initialEmail ?? '')
+  const [customerEmail, setCustomerEmail] = useState('')
   const [customerName, setCustomerName] = useState(initialName ?? '')
   const [idDocumentType, setIdDocumentType] = useState<IdDocumentType | null>(null)
   const [images, setImages] = useState<CapturedImages>({
@@ -76,10 +77,11 @@ export function KycFlow({
 
     // KYCリクエスト作成
     const result = await createKycRequest({
-      customer_email: customerEmail,
+      customer_email: customerEmail || null,
       customer_name: customerName,
       id_document_type: type,
       order_number: orderNumber,
+      line_id_token: lineIdToken || null,
     })
 
     if (result.error) {
@@ -174,7 +176,7 @@ export function KycFlow({
       }
 
       setStep('complete')
-      onComplete?.()
+      onComplete?.(kycRequestId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
       setStep('confirm')

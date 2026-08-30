@@ -35,7 +35,7 @@ export async function createOrder(input: CreateOrderInput) {
 
   try {
 
-  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type, from_line, line_user_token, line_id_token } = parsed.data
+  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type, from_line, line_user_token, line_id_token, kyc_request_id } = parsed.data
 
   // LINE userIdの復元（改ざん・なりすまし防止のためサーバー側で検証）
   // 優先: LIFF（LINEアプリ内で開いた申込）のIDトークン → 次点: Botの署名トークン
@@ -48,21 +48,24 @@ export async function createOrder(input: CreateOrderInput) {
     lineUserId = verifyLineUserToken(line_user_token)
   }
 
-  // 重複チェック: 同一テナント・メールアドレスで2分以内の申込があれば既存注文を返す
-  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
-  const { data: existingOrder } = await supabase
-    .from('orders')
-    .select('order_number')
-    .eq('tenant_id', tenantId)
-    .eq('customer_email', customer.customer_email)
-    .in('status', ['申込', '承認待ち'])
-    .gte('created_at', twoMinutesAgo)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
+  // 重複チェック: 2分以内の連打による二重申込を防ぐ。LINE本人（line_user_id）で判定。
+  // LINE未連携（line_user_idなし）は判定キーが無いのでスキップ
+  if (lineUserId) {
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+    const { data: existingOrder } = await supabase
+      .from('orders')
+      .select('order_number')
+      .eq('tenant_id', tenantId)
+      .eq('line_user_id', lineUserId)
+      .in('status', ['申込', '承認待ち'])
+      .gte('created_at', twoMinutesAgo)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
-  if (existingOrder) {
-    return { success: true, order_number: existingOrder.order_number, office_id }
+    if (existingOrder) {
+      return { success: true, order_number: existingOrder.order_number, office_id }
+    }
   }
 
   // Calculate total
@@ -74,29 +77,33 @@ export async function createOrder(input: CreateOrderInput) {
   // PayPay銀行の表記を統一
   const bankName = customer.bank_name === 'PayPay銀行' ? 'PayPay銀行（ペイペイ銀行）' : customer.bank_name
 
-  // 過去に承認済みeKYCがある同一人物（メール＋氏名一致）は本人確認を自動パス
+  // 本人確認: メール照合は廃止。「同じLINE本人（line_user_id一致）＋承認済みeKYC＋氏名一致」のみ自動パス
   let kycRequestId: string | null = null
   let identityVerifiedAt: string | null = null
   let identityMethod: string = customer.customer_identity_method
-  const { data: approvedKyc } = await supabase
-    .from('kyc_requests')
-    .select('id, customer_name')
-    .eq('tenant_id', tenantId)
-    .eq('customer_email', customer.customer_email)
-    .eq('status', 'approved')
-    .order('reviewed_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
   const normalize = (s: string | null | undefined) => (s ?? '').replace(/[\s　]/g, '')
-  if (approvedKyc && normalize(approvedKyc.customer_name) === normalize(customer.customer_name)) {
-    kycRequestId = approvedKyc.id
-    identityVerifiedAt = new Date().toISOString()
-    identityMethod = 'eKYC確認済み'
+
+  if (lineUserId) {
+    // 同じLINE本人の承認済みeKYCを探す（過去に承認された本人確認を再利用）
+    const { data: approvedKyc } = await supabase
+      .from('kyc_requests')
+      .select('id, customer_name')
+      .eq('tenant_id', tenantId)
+      .eq('line_user_id', lineUserId)
+      .eq('status', 'approved')
+      .order('reviewed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (approvedKyc && normalize(approvedKyc.customer_name) === normalize(customer.customer_name)) {
+      kycRequestId = approvedKyc.id
+      identityVerifiedAt = new Date().toISOString()
+      identityMethod = 'eKYC確認済み'
+    }
   }
 
-  // 展開フラグON時: 本人確認はeKYC必須。申込前のeKYC提出がなければ受け付けない
-  // （eKYC確認済みで自動パスした場合はkycRequestIdが入っているのでスキップ）
+  // 展開フラグON時: 本人確認はeKYC必須。申込直前に撮影したeKYC（kyc_request_id）を紐付ける
+  // （自動パス済みの場合はkycRequestIdが入っているのでスキップ）
   let pendingKycId: string | null = null
   if (!kycRequestId) {
     const { data: rolloutSetting } = await supabase
@@ -107,18 +114,19 @@ export async function createOrder(input: CreateOrderInput) {
       .maybeSingle()
 
     if (rolloutSetting?.value === 'true') {
-      const { data: submittedKycs } = await supabase
-        .from('kyc_requests')
-        .select('id, customer_name')
-        .eq('tenant_id', tenantId)
-        .eq('customer_email', customer.customer_email)
-        .eq('status', 'processing')
-        .order('created_at', { ascending: false })
-        .limit(10)
-
-      const matched = (submittedKycs ?? []).find(
-        (k) => normalize(k.customer_name) === normalize(customer.customer_name)
-      )
+      // フォームから直接渡された撮影済みeKYCを検証（processingかつ同一テナント）
+      let matched: { id: string } | null = null
+      if (kyc_request_id) {
+        const { data: submitted } = await supabase
+          .from('kyc_requests')
+          .select('id, status')
+          .eq('tenant_id', tenantId)
+          .eq('id', kyc_request_id)
+          .maybeSingle()
+        if (submitted && submitted.status === 'processing') {
+          matched = { id: submitted.id }
+        }
+      }
       if (!matched) {
         return {
           error: '本人確認書類の撮影が完了していません。確認画面の「本人確認」から撮影を完了してください',
@@ -139,7 +147,7 @@ export async function createOrder(input: CreateOrderInput) {
       status: isLineVerified ? '申込' : '承認待ち',
       customer_name: customer.customer_name,
       customer_line_name: customer.customer_line_name || null,
-      customer_email: customer.customer_email,
+      customer_email: customer.customer_email || null,
       customer_phone: customer.customer_phone || null,
       customer_birth_date: customer.customer_birth_date,
       customer_occupation: customer.customer_occupation,
@@ -229,7 +237,7 @@ export async function createOrder(input: CreateOrderInput) {
       order_number: order.order_number,
       customer_name: customer.customer_name,
       customer_line_name: customer.customer_line_name || null,
-      customer_email: customer.customer_email,
+      customer_email: customer.customer_email || '',
       customer_phone: customer.customer_phone || null,
       customer_birth_date: customer.customer_birth_date,
       customer_occupation: customer.customer_occupation,

@@ -19,7 +19,8 @@ export const IDENTITY_METHODS = [
 export const customerInfoSchema = z.object({
   customer_name: z.string().min(1, 'お名前を入力してください').max(100),
   customer_line_name: z.string().min(1, 'LINE登録名を入力してください').max(100),
-  customer_email: z.string().email('正しいメールアドレスを入力してください'),
+  // メール入力は廃止（LINE一本化）。任意項目として残す
+  customer_email: z.string().email().optional().or(z.literal('')),
   customer_phone: z.string().regex(/^[0-9-]{10,15}$/, '正しい電話番号を入力してください').optional().or(z.literal('')),
   customer_birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '生年月日を入力してください'),
   customer_occupation: z.string().min(1, '職業を入力してください').max(100),
@@ -47,6 +48,8 @@ export const createOrderSchema = z.object({
   line_user_token: z.string().max(500).optional(),
   // LIFF（LINEアプリ内で開いた申込）のIDトークン。サーバーで検証してline_user_idを紐付ける
   line_id_token: z.string().max(4000).optional(),
+  // 申込直前に撮影したeKYCのリクエストID（フォームから直接受け取り、メール照合を廃止）
+  kyc_request_id: z.string().uuid().optional(),
 })
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>

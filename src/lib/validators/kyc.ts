@@ -1,12 +1,15 @@
 import { z } from 'zod'
 
 export const kycSubmitSchema = z.object({
-  customer_email: z.string().email('正しいメールアドレスを入力してください'),
+  // メール入力は廃止（LINE一本化）。本人照合は line_user_id で行う
+  customer_email: z.string().email().optional().nullable(),
   customer_name: z.string().min(1, 'お名前を入力してください').max(100),
   id_document_type: z.enum(['driving_license', 'my_number_card', 'passport', 'health_insurance', 'residence_card'], {
     message: '身分証明書の種類を選択してください',
   }),
   order_number: z.string().max(50).optional(),
+  // LIFFのIDトークン（LINE本人でeKYCを紐付ける）
+  line_id_token: z.string().optional().nullable(),
 })
 
 export type KycSubmitInput = z.infer<typeof kycSubmitSchema>

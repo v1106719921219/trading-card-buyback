@@ -286,7 +286,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
       return (
         customerName.trim() &&
         customerLineName.trim() &&
-        customerEmail.trim() &&
         customerBirthDate &&
         customerOccupation.trim() &&
         customerPrefecture &&
@@ -323,6 +322,8 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [ekycRollout, setEkycRollout] = useState(false)
   const [kycStatus, setKycStatus] = useState<'checking' | 'verified' | 'submitted' | 'none'>('none')
   const [showKycDialog, setShowKycDialog] = useState(false)
+  // eKYC撮影完了時にKycFlowから受け取るリクエストID（申込時にそのまま紐付ける）
+  const [kycRequestId, setKycRequestId] = useState<string | null>(null)
 
   useEffect(() => {
     getEkycRolloutEnabled().then(setEkycRollout)
@@ -332,13 +333,13 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const kycDone = kycStatus === 'verified' || kycStatus === 'submitted'
 
   useEffect(() => {
-    // 確認画面に入ったタイミングで、このメール＋氏名が確認済み（スキップ可）かをチェック
-    if (step === 2 && needsKyc && customerEmail && customerName) {
+    // 確認画面に入ったタイミングで、このLINE本人が確認済み（スキップ可）かをチェック
+    if (step === 2 && needsKyc && customerName && liff?.idToken) {
       setKycStatus('checking')
-      checkKycForApply(customerEmail, customerName).then(setKycStatus)
+      checkKycForApply(liff.idToken, customerName).then(setKycStatus)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, needsKyc])
+  }, [step, needsKyc, liff?.idToken])
 
   async function handleSubmit() {
     if (submittingRef.current) return
@@ -357,7 +358,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         customer: {
           customer_name: customerName,
           customer_line_name: customerLineName,
-          customer_email: customerEmail,
           customer_phone: customerPhone || '',
           customer_birth_date: customerBirthDate,
           customer_occupation: customerOccupation,
@@ -379,6 +379,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         from_line: fromLine ?? false,
         line_user_token: lineUserToken || undefined,
         line_id_token: liff?.inLiff ? liff.idToken || undefined : undefined,
+        kyc_request_id: kycRequestId || undefined,
       })
 
       setLoading(false)
@@ -858,16 +859,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>メールアドレス <span className="text-destructive">*</span></Label>
-                    <Input
-                      type="email"
-                      value={customerEmail}
-                      onChange={(e) => setCustomerEmail(e.target.value)}
-                      placeholder="taro@example.com"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
                     <Label>電話番号</Label>
                     <Input
                       value={customerPhone}
@@ -1104,8 +1095,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                   <dd>{customerBirthDate}</dd>
                   <dt className="text-muted-foreground">職業</dt>
                   <dd>{customerOccupation}</dd>
-                  <dt className="text-muted-foreground">メール</dt>
-                  <dd>{customerEmail}</dd>
                   {customerPhone && (
                     <>
                       <dt className="text-muted-foreground">電話番号</dt>
@@ -1236,14 +1225,15 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
           <DialogHeader>
             <DialogTitle>本人確認書類の撮影</DialogTitle>
             <DialogDescription>
-              {customerName} 様（{customerEmail}）の本人確認を行います
+              {customerName} 様の本人確認を行います
             </DialogDescription>
           </DialogHeader>
           {showKycDialog && (
             <KycFlow
-              initialEmail={customerEmail}
               initialName={customerName}
-              onComplete={() => {
+              lineIdToken={liff?.idToken || undefined}
+              onComplete={(id) => {
+                setKycRequestId(id)
                 setKycStatus('submitted')
                 setShowKycDialog(false)
                 toast.success('本人確認書類の撮影が完了しました')

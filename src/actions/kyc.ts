@@ -37,7 +37,15 @@ export async function createKycRequest(input: KycSubmitInput) {
   }
 
   const supabase = createAdminClient()
-  const { customer_email, customer_name, id_document_type, order_number } = parsed.data
+  const { customer_email, customer_name, id_document_type, order_number, line_id_token } = parsed.data
+
+  // LINE本人（line_user_id）を復元。以降のeKYC照合はメールではなくこれで行う
+  let lineUserId: string | null = null
+  if (line_id_token) {
+    const { verifyLineIdToken } = await import('@/lib/line-verify')
+    const verified = await verifyLineIdToken(line_id_token)
+    lineUserId = verified?.userId ?? null
+  }
 
   // 注文番号が渡された場合は注文に紐付ける（同一テナントのみ）
   let orderId: string | null = null
@@ -51,15 +59,17 @@ export async function createKycRequest(input: KycSubmitInput) {
     orderId = order?.id ?? null
   }
 
-  // 同一メールの未完了リクエストがあるか確認
-  const { data: existing } = await supabase
+  // 同一LINE本人の未完了リクエストがあれば作り直す（LINE未連携時はメールで代替）
+  let existingQuery = supabase
     .from('kyc_requests')
     .select('id, status')
     .eq('tenant_id', tenantId)
-    .eq('customer_email', customer_email)
     .in('status', ['pending', 'processing'])
     .limit(1)
-    .single()
+  existingQuery = lineUserId
+    ? existingQuery.eq('line_user_id', lineUserId)
+    : existingQuery.eq('customer_email', customer_email ?? '')
+  const { data: existing } = await existingQuery.maybeSingle()
 
   if (existing) {
     // 既存の未完了リクエストを削除して作り直す
@@ -71,8 +81,9 @@ export async function createKycRequest(input: KycSubmitInput) {
     .from('kyc_requests')
     .insert({
       tenant_id: tenantId,
-      customer_email,
+      customer_email: customer_email ?? null,
       customer_name,
+      line_user_id: lineUserId,
       id_document_type,
       order_id: orderId,
       kyc_method: 'image',
@@ -440,11 +451,17 @@ export async function reviewKycRequest(input: KycReviewInput) {
  * verified = 承認済み（自動スキップ可） / submitted = 提出済み（審査中） / none = 未提出
  */
 export async function checkKycForApply(
-  email: string,
+  lineIdToken: string,
   name: string
 ): Promise<'verified' | 'submitted' | 'none'> {
   try {
-    if (!email || !name) return 'none'
+    if (!lineIdToken || !name) return 'none'
+    // LINE本人（line_user_id）でのみ照合。LINE連携していない場合は毎回eKYC必須（'none'）
+    const { verifyLineIdToken } = await import('@/lib/line-verify')
+    const verified = await verifyLineIdToken(lineIdToken)
+    const lineUserId = verified?.userId
+    if (!lineUserId) return 'none'
+
     const tenantId = await requireTenantId()
     const supabase = createAdminClient()
     const normalize = (s: string | null | undefined) => (s ?? '').replace(/[\s　]/g, '')
@@ -453,7 +470,7 @@ export async function checkKycForApply(
       .from('kyc_requests')
       .select('status, customer_name')
       .eq('tenant_id', tenantId)
-      .eq('customer_email', email)
+      .eq('line_user_id', lineUserId)
       .in('status', ['approved', 'processing'])
       .order('created_at', { ascending: false })
       .limit(10)
