@@ -413,6 +413,27 @@ export async function approveOrder(orderId: string) {
 }
 
 // LIFF（LINEアプリ内）用: IDトークンを検証して本人の注文一覧＋ステータスを返す
+// 検品完了時に減額があれば、LINE連携済みのお客様へ自動通知する（減額なし・未連携は何もしない）
+export async function notifyReductionLine(orderId: string) {
+  const supabase = createAdminClient()
+  const { data: order } = await supabase
+    .from('orders')
+    .select('order_number, line_user_id, total_amount, inspected_total_amount, inspection_discount, inspection_notes')
+    .eq('id', orderId)
+    .single()
+
+  if (!order?.line_user_id) return
+  const original = order.total_amount
+  const final = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
+  if (final >= original) return // 減額なし（同額・増額）は送らない
+
+  const { reductionMessage } = await import('@/lib/line-messages')
+  await pushTextMessage(
+    order.line_user_id,
+    reductionMessage(order.order_number, original, final, order.inspection_notes)
+  ).catch((err) => console.error('[notifyReductionLine] LINE送信エラー:', err))
+}
+
 export async function getMyOrdersByIdToken(idToken: string) {
   const { verifyLineIdToken } = await import('@/lib/line-verify')
   const verified = await verifyLineIdToken(idToken)

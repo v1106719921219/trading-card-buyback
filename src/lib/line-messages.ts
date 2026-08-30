@@ -31,6 +31,28 @@ export function orderReceivedMessage(orderNumber: string, amount: number): strin
   ].join('\n')
 }
 
+// 検品で減額があった場合のお知らせ
+export function reductionMessage(
+  orderNumber: string,
+  originalAmount: number,
+  finalAmount: number,
+  note: string | null
+): string {
+  const diff = originalAmount - finalAmount
+  const url = myOrdersLiffUrl()
+  const lines = [
+    '【買取スクエア】',
+    '検品が完了し、査定金額が確定しました。',
+    `注文番号: ${orderNumber}`,
+    '',
+    `申込時の金額: ${originalAmount.toLocaleString()}円`,
+    `査定後の金額: ${finalAmount.toLocaleString()}円（−${diff.toLocaleString()}円）`,
+  ]
+  if (note && note.trim()) lines.push('', `理由: ${note.trim()}`)
+  lines.push('', '査定結果の詳細・PDFはこちらからご確認いただけます👇', url)
+  return lines.join('\n')
+}
+
 export function idReminderMessage(orderNumber: string): string {
   return [
     '【買取スクエア】',
