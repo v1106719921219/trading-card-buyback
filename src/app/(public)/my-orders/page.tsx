@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Header } from '@/components/public/header'
 import { Footer } from '@/components/public/footer'
 import { Package } from 'lucide-react'
+import { toast } from 'sonner'
 import { initLiff } from '@/lib/liff-client'
-import { getMyOrdersByIdToken } from '@/actions/orders'
+import { getMyOrdersByIdToken, submitTrackingByIdToken } from '@/actions/orders'
 
 // お客様向けのステータス表示（社内ステータスをお客様にわかる言葉に変換）
 const CUSTOMER_STATUS: Record<string, { label: string; color: string; step: number }> = {
@@ -28,6 +30,7 @@ interface MyOrder {
   inspected_total_amount: number | null
   inspection_discount: number | null
   tracking_number: string | null
+  office_id: string | null
   created_at: string
 }
 
@@ -35,6 +38,14 @@ export default function MyOrdersPage() {
   const [loading, setLoading] = useState(true)
   const [inLine, setInLine] = useState(true)
   const [orders, setOrders] = useState<MyOrder[]>([])
+  const [idToken, setIdToken] = useState<string | null>(null)
+  const [trackingInput, setTrackingInput] = useState<Record<string, string>>({})
+  const [submittingTracking, setSubmittingTracking] = useState<string | null>(null)
+
+  async function loadOrders(token: string) {
+    const data = await getMyOrdersByIdToken(token)
+    setOrders(data as MyOrder[])
+  }
 
   useEffect(() => {
     initLiff().then(async (state) => {
@@ -43,11 +54,26 @@ export default function MyOrdersPage() {
         setLoading(false)
         return
       }
-      const data = await getMyOrdersByIdToken(state.idToken)
-      setOrders(data as MyOrder[])
+      setIdToken(state.idToken)
+      await loadOrders(state.idToken)
       setLoading(false)
     })
   }, [])
+
+  async function handleSubmitTracking(orderNumber: string) {
+    const value = (trackingInput[orderNumber] ?? '').trim()
+    if (!value || !idToken) return
+    setSubmittingTracking(orderNumber)
+    const result = await submitTrackingByIdToken(idToken, orderNumber, value)
+    setSubmittingTracking(null)
+    if (result.error) {
+      toast.error(result.error)
+      return
+    }
+    toast.success('追跡番号を登録しました')
+    setTrackingInput((prev) => ({ ...prev, [orderNumber]: '' }))
+    await loadOrders(idToken)
+  }
 
   return (
     <div className="min-h-screen bg-muted/50">
@@ -120,6 +146,32 @@ export default function MyOrdersPage() {
                         {s.step >= 4 ? 'お振込金額' : '申込金額'} {amount.toLocaleString()}円
                       </span>
                     </div>
+
+                    {/* 発送待ち（追跡番号未登録）の注文には入力欄を表示 */}
+                    {o.status === '申込' && !o.tracking_number && (
+                      <div className="space-y-1.5 rounded-md bg-muted/50 p-2">
+                        <p className="text-xs text-muted-foreground">
+                          商品を発送したら、追跡番号（お問い合わせ番号）をご登録ください
+                        </p>
+                        <div className="flex gap-2">
+                          <Input
+                            value={trackingInput[o.order_number] ?? ''}
+                            onChange={(e) =>
+                              setTrackingInput((prev) => ({ ...prev, [o.order_number]: e.target.value }))
+                            }
+                            placeholder="追跡番号を入力"
+                            className="h-9 bg-white text-sm"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => handleSubmitTracking(o.order_number)}
+                            disabled={submittingTracking === o.order_number || !(trackingInput[o.order_number] ?? '').trim()}
+                          >
+                            {submittingTracking === o.order_number ? '登録中...' : '登録'}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )

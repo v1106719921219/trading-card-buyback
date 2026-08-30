@@ -423,6 +423,47 @@ export async function getMyOrdersByIdToken(idToken: string) {
   return data
 }
 
+// LIFF（LINEアプリ内）用: IDトークンで本人確認し、自分の注文に追跡番号を登録
+export async function submitTrackingByIdToken(
+  idToken: string,
+  orderNumber: string,
+  trackingNumber: string
+) {
+  if (!orderNumber || !trackingNumber.trim()) {
+    return { error: '追跡番号を入力してください' }
+  }
+  const { verifyLineIdToken } = await import('@/lib/line-verify')
+  const verified = await verifyLineIdToken(idToken)
+  if (!verified?.userId) return { error: 'LINEの本人確認に失敗しました' }
+
+  const supabase = createAdminClient()
+  // 本人のLINEに紐付いた注文であることを確認（他人の注文には登録できない）
+  const { data: order } = await supabase
+    .from('orders')
+    .select('id, status, tracking_number')
+    .eq('order_number', orderNumber)
+    .eq('line_user_id', verified.userId)
+    .maybeSingle()
+
+  if (!order) return { error: '注文が見つかりません' }
+  if (order.status === '承認待ち') {
+    return { error: 'この注文はまだ受付確認中です。確認後に追跡番号を登録してください。' }
+  }
+
+  const update: Record<string, unknown> =
+    order.status === '申込'
+      ? { tracking_number: trackingNumber.trim(), status: '発送済' }
+      : {
+          tracking_number: order.tracking_number
+            ? `${order.tracking_number}\n${trackingNumber.trim()}`
+            : trackingNumber.trim(),
+        }
+
+  const { error } = await supabase.from('orders').update(update).eq('id', order.id)
+  if (error) return { error: sanitizeError(error) }
+  return { success: true }
+}
+
 export async function getOrderByOrderNumber(orderNumber: string) {
   // 公開追跡ページ用：テナント絞り込みを行う
   const tenantId = await requireTenantId()
