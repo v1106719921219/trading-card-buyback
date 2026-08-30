@@ -66,7 +66,13 @@ export async function appendOrderToSheet(order: {
   })
 
   const text = await res.text()
-  if (text !== 'OK') {
-    throw new Error(`Google Sheets backup failed: status=${res.status} body=${text.substring(0, 200)}`)
+  // Apps Scriptの応答はGoogleのHTMLページに包まれて返ることがあるため、タグを除去して判定する
+  const plain = text
+    .replace(/<(script|style)[\s\S]*?<\/\1>/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (plain !== 'OK') {
+    throw new Error(`Google Sheets backup failed: status=${res.status} body=${plain.substring(0, 200)}`)
   }
 }

@@ -96,8 +96,14 @@ export async function backupKycToDrive(kyc: KycBackupTarget): Promise<{ success:
       redirect: 'follow',
     })
     const text = await res.text()
-    if (text.trim() !== 'OK') {
-      return { success: false, error: `Apps Script応答異常: status=${res.status} body=${text.slice(0, 200)}` }
+    // Apps Scriptの応答はGoogleのHTMLページに包まれて返ることがあるため、タグを除去して判定する
+    const plain = text
+      .replace(/<(script|style)[\s\S]*?<\/\1>/g, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (plain !== 'OK') {
+      return { success: false, error: `Apps Script応答異常: status=${res.status} body=${plain.slice(0, 200)}` }
     }
     return { success: true }
   } catch (err) {
