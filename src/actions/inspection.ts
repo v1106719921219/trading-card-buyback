@@ -22,7 +22,7 @@ export async function getInspectorOptions(
     .eq('tenant_id', user.tenant_id)
     .order('display_name')
 
-  const individuals = (data ?? []).filter((p) => !/事務所|テスト/.test(p.display_name))
+  const individuals = (data ?? []).filter((p) => !/事務所|テスト|退職/.test(p.display_name))
   const officeMembers = officeId ? individuals.filter((p) => p.office_id === officeId) : []
   const commonMembers = individuals.filter((p) => !p.office_id)
   return [...officeMembers, ...commonMembers].map(({ id, display_name }) => ({ id, display_name }))
