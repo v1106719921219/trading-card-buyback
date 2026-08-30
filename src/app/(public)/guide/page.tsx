@@ -256,15 +256,15 @@ export default function GuidePage() {
             <p className="text-sm font-semibold tracking-[0.2em] text-[#4A9EFF] uppercase mb-2">Packing</p>
             <h2 className="font-heading text-2xl sm:text-3xl text-foreground">梱包方法</h2>
           </div>
-          <Tabs defaultValue="carton">
+          <Tabs defaultValue="box">
             <TabsList className="mx-auto mb-8 sm:mb-10 w-full sm:w-auto bg-white/[0.05]">
-              <TabsTrigger value="carton" className="text-base data-[state=active]:bg-[#FF6B00] data-[state=active]:text-white">
-                <Box className="h-5 w-5 mr-2" />
-                カートンの場合
-              </TabsTrigger>
               <TabsTrigger value="box" className="text-base data-[state=active]:bg-[#FF6B00] data-[state=active]:text-white">
                 <Package className="h-5 w-5 mr-2" />
                 ボックスの場合
+              </TabsTrigger>
+              <TabsTrigger value="carton" className="text-base data-[state=active]:bg-[#FF6B00] data-[state=active]:text-white">
+                <Box className="h-5 w-5 mr-2" />
+                カートンの場合
               </TabsTrigger>
             </TabsList>
 
