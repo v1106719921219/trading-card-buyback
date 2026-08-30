@@ -298,18 +298,19 @@ export function CameraCapture({
               )}
             </div>
             <canvas ref={canvasRef} className="hidden" />
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={onBack} className="flex-1">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                戻る
-              </Button>
+            {/* 片手（親指）で押しやすいよう、撮影は幅いっぱいの大きなボタンにする */}
+            <div className="space-y-2">
               <Button
                 onClick={handleCapture}
                 disabled={!captureReady}
-                className={`flex-1 ${captureReady ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                className={`h-16 w-full text-lg ${captureReady ? 'bg-green-600 hover:bg-green-700' : ''}`}
               >
-                <Camera className="mr-2 h-4 w-4" />
-                {captureReady ? '撮影' : '準備中...'}
+                <Camera className="mr-2 h-6 w-6" />
+                {captureReady ? '撮影する' : '準備中...'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={onBack} className="w-full text-muted-foreground">
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                戻る
               </Button>
             </div>
           </>
