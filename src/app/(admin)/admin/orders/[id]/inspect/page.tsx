@@ -148,10 +148,10 @@ export default function InspectPage() {
   }, [orderId])
 
   useEffect(() => {
-    // 検品者の選択必須化は東京のみ（千葉は従来通り）
-    if (!isChiba) getInspectorOptions().then(setInspectors)
+    // 検品者の選択必須化は東京のみ（千葉は従来通り）。選択肢は注文の担当事務所所属スタッフのみ
+    if (!isChiba && order) getInspectorOptions(order.office_id).then(setInspectors)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [order?.office_id])
 
   function updateItem(id: string, field: '_inspected_price' | '_returned', value: number) {
     setItems(items.map((item) =>
