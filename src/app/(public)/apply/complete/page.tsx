@@ -497,7 +497,7 @@ function CompleteContent() {
             {!submitted && (
               <>
                 <p className="text-sm text-muted-foreground">
-                  商品を下記住所までお送りください。到着後、検品を行い、結果をメールにてお知らせいたします。
+                  商品を下記住所までお送りください。到着後、検品を行い、結果は公式LINEにてお知らせいたします。
                 </p>
 
                 {identityMethod && (

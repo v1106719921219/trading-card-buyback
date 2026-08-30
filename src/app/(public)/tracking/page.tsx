@@ -29,7 +29,7 @@ export default function TrackingPage() {
     const order = await getOrderByOrderNumber(trimmed)
 
     if (!order) {
-      setError('注文番号が見つかりません。メールに記載の注文番号をご確認ください。')
+      setError('注文番号が見つかりません。申込完了画面に表示された注文番号をご確認ください。')
       setLoading(false)
       return
     }
@@ -49,10 +49,23 @@ export default function TrackingPage() {
               </div>
               <CardTitle className="text-xl">追跡番号の入力</CardTitle>
               <p className="text-sm text-muted-foreground mt-2">
-                申込時にお送りしたメールに記載の注文番号を入力してください
+                追跡番号は公式LINEの「査定状況」から登録できます
               </p>
             </CardHeader>
             <CardContent>
+              {/* 現行方式: LINEの査定状況（LIFF）で登録 */}
+              <a href={`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}?view=orders`}>
+                <Button className="w-full bg-[#06C755] hover:bg-[#06C755]/90 text-white font-bold" size="lg">
+                  LINEの査定状況で登録する
+                </Button>
+              </a>
+
+              <div className="my-6 flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">LINEをご利用でない方</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="order_number">注文番号</Label>

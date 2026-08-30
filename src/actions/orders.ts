@@ -6,7 +6,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createOrderSchema, type CreateOrderInput } from '@/lib/validators/order'
 import { STATUS_TRANSITIONS } from '@/lib/constants'
 import type { OrderStatus, BuybackType } from '@/types/database'
-import { sendOrderConfirmationEmail } from '@/lib/email'
 import { appendOrderToSheet } from '@/lib/google-sheets'
 import { getCurrentUser } from '@/actions/auth'
 import { requireTenantId } from '@/lib/tenant'
@@ -214,17 +213,7 @@ export async function createOrder(input: CreateOrderInput) {
     }
   }
 
-  // Send confirmation email (non-blocking, failure does not affect order)
-  // 承認待ちの場合はメール送信しない（承認後に送信）。LINE検証済みは即送信
-  if (isLineVerified) {
-    sendOrderConfirmationEmail(
-      customer.customer_email,
-      order.order_number,
-      office_id
-    ).catch((err) => {
-      console.error('[createOrder] Email send error:', err)
-    })
-  }
+  // お客様連絡はLINEに一本化（メールは全廃）
 
   // LINE連携済みの申込は、受付＋状況確認ページへの案内をLINEに自動送信
   if (lineUserId) {
@@ -379,7 +368,7 @@ export async function approveOrder(orderId: string) {
 
   const { data: order, error: fetchError } = await supabase
     .from('orders')
-    .select('id, status, customer_email, order_number, office_id, line_user_id')
+    .select('id, status, customer_email, order_number, office_id, line_user_id, total_amount')
     .eq('id', orderId)
     .single()
 
@@ -398,14 +387,13 @@ export async function approveOrder(orderId: string) {
 
   if (error) return { error: error.message }
 
-  // 承認後に確認メールを送信
-  sendOrderConfirmationEmail(
-    order.customer_email,
-    order.order_number,
-    order.office_id
-  ).catch((err) => {
-    console.error('[approveOrder] Email send error:', err)
-  })
+  // 承認後、LINE連携済みなら受付メッセージを送信（メールは全廃）
+  if (order.line_user_id) {
+    pushTextMessage(
+      order.line_user_id,
+      orderReceivedMessage(order.order_number, order.total_amount)
+    ).catch((err) => console.error('[approveOrder] LINE送信エラー:', err))
+  }
 
   revalidatePath(`/admin/orders/${orderId}`)
   revalidatePath('/admin/orders')

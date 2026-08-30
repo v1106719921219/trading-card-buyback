@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendPaymentCompletionEmail } from '@/lib/email'
+import { pushTextMessage } from '@/lib/line'
+import { paymentCompletedMessage } from '@/lib/line-messages'
 import { generateInspectionPdf } from '@/lib/pdf'
 
 export async function getPaymentQueue() {
@@ -36,30 +37,31 @@ export async function markAsPaid(orderId: string) {
 
   const order = updated[0]
 
-  // PDF生成 → 振込完了メール送信
+  // 振込完了をLINEで通知（メールは全廃）。査定結果PDFは査定状況からダウンロード
   const amount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
-  let emailSent = false
-  try {
-    const pdfBuffer = await generateInspectionPdf(order, order.order_items ?? [])
-    await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount, pdfBuffer)
-    emailSent = true
-  } catch (err) {
-    console.error('[markAsPaid] PDF/Email error:', err)
-    // PDF失敗時もメール送信を試みる（PDF添付なし）
-    try {
-      await sendPaymentCompletionEmail(order.customer_email, order.order_number, amount)
-      emailSent = true
-    } catch (emailErr) {
-      console.error('[markAsPaid] Fallback email also failed:', emailErr)
-    }
+  let notified = false
+  if (order.line_user_id) {
+    const result = await pushTextMessage(
+      order.line_user_id,
+      paymentCompletedMessage(order.order_number, amount)
+    ).catch((err) => {
+      console.error('[markAsPaid] LINE送信エラー:', err)
+      return { success: false }
+    })
+    notified = result.success
   }
 
   revalidatePath('/admin/payments')
   revalidatePath('/admin/orders')
   revalidatePath('/admin')
 
-  if (!emailSent) {
-    return { success: true, warning: 'ステータスは更新しましたが、メール送信に失敗しました' }
+  if (!notified) {
+    return {
+      success: true,
+      warning: order.line_user_id
+        ? 'ステータスは更新しましたが、LINE通知の送信に失敗しました'
+        : 'ステータスは更新しました（LINE未連携のためお客様への通知は送信されていません）',
+    }
   }
   return { success: true }
 }

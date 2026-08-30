@@ -50,6 +50,18 @@ export function reductionMessage(
   return lines.join('\n')
 }
 
+// 振込完了のお知らせ（メール全廃に伴いLINEで通知）
+export function paymentCompletedMessage(orderNumber: string, amount: number): string {
+  return [
+    '【買取スクエア】',
+    'お振込みが完了しました。ご利用ありがとうございました。',
+    `注文番号: ${orderNumber}`,
+    `お振込み金額: ${amount.toLocaleString()}円`,
+    '',
+    '査定結果の明細は「査定状況」からダウンロードできます。',
+  ].join('\n')
+}
+
 export function idReminderMessage(orderNumber: string): string {
   return [
     '【買取スクエア】',

@@ -866,9 +866,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                       placeholder="taro@example.com"
                       required
                     />
-                    <p className="text-xs text-muted-foreground">
-                      ※ キャリアメール（au・docomo・softbank等）はメールが届かない場合があります。Gmail等のフリーメールを推奨します。
-                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label>電話番号</Label>
