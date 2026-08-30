@@ -513,12 +513,13 @@ function CompleteContent() {
                   <div className="bg-blue-50 border border-blue-200 p-4 rounded-md text-sm text-left space-y-2">
                     <p className="font-medium text-blue-800">本人確認書類について</p>
                     <p className="text-blue-700">
-                      <span className="font-medium">{identityMethod.replace('（2回目以降）', '')}</span>
-                      は同梱不要です。下のボタンからスマホで撮影してアップロードしてください。
+                      本人確認書類（{identityMethod.replace('（2回目以降）', '')}）は撮影済みです。書類の同梱は不要です。
                     </p>
-                    <Link href={`/kyc?order=${orderNumber ?? ''}`}>
-                      <Button className="w-full mt-1">本人確認書類をアップロードする</Button>
-                    </Link>
+                    <p className="text-xs text-blue-600">
+                      まだ撮影が完了していない場合は
+                      <Link href={`/kyc?order=${orderNumber ?? ''}`} className="underline font-medium">こちらから撮影</Link>
+                      してください。
+                    </p>
                   </div>
                 ) : identityMethod ? (
                   <div className="bg-amber-50 border border-amber-200 p-4 rounded-md text-sm text-left">

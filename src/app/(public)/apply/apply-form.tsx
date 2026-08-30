@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +30,8 @@ import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
 import { createOrder } from '@/actions/orders'
 import { lookupCustomerByEmail } from '@/actions/customers'
+import { checkKycForApply, getEkycRolloutEnabled } from '@/actions/kyc'
+import { KycFlow } from '@/app/(public)/kyc/kyc-flow'
 import { parseOrderText } from '@/actions/ai-parse-order'
 import { toast } from 'sonner'
 import { PREFECTURES, BANK_NAMES } from '@/lib/constants'
@@ -292,6 +294,28 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     }
     return true
   }
+
+  // 申込前の本人確認（eKYC）: 2回目以降の方法は撮影必須。承認済みの人は自動スキップ
+  const [ekycRollout, setEkycRollout] = useState(false)
+  const [kycStatus, setKycStatus] = useState<'checking' | 'verified' | 'submitted' | 'none'>('none')
+  const [showKycDialog, setShowKycDialog] = useState(false)
+
+  useEffect(() => {
+    getEkycRolloutEnabled().then(setEkycRollout)
+  }, [])
+
+  const needsKyc =
+    ekycRollout && customerIdentityMethod.includes('2回目以降')
+  const kycDone = kycStatus === 'verified' || kycStatus === 'submitted'
+
+  useEffect(() => {
+    // 確認画面に入ったタイミングで、このメール＋氏名が確認済み（スキップ可）かをチェック
+    if (step === 2 && needsKyc && customerEmail && customerName) {
+      setKycStatus('checking')
+      checkKycForApply(customerEmail, customerName).then(setKycStatus)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, needsKyc])
 
   async function handleSubmit() {
     if (submittingRef.current) return
@@ -1127,6 +1151,37 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                 </dl>
               </div>
 
+              {needsKyc && (
+                <>
+                  <Separator />
+                  <div>
+                    <h3 className="font-medium mb-3">本人確認</h3>
+                    {kycStatus === 'checking' ? (
+                      <p className="text-sm text-muted-foreground">確認状況を照会しています...</p>
+                    ) : kycStatus === 'verified' ? (
+                      <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                        <CheckCircle className="mr-1 inline h-4 w-4" />
+                        本人確認済みです。書類の撮影・同梱は不要です。
+                      </div>
+                    ) : kycStatus === 'submitted' ? (
+                      <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                        <CheckCircle className="mr-1 inline h-4 w-4" />
+                        本人確認書類の撮影が完了しました。このまま申込を確定してください。
+                      </div>
+                    ) : (
+                      <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+                        <p className="text-sm text-amber-800">
+                          申込の確定前に、本人確認書類（{customerIdentityMethod.replace('（2回目以降）', '')}）の撮影が必要です。書類の同梱は不要になります。
+                        </p>
+                        <Button type="button" onClick={() => setShowKycDialog(true)} className="w-full">
+                          本人確認書類を撮影する
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
             </CardContent>
           </Card>
         )}
@@ -1159,12 +1214,19 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
               <ArrowRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            <Button onClick={handleSubmit} disabled={loading} size="lg" className="text-base px-8">
+            <Button
+              onClick={handleSubmit}
+              disabled={loading || (needsKyc && !kycDone)}
+              size="lg"
+              className="text-base px-8"
+            >
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   送信中...
                 </>
+              ) : needsKyc && !kycDone ? (
+                '本人確認の撮影後に確定できます'
               ) : (
                 <>
                   <Send className="h-4 w-4 mr-2" />
@@ -1175,6 +1237,29 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
           )}
         </div>
       </div>
+
+      {/* 本人確認（eKYC）撮影ダイアログ */}
+      <Dialog open={showKycDialog} onOpenChange={setShowKycDialog}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>本人確認書類の撮影</DialogTitle>
+            <DialogDescription>
+              {customerName} 様（{customerEmail}）の本人確認を行います
+            </DialogDescription>
+          </DialogHeader>
+          {showKycDialog && (
+            <KycFlow
+              initialEmail={customerEmail}
+              initialName={customerName}
+              onComplete={() => {
+                setKycStatus('submitted')
+                setShowKycDialog(false)
+                toast.success('本人確認書類の撮影が完了しました')
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 買取種別選択ダイアログ */}
       <Dialog open={showBuybackDialog} onOpenChange={setShowBuybackDialog}>

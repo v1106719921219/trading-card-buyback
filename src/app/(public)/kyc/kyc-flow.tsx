@@ -28,13 +28,29 @@ interface CapturedImages {
   face: Blob | null
 }
 
-export function KycFlow({ orderNumber, previewStep }: { orderNumber?: string; previewStep?: string }) {
+export function KycFlow({
+  orderNumber,
+  previewStep,
+  initialEmail,
+  initialName,
+  onComplete,
+}: {
+  orderNumber?: string
+  previewStep?: string
+  // 申込フォーム埋め込み用: メール・氏名を引き継いで入力ステップをスキップ
+  initialEmail?: string
+  initialName?: string
+  onComplete?: () => void
+}) {
   // ?preview=thickness で厚み撮影画面のみを直接表示（UI確認用・データは作成されない）
   const isPreview = previewStep === 'thickness'
-  const [step, setStep] = useState<KycStep>(isPreview ? 'id_capture_thickness' : 'start')
+  const embedded = !!(initialEmail && initialName)
+  const [step, setStep] = useState<KycStep>(
+    isPreview ? 'id_capture_thickness' : embedded ? 'id_type' : 'start'
+  )
   const [kycRequestId, setKycRequestId] = useState<string | null>(null)
-  const [customerEmail, setCustomerEmail] = useState('')
-  const [customerName, setCustomerName] = useState('')
+  const [customerEmail, setCustomerEmail] = useState(initialEmail ?? '')
+  const [customerName, setCustomerName] = useState(initialName ?? '')
   const [idDocumentType, setIdDocumentType] = useState<IdDocumentType | null>(null)
   const [images, setImages] = useState<CapturedImages>({
     id_front: null,
@@ -158,6 +174,7 @@ export function KycFlow({ orderNumber, previewStep }: { orderNumber?: string; pr
       }
 
       setStep('complete')
+      onComplete?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました')
       setStep('confirm')

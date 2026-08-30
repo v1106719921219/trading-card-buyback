@@ -85,6 +85,38 @@ export async function createOrder(input: CreateOrderInput) {
     identityMethod = 'eKYC確認済み'
   }
 
+  // 展開フラグON時: 2回目以降の本人確認方法は「申込前のeKYC提出」が必須（初回の原本同梱は対象外）
+  let pendingKycId: string | null = null
+  if (!kycRequestId && identityMethod.includes('2回目以降')) {
+    const { data: rolloutSetting } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('tenant_id', tenantId)
+      .eq('key', 'ekyc_rollout_enabled')
+      .maybeSingle()
+
+    if (rolloutSetting?.value === 'true') {
+      const { data: submittedKycs } = await supabase
+        .from('kyc_requests')
+        .select('id, customer_name')
+        .eq('tenant_id', tenantId)
+        .eq('customer_email', customer.customer_email)
+        .eq('status', 'processing')
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      const matched = (submittedKycs ?? []).find(
+        (k) => normalize(k.customer_name) === normalize(customer.customer_name)
+      )
+      if (!matched) {
+        return {
+          error: '本人確認書類の撮影が完了していません。確認画面の「本人確認」から撮影を完了してください',
+        }
+      }
+      pendingKycId = matched.id
+    }
+  }
+
   // Create order
   const { data: order, error: orderError } = await supabase
     .from('orders')
@@ -101,8 +133,13 @@ export async function createOrder(input: CreateOrderInput) {
       customer_not_invoice_issuer: customer.customer_not_invoice_issuer,
       invoice_issuer_number: customer.invoice_issuer_number || null,
       customer_identity_method: identityMethod,
-      // eKYC未導入のDB（千葉）にはカラムが無いため、自動パス成立時のみ含める
-      ...(kycRequestId ? { kyc_request_id: kycRequestId, identity_verified_at: identityVerifiedAt } : {}),
+      // eKYC未導入のDB（千葉）にはカラムが無いため、eKYCが関与する場合のみ含める
+      ...(kycRequestId || pendingKycId
+        ? {
+            kyc_request_id: kycRequestId ?? pendingKycId,
+            ...(identityVerifiedAt ? { identity_verified_at: identityVerifiedAt } : {}),
+          }
+        : {}),
       bank_name: bankName,
       bank_branch: customer.bank_branch,
       bank_account_type: customer.bank_account_type,
@@ -142,6 +179,23 @@ export async function createOrder(input: CreateOrderInput) {
     // Rollback order
     await supabase.from('orders').delete().eq('id', order.id)
     return { error: `注文明細の作成に失敗しました: ${itemsError.message}` }
+  }
+
+  // 申込前に提出されたeKYCを注文に紐付け（承認時に本人確認済みが自動反映される）
+  if (pendingKycId) {
+    const { data: linkedKyc } = await supabase
+      .from('kyc_requests')
+      .update({ order_id: order.id })
+      .eq('id', pendingKycId)
+      .select('status')
+      .single()
+    // フォーム入力中にAI審査が承認まで進んでいた場合はこの時点で確認済みにする
+    if (linkedKyc?.status === 'approved') {
+      await supabase
+        .from('orders')
+        .update({ identity_verified_at: new Date().toISOString() })
+        .eq('id', order.id)
+    }
   }
 
   // Send confirmation email (non-blocking, failure does not affect order)

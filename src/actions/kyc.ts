@@ -450,6 +450,38 @@ export async function reviewKycRequest(input: KycReviewInput) {
 }
 
 /**
+ * 申込フォーム用: このメール＋氏名の本人確認状況を返す
+ * verified = 承認済み（自動スキップ可） / submitted = 提出済み（審査中） / none = 未提出
+ */
+export async function checkKycForApply(
+  email: string,
+  name: string
+): Promise<'verified' | 'submitted' | 'none'> {
+  try {
+    if (!email || !name) return 'none'
+    const tenantId = await requireTenantId()
+    const supabase = createAdminClient()
+    const normalize = (s: string | null | undefined) => (s ?? '').replace(/[\s　]/g, '')
+
+    const { data } = await supabase
+      .from('kyc_requests')
+      .select('status, customer_name')
+      .eq('tenant_id', tenantId)
+      .eq('customer_email', email)
+      .in('status', ['approved', 'processing'])
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    const matched = (data ?? []).filter((k) => normalize(k.customer_name) === normalize(name))
+    if (matched.some((k) => k.status === 'approved')) return 'verified'
+    if (matched.some((k) => k.status === 'processing')) return 'submitted'
+    return 'none'
+  } catch {
+    return 'none'
+  }
+}
+
+/**
  * eKYCアップロード案内の本番展開フラグ（公開ページから参照）
  * app_settings: ekyc_rollout_enabled = 'true' で申込完了画面にアップロード案内を表示
  */
