@@ -5,6 +5,7 @@ import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
 import { PriceTicker } from '@/components/public/price-ticker'
 import { getTenant } from '@/lib/tenant'
+import { OFFICIAL_LINE_URL } from '@/lib/constants'
 
 const CATEGORIES = [
   { name: 'ポケモンカード', color: '#D4A017', label: 'POKEMON TCG' },
@@ -55,16 +56,16 @@ export default async function HomePage() {
 
               {/* CTA */}
               <div className="animate-fade-in-up-3 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center md:justify-start">
-                <Link href="/apply">
+                <a href={OFFICIAL_LINE_URL} target="_blank" rel="noopener noreferrer">
                   <Button
                     size="lg"
                     className="w-full sm:w-auto text-lg px-8 py-7 bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold shadow-lg shadow-[#FF6B00]/20 transition-transform hover:scale-[1.03] active:scale-[0.98]"
                   >
                     <Zap className="h-5 w-5 mr-2" />
-                    今すぐ申し込む
+                    LINEで申し込む
                     <ArrowRight className="h-5 w-5 ml-2" />
                   </Button>
-                </Link>
+                </a>
                 <Link href="/prices">
                   <Button
                     size="lg"
@@ -220,15 +221,15 @@ export default async function HomePage() {
           <p className="text-white/70 mb-8 max-w-md mx-auto text-base">
             簡単3ステップで買取完了。全国どこからでも発送できます。
           </p>
-          <Link href="/apply">
+          <a href={OFFICIAL_LINE_URL} target="_blank" rel="noopener noreferrer">
             <Button
               size="lg"
               className="bg-white text-[#FF6B00] hover:bg-white/90 font-bold text-lg px-10 py-7 shadow-lg transition-transform hover:scale-[1.03] active:scale-[0.98]"
             >
-              買取を申し込む
+              LINEで申し込む
               <ArrowRight className="h-5 w-5 ml-2" />
             </Button>
-          </Link>
+          </a>
         </div>
       </section>
 

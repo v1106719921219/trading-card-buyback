@@ -1,5 +1,8 @@
 import { OrderStatus, ReturnStatus, BuybackType, InspectionStatus } from '@/types/database'
 
+// 公式LINE友だち追加URL（Webからの申込はすべてLINE経由に統一）
+export const OFFICIAL_LINE_URL = 'https://lin.ee/UlPHTOoU'
+
 export const ORDER_STATUSES: OrderStatus[] = [
   '承認待ち',
   '申込',

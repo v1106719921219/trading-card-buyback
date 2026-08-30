@@ -7,6 +7,7 @@ import { Home, Tag, Send, BookOpen, Zap, Sun, Moon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTheme } from '@/lib/theme-context'
 import { CardLogoIcon } from '@/components/public/tcg-icons'
+import { OFFICIAL_LINE_URL } from '@/lib/constants'
 
 interface HeaderProps {
   rightContent?: React.ReactNode
@@ -16,7 +17,7 @@ interface HeaderProps {
 const NAV_ITEMS = [
   { href: '/', label: 'ホーム', icon: Home },
   { href: '/prices', label: '価格', icon: Tag },
-  { href: '/apply', label: '申し込む', icon: Send, highlight: true },
+  { href: OFFICIAL_LINE_URL, label: 'LINEで申込', icon: Send, highlight: true, external: true },
   { href: '/guide', label: 'ガイド', icon: BookOpen },
 ]
 
@@ -76,12 +77,12 @@ export function Header({ rightContent, hideApplyButton }: HeaderProps) {
               </button>
             )}
             {rightContent || (!hideApplyButton && (
-              <Link href="/apply">
+              <a href={OFFICIAL_LINE_URL} target="_blank" rel="noopener noreferrer">
                 <Button className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white font-bold transition-transform hover:scale-[1.03] active:scale-[0.98]">
                   <Zap className="h-4 w-4 mr-1" />
-                  買取を申し込む
+                  LINEで申し込む
                 </Button>
-              </Link>
+              </a>
             ))}
           </nav>
 
@@ -110,16 +111,18 @@ export function Header({ rightContent, hideApplyButton }: HeaderProps) {
 
             if (item.highlight) {
               return (
-                <Link
+                <a
                   key={item.href}
                   href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="flex flex-col items-center justify-center gap-0.5 active:opacity-80 transition-opacity"
                 >
                   <div className="flex items-center justify-center w-10 h-7 rounded-full bg-[#FF6B00] text-white">
                     <Icon className="h-4 w-4" />
                   </div>
                   <span className="text-[11px] font-bold text-[#FF6B00]">{item.label}</span>
-                </Link>
+                </a>
               )
             }
 
