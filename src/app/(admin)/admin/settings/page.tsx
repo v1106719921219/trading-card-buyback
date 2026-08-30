@@ -26,6 +26,8 @@ export default function SettingsPage() {
   const [savingOffice, setSavingOffice] = useState<string | null>(null)
   const [arQualityEnabled, setArQualityEnabled] = useState(false)
   const [savingArQuality, setSavingArQuality] = useState(false)
+  const [ekycRollout, setEkycRollout] = useState(false)
+  const [savingEkycRollout, setSavingEkycRollout] = useState(false)
 
   // 検品者リスト（検品入力の選択肢・東京のみ）
   const isChiba = (process.env.NEXT_PUBLIC_SITE_URL ?? '').includes('chiba')
@@ -51,6 +53,8 @@ export default function SettingsPage() {
     setEditValues(values)
     const arSetting = data?.find((s) => s.key === 'ar_quality_enabled')
     setArQualityEnabled(arSetting?.value === 'true')
+    const ekycSetting = data?.find((s) => s.key === 'ekyc_rollout_enabled')
+    setEkycRollout(ekycSetting?.value === 'true')
   }
 
   async function fetchOffices() {
@@ -158,6 +162,23 @@ export default function SettingsPage() {
     toast.success(checked ? '美品査定受付を有効にしました' : '美品査定受付を無効にしました')
   }
 
+  async function handleEkycRolloutToggle(checked: boolean) {
+    setSavingEkycRollout(true)
+    const { error } = await supabase
+      .from('app_settings')
+      .update({ value: checked ? 'true' : 'false' })
+      .eq('key', 'ekyc_rollout_enabled')
+
+    if (error) {
+      toast.error('設定の更新に失敗しました')
+      setSavingEkycRollout(false)
+      return
+    }
+    setEkycRollout(checked)
+    setSavingEkycRollout(false)
+    toast.success(checked ? 'eKYCアップロード案内を有効にしました' : 'eKYCアップロード案内を無効にしました')
+  }
+
   return (
     <div className="space-y-6">
       <AdminHeader title="アプリ設定" description="システム設定の管理" />
@@ -170,7 +191,7 @@ export default function SettingsPage() {
             買取設定
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label htmlFor="ar_quality_toggle">美品査定受付</Label>
@@ -185,6 +206,22 @@ export default function SettingsPage() {
               disabled={loading || savingArQuality}
             />
           </div>
+          {!isChiba && (
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="ekyc_rollout_toggle">eKYCアップロード案内（テスト展開用）</Label>
+                <p className="text-sm text-muted-foreground">
+                  ONにすると申込完了画面で2回目以降のお客様に書類アップロードを案内します（OFFの間は従来のコピー同梱案内）
+                </p>
+              </div>
+              <Switch
+                id="ekyc_rollout_toggle"
+                checked={ekycRollout}
+                onCheckedChange={handleEkycRolloutToggle}
+                disabled={loading || savingEkycRollout}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -304,7 +341,7 @@ export default function SettingsPage() {
             <p className="text-muted-foreground">設定がありません</p>
           ) : (
             <>
-              {settings.filter((s) => !s.key.startsWith('inspector_names')).map((setting) => (
+              {settings.filter((s) => !s.key.startsWith('inspector_names') && s.key !== 'ekyc_rollout_enabled').map((setting) => (
                 <div key={setting.key} className="space-y-1">
                   <Label htmlFor={setting.key}>{setting.key}</Label>
                   {setting.description && (

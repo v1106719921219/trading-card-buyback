@@ -361,6 +361,26 @@ export async function reviewKycRequest(input: KycReviewInput) {
 }
 
 /**
+ * eKYCアップロード案内の本番展開フラグ（公開ページから参照）
+ * app_settings: ekyc_rollout_enabled = 'true' で申込完了画面にアップロード案内を表示
+ */
+export async function getEkycRolloutEnabled(): Promise<boolean> {
+  try {
+    const tenantId = await requireTenantId()
+    const supabase = createAdminClient()
+    const { data } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('tenant_id', tenantId)
+      .eq('key', 'ekyc_rollout_enabled')
+      .maybeSingle()
+    return data?.value === 'true'
+  } catch {
+    return false
+  }
+}
+
+/**
  * 検品画面用: 注文に対応する本人確認（eKYC）の状況と書類画像を取得
  * 紐付き順: 注文に記録されたkyc_request_id → 注文idに紐付くリクエスト → 同一メールの最新リクエスト
  */

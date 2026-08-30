@@ -25,6 +25,7 @@ import {
   updateOrderItems,
 } from '@/actions/orders'
 import { getActiveProducts } from '@/actions/products'
+import { getEkycRolloutEnabled } from '@/actions/kyc'
 import type { Office, OrderItem, Product } from '@/types/database'
 
 interface EditableItem {
@@ -46,6 +47,11 @@ function CompleteContent() {
   const [orderStatus, setOrderStatus] = useState<string | null>(null)
   const [existingTrackingNumber, setExistingTrackingNumber] = useState<string | null>(null)
   const [identityMethod, setIdentityMethod] = useState<string | null>(null)
+  const [ekycRollout, setEkycRollout] = useState(false)
+
+  useEffect(() => {
+    getEkycRolloutEnabled().then(setEkycRollout)
+  }, [])
 
   // Order items state
   const [orderItems, setOrderItems] = useState<EditableItem[]>([])
@@ -503,7 +509,7 @@ function CompleteContent() {
                       （原本）を商品と同梱の上、お送りください。
                     </p>
                   </div>
-                ) : identityMethod ? (
+                ) : identityMethod && ekycRollout ? (
                   <div className="bg-blue-50 border border-blue-200 p-4 rounded-md text-sm text-left space-y-2">
                     <p className="font-medium text-blue-800">本人確認書類について</p>
                     <p className="text-blue-700">
@@ -513,6 +519,13 @@ function CompleteContent() {
                     <Link href={`/kyc?order=${orderNumber ?? ''}`}>
                       <Button className="w-full mt-1">本人確認書類をアップロードする</Button>
                     </Link>
+                  </div>
+                ) : identityMethod ? (
+                  <div className="bg-amber-50 border border-amber-200 p-4 rounded-md text-sm text-left">
+                    <p className="font-medium text-amber-800 mb-1">本人確認書類について</p>
+                    <p className="text-amber-700">
+                      <span className="font-medium">{identityMethod}</span>のコピーを商品と同梱の上、お送りください。
+                    </p>
                   </div>
                 ) : null}
 

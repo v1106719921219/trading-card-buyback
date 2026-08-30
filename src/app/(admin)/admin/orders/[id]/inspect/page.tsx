@@ -728,7 +728,8 @@ export default function InspectPage() {
         </Card>
       </div>
 
-      {/* 本人確認 */}
+      {/* 本人確認（eKYCの記録がある注文のみ表示。紙運用の注文には出さない） */}
+      {kycInfo && (kycInfo.kycId || kycInfo.identityVerifiedAt) && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -795,6 +796,7 @@ export default function InspectPage() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Actions */}
       <div className="bg-background border-t py-4 -mx-4 px-4 md:-mx-8 md:px-8 flex flex-wrap items-center justify-end gap-3">
