@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Header } from '@/components/public/header'
 import { Footer } from '@/components/public/footer'
-import { Package } from 'lucide-react'
+import { Package, FileDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { initLiff } from '@/lib/liff-client'
-import { getMyOrdersByIdToken, submitTrackingByIdToken } from '@/actions/orders'
+import { getMyOrdersByIdToken, submitTrackingByIdToken, getMyInspectionPdf } from '@/actions/orders'
 
 // お客様向けのステータス表示（社内ステータスをお客様にわかる言葉に変換）
 const CUSTOMER_STATUS: Record<string, { label: string; color: string; step: number }> = {
@@ -73,6 +73,26 @@ export default function MyOrdersPage() {
     toast.success('追跡番号を登録しました')
     setTrackingInput((prev) => ({ ...prev, [orderNumber]: '' }))
     await loadOrders(idToken)
+  }
+
+  const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null)
+  async function handleDownloadPdf(orderNumber: string) {
+    if (!idToken) return
+    setDownloadingPdf(orderNumber)
+    const result = await getMyInspectionPdf(idToken, orderNumber)
+    setDownloadingPdf(null)
+    if ('error' in result && result.error) {
+      toast.error(result.error)
+      return
+    }
+    if ('data' in result && result.data) {
+      // base64 → Blob → 新しいタブで開く（LINEアプリ内ブラウザで表示・保存できる）
+      const bytes = Uint8Array.from(atob(result.data), (c) => c.charCodeAt(0))
+      const blob = new Blob([bytes], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    }
   }
 
   return (
@@ -146,6 +166,20 @@ export default function MyOrdersPage() {
                         {s.step >= 4 ? 'お振込金額' : '申込金額'} {amount.toLocaleString()}円
                       </span>
                     </div>
+
+                    {/* 検品完了以降は査定結果PDFをダウンロード可能 */}
+                    {['検品完了', '振込済', '振込確認済'].includes(o.status) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleDownloadPdf(o.order_number)}
+                        disabled={downloadingPdf === o.order_number}
+                      >
+                        <FileDown className="mr-1.5 h-4 w-4" />
+                        {downloadingPdf === o.order_number ? '準備中...' : '査定結果をダウンロード'}
+                      </Button>
+                    )}
 
                     {/* 発送待ち（追跡番号未登録）の注文には入力欄を表示 */}
                     {o.status === '申込' && !o.tracking_number && (

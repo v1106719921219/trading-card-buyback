@@ -430,6 +430,34 @@ export async function getMyOrdersByIdToken(idToken: string) {
   return data
 }
 
+// LIFF（LINEアプリ内）用: IDトークンで本人確認し、自分の注文の査定結果PDFを取得
+export async function getMyInspectionPdf(idToken: string, orderNumber: string) {
+  const { verifyLineIdToken } = await import('@/lib/line-verify')
+  const { generateInspectionPdf } = await import('@/lib/pdf')
+  const verified = await verifyLineIdToken(idToken)
+  if (!verified?.userId) return { error: 'LINEの本人確認に失敗しました' }
+
+  const supabase = createAdminClient()
+  const { data: order } = await supabase
+    .from('orders')
+    .select('*, order_items(*)')
+    .eq('order_number', orderNumber)
+    .eq('line_user_id', verified.userId)
+    .maybeSingle()
+
+  if (!order) return { error: '注文が見つかりません' }
+  // 査定結果は検品完了以降のみ
+  if (!['検品完了', '振込済', '振込確認済'].includes(order.status)) {
+    return { error: '査定結果は検品完了後にダウンロードできます' }
+  }
+
+  const pdfBuffer = await generateInspectionPdf(order, order.order_items ?? [])
+  return {
+    data: pdfBuffer.toString('base64'),
+    filename: `査定結果_${order.order_number}.pdf`,
+  }
+}
+
 // LIFF（LINEアプリ内）用: IDトークンで本人確認し、自分の注文に追跡番号を登録
 export async function submitTrackingByIdToken(
   idToken: string,
