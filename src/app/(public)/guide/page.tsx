@@ -58,7 +58,7 @@ const steps = [
   {
     icon: Package,
     title: "商品を発送",
-    desc: "指定の配送先へ商品と必要書類を同梱して発送し、追跡番号を登録",
+    desc: "指定の配送先へ商品を発送し、公式LINEの「査定状況」から追跡番号を登録",
   },
   {
     icon: PackageCheck,

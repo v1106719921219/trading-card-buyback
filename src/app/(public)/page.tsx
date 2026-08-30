@@ -79,9 +79,15 @@ export default async function HomePage() {
 
               {/* Tracking link */}
               <p className="animate-fade-in-up-3 mt-3 text-base text-muted-foreground text-center md:text-left">
-                申込済みの方は
-                <Link href="/tracking" className="text-[#FF6B00] underline underline-offset-4 hover:text-[#FF6B00]/80 ml-1 transition-colors">
-                  こちらから追跡番号を入力
+                申込済みの方は公式LINEの
+                <a
+                  href={`https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_ID}?view=orders`}
+                  className="text-[#FF6B00] underline underline-offset-4 hover:text-[#FF6B00]/80 mx-1 transition-colors"
+                >
+                  「査定状況」から追跡番号を登録
+                </a>
+                <Link href="/tracking" className="text-xs underline underline-offset-4 hover:text-foreground ml-1 transition-colors">
+                  （LINEをご利用でない方はこちら）
                 </Link>
               </p>
 

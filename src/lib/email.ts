@@ -21,6 +21,9 @@ export async function sendOrderConfirmationEmail(
   const fromEmail = `買取スクエア <${fromAddress}>`
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   const completeUrl = `${siteUrl}/apply/complete?order_number=${orderNumber}&office_id=${officeId}`
+  // 追跡番号の登録は公式LINEの「査定状況」（LIFF）が現行方式。メールのリンクは旧方式のフォールバック
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID
+  const trackingUrl = liffId ? `https://liff.line.me/${liffId}?view=orders` : completeUrl
 
   const { error } = await resend.emails.send({
     from: fromEmail,
@@ -41,14 +44,17 @@ export async function sendOrderConfirmationEmail(
             ⚠️ 商品を発送したら追跡番号を登録してください
           </p>
           <p style="margin: 0 0 16px; font-size: 14px; color: #856404;">
-            下のボタンから追跡番号を入力できます。<br>
-            <strong>このメールを保存しておくと、いつでも追跡番号を登録できます。</strong>
+            公式LINEの<strong>「査定状況」</strong>から追跡番号を登録できます。<br>
+            下のボタンを押すとLINEで査定状況ページが開きます。
           </p>
           <div style="text-align: center;">
-            <a href="${completeUrl}" style="display: inline-block; background: #f59e0b; color: #fff; padding: 14px 32px; border-radius: 6px; text-decoration: none; font-size: 16px; font-weight: bold;">
-              📦 追跡番号を入力する
+            <a href="${trackingUrl}" style="display: inline-block; background: #06C755; color: #fff; padding: 14px 32px; border-radius: 6px; text-decoration: none; font-size: 16px; font-weight: bold;">
+              📦 LINEで追跡番号を登録する
             </a>
           </div>
+          <p style="margin: 12px 0 0; font-size: 12px; color: #856404; text-align: center;">
+            LINEをご利用でない場合は<a href="${completeUrl}" style="color: #856404;">こちら</a>から登録できます
+          </p>
         </div>
 
         <p style="font-size: 14px; color: #666;">

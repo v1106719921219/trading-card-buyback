@@ -374,7 +374,7 @@ function CompleteContent() {
                     </p>
                     <div className="bg-blue-50 border border-blue-200 p-3 rounded-md">
                       <p className="text-xs text-blue-700 text-center">
-                        💡 今すぐ追跡番号がわからない場合は、<strong>確認メール内のリンク</strong>からいつでも入力できます
+                        💡 今すぐ追跡番号がわからない場合は、公式LINEの<strong>「査定状況」</strong>からいつでも入力できます
                       </p>
                     </div>
                   </>

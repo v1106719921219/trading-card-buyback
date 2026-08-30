@@ -97,8 +97,10 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('all')
   const [cart, setCart] = useState<CartItem[]>(initialCart ?? [])
   const [search, setSearch] = useState('')
+  // 事務所別リンク（?office_id=）から開いた場合は発送先を固定し、選択させない
+  const officeLocked = !!(defaultOfficeId && initialOffices.some(o => o.id === defaultOfficeId))
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>(
-    (defaultOfficeId && initialOffices.some(o => o.id === defaultOfficeId) ? defaultOfficeId : null) ?? initialOffices[0]?.id ?? ''
+    (officeLocked ? defaultOfficeId : null) ?? initialOffices[0]?.id ?? ''
   )
   const [shippedDate, setShippedDate] = useState<string>('')
   const [aiText, setAiText] = useState('')
@@ -481,13 +483,17 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <MapPin className="h-5 w-5" />
-                    発送先の選択
+                    {officeLocked ? '発送先' : '発送先の選択'}
                   </CardTitle>
-                  <CardDescription>商品を発送する事務所を選択してください</CardDescription>
+                  <CardDescription>
+                    {officeLocked
+                      ? '発送先はこちらの事務所になります'
+                      : '商品を発送する事務所を選択してください'}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {offices.map((office) => (
+                    {(officeLocked ? offices.filter((o) => o.id === selectedOfficeId) : offices).map((office) => (
                       <div
                         key={office.id}
                         className={`cursor-pointer rounded-lg border-2 p-4 transition-colors ${
