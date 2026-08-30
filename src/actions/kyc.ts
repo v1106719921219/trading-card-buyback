@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireTenantId, getTenant } from '@/lib/tenant'
@@ -10,6 +11,8 @@ import { writeKycAuditLog } from '@/lib/kyc/audit'
 import { createSignedUrl } from '@/lib/kyc/storage'
 import { runOcr } from '@/lib/kyc/ocr'
 import { runFaceMatch } from '@/lib/kyc/face-match'
+import { runAiKycReview, type AiKycReview } from '@/lib/kyc/ai-review'
+import { ID_DOCUMENT_TYPE_LABELS } from '@/types/kyc'
 import type { KycSubmitInput, KycReviewInput } from '@/lib/validators/kyc'
 import type { KycRequest, KycStatus } from '@/types/kyc'
 
@@ -163,7 +166,93 @@ export async function submitKycRequest(kycRequestId: string) {
     },
   }).catch((err) => console.error('[KYC] Audit log error:', err))
 
+  // AI自動審査（レスポンス返却後にバックグラウンドで実行。問題なければ自動承認、疑義があれば人間の確認待ち）
+  after(async () => {
+    await runAiReviewAndApply(kycRequestId, tenantId).catch((err) =>
+      console.error('[KYC AI] バックグラウンド審査エラー:', err)
+    )
+  })
+
   return { success: true }
+}
+
+/** AI審査を実行し、結果をkyc_requestsに反映する（pass=自動承認、それ以外=人間確認待ちのまま） */
+async function runAiReviewAndApply(kycRequestId: string, tenantId: string) {
+  const supabase = createAdminClient()
+
+  const { data: kyc } = await supabase
+    .from('kyc_requests')
+    .select('*')
+    .eq('id', kycRequestId)
+    .single()
+
+  if (!kyc || kyc.status !== 'processing') return
+
+  const review: AiKycReview | null = await runAiKycReview({
+    expectedName: kyc.customer_name,
+    documentTypeLabel:
+      ID_DOCUMENT_TYPE_LABELS[kyc.id_document_type as keyof typeof ID_DOCUMENT_TYPE_LABELS] ??
+      kyc.id_document_type,
+    imagePaths: [
+      { label: '身分証（表面）', path: kyc.id_front_image_path },
+      { label: '身分証（裏面）', path: kyc.id_back_image_path },
+      { label: '身分証の厚み', path: kyc.id_thickness_image_path },
+      { label: '顔写真（自撮り）', path: kyc.face_image_path },
+    ].filter((i) => i.path),
+  })
+
+  if (!review) {
+    // AI実行不可 → 従来通り人間の確認待ちのまま
+    writeKycAuditLog({
+      tenantId,
+      kycRequestId,
+      action: 'ai_review_skipped',
+      details: { reason: 'AI審査を実行できなかったため人間の確認待ち' },
+    }).catch(() => {})
+    return
+  }
+
+  const autoApprove = review.verdict === 'pass'
+
+  const { data: updated } = await supabase
+    .from('kyc_requests')
+    .update({
+      ocr_result: { ai: review },
+      ocr_extracted_name: review.extracted_name,
+      ocr_extracted_address: review.extracted_address,
+      ocr_extracted_birth_date: review.extracted_birth_date,
+      face_match_passed: review.face_match,
+      ...(autoApprove
+        ? { status: 'approved', reviewed_at: new Date().toISOString(), reviewed_by: null }
+        : {}),
+    })
+    .eq('id', kycRequestId)
+    .eq('status', 'processing')
+    .select('id, order_id')
+
+  if (!updated || updated.length === 0) return
+
+  if (autoApprove && updated[0].order_id) {
+    await supabase
+      .from('orders')
+      .update({
+        kyc_request_id: kycRequestId,
+        identity_verified_at: new Date().toISOString(),
+      })
+      .eq('id', updated[0].order_id)
+  }
+
+  writeKycAuditLog({
+    tenantId,
+    kycRequestId,
+    action: autoApprove ? 'ai_auto_approved' : 'ai_needs_review',
+    details: {
+      summary: review.summary,
+      concerns: review.concerns,
+      name_match: review.name_match,
+      face_match: review.face_match,
+    },
+  }).catch(() => {})
 }
 
 /**
@@ -408,10 +497,12 @@ export async function getOrderKycInfo(orderId: string) {
     face_image_path: string | null
     rejection_reason: string | null
     reviewed_at: string | null
+    reviewed_by: string | null
+    ocr_result: { ai?: AiKycReview } | null
   } | null = null
 
   const kycSelect =
-    'id, status, id_document_type, id_front_image_path, id_back_image_path, id_thickness_image_path, face_image_path, rejection_reason, reviewed_at'
+    'id, status, id_document_type, id_front_image_path, id_back_image_path, id_thickness_image_path, face_image_path, rejection_reason, reviewed_at, reviewed_by, ocr_result'
 
   if (order.kyc_request_id) {
     const { data } = await supabase
@@ -465,11 +556,13 @@ export async function getOrderKycInfo(orderId: string) {
       kycId: kyc?.id ?? null,
       kycStatus: (kyc?.status as import('@/types/kyc').KycStatus) ?? null,
       documentLabel: kyc
-        ? (await import('@/types/kyc')).ID_DOCUMENT_TYPE_LABELS[
-            kyc.id_document_type as import('@/types/kyc').IdDocumentType
+        ? ID_DOCUMENT_TYPE_LABELS[
+            kyc.id_document_type as keyof typeof ID_DOCUMENT_TYPE_LABELS
           ] ?? kyc.id_document_type
         : null,
       rejectionReason: kyc?.rejection_reason ?? null,
+      aiReview: kyc?.ocr_result?.ai ?? null,
+      autoApproved: kyc?.status === 'approved' && !kyc?.reviewed_by,
       images,
     },
   }

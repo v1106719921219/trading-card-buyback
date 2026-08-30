@@ -39,8 +39,9 @@ import {
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil, Plus, Check, ChevronsUpDown } from 'lucide-react'
+import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil, Plus, Check, ChevronsUpDown, IdCard } from 'lucide-react'
 import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice, addOrderItem, approveOrder } from '@/actions/orders'
+import { getOrderKycInfo } from '@/actions/kyc'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
 import { STATUS_TRANSITIONS, STATUS_REVERT, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
@@ -70,6 +71,23 @@ export default function OrderDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [userProfile, setUserProfile] = useState<{ id: string; display_name: string } | null>(null)
+
+  interface OrderKycInfo {
+    identityMethod: string | null
+    identityVerifiedAt: string | null
+    kycId: string | null
+    kycStatus: string | null
+    documentLabel: string | null
+    rejectionReason: string | null
+    aiReview: {
+      verdict: 'pass' | 'needs_review'
+      summary: string
+      concerns: string[]
+    } | null
+    autoApproved: boolean
+    images: { label: string; url: string }[]
+  }
+  const [kycInfo, setKycInfo] = useState<OrderKycInfo | null>(null)
 
   // 検品者必須化・検品完了の直接変更制限は東京のみ（千葉は従来通り）
   const isChiba = (process.env.NEXT_PUBLIC_SITE_URL ?? '').includes('chiba')
@@ -166,6 +184,10 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     fetchOrder()
+    getOrderKycInfo(orderId).then((result) => {
+      if ('data' in result && result.data) setKycInfo(result.data as OrderKycInfo)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId])
 
   async function handleStatusChange() {
@@ -1050,6 +1072,83 @@ export default function OrderDetailPage() {
                   <SelectItem value="minimum_guarantee">最低保証</SelectItem>
                 </SelectContent>
               </Select>
+            </CardContent>
+          </Card>
+
+          {/* 本人確認（eKYC） */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <IdCard className="h-4 w-4" />
+                本人確認
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span>{kycInfo?.identityMethod ?? order.customer_identity_method ?? '未選択'}</span>
+                {kycInfo?.identityVerifiedAt ? (
+                  <Badge className="bg-green-100 text-green-800">
+                    {kycInfo.autoApproved ? 'AI自動承認' : '確認済み'}
+                  </Badge>
+                ) : kycInfo?.kycStatus === 'processing' ? (
+                  <Badge className="bg-amber-100 text-amber-800">要確認</Badge>
+                ) : kycInfo?.kycStatus === 'pending' ? (
+                  <Badge className="bg-yellow-100 text-yellow-800">アップロード待ち</Badge>
+                ) : kycInfo?.kycStatus === 'rejected' ? (
+                  <Badge className="bg-red-100 text-red-800">否認</Badge>
+                ) : null}
+              </div>
+
+              {kycInfo?.aiReview && (
+                <div className={`rounded-md border p-2 text-xs ${
+                  kycInfo.aiReview.verdict === 'pass'
+                    ? 'border-green-200 bg-green-50 text-green-800'
+                    : 'border-amber-200 bg-amber-50 text-amber-800'
+                }`}>
+                  <p className="font-medium">
+                    AI判定: {kycInfo.aiReview.verdict === 'pass' ? '問題なし' : '要人間確認'}
+                  </p>
+                  <p>{kycInfo.aiReview.summary}</p>
+                  {kycInfo.aiReview.concerns.length > 0 && (
+                    <ul className="mt-1 list-disc pl-4">
+                      {kycInfo.aiReview.concerns.map((c, i) => (
+                        <li key={i}>{c}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {kycInfo?.images && kycInfo.images.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {kycInfo.images.map((img) => (
+                    <a key={img.label} href={img.url} target="_blank" rel="noreferrer" className="block text-center">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img.url} alt={img.label} className="h-16 rounded border object-cover" />
+                      <span className="text-[10px] text-muted-foreground">{img.label}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {kycInfo?.kycStatus === 'rejected' && kycInfo.rejectionReason && (
+                <p className="text-xs text-destructive">否認理由: {kycInfo.rejectionReason}</p>
+              )}
+
+              {kycInfo?.kycId ? (
+                <Link href={`/admin/kyc/${kycInfo.kycId}`} className="inline-block">
+                  <Button variant="outline" size="sm">
+                    <ExternalLink className="mr-1 h-3 w-3" />
+                    本人確認の詳細を開く
+                  </Button>
+                </Link>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {(order.customer_identity_method ?? '').includes('初回')
+                    ? '初回のお客様: 原本の同梱を検品時に確認してください'
+                    : '書類のアップロードはまだありません'}
+                </p>
+              )}
             </CardContent>
           </Card>
 

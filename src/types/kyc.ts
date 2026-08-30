@@ -15,6 +15,7 @@ export interface KycRequest {
   id_document_type: IdDocumentType
   id_front_image_path: string | null
   id_back_image_path: string | null
+  id_thickness_image_path: string | null
   face_image_path: string | null
   ocr_result: Record<string, unknown> | null
   ocr_extracted_name: string | null
