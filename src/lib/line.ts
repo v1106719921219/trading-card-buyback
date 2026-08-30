@@ -19,10 +19,47 @@ interface LineAction {
   uri?: string
 }
 
+// チャンネルアクセストークンをChannel ID＋Secretから発行してキャッシュする（30日有効・自動更新）
+// LINE Developersにログインできなくても、Channel ID＋Secretさえあれば送信できる
+let tokenCache: { token: string; expiresAt: number } | null = null
+async function getChannelAccessToken(): Promise<string | null> {
+  const channelId = process.env.LINE_CHANNEL_ID
+  const channelSecret = process.env.LINE_CHANNEL_SECRET
+
+  // Channel ID＋Secretがあれば動的発行（推奨）
+  if (channelId && channelSecret) {
+    if (tokenCache && tokenCache.expiresAt > Date.now() + 60_000) return tokenCache.token
+    try {
+      const res = await fetch('https://api.line.me/v2/oauth/accessToken', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: channelId,
+          client_secret: channelSecret,
+        }),
+      })
+      if (!res.ok) {
+        console.error('LINEトークン発行失敗:', res.status, await res.text())
+        return process.env.LINE_CHANNEL_ACCESS_TOKEN ?? null
+      }
+      const j = (await res.json()) as { access_token: string; expires_in: number }
+      tokenCache = { token: j.access_token, expiresAt: Date.now() + j.expires_in * 1000 }
+      return j.access_token
+    } catch (e) {
+      console.error('LINEトークン発行エラー:', e)
+      return process.env.LINE_CHANNEL_ACCESS_TOKEN ?? null
+    }
+  }
+
+  // 後方互換: 固定トークンが設定されていればそれを使う
+  return process.env.LINE_CHANNEL_ACCESS_TOKEN ?? null
+}
+
 export async function replyMessage(replyToken: string, messages: LineMessage[]): Promise<void> {
-  const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN
+  const channelAccessToken = await getChannelAccessToken()
   if (!channelAccessToken) {
-    console.error('LINE_CHANNEL_ACCESS_TOKEN is not set')
+    console.error('LINEチャンネルアクセストークンを取得できません')
     return
   }
 
@@ -47,9 +84,9 @@ export async function sendTextMessage(replyToken: string, text: string): Promise
 
 // Pushメッセージ送信（replyTokenなしで任意のタイミングで送信）
 export async function pushTextMessage(lineUserId: string, text: string): Promise<{ success: boolean; error?: string }> {
-  const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN
+  const channelAccessToken = await getChannelAccessToken()
   if (!channelAccessToken) {
-    return { success: false, error: 'LINE_CHANNEL_ACCESS_TOKEN is not set' }
+    return { success: false, error: 'LINEチャンネルアクセストークンを取得できません' }
   }
 
   const res = await fetch('https://api.line.me/v2/bot/message/push', {
