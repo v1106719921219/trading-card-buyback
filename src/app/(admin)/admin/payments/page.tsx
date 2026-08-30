@@ -382,19 +382,20 @@ export default function PaymentsPage() {
                   <TableHead className="w-20 text-center">口座確認</TableHead>
                   <TableHead className="text-right">振込金額</TableHead>
                   <TableHead className="hidden sm:table-cell">検品完了日</TableHead>
+                  <TableHead className="hidden sm:table-cell">検品者</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       読み込み中...
                     </TableCell>
                   </TableRow>
                 ) : orders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       振込待ちの注文はありません
                     </TableCell>
                   </TableRow>
@@ -468,6 +469,9 @@ export default function PaymentsPage() {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
                         {new Date(order.updated_at).toLocaleDateString('ja-JP')}
+                      </TableCell>
+                      <TableCell className="text-sm hidden sm:table-cell">
+                        {order.inspected_by_name ?? '—'}
                       </TableCell>
                       <TableCell>
                         <Link href={`/admin/orders/${order.id}`}>

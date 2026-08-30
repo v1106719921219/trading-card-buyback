@@ -43,6 +43,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { notifyDiscordInspectionIssue } from '@/lib/discord'
 import { sendIdReminderLineMessage } from '@/actions/orders'
+import { getInspectorOptions } from '@/actions/inspection'
 import { idReminderMessage } from '@/lib/line-messages'
 import type { Order, OrderItem, Product, Category, InspectionStatus } from '@/types/database'
 import { INSPECTION_STATUSES } from '@/lib/constants'
@@ -77,6 +78,8 @@ export default function InspectPage() {
   const [openProductSearch, setOpenProductSearch] = useState<string | null>(null)
   const [idReminderSending, setIdReminderSending] = useState(false)
   const [showIdReminderFallback, setShowIdReminderFallback] = useState(false)
+  const [inspectors, setInspectors] = useState<{ id: string; display_name: string }[]>([])
+  const [inspectorId, setInspectorId] = useState('')
 
   const isChiba = (process.env.NEXT_PUBLIC_SITE_URL ?? '').includes('chiba')
   const supabase = createClient()
@@ -113,6 +116,7 @@ export default function InspectPage() {
     setInspectionNotes(orderData.inspection_notes ?? '')
     setInspectionStatus(orderData.inspection_status ?? '')
     setArrivalDate(orderData.arrival_date ?? '')
+    setInspectorId(orderData.inspected_by ?? '')
     setItems(
       ((orderResult.data as Order).order_items || []).map((item) => ({
         id: item.id,
@@ -142,6 +146,10 @@ export default function InspectPage() {
   useEffect(() => {
     fetchOrder()
   }, [orderId])
+
+  useEffect(() => {
+    getInspectorOptions().then(setInspectors)
+  }, [])
 
   function updateItem(id: string, field: '_inspected_price' | '_returned', value: number) {
     setItems(items.map((item) =>
@@ -340,12 +348,23 @@ export default function InspectPage() {
   }
 
   async function handleComplete() {
+    const inspector = inspectors.find((i) => i.id === inspectorId)
+    if (!inspector) {
+      toast.error('検品者を選択してください')
+      return
+    }
+
     const saved = await handleSave()
     if (saved === false) return
 
     const { error } = await supabase
       .from('orders')
-      .update({ status: '検品完了', inspection_status: null })
+      .update({
+        status: '検品完了',
+        inspection_status: null,
+        inspected_by: inspector.id,
+        inspected_by_name: inspector.display_name,
+      })
       .eq('id', orderId)
 
     if (error) {
@@ -662,19 +681,34 @@ export default function InspectPage() {
       </div>
 
       {/* Actions */}
-      <div className="bg-background border-t py-4 -mx-4 px-4 md:-mx-8 md:px-8 flex items-center justify-end gap-3">
+      <div className="bg-background border-t py-4 -mx-4 px-4 md:-mx-8 md:px-8 flex flex-wrap items-center justify-end gap-3">
         {!allInspected && (
           <p className="text-sm text-amber-600 mr-auto">
             {items.filter((i) => !i._isNew && i._inspected === null).length}件の検品数量が未入力です
           </p>
         )}
+        <div className="flex items-center gap-2">
+          <Label className="whitespace-nowrap text-sm">
+            検品者 <span className="text-destructive">*</span>
+          </Label>
+          <Select value={inspectorId} onValueChange={setInspectorId}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="選択してください" />
+            </SelectTrigger>
+            <SelectContent>
+              {inspectors.map((i) => (
+                <SelectItem key={i.id} value={i.id}>{i.display_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Button variant="outline" size="lg" onClick={handleSave} disabled={saving}>
           <Save className="mr-2 h-4 w-4" />
           一時保存
         </Button>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button size="lg" disabled={!allInspected}>検品完了にする</Button>
+            <Button size="lg" disabled={!allInspected || !inspectorId}>検品完了にする</Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -682,6 +716,7 @@ export default function InspectPage() {
               <AlertDialogDescription>
                 検品後合計: {inspectedTotal.toLocaleString()}円
                 {difference !== 0 && ` （申告比: ${difference > 0 ? '+' : ''}${difference.toLocaleString()}円）`}
+                {'　'}検品者: {inspectors.find((i) => i.id === inspectorId)?.display_name ?? '未選択'}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

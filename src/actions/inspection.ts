@@ -2,7 +2,24 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getCurrentUser } from '@/actions/auth'
 import { submitInspectionSchema, type SubmitInspectionInput } from '@/lib/validators/inspection'
+
+// 検品者として選択できるスタッフ名一覧（共有アカウント・テスト用は除外）
+export async function getInspectorOptions(): Promise<{ id: string; display_name: string }[]> {
+  const user = await getCurrentUser()
+  if (!user) return []
+
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .eq('tenant_id', user.tenant_id)
+    .order('display_name')
+
+  return (data ?? []).filter((p) => !/事務所|テスト/.test(p.display_name))
+}
 
 export async function submitInspection(input: SubmitInspectionInput) {
   const parsed = submitInspectionSchema.safeParse(input)
