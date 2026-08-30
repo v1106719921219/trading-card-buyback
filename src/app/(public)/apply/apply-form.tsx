@@ -29,7 +29,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
 import { createOrder } from '@/actions/orders'
-import { lookupCustomerByEmail } from '@/actions/customers'
+import { lookupCustomerByEmail, getLinePrefillByIdToken } from '@/actions/customers'
 import { checkKycForApply, getEkycRolloutEnabled } from '@/actions/kyc'
 import { KycFlow } from '@/app/(public)/kyc/kyc-flow'
 import { initLiff, type LiffState } from '@/lib/liff-client'
@@ -135,20 +135,26 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const subcategories = initialSubcategories
   const offices = initialOffices
 
-  async function handleLookupCustomer() {
-    if (!lookupEmail.trim()) {
-      toast.error('メールアドレスを入力してください')
-      return
-    }
-    setLookingUp(true)
-    const data = await lookupCustomerByEmail(lookupEmail.trim())
-    setLookingUp(false)
+  type CustomerData = {
+    customer_name?: string | null
+    customer_line_name?: string | null
+    customer_email?: string | null
+    customer_phone?: string | null
+    customer_birth_date?: string | null
+    customer_occupation?: string | null
+    customer_prefecture?: string | null
+    customer_address?: string | null
+    customer_not_invoice_issuer?: boolean | null
+    invoice_issuer_number?: string | null
+    customer_identity_method?: string | null
+    bank_name?: string | null
+    bank_branch?: string | null
+    bank_account_type?: string | null
+    bank_account_number?: string | null
+    bank_account_holder?: string | null
+  }
 
-    if (!data) {
-      toast.error('該当する注文が見つかりませんでした')
-      return
-    }
-
+  function fillCustomerFields(data: CustomerData) {
     setCustomerName(data.customer_name || '')
     setCustomerLineName(data.customer_line_name || '')
     setCustomerEmail(data.customer_email || '')
@@ -166,6 +172,23 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     setBankAccountNumber(data.bank_account_number || '')
     setBankAccountHolder(data.bank_account_holder || '')
     setCustomerLoaded(true)
+  }
+
+  async function handleLookupCustomer() {
+    if (!lookupEmail.trim()) {
+      toast.error('メールアドレスを入力してください')
+      return
+    }
+    setLookingUp(true)
+    const data = await lookupCustomerByEmail(lookupEmail.trim())
+    setLookingUp(false)
+
+    if (!data) {
+      toast.error('該当する注文が見つかりませんでした')
+      return
+    }
+
+    fillCustomerFields(data)
     toast.success('前回の情報を読み込みました')
   }
 
@@ -298,8 +321,20 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
 
   // LIFF: LINEアプリ内で開かれた場合、本人のIDトークンを取得して申込に添付（自動紐付け）
   const [liff, setLiff] = useState<LiffState | null>(null)
+  const [linePrefilled, setLinePrefilled] = useState(false)
   useEffect(() => {
-    initLiff().then(setLiff)
+    initLiff().then(async (state) => {
+      setLiff(state)
+      // LINE連携済み＋eKYC済みの本人なら、過去情報を安全に自動入力
+      if (state.inLiff && state.idToken) {
+        const data = await getLinePrefillByIdToken(state.idToken)
+        if (data) {
+          fillCustomerFields(data)
+          setLinePrefilled(true)
+        }
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 申込前の本人確認（eKYC）: 2回目以降の方法は撮影必須。承認済みの人は自動スキップ
@@ -791,6 +826,12 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {linePrefilled && (
+                <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                  <CheckCircle className="mr-1 inline h-4 w-4" />
+                  LINE本人確認済みのため、お客様情報を自動入力しました。内容をご確認ください。
+                </div>
+              )}
               {!customerLoaded ? (
                 <>
                   <div className="rounded-lg border bg-blue-50 p-4 space-y-3">
