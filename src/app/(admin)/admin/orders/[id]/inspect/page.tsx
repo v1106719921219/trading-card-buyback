@@ -45,6 +45,7 @@ import { notifyDiscordInspectionIssue } from '@/lib/discord'
 import { sendIdReminderLineMessage } from '@/actions/orders'
 import { getInspectorOptions } from '@/actions/inspection'
 import { getOrderKycInfo, reviewKycRequest } from '@/actions/kyc'
+import { notifyOrderStatusLine } from '@/actions/orders'
 import { idReminderMessage } from '@/lib/line-messages'
 import type { Order, OrderItem, Product, Category, InspectionStatus } from '@/types/database'
 import { INSPECTION_STATUSES } from '@/lib/constants'
@@ -419,6 +420,9 @@ export default function InspectPage() {
       toast.error(`ステータスの変更に失敗しました: ${error.message}`)
       return
     }
+
+    // LINE連携済みのお客様へ検品完了を自動通知
+    notifyOrderStatusLine(orderId, '検品完了').catch(() => {})
 
     toast.success('検品が完了しました')
 

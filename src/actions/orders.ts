@@ -13,7 +13,7 @@ import { requireTenantId } from '@/lib/tenant'
 import { requireRole, assertBelongsToTenant, sanitizeError } from '@/lib/security'
 import { verifyLineUserToken, pushTextMessage } from '@/lib/line'
 import { verifyLineIdToken } from '@/lib/line-verify'
-import { idReminderMessage } from '@/lib/line-messages'
+import { idReminderMessage, orderReceivedMessage, orderStatusMessage } from '@/lib/line-messages'
 
 
 export async function createOrder(input: CreateOrderInput) {
@@ -223,6 +223,14 @@ export async function createOrder(input: CreateOrderInput) {
     })
   }
 
+  // LINE連携済みの申込は、受付＋状況確認ページへの案内をLINEに自動送信
+  if (lineUserId) {
+    pushTextMessage(
+      lineUserId,
+      orderReceivedMessage(order.order_number, total_amount)
+    ).catch((err) => console.error('[createOrder] LINE送信エラー:', err))
+  }
+
   // Google Sheets backup
   try {
     const { data: office } = await supabase
@@ -395,6 +403,21 @@ export async function approveOrder(orderId: string) {
   revalidatePath(`/admin/orders/${orderId}`)
   revalidatePath('/admin/orders')
   return { success: true }
+}
+
+// ステータス更新時にLINE連携済みのお客様へ状況を自動通知する（連携なしは何もしない）
+export async function notifyOrderStatusLine(orderId: string, newStatus: string) {
+  const supabase = createAdminClient()
+  const { data: order } = await supabase
+    .from('orders')
+    .select('order_number, line_user_id')
+    .eq('id', orderId)
+    .single()
+
+  if (!order?.line_user_id) return
+  await pushTextMessage(order.line_user_id, orderStatusMessage(order.order_number, newStatus)).catch(
+    (err) => console.error('[notifyOrderStatusLine] LINE送信エラー:', err)
+  )
 }
 
 // LIFF（LINEアプリ内）用: IDトークンを検証して本人の注文一覧＋ステータスを返す

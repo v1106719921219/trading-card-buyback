@@ -54,6 +54,15 @@ export async function markAsPaid(orderId: string) {
     }
   }
 
+  // LINE連携済みのお客様へ振込完了を自動通知
+  if (order.line_user_id) {
+    const { pushTextMessage } = await import('@/lib/line')
+    const { orderStatusMessage } = await import('@/lib/line-messages')
+    pushTextMessage(order.line_user_id, orderStatusMessage(order.order_number, '振込済')).catch(
+      (err) => console.error('[markAsPaid] LINE送信エラー:', err)
+    )
+  }
+
   revalidatePath('/admin/payments')
   revalidatePath('/admin/orders')
   revalidatePath('/admin')

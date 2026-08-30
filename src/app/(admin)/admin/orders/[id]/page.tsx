@@ -40,7 +40,7 @@ import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil, Plus, Check, ChevronsUpDown, IdCard } from 'lucide-react'
-import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice, addOrderItem, approveOrder } from '@/actions/orders'
+import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice, addOrderItem, approveOrder, notifyOrderStatusLine } from '@/actions/orders'
 import { getOrderKycInfo } from '@/actions/kyc'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
@@ -211,6 +211,9 @@ export default function OrderDetailPage() {
       toast.error(`ステータス変更に失敗しました: ${error.message}`)
       return
     }
+
+    // LINE連携済みのお客様へ状況を自動通知（発送済・検品完了・振込済など）
+    notifyOrderStatusLine(orderId, newStatus).catch(() => {})
 
     toast.success(`ステータスを「${newStatus}」に変更しました`)
     setNewStatus('')
