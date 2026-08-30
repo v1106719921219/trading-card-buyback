@@ -193,7 +193,20 @@ export function CameraCapture({
                     <defs>
                       <mask id="guide-mask">
                         <rect width="100%" height="100%" fill="white" />
-                        {guideType === 'thickness' || guideType === 'rectangle' ? (
+                        {guideType === 'thickness' ? (
+                          <rect
+                            x="7.5%"
+                            y="50%"
+                            width="85%"
+                            height="0"
+                            fill="black"
+                            rx="8"
+                            style={{
+                              height: '40%',
+                              transform: 'translateY(-20%)',
+                            }}
+                          />
+                        ) : guideType === 'rectangle' ? (
                           <rect
                             x="7.5%"
                             y="50%"
@@ -227,18 +240,24 @@ export function CameraCapture({
                   {/* 緑色のガイド枠 */}
                   <div className="absolute inset-0 flex items-center justify-center">
                     {guideType === 'thickness' ? (
-                      // 厚み撮影用: 枠はカード型のまま、撮影方法の案内を表示
+                      // 厚み撮影用: カードを奥に傾けたときの見え方（遠近のついた台形）の枠
                       <div className="flex w-[85%] flex-col items-center">
-                        <div
-                          className={`w-full rounded-lg border-[3px] transition-colors duration-300 ${
-                            captureReady
-                              ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.4)]'
-                              : 'border-white/50'
-                          }`}
-                          style={{ aspectRatio: 1.586 }}
-                        />
-                        <p className="mt-3 text-center text-xs font-medium text-white drop-shadow">
-                          表面（顔写真・氏名）が見える状態のまま、<br />少しだけ傾けて厚み（側面）も一緒に写るように撮影
+                        <div className="w-full" style={{ perspective: '500px' }}>
+                          <div
+                            className={`w-full rounded-lg border-[3px] transition-colors duration-300 ${
+                              captureReady
+                                ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.4)]'
+                                : 'border-white/50'
+                            }`}
+                            style={{
+                              aspectRatio: 1.586,
+                              transform: 'rotateX(55deg)',
+                              transformOrigin: 'center',
+                            }}
+                          />
+                        </div>
+                        <p className="text-center text-xs font-medium text-white drop-shadow">
+                          カードを指でつまんで奥に傾け、<br />表面（顔写真・氏名）と厚みが両方写るように撮影
                         </p>
                       </div>
                     ) : guideType === 'rectangle' ? (
