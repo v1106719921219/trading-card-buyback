@@ -63,21 +63,26 @@ export async function runAiKycReview(input: {
 - 申告された身分証の種類: ${input.documentTypeLabel}
 
 ## 判定項目
-1. 身分証から氏名・住所・生年月日を読み取る（読み取れない場合はnull）
-2. 身分証の氏名が申込者氏名と一致するか（空白の有無は無視。漢字とローマ字/カナ表記の対応は妥当なら一致とみなす）
+1. 身分証から氏名・生年月日を読み取る（読み取れない場合はnull）。※住所は確認不要
+2. 【最重要】身分証の氏名が申込者氏名と一致するか、を厳格に確認する。
+   - 姓と名の両方が一致していること。一文字でも異なる、姓名の一部だけ一致、別人と疑われる場合は不一致とする
+   - 空白・全角半角の違いは無視してよい
+   - 漢字とローマ字/カナ表記が同一人物として妥当に対応する場合は一致とみなす（例: 山田太郎 と YAMADA TARO）
+   - 少しでも氏名の判読が不鮮明で一致を確信できない場合も、一致とはせず needs_review とする
 3. 顔写真（自撮り）と身分証の顔写真が同一人物に見えるか（顔写真がない身分証の場合はtrue）
 4. 身分証の種類が申告と一致しているか・実物のカードを撮影したように見えるか（画面の再撮影・印刷物・加工の疑いがないか。厚み画像がある場合はカードの立体感も確認）
 
 ## 判定基準
 - すべて問題なければ verdict は "pass"
 - 1つでも疑義・不鮮明・不一致があれば verdict は "needs_review" とし、concerns に日本語で具体的に列挙
+- 特に氏名が一致しない・確信できない場合は必ず "needs_review" とし、concerns に読み取った氏名と申込者氏名を明記する
 
 ## 出力形式
 以下のJSONのみを出力してください。説明文は不要です。
 {
   "verdict": "pass" | "needs_review",
   "extracted_name": string | null,
-  "extracted_address": string | null,
+  "extracted_address": null,
   "extracted_birth_date": string | null,
   "name_match": boolean,
   "face_match": boolean,

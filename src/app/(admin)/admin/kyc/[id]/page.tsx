@@ -190,10 +190,6 @@ export default function KycDetailPage() {
                 <dt className="text-muted-foreground">読取生年月日</dt>
                 <dd className="font-medium">{aiReview.extracted_birth_date ?? '-'}</dd>
               </div>
-              <div className="col-span-2 sm:col-span-1">
-                <dt className="text-muted-foreground">読取住所</dt>
-                <dd className="font-medium">{aiReview.extracted_address ?? '-'}</dd>
-              </div>
               <div>
                 <dt className="text-muted-foreground">氏名一致</dt>
                 <dd className="font-medium">{aiReview.name_match ? '✓' : '✗'}</dd>
