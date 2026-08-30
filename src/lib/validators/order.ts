@@ -47,6 +47,8 @@ export const createOrderSchema = z.object({
   buyback_type: z.enum(['ar_quality', 'minimum_guarantee']).optional(),
   from_line: z.boolean().optional(),
   line_user_token: z.string().max(500).optional(),
+  // LIFF（LINEアプリ内で開いた申込）のIDトークン。サーバーで検証してline_user_idを紐付ける
+  line_id_token: z.string().max(4000).optional(),
 })
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>

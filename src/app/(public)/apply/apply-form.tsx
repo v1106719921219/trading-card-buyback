@@ -32,6 +32,7 @@ import { createOrder } from '@/actions/orders'
 import { lookupCustomerByEmail } from '@/actions/customers'
 import { checkKycForApply, getEkycRolloutEnabled } from '@/actions/kyc'
 import { KycFlow } from '@/app/(public)/kyc/kyc-flow'
+import { initLiff, type LiffState } from '@/lib/liff-client'
 import { parseOrderText } from '@/actions/ai-parse-order'
 import { toast } from 'sonner'
 import { PREFECTURES, BANK_NAMES } from '@/lib/constants'
@@ -295,6 +296,12 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     return true
   }
 
+  // LIFF: LINEアプリ内で開かれた場合、本人のIDトークンを取得して申込に添付（自動紐付け）
+  const [liff, setLiff] = useState<LiffState | null>(null)
+  useEffect(() => {
+    initLiff().then(setLiff)
+  }, [])
+
   // 申込前の本人確認（eKYC）: 2回目以降の方法は撮影必須。承認済みの人は自動スキップ
   const [ekycRollout, setEkycRollout] = useState(false)
   const [kycStatus, setKycStatus] = useState<'checking' | 'verified' | 'submitted' | 'none'>('none')
@@ -355,6 +362,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         buyback_type: cart.some(item => item.product_name.includes('AR')) ? (arQualityEnabled ? selectedBuybackType : 'minimum_guarantee') : undefined,
         from_line: fromLine ?? false,
         line_user_token: lineUserToken || undefined,
+        line_id_token: liff?.inLiff ? liff.idToken || undefined : undefined,
       })
 
       setLoading(false)

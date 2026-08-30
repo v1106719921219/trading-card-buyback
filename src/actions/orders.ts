@@ -12,6 +12,7 @@ import { getCurrentUser } from '@/actions/auth'
 import { requireTenantId } from '@/lib/tenant'
 import { requireRole, assertBelongsToTenant, sanitizeError } from '@/lib/security'
 import { verifyLineUserToken, pushTextMessage } from '@/lib/line'
+import { verifyLineIdToken } from '@/lib/line-verify'
 import { idReminderMessage } from '@/lib/line-messages'
 
 
@@ -33,10 +34,18 @@ export async function createOrder(input: CreateOrderInput) {
   // Use admin client for public form submission (bypasses RLS)
   const supabase = createAdminClient()
 
-  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type, from_line, line_user_token } = parsed.data
+  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type, from_line, line_user_token, line_id_token } = parsed.data
 
-  // 署名付きトークンからLINE userIdを復元（改ざん・なりすまし防止のためサーバー側で検証）
-  const lineUserId = line_user_token ? verifyLineUserToken(line_user_token) : null
+  // LINE userIdの復元（改ざん・なりすまし防止のためサーバー側で検証）
+  // 優先: LIFF（LINEアプリ内で開いた申込）のIDトークン → 次点: Botの署名トークン
+  let lineUserId: string | null = null
+  if (line_id_token) {
+    const verified = await verifyLineIdToken(line_id_token)
+    lineUserId = verified?.userId ?? null
+  }
+  if (!lineUserId && line_user_token) {
+    lineUserId = verifyLineUserToken(line_user_token)
+  }
 
   // 重複チェック: 同一テナント・メールアドレスで2分以内の申込があれば既存注文を返す
   const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
