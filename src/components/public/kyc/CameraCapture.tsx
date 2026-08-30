@@ -8,7 +8,7 @@ import { Camera, RotateCcw, Check, ArrowLeft } from 'lucide-react'
 interface CameraCaptureProps {
   title: string
   description: string
-  guideType: 'rectangle' | 'ellipse'
+  guideType: 'rectangle' | 'ellipse' | 'thickness'
   facingMode: 'user' | 'environment'
   onCapture: (blob: Blob) => void
   onBack: () => void
@@ -193,7 +193,21 @@ export function CameraCapture({
                     <defs>
                       <mask id="guide-mask">
                         <rect width="100%" height="100%" fill="white" />
-                        {guideType === 'rectangle' ? (
+                        {guideType === 'thickness' ? (
+                          <rect
+                            x="7.5%"
+                            y="50%"
+                            width="85%"
+                            height="0"
+                            fill="black"
+                            rx="6"
+                            style={{
+                              height: '22%',
+                              transform: 'translateY(-11%) skewY(-4deg)',
+                              transformOrigin: 'center',
+                            }}
+                          />
+                        ) : guideType === 'rectangle' ? (
                           <rect
                             x="7.5%"
                             y="50%"
@@ -226,7 +240,22 @@ export function CameraCapture({
                   </svg>
                   {/* 緑色のガイド枠 */}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    {guideType === 'rectangle' ? (
+                    {guideType === 'thickness' ? (
+                      // 厚み撮影用: カードを斜めに傾けて側面（厚み）を見せる細長い枠
+                      <div className="flex w-[85%] flex-col items-center">
+                        <div
+                          className={`h-[3.5rem] w-full rounded-md border-[3px] transition-colors duration-300 ${
+                            captureReady
+                              ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.4)]'
+                              : 'border-white/50'
+                          }`}
+                          style={{ transform: 'skewY(-4deg)' }}
+                        />
+                        <p className="mt-3 text-center text-xs font-medium text-white drop-shadow">
+                          カードを指でつまんで斜めに傾け、<br />側面（厚み）が枠に入るように撮影
+                        </p>
+                      </div>
+                    ) : guideType === 'rectangle' ? (
                       <div
                         className={`w-[85%] rounded-lg border-[3px] transition-colors duration-300 ${
                           captureReady
@@ -253,9 +282,11 @@ export function CameraCapture({
                         ? 'bg-green-500/80 text-white'
                         : 'bg-black/60 text-white'
                     }`}>
-                      {captureReady
-                        ? '枠内に合わせて撮影してください'
-                        : 'カメラを合わせています...'}
+                      {!captureReady
+                        ? 'カメラを合わせています...'
+                        : guideType === 'thickness'
+                          ? 'カードの厚みが見えるように撮影してください'
+                          : '枠内に合わせて撮影してください'}
                     </span>
                   </div>
                 </div>
