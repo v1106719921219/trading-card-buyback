@@ -186,27 +186,59 @@ export function CameraCapture({
                 }}
               />
               {/* ガイド枠オーバーレイ */}
-              {cameraReady && (
+              {cameraReady && guideType === 'thickness' && (
+                <div className="absolute inset-0">
+                  {/* 厚み撮影用: 切り抜きと緑枠を同一の台形で描画（ズレ防止のため1つのSVGにまとめる） */}
+                  <svg
+                    className="absolute inset-0 h-full w-full"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                  >
+                    <defs>
+                      <mask id="thickness-mask">
+                        <rect width="100" height="100" fill="white" />
+                        <polygon points="18,38 82,38 92.5,62 7.5,62" fill="black" />
+                      </mask>
+                    </defs>
+                    <rect width="100" height="100" fill="rgba(0,0,0,0.5)" mask="url(#thickness-mask)" />
+                    <polygon
+                      points="18,38 82,38 92.5,62 7.5,62"
+                      fill="none"
+                      stroke={captureReady ? '#4ade80' : 'rgba(255,255,255,0.5)'}
+                      strokeWidth={3}
+                      strokeLinejoin="round"
+                      vectorEffect="non-scaling-stroke"
+                      className="transition-colors duration-300"
+                    />
+                  </svg>
+                  {/* 撮影方法の案内（台形の下） */}
+                  <div className="absolute inset-x-0 text-center" style={{ top: '65%' }}>
+                    <p className="text-xs font-medium text-white drop-shadow">
+                      カードを指でつまんで奥に傾け、<br />表面（顔写真・氏名）と厚みが両方写るように撮影
+                    </p>
+                  </div>
+                  {/* ガイドメッセージ */}
+                  <div className="absolute bottom-3 left-0 right-0 text-center">
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      captureReady
+                        ? 'bg-green-500/80 text-white'
+                        : 'bg-black/60 text-white'
+                    }`}>
+                      {captureReady
+                        ? '表面と厚みが両方見えるように撮影してください'
+                        : 'カメラを合わせています...'}
+                    </span>
+                  </div>
+                </div>
+              )}
+              {cameraReady && guideType !== 'thickness' && (
                 <div className="absolute inset-0">
                   {/* 暗いオーバーレイ（枠の外側） */}
                   <svg className="absolute inset-0 h-full w-full">
                     <defs>
                       <mask id="guide-mask">
                         <rect width="100%" height="100%" fill="white" />
-                        {guideType === 'thickness' ? (
-                          <rect
-                            x="7.5%"
-                            y="50%"
-                            width="85%"
-                            height="0"
-                            fill="black"
-                            rx="8"
-                            style={{
-                              height: '40%',
-                              transform: 'translateY(-20%)',
-                            }}
-                          />
-                        ) : guideType === 'rectangle' ? (
+                        {guideType === 'rectangle' ? (
                           <rect
                             x="7.5%"
                             y="50%"
@@ -239,28 +271,7 @@ export function CameraCapture({
                   </svg>
                   {/* 緑色のガイド枠 */}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    {guideType === 'thickness' ? (
-                      // 厚み撮影用: カードを奥に傾けたときの見え方（遠近のついた台形）の枠
-                      <div className="flex w-[85%] flex-col items-center">
-                        <div className="w-full" style={{ perspective: '500px' }}>
-                          <div
-                            className={`w-full rounded-lg border-[3px] transition-colors duration-300 ${
-                              captureReady
-                                ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.4)]'
-                                : 'border-white/50'
-                            }`}
-                            style={{
-                              aspectRatio: 1.586,
-                              transform: 'rotateX(55deg)',
-                              transformOrigin: 'center',
-                            }}
-                          />
-                        </div>
-                        <p className="text-center text-xs font-medium text-white drop-shadow">
-                          カードを指でつまんで奥に傾け、<br />表面（顔写真・氏名）と厚みが両方写るように撮影
-                        </p>
-                      </div>
-                    ) : guideType === 'rectangle' ? (
+                    {guideType === 'rectangle' ? (
                       <div
                         className={`w-[85%] rounded-lg border-[3px] transition-colors duration-300 ${
                           captureReady
@@ -287,11 +298,9 @@ export function CameraCapture({
                         ? 'bg-green-500/80 text-white'
                         : 'bg-black/60 text-white'
                     }`}>
-                      {!captureReady
-                        ? 'カメラを合わせています...'
-                        : guideType === 'thickness'
-                          ? '表面と厚みが両方見えるように撮影してください'
-                          : '枠内に合わせて撮影してください'}
+                      {captureReady
+                        ? '枠内に合わせて撮影してください'
+                        : 'カメラを合わせています...'}
                     </span>
                   </div>
                 </div>
