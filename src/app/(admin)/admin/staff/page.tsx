@@ -32,10 +32,13 @@ import { createClient } from '@/lib/supabase/client'
 import { createStaff } from '@/actions/auth'
 import { ROLE_LABELS } from '@/lib/constants'
 import { toast } from 'sonner'
-import type { Profile, UserRole } from '@/types/database'
+import type { Profile, UserRole, Office } from '@/types/database'
+
+const NO_OFFICE = 'none'
 
 export default function StaffPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
+  const [offices, setOffices] = useState<Office[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -45,26 +48,42 @@ export default function StaffPage() {
   const [formPassword, setFormPassword] = useState('')
   const [formDisplayName, setFormDisplayName] = useState('')
   const [formRole, setFormRole] = useState<UserRole>('staff')
+  const [formOfficeId, setFormOfficeId] = useState<string>(NO_OFFICE)
 
   const supabase = createClient()
 
   async function fetchProfiles() {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at')
+    const [profileResult, officeResult] = await Promise.all([
+      supabase.from('profiles').select('*').order('created_at'),
+      supabase.from('offices').select('*').eq('is_active', true).order('name'),
+    ])
 
-    if (error) {
+    if (profileResult.error) {
       toast.error('スタッフ情報の取得に失敗しました')
       return
     }
-    setProfiles(data || [])
+    setProfiles(profileResult.data || [])
+    setOffices((officeResult.data as Office[]) || [])
     setLoading(false)
   }
 
   useEffect(() => {
     fetchProfiles()
   }, [])
+
+  async function handleOfficeChange(profileId: string, officeId: string) {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ office_id: officeId === NO_OFFICE ? null : officeId })
+      .eq('id', profileId)
+
+    if (error) {
+      toast.error('所属事務所の変更に失敗しました')
+      return
+    }
+    toast.success('所属事務所を変更しました')
+    fetchProfiles()
+  }
 
   async function handleRoleChange(profileId: string, role: UserRole) {
     const { error } = await supabase
@@ -89,6 +108,7 @@ export default function StaffPage() {
       password: formPassword,
       display_name: formDisplayName,
       role: formRole,
+      office_id: formOfficeId === NO_OFFICE ? null : formOfficeId,
     })
 
     setSubmitting(false)
@@ -104,6 +124,7 @@ export default function StaffPage() {
     setFormPassword('')
     setFormDisplayName('')
     setFormRole('staff')
+    setFormOfficeId(NO_OFFICE)
     fetchProfiles()
   }
 
@@ -168,6 +189,23 @@ export default function StaffPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>所属事務所</Label>
+                  <Select value={formOfficeId} onValueChange={setFormOfficeId}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_OFFICE}>所属なし</SelectItem>
+                      {offices.map((office) => (
+                        <SelectItem key={office.id} value={office.id}>{office.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    検品完了にできるのは、注文の担当事務所に所属するアカウントと管理者のみです
+                  </p>
+                </div>
                 <Button type="submit" className="w-full" disabled={submitting}>
                   {submitting ? '追加中...' : '追加'}
                 </Button>
@@ -184,19 +222,20 @@ export default function StaffPage() {
               <TableHead>名前</TableHead>
               <TableHead>メールアドレス</TableHead>
               <TableHead>ロール</TableHead>
+              <TableHead>所属事務所</TableHead>
               <TableHead>登録日</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                   読み込み中...
                 </TableCell>
               </TableRow>
             ) : profiles.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                   スタッフがいません
                 </TableCell>
               </TableRow>
@@ -217,6 +256,22 @@ export default function StaffPage() {
                         <SelectItem value="admin">{ROLE_LABELS.admin}</SelectItem>
                         <SelectItem value="manager">{ROLE_LABELS.manager}</SelectItem>
                         <SelectItem value="staff">{ROLE_LABELS.staff}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={profile.office_id ?? NO_OFFICE}
+                      onValueChange={(v) => handleOfficeChange(profile.id, v)}
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_OFFICE}>所属なし</SelectItem>
+                        {offices.map((office) => (
+                          <SelectItem key={office.id} value={office.id}>{office.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </TableCell>

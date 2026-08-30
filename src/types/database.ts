@@ -15,8 +15,11 @@ export interface Profile {
   email: string
   display_name: string
   role: UserRole
+  office_id: string | null
   created_at: string
   updated_at: string
+  // joined
+  office?: Office
 }
 
 export interface Category {

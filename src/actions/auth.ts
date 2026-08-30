@@ -36,6 +36,7 @@ export async function createStaff(data: {
   password: string
   display_name: string
   role: UserRole
+  office_id?: string | null
 }) {
   // admin のみ実行可能
   const { error: authError } = await requireRole(['admin'])
@@ -68,6 +69,7 @@ export async function createStaff(data: {
       email: data.email,
       display_name: data.display_name,
       role: data.role,
+      office_id: data.office_id ?? null,
       tenant_id: tenantId,
     })
 
