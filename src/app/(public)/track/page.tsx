@@ -17,6 +17,7 @@ interface MyOrder {
   status: string
   tracking_number: string | null
   created_at: string
+  _db?: string
 }
 
 export default function TrackPage() {
@@ -52,11 +53,11 @@ export default function TrackPage() {
     })
   }, [])
 
-  async function handleSubmit(orderNumber: string) {
+  async function handleSubmit(orderNumber: string, db?: string) {
     const value = (trackingInput[orderNumber] ?? '').trim()
     if (!value || !idToken) return
     setSubmitting(orderNumber)
-    const result = await submitTrackingByIdToken(idToken, orderNumber, value)
+    const result = await submitTrackingByIdToken(idToken, orderNumber, value, db)
     setSubmitting(null)
     if (result.error) {
       toast.error(result.error)
@@ -135,7 +136,7 @@ export default function TrackPage() {
                       inputMode="numeric"
                     />
                     <Button
-                      onClick={() => handleSubmit(o.order_number)}
+                      onClick={() => handleSubmit(o.order_number, o._db)}
                       disabled={submitting === o.order_number || !(trackingInput[o.order_number] ?? '').trim()}
                     >
                       {submitting === o.order_number ? '登録中...' : '登録'}

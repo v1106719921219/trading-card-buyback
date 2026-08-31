@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createAdminClient, createChibaAdminClient } from '@/lib/supabase/admin'
 import { createOrderSchema, type CreateOrderInput } from '@/lib/validators/order'
 import { STATUS_TRANSITIONS } from '@/lib/constants'
 import type { OrderStatus, BuybackType } from '@/types/database'
@@ -465,29 +465,53 @@ async function resolveLineUserId(token: string): Promise<string | null> {
   return v?.userId ?? null
 }
 
+// 出所DB（東京/千葉）に応じたクライアントを返す。同じLINEアカウントで両拠点を受けるため横断する
+function clientForDb(db?: string) {
+  if (db === 'chiba') {
+    const c = createChibaAdminClient()
+    if (c) return c
+  }
+  return createAdminClient()
+}
+
 export async function getMyOrdersByIdToken(idToken: string) {
   const userId = await resolveLineUserId(idToken)
   if (!userId) return []
 
-  const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('orders')
-    .select('order_number, status, total_amount, inspected_total_amount, inspection_discount, tracking_number, office_id, created_at, paid_at')
-    .eq('line_user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(50)
+  const cols =
+    'order_number, status, total_amount, inspected_total_amount, inspection_discount, tracking_number, office_id, created_at, paid_at'
+  const fetchFrom = async (
+    client: ReturnType<typeof createAdminClient>,
+    db: 'tokyo' | 'chiba'
+  ) => {
+    try {
+      const { data } = await client
+        .from('orders')
+        .select(cols)
+        .eq('line_user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      return (data ?? []).map((o) => ({ ...o, _db: db }))
+    } catch {
+      return []
+    }
+  }
 
-  if (error || !data) return []
-  return data
+  // 東京DB＋千葉DBを横断して本人の注文をまとめる（LINE本人IDは同一プロバイダーで共通）
+  const results = [...(await fetchFrom(createAdminClient(), 'tokyo'))]
+  const chiba = createChibaAdminClient()
+  if (chiba) results.push(...(await fetchFrom(chiba, 'chiba')))
+  results.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+  return results
 }
 
 // LIFF（LINEアプリ内）用: IDトークンで本人確認し、自分の注文の査定結果PDFを取得
-export async function getMyInspectionPdf(idToken: string, orderNumber: string) {
+export async function getMyInspectionPdf(idToken: string, orderNumber: string, db?: string) {
   const { generateInspectionPdf } = await import('@/lib/pdf')
   const userId = await resolveLineUserId(idToken)
   if (!userId) return { error: 'LINEの本人確認に失敗しました' }
 
-  const supabase = createAdminClient()
+  const supabase = clientForDb(db)
   const { data: order } = await supabase
     .from('orders')
     .select('*, order_items(*)')
@@ -512,7 +536,8 @@ export async function getMyInspectionPdf(idToken: string, orderNumber: string) {
 export async function submitTrackingByIdToken(
   idToken: string,
   orderNumber: string,
-  trackingNumber: string
+  trackingNumber: string,
+  db?: string
 ) {
   if (!orderNumber || !trackingNumber.trim()) {
     return { error: '追跡番号を入力してください' }
@@ -520,7 +545,7 @@ export async function submitTrackingByIdToken(
   const userId = await resolveLineUserId(idToken)
   if (!userId) return { error: 'LINEの本人確認に失敗しました' }
 
-  const supabase = createAdminClient()
+  const supabase = clientForDb(db)
   // 本人のLINEに紐付いた注文であることを確認（他人の注文には登録できない）
   const { data: order } = await supabase
     .from('orders')

@@ -32,6 +32,8 @@ interface MyOrder {
   tracking_number: string | null
   office_id: string | null
   created_at: string
+  // 出所DB（東京/千葉）。追跡登録・PDF取得を正しいDBへ振り分けるために保持
+  _db?: string
 }
 
 export default function MyOrdersPage() {
@@ -68,11 +70,11 @@ export default function MyOrdersPage() {
     })
   }, [])
 
-  async function handleSubmitTracking(orderNumber: string) {
+  async function handleSubmitTracking(orderNumber: string, db?: string) {
     const value = (trackingInput[orderNumber] ?? '').trim()
     if (!value || !idToken) return
     setSubmittingTracking(orderNumber)
-    const result = await submitTrackingByIdToken(idToken, orderNumber, value)
+    const result = await submitTrackingByIdToken(idToken, orderNumber, value, db)
     setSubmittingTracking(null)
     if (result.error) {
       toast.error(result.error)
@@ -84,10 +86,10 @@ export default function MyOrdersPage() {
   }
 
   const [downloadingPdf, setDownloadingPdf] = useState<string | null>(null)
-  async function handleDownloadPdf(orderNumber: string) {
+  async function handleDownloadPdf(orderNumber: string, db?: string) {
     if (!idToken) return
     setDownloadingPdf(orderNumber)
-    const result = await getMyInspectionPdf(idToken, orderNumber)
+    const result = await getMyInspectionPdf(idToken, orderNumber, db)
     setDownloadingPdf(null)
     if ('error' in result && result.error) {
       toast.error(result.error)
@@ -198,7 +200,7 @@ export default function MyOrdersPage() {
                         variant="outline"
                         size="sm"
                         className="w-full"
-                        onClick={() => handleDownloadPdf(o.order_number)}
+                        onClick={() => handleDownloadPdf(o.order_number, o._db)}
                         disabled={downloadingPdf === o.order_number}
                       >
                         <FileDown className="mr-1.5 h-4 w-4" />
@@ -223,7 +225,7 @@ export default function MyOrdersPage() {
                           />
                           <Button
                             size="sm"
-                            onClick={() => handleSubmitTracking(o.order_number)}
+                            onClick={() => handleSubmitTracking(o.order_number, o._db)}
                             disabled={submittingTracking === o.order_number || !(trackingInput[o.order_number] ?? '').trim()}
                           >
                             {submittingTracking === o.order_number ? '登録中...' : '登録'}
