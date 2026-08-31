@@ -66,6 +66,8 @@ const navItems = [
 function NavLinks({ profile, onNavigate }: { profile: Profile; onNavigate?: () => void }) {
   const pathname = usePathname()
   const [officeLinks, setOfficeLinks] = useState<{ id: string; name: string }[]>([])
+  // 本人確認の審査待ち（撮影完了＝processing）件数。左タブにバッジ表示する
+  const [pendingKyc, setPendingKyc] = useState(0)
 
   useEffect(() => {
     const supabase = createClient()
@@ -78,6 +80,21 @@ function NavLinks({ profile, onNavigate }: { profile: Profile; onNavigate?: () =
         if (data) setOfficeLinks(data)
       })
   }, [])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const fetchPending = () => {
+      supabase
+        .from('kyc_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'processing')
+        .then(({ count }) => setPendingKyc(count ?? 0))
+    }
+    fetchPending()
+    // 1分ごとに更新（審査待ちの発生に気づけるように）
+    const timer = setInterval(fetchPending, 60000)
+    return () => clearInterval(timer)
+  }, [pathname])
 
   const filteredItems = navItems.filter(
     (item) => !item.adminOnly || profile.role === 'admin'
@@ -107,6 +124,11 @@ function NavLinks({ profile, onNavigate }: { profile: Profile; onNavigate?: () =
             >
               <item.icon className="h-4 w-4" />
               {item.label}
+              {item.href === '/admin/kyc' && pendingKyc > 0 && (
+                <span className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-bold leading-none text-white">
+                  {pendingKyc}
+                </span>
+              )}
             </Link>
             {item.href === '/admin/offices' &&
               officeLinks.map((office) => {
