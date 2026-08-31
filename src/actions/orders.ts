@@ -114,8 +114,9 @@ export async function createOrder(input: CreateOrderInput) {
       .maybeSingle()
 
     if (rolloutSetting?.value === 'true') {
-      // フォームから直接渡された撮影済みeKYCを検証（processingかつ同一テナント）
-      let matched: { id: string } | null = null
+      // 撮影済みeKYCを探す。①フォームから直接渡されたID ②同じLINE本人(line_user_id)＋氏名一致
+      // 状態は processing（審査待ち）／approved（承認済み）のいずれも「撮影完了」として受け付ける
+      let matched: { id: string; status: string } | null = null
       if (kyc_request_id) {
         const { data: submitted } = await supabase
           .from('kyc_requests')
@@ -123,9 +124,23 @@ export async function createOrder(input: CreateOrderInput) {
           .eq('tenant_id', tenantId)
           .eq('id', kyc_request_id)
           .maybeSingle()
-        if (submitted && submitted.status === 'processing') {
-          matched = { id: submitted.id }
+        if (submitted && ['processing', 'approved'].includes(submitted.status)) {
+          matched = { id: submitted.id, status: submitted.status }
         }
+      }
+      if (!matched && lineUserId) {
+        const { data: subs } = await supabase
+          .from('kyc_requests')
+          .select('id, status, customer_name')
+          .eq('tenant_id', tenantId)
+          .eq('line_user_id', lineUserId)
+          .in('status', ['processing', 'approved'])
+          .order('created_at', { ascending: false })
+          .limit(10)
+        const m = (subs ?? []).find(
+          (k) => normalize(k.customer_name) === normalize(customer.customer_name)
+        )
+        if (m) matched = { id: m.id, status: m.status }
       }
       if (!matched) {
         return {
@@ -133,6 +148,11 @@ export async function createOrder(input: CreateOrderInput) {
         }
       }
       pendingKycId = matched.id
+      // 既に承認済みなら本人確認済みとして記録
+      if (matched.status === 'approved') {
+        identityVerifiedAt = new Date().toISOString()
+        identityMethod = 'eKYC確認済み'
+      }
     }
   }
 
