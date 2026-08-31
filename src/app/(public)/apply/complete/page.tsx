@@ -23,7 +23,6 @@ import {
   submitTrackingNumber,
   addTrackingNumber,
   updateOrderItems,
-  getLineLinkUrl,
 } from '@/actions/orders'
 import { getActiveProducts } from '@/actions/products'
 import { getEkycRolloutEnabled } from '@/actions/kyc'
@@ -49,15 +48,10 @@ function CompleteContent() {
   const [existingTrackingNumber, setExistingTrackingNumber] = useState<string | null>(null)
   const [identityMethod, setIdentityMethod] = useState<string | null>(null)
   const [ekycRollout, setEkycRollout] = useState(false)
-  const [lineLinkUrl, setLineLinkUrl] = useState<string | null>(null)
 
   useEffect(() => {
     getEkycRolloutEnabled().then(setEkycRollout)
   }, [])
-
-  useEffect(() => {
-    if (orderNumber) getLineLinkUrl(orderNumber).then(setLineLinkUrl)
-  }, [orderNumber])
 
   // Order items state
   const [orderItems, setOrderItems] = useState<EditableItem[]>([])
@@ -497,7 +491,7 @@ function CompleteContent() {
             {!submitted && (
               <>
                 <p className="text-sm text-muted-foreground">
-                  商品を下記住所までお送りください。到着後、検品を行い、結果は公式LINEにてお知らせいたします。
+                  商品を下記住所までお送りください。到着後、検品を行い、検品・お振込みの進捗は公式LINEの「査定状況」からご確認いただけます。
                 </p>
 
                 {identityMethod && (
@@ -507,17 +501,6 @@ function CompleteContent() {
                       本人確認は完了しています。書類の同梱は不要です。
                     </p>
                   </div>
-                )}
-
-                {lineLinkUrl && (
-                  <a href={lineLinkUrl}>
-                    <Button className="w-full bg-[#06C755] hover:bg-[#06C755]/90 text-white font-bold">
-                      LINEで進捗を確認する
-                    </Button>
-                    <span className="mt-1 block text-center text-xs text-muted-foreground">
-                      タップ後、開いたLINEで「送信」を押すと、検品・お振込みの進捗をLINE上で確認できるようになります
-                    </span>
-                  </a>
                 )}
 
                 <div className="bg-muted p-4 rounded-md text-sm text-left">
