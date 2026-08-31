@@ -98,9 +98,21 @@ export function CameraCapture({
 
     const vw = video.videoWidth
     const vh = video.videoHeight
+    // 画面表示は object-cover で切り取られているため、撮影も「画面に見えている範囲」だけを切り出す。
+    // これをしないと、枠に合わせて撮っても保存画像に余分な範囲が入り対象が小さく下にズレる。
+    const dispW = video.clientWidth
+    const dispH = video.clientHeight
+    let sx = 0, sy = 0, srcW = vw, srcH = vh
+    if (dispW > 0 && dispH > 0) {
+      const scale = Math.max(dispW / vw, dispH / vh) // object-cover の拡大率
+      srcW = dispW / scale
+      srcH = dispH / scale
+      sx = (vw - srcW) / 2
+      sy = (vh - srcH) / 2
+    }
 
-    let width = vw
-    let height = vh
+    let width = srcW
+    let height = srcH
     if (width > MAX_IMAGE_SIZE || height > MAX_IMAGE_SIZE) {
       const ratio = Math.min(MAX_IMAGE_SIZE / width, MAX_IMAGE_SIZE / height)
       width = Math.round(width * ratio)
@@ -117,7 +129,8 @@ export function CameraCapture({
       ctx.scale(-1, 1)
     }
 
-    ctx.drawImage(video, 0, 0, width, height)
+    // 表示されている範囲（sx,sy,srcW,srcH）だけをキャンバス全体に描画
+    ctx.drawImage(video, sx, sy, srcW, srcH, 0, 0, width, height)
 
     canvas.toBlob(
       (blob) => {
