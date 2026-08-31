@@ -121,6 +121,31 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [customerOccupation, setCustomerOccupation] = useState(prefillCustomer?.customer_occupation ?? '')
   const [customerPrefecture, setCustomerPrefecture] = useState(prefillCustomer?.customer_prefecture ?? '')
   const [customerAddress, setCustomerAddress] = useState(prefillCustomer?.customer_address ?? '')
+  const [customerPostalCode, setCustomerPostalCode] = useState('')
+  const [postalLookingUp, setPostalLookingUp] = useState(false)
+
+  // 郵便番号（7桁）から都道府県・住所を自動入力（zipcloud）
+  async function lookupAddressByPostal(raw: string) {
+    const zip = raw.replace(/[^0-9]/g, '')
+    if (zip.length !== 7) return
+    setPostalLookingUp(true)
+    try {
+      const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${zip}`)
+      const json = await res.json()
+      const r = json?.results?.[0]
+      if (r) {
+        setCustomerPrefecture(r.address1 || '')
+        // 市区町村＋町域を住所欄へ。番地以降はお客様が続けて入力
+        setCustomerAddress(`${r.address2 || ''}${r.address3 || ''}`)
+      } else {
+        toast.error('該当する住所が見つかりませんでした。郵便番号をご確認ください')
+      }
+    } catch {
+      toast.error('住所の取得に失敗しました。手動で入力してください')
+    } finally {
+      setPostalLookingUp(false)
+    }
+  }
   const [customerNotInvoiceIssuer, setCustomerNotInvoiceIssuer] = useState(prefillCustomer?.customer_not_invoice_issuer ?? true)
   const [invoiceIssuerNumber, setInvoiceIssuerNumber] = useState(prefillCustomer?.invoice_issuer_number ?? '')
   const [customerIdentityMethod, setCustomerIdentityMethod] = useState(prefillCustomer?.customer_identity_method ?? '')
@@ -865,6 +890,32 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       placeholder="090-1234-5678"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>郵便番号</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={customerPostalCode}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setCustomerPostalCode(v)
+                          // 7桁揃ったら自動で住所検索
+                          if (v.replace(/[^0-9]/g, '').length === 7) lookupAddressByPostal(v)
+                        }}
+                        placeholder="1500041"
+                        inputMode="numeric"
+                        maxLength={8}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => lookupAddressByPostal(customerPostalCode)}
+                        disabled={postalLookingUp || customerPostalCode.replace(/[^0-9]/g, '').length !== 7}
+                      >
+                        {postalLookingUp ? '検索中...' : '住所検索'}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">7桁を入力すると都道府県・住所が自動入力されます（番地以降は手入力）</p>
                   </div>
                   <div className="space-y-2">
                     <Label>都道府県 <span className="text-destructive">*</span></Label>
