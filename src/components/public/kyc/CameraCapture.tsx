@@ -180,7 +180,7 @@ export function CameraCapture({
                 autoPlay
                 playsInline
                 muted
-                className="w-full max-h-[52vh] object-cover"
+                className="w-full max-h-[62vh] object-cover"
                 style={{
                   transform: facingMode === 'user' ? 'scaleX(-1)' : undefined,
                 }}
@@ -233,74 +233,28 @@ export function CameraCapture({
               )}
               {cameraReady && guideType !== 'thickness' && (
                 <div className="absolute inset-0">
-                  {/* 暗いオーバーレイ（枠の外側） */}
-                  <svg className="absolute inset-0 h-full w-full">
-                    <defs>
-                      <mask id="guide-mask">
-                        <rect width="100%" height="100%" fill="white" />
-                        {guideType === 'rectangle' ? (
-                          <rect
-                            x="7.5%"
-                            y="50%"
-                            width="85%"
-                            height="0"
-                            fill="black"
-                            rx="8"
-                            style={{
-                              height: 'calc(85% / 1.586)',
-                              transform: 'translateY(calc(-85% / 1.586 / 2))',
-                            }}
-                          />
-                        ) : (
-                          <ellipse
-                            cx="50%"
-                            cy="50%"
-                            rx="25%"
-                            ry="33%"
-                            fill="black"
-                          />
-                        )}
-                      </mask>
-                    </defs>
-                    <rect
-                      width="100%"
-                      height="100%"
-                      fill="rgba(0,0,0,0.5)"
-                      mask="url(#guide-mask)"
+                  {/* ガイド枠。枠の外側はbox-shadowで暗くする（枠と完全に一致してズレない） */}
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div
+                      className={`border-[3px] transition-colors duration-300 ${
+                        guideType === 'rectangle' ? 'w-[92%] rounded-xl' : 'h-[82%] rounded-full'
+                      } ${captureReady ? 'border-green-400' : 'border-white/70'}`}
+                      style={{
+                        aspectRatio: guideType === 'rectangle' ? 1.586 : 0.72,
+                        boxShadow: '0 0 0 100vmax rgba(0,0,0,0.45)',
+                      }}
                     />
-                  </svg>
-                  {/* 緑色のガイド枠 */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    {guideType === 'rectangle' ? (
-                      <div
-                        className={`w-[85%] rounded-lg border-[3px] transition-colors duration-300 ${
-                          captureReady
-                            ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.4)]'
-                            : 'border-white/50'
-                        }`}
-                        style={{ aspectRatio: 1.586 }}
-                      />
-                    ) : (
-                      <div
-                        className={`h-[66%] rounded-full border-[3px] transition-colors duration-300 ${
-                          captureReady
-                            ? 'border-green-400 shadow-[0_0_15px_rgba(74,222,128,0.4)]'
-                            : 'border-white/50'
-                        }`}
-                        style={{ aspectRatio: 0.75 }}
-                      />
-                    )}
                   </div>
                   {/* ガイドメッセージ */}
-                  <div className="absolute bottom-3 left-0 right-0 text-center">
-                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      captureReady
-                        ? 'bg-green-500/80 text-white'
-                        : 'bg-black/60 text-white'
+                  <div className="absolute bottom-3 left-0 right-0 px-3 text-center">
+                    <span className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${
+                      captureReady ? 'bg-green-500/85 text-white' : 'bg-black/60 text-white'
                     }`}>
-                      {captureReady
-                        ? '枠内に合わせて撮影してください'
-                        : 'カメラを合わせています...'}
+                      {!captureReady
+                        ? 'カメラを合わせています...'
+                        : guideType === 'rectangle'
+                        ? 'カードを枠いっぱいに大きく写してください'
+                        : 'スマホを目の高さに構え、顔全体を枠に入れてください'}
                     </span>
                   </div>
                 </div>
@@ -327,7 +281,7 @@ export function CameraCapture({
           <>
             <div className="overflow-hidden rounded-lg bg-black">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={preview} alt="プレビュー" className="w-full max-h-[52vh] object-contain" />
+              <img src={preview} alt="プレビュー" className="w-full max-h-[62vh] object-contain" />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleRetake} className="flex-1">
