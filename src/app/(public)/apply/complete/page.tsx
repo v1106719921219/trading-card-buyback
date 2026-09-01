@@ -16,7 +16,6 @@ import {
 import { AlertTriangle, CheckCircle, Minus, Package, Plus, Search, Trash2, Truck } from 'lucide-react'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
-import { getOfficeById } from '@/actions/offices'
 import {
   getOrderByOrderNumber,
   getOrderWithItems,
@@ -67,11 +66,13 @@ function CompleteContent() {
   const [productsLoading, setProductsLoading] = useState(false)
   const [productSearch, setProductSearch] = useState('')
 
+  // 送付先は通常のAPI（並列・即時）で取得。Server Actionの直列実行に巻き込まれず速く表示される
   useEffect(() => {
     if (officeId) {
-      getOfficeById(officeId).then((data) => {
-        if (data) setOffice(data)
-      })
+      fetch(`/api/offices/${officeId}`)
+        .then((r) => r.json())
+        .then((data) => { if (data) setOffice(data) })
+        .catch(() => {})
     }
   }, [officeId])
 
@@ -83,9 +84,10 @@ function CompleteContent() {
           setExistingTrackingNumber(order.tracking_number)
           setIdentityMethod(order.customer_identity_method ?? null)
           if (!officeId && order.office_id) {
-            getOfficeById(order.office_id).then((data) => {
-              if (data) setOffice(data)
-            })
+            fetch(`/api/offices/${order.office_id}`)
+              .then((r) => r.json())
+              .then((data) => { if (data) setOffice(data) })
+              .catch(() => {})
           }
         }
       })
