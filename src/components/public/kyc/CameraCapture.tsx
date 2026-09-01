@@ -159,15 +159,18 @@ export function CameraCapture({
     }
   }
 
-  // カメラが使えない場合のフォールバック: 端末のカメラアプリ／写真から選ぶ
-  async function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+  // カメラが使えない場合のフォールバック: 端末のカメラアプリ／写真から選ぶ。
+  // <img>経由でcanvasに描画→JPEG化するので、iPhoneのHEIC等でも確実にJPEGで保存される
+  // （サーバーはJPEG/PNG/WebPのみ受付のため、生ファイルを送ると弾かれることがある）
+  function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    try {
-      const bitmap = await createImageBitmap(file)
-      let w = bitmap.width
-      let h = bitmap.height
+    const url = URL.createObjectURL(file)
+    const img = new window.Image()
+    img.onload = () => {
+      let w = img.naturalWidth || img.width
+      let h = img.naturalHeight || img.height
       if (Math.max(w, h) > MAX_IMAGE_SIZE) {
         const r = MAX_IMAGE_SIZE / Math.max(w, h)
         w = Math.round(w * r)
@@ -177,10 +180,14 @@ export function CameraCapture({
       canvas.width = w
       canvas.height = h
       const ctx = canvas.getContext('2d')
-      if (!ctx) return
-      ctx.drawImage(bitmap, 0, 0, w, h)
+      if (!ctx) {
+        URL.revokeObjectURL(url)
+        return
+      }
+      ctx.drawImage(img, 0, 0, w, h)
       canvas.toBlob(
         (blob) => {
+          URL.revokeObjectURL(url)
           if (blob) {
             setCapturedBlob(blob)
             setPreview(URL.createObjectURL(blob))
@@ -190,12 +197,12 @@ export function CameraCapture({
         'image/jpeg',
         JPEG_QUALITY
       )
-    } catch {
-      // createImageBitmap非対応時はそのまま使う
-      setCapturedBlob(file)
-      setPreview(URL.createObjectURL(file))
-      stopCamera()
     }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      setCameraError('この画像を読み込めませんでした。別の写真でもう一度お試しください。')
+    }
+    img.src = url
   }
 
   if (cameraError) {
@@ -216,7 +223,6 @@ export function CameraCapture({
             <input
               type="file"
               accept="image/*"
-              capture="environment"
               className="hidden"
               onChange={handleFilePick}
             />
@@ -349,7 +355,6 @@ export function CameraCapture({
                 <input
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   className="hidden"
                   onChange={handleFilePick}
                 />
