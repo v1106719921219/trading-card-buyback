@@ -153,6 +153,48 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [bankAccountNumber, setBankAccountNumber] = useState(prefillCustomer?.bank_account_number ?? '')
   const [bankAccountHolder, setBankAccountHolder] = useState(prefillCustomer?.bank_account_holder ?? '')
 
+  // --- 入力途中の一時保存（端末内のみ・初めての人が離脱→再開しても再入力を減らす） ---
+  const DRAFT_KEY = 'buyback_apply_draft_v1'
+  // 復元（サーバー側の自動入力が無い場合のみ。LINE本人の自動入力があれば後から上書きされる）
+  useEffect(() => {
+    if (prefillCustomer) return
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY)
+      if (!raw) return
+      const d = JSON.parse(raw)
+      if (d.customerName) setCustomerName(d.customerName)
+      if (d.customerLineName) setCustomerLineName(d.customerLineName)
+      if (d.customerPhone) setCustomerPhone(d.customerPhone)
+      if (d.customerBirthDate) setCustomerBirthDate(d.customerBirthDate)
+      if (d.customerOccupation) setCustomerOccupation(d.customerOccupation)
+      if (d.customerPrefecture) setCustomerPrefecture(d.customerPrefecture)
+      if (d.customerAddress) setCustomerAddress(d.customerAddress)
+      if (d.customerPostalCode) setCustomerPostalCode(d.customerPostalCode)
+      if (typeof d.customerNotInvoiceIssuer === 'boolean') setCustomerNotInvoiceIssuer(d.customerNotInvoiceIssuer)
+      if (d.invoiceIssuerNumber) setInvoiceIssuerNumber(d.invoiceIssuerNumber)
+      if (d.bankName) setBankName(d.bankName)
+      if (d.bankBranch) setBankBranch(d.bankBranch)
+      if (d.bankAccountType) setBankAccountType(d.bankAccountType)
+      if (d.bankAccountNumber) setBankAccountNumber(d.bankAccountNumber)
+      if (d.bankAccountHolder) setBankAccountHolder(d.bankAccountHolder)
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  // 保存（変更を500ms後に端末内へ保存）
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+          customerName, customerLineName, customerPhone, customerBirthDate,
+          customerOccupation, customerPrefecture, customerAddress, customerPostalCode,
+          customerNotInvoiceIssuer, invoiceIssuerNumber,
+          bankName, bankBranch, bankAccountType, bankAccountNumber, bankAccountHolder,
+        }))
+      } catch {}
+    }, 500)
+    return () => clearTimeout(t)
+  }, [customerName, customerLineName, customerPhone, customerBirthDate, customerOccupation, customerPrefecture, customerAddress, customerPostalCode, customerNotInvoiceIssuer, invoiceIssuerNumber, bankName, bankBranch, bankAccountType, bankAccountNumber, bankAccountHolder])
+
   const categories = initialCategories
   const products = initialProducts
   const subcategories = initialSubcategories
@@ -412,6 +454,8 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         return
       }
 
+      // 申込完了したら一時保存を消す
+      try { localStorage.removeItem(DRAFT_KEY) } catch {}
       router.push(`/apply/complete?order_number=${result.order_number}&office_id=${result.office_id}`)
     } catch (e) {
       setLoading(false)
