@@ -36,7 +36,6 @@ import { initLiff, type LiffState } from '@/lib/liff-client'
 import { parseOrderText } from '@/actions/ai-parse-order'
 import { toast } from 'sonner'
 import { PREFECTURES, BANK_NAMES } from '@/lib/constants'
-import { IDENTITY_METHODS } from '@/lib/validators/order'
 import type { Category, Product, Office, Subcategory } from '@/types/database'
 
 interface CartItem {
@@ -148,7 +147,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   }
   const [customerNotInvoiceIssuer, setCustomerNotInvoiceIssuer] = useState(prefillCustomer?.customer_not_invoice_issuer ?? true)
   const [invoiceIssuerNumber, setInvoiceIssuerNumber] = useState(prefillCustomer?.invoice_issuer_number ?? '')
-  const [customerIdentityMethod, setCustomerIdentityMethod] = useState(prefillCustomer?.customer_identity_method ?? '')
   const [bankName, setBankName] = useState(prefillCustomer?.bank_name ?? '')
   const [bankBranch, setBankBranch] = useState(prefillCustomer?.bank_branch ?? '')
   const [bankAccountType, setBankAccountType] = useState<'普通' | '当座'>((prefillCustomer?.bank_account_type as '普通' | '当座') ?? '普通')
@@ -190,7 +188,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     setCustomerAddress(data.customer_address || '')
     setCustomerNotInvoiceIssuer(data.customer_not_invoice_issuer ?? true)
     setInvoiceIssuerNumber(data.invoice_issuer_number || '')
-    setCustomerIdentityMethod(data.customer_identity_method || '')
     setBankName(data.bank_name || '')
     setBankBranch(data.bank_branch || '')
     setBankAccountType((data.bank_account_type as '普通' | '当座') || '普通')
@@ -315,7 +312,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         customerOccupation.trim() &&
         customerPrefecture &&
         customerAddress.trim() &&
-        customerIdentityMethod &&
         bankName.trim() &&
         bankBranch.trim() &&
         bankAccountNumber.trim() &&
@@ -354,7 +350,8 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     getEkycRolloutEnabled().then(setEkycRollout)
   }, [])
 
-  const needsKyc = ekycRollout && !!customerIdentityMethod
+  // 本人確認方法はフォームでは選ばせず、撮影(eKYC)の中で選ぶ。展開フラグONなら常にeKYC必須
+  const needsKyc = ekycRollout
   const kycDone = kycStatus === 'verified' || kycStatus === 'submitted'
 
   useEffect(() => {
@@ -390,7 +387,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
           customer_address: customerAddress,
           customer_not_invoice_issuer: customerNotInvoiceIssuer,
           invoice_issuer_number: customerNotInvoiceIssuer ? '' : invoiceIssuerNumber,
-          customer_identity_method: customerIdentityMethod as typeof IDENTITY_METHODS[number],
           bank_name: bankName,
           bank_branch: bankBranch,
           bank_account_type: bankAccountType,
@@ -981,24 +977,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                   </div>
                 </div>
 
-                <Separator className="my-4" />
-
-                <div className="space-y-4">
-                  <h3 className="font-medium">本人確認方法 <span className="text-destructive">*</span></h3>
-                  <Select
-                    value={customerIdentityMethod}
-                    onValueChange={setCustomerIdentityMethod}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="本人確認方法を選択してください" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {IDENTITY_METHODS.map((method) => (
-                        <SelectItem key={method} value={method}>{method}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
               <Separator />
@@ -1164,8 +1142,6 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                   <dd>
                     {customerNotInvoiceIssuer ? 'なし' : `あり (${invoiceIssuerNumber})`}
                   </dd>
-                  <dt className="text-muted-foreground">本人確認方法</dt>
-                  <dd>{customerIdentityMethod}</dd>
                 </dl>
               </div>
 
@@ -1203,7 +1179,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                     ) : (
                       <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
                         <p className="text-sm text-amber-800">
-                          申込の確定前に、本人確認書類（{customerIdentityMethod}）の撮影が必要です。書類の同梱は不要です。
+                          申込の確定前に、本人確認書類の撮影が必要です。撮影の中で書類の種類を選べます。書類の同梱は不要です。
                         </p>
                         <Button type="button" onClick={() => setShowKycDialog(true)} className="w-full">
                           本人確認書類を撮影する

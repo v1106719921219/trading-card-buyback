@@ -80,14 +80,22 @@ export async function createOrder(input: CreateOrderInput) {
   // 本人確認: メール照合は廃止。「同じLINE本人（line_user_id一致）＋承認済みeKYC＋氏名一致」のみ自動パス
   let kycRequestId: string | null = null
   let identityVerifiedAt: string | null = null
-  let identityMethod: string = customer.customer_identity_method
+  let identityMethod: string = customer.customer_identity_method || ''
   const normalize = (s: string | null | undefined) => (s ?? '').replace(/[\s　]/g, '')
+  // 本人確認方法はフォームでは選ばず、eKYC撮影で選んだ書類種別を注文に反映する
+  const DOC_LABELS: Record<string, string> = {
+    driving_license: '運転免許証',
+    my_number_card: 'マイナンバーカード',
+    passport: 'パスポート',
+    residence_card: '在留カード',
+    health_insurance: '保険証',
+  }
 
   if (lineUserId) {
     // 同じLINE本人の承認済みeKYCを探す（過去に承認された本人確認を再利用）
     const { data: approvedKyc } = await supabase
       .from('kyc_requests')
-      .select('id, customer_name')
+      .select('id, customer_name, id_document_type')
       .eq('tenant_id', tenantId)
       .eq('line_user_id', lineUserId)
       .eq('status', 'approved')
@@ -98,7 +106,7 @@ export async function createOrder(input: CreateOrderInput) {
     if (approvedKyc && normalize(approvedKyc.customer_name) === normalize(customer.customer_name)) {
       kycRequestId = approvedKyc.id
       identityVerifiedAt = new Date().toISOString()
-      identityMethod = 'eKYC確認済み'
+      identityMethod = DOC_LABELS[approvedKyc.id_document_type] ?? '本人確認済み'
     }
   }
 
@@ -116,22 +124,22 @@ export async function createOrder(input: CreateOrderInput) {
     if (rolloutSetting?.value === 'true') {
       // 撮影済みeKYCを探す。①フォームから直接渡されたID ②同じLINE本人(line_user_id)＋氏名一致
       // 状態は processing（審査待ち）／approved（承認済み）のいずれも「撮影完了」として受け付ける
-      let matched: { id: string; status: string } | null = null
+      let matched: { id: string; status: string; docType?: string } | null = null
       if (kyc_request_id) {
         const { data: submitted } = await supabase
           .from('kyc_requests')
-          .select('id, status')
+          .select('id, status, id_document_type')
           .eq('tenant_id', tenantId)
           .eq('id', kyc_request_id)
           .maybeSingle()
         if (submitted && ['processing', 'approved'].includes(submitted.status)) {
-          matched = { id: submitted.id, status: submitted.status }
+          matched = { id: submitted.id, status: submitted.status, docType: submitted.id_document_type }
         }
       }
       if (!matched && lineUserId) {
         const { data: subs } = await supabase
           .from('kyc_requests')
-          .select('id, status, customer_name')
+          .select('id, status, customer_name, id_document_type')
           .eq('tenant_id', tenantId)
           .eq('line_user_id', lineUserId)
           .in('status', ['processing', 'approved'])
@@ -140,7 +148,7 @@ export async function createOrder(input: CreateOrderInput) {
         const m = (subs ?? []).find(
           (k) => normalize(k.customer_name) === normalize(customer.customer_name)
         )
-        if (m) matched = { id: m.id, status: m.status }
+        if (m) matched = { id: m.id, status: m.status, docType: m.id_document_type }
       }
       if (!matched) {
         return {
@@ -148,10 +156,13 @@ export async function createOrder(input: CreateOrderInput) {
         }
       }
       pendingKycId = matched.id
-      // 既に承認済みなら本人確認済みとして記録
+      // 撮影で選んだ書類種別を本人確認方法として記録
+      if (matched.docType && DOC_LABELS[matched.docType]) {
+        identityMethod = DOC_LABELS[matched.docType]
+      }
+      // 既に承認済みなら本人確認済み日時も記録
       if (matched.status === 'approved') {
         identityVerifiedAt = new Date().toISOString()
-        identityMethod = 'eKYC確認済み'
       }
     }
   }
@@ -265,7 +276,7 @@ export async function createOrder(input: CreateOrderInput) {
       customer_address: customer.customer_address || null,
       customer_not_invoice_issuer: customer.customer_not_invoice_issuer,
       invoice_issuer_number: customer.invoice_issuer_number || null,
-      customer_identity_method: customer.customer_identity_method,
+      customer_identity_method: identityMethod,
       bank_name: customer.bank_name,
       bank_branch: customer.bank_branch,
       bank_account_type: customer.bank_account_type,

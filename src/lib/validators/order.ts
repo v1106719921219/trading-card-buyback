@@ -28,7 +28,8 @@ export const customerInfoSchema = z.object({
   customer_address: z.string().min(1, '住所を入力してください').max(500),
   customer_not_invoice_issuer: z.boolean(),
   invoice_issuer_number: z.string().optional().or(z.literal('')).transform(v => v || null),
-  customer_identity_method: z.enum(IDENTITY_METHODS, { message: '本人確認方法を選択してください' }),
+  // 本人確認方法はフォームでは選ばせず、eKYC撮影で選んだ種類を注文に反映する（任意）
+  customer_identity_method: z.enum(IDENTITY_METHODS).optional().or(z.literal('')),
   bank_name: z.string().min(1, '銀行名を入力してください').max(100),
   bank_branch: z.string().min(1, '支店名を入力してください').max(100),
   bank_account_type: z.enum(['普通', '当座']),
