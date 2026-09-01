@@ -48,8 +48,14 @@ export async function createOrder(input: CreateOrderInput) {
     lineUserId = verifyLineUserToken(line_user_token)
   }
 
-  // 重複チェック: 2分以内の連打による二重申込を防ぐ。LINE本人（line_user_id）で判定。
-  // LINE未連携（line_user_idなし）は判定キーが無いのでスキップ
+  // Calculate total
+  const total_amount = items.reduce(
+    (sum, item) => sum + item.unit_price * item.quantity,
+    0
+  )
+
+  // 重複チェック: 2分以内の連打による二重申込を防ぐ。LINE本人＋同じ合計金額のときだけ重複扱い。
+  // （別内容の正当な2件目＝金額が違うものは通す。LINE未連携は判定キーが無いのでスキップ）
   if (lineUserId) {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString()
     const { data: existingOrder } = await supabase
@@ -57,6 +63,7 @@ export async function createOrder(input: CreateOrderInput) {
       .select('order_number')
       .eq('tenant_id', tenantId)
       .eq('line_user_id', lineUserId)
+      .eq('total_amount', total_amount)
       .in('status', ['申込', '承認待ち'])
       .gte('created_at', twoMinutesAgo)
       .order('created_at', { ascending: false })
@@ -67,12 +74,6 @@ export async function createOrder(input: CreateOrderInput) {
       return { success: true, order_number: existingOrder.order_number, office_id }
     }
   }
-
-  // Calculate total
-  const total_amount = items.reduce(
-    (sum, item) => sum + item.unit_price * item.quantity,
-    0
-  )
 
   // PayPay銀行の表記を統一
   const bankName = customer.bank_name === 'PayPay銀行' ? 'PayPay銀行（ペイペイ銀行）' : customer.bank_name

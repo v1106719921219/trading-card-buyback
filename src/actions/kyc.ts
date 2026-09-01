@@ -520,7 +520,7 @@ export async function getOrderKycInfo(orderId: string) {
 
   const { data: order } = await supabase
     .from('orders')
-    .select('id, tenant_id, customer_email, customer_identity_method, kyc_request_id, identity_verified_at')
+    .select('id, tenant_id, customer_name, line_user_id, customer_identity_method, kyc_request_id, identity_verified_at')
     .eq('id', orderId)
     .single()
 
@@ -561,16 +561,17 @@ export async function getOrderKycInfo(orderId: string) {
       .maybeSingle()
     kyc = data
   }
-  if (!kyc) {
+  if (!kyc && order.line_user_id) {
+    // メール廃止後の最終フォールバック: 同じLINE本人＋氏名一致の最新eKYC
     const { data } = await supabase
       .from('kyc_requests')
-      .select(kycSelect)
+      .select(`${kycSelect}, customer_name`)
       .eq('tenant_id', order.tenant_id)
-      .eq('customer_email', order.customer_email)
+      .eq('line_user_id', order.line_user_id)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    kyc = data
+      .limit(10)
+    const norm = (s: string | null | undefined) => (s ?? '').replace(/[\s　]/g, '')
+    kyc = (data ?? []).find((k) => norm(k.customer_name) === norm(order.customer_name)) ?? null
   }
 
   const images: { label: string; url: string }[] = []

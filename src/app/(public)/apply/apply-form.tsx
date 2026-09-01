@@ -359,9 +359,12 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         customerOccupation.trim() &&
         customerPrefecture &&
         customerAddress.trim() &&
+        // 電話番号は任意だが、入れる場合は形式を満たすこと（確定時のエラーを事前に防ぐ）
+        (!customerPhone.trim() || /^[0-9-]{10,15}$/.test(customerPhone.trim())) &&
         bankName.trim() &&
         bankBranch.trim() &&
-        bankAccountNumber.trim() &&
+        // 口座番号は7〜8桁の数字
+        /^[0-9]{7,8}$/.test(bankAccountNumber.trim()) &&
         bankAccountHolder.trim()
       )
     }

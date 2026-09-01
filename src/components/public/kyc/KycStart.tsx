@@ -11,27 +11,17 @@ interface KycStartProps {
 }
 
 export function KycStart({ onNext }: KycStartProps) {
-  const [email, setEmail] = useState('')
   const [name, setName] = useState('')
-  const [errors, setErrors] = useState<{ email?: string; name?: string }>({})
+  const [errors, setErrors] = useState<{ name?: string }>({})
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const newErrors: { email?: string; name?: string } = {}
-
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = '正しいメールアドレスを入力してください'
-    }
     if (!name.trim()) {
-      newErrors.name = 'お名前を入力してください'
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors)
+      setErrors({ name: 'お名前を入力してください' })
       return
     }
-
-    onNext(email, name.trim())
+    // メール入力は廃止（LINE一本化）。氏名のみで進む
+    onNext('', name.trim())
   }
 
   return (
@@ -54,22 +44,6 @@ export function KycStart({ onNext }: KycStartProps) {
             />
             {errors.name && (
               <p className="text-xs text-red-500">{errors.name}</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="kyc-email">メールアドレス</Label>
-            <Input
-              id="kyc-email"
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value)
-                setErrors((prev) => ({ ...prev, email: undefined }))
-              }}
-              placeholder="example@email.com"
-            />
-            {errors.email && (
-              <p className="text-xs text-red-500">{errors.email}</p>
             )}
           </div>
           <div className="rounded-md bg-blue-50 p-3 text-xs text-blue-700">
