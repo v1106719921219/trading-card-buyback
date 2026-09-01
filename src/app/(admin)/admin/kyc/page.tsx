@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { AdminHeader } from '@/components/admin/header'
 import { KycListTable } from '@/components/admin/kyc/KycListTable'
-import { getKycRequests } from '@/actions/kyc'
+import { getKycRequests, getKycDeletable } from '@/actions/kyc'
 import {
   Select,
   SelectContent,
@@ -28,6 +28,11 @@ export default function KycListPage() {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
+  const [deletable, setDeletable] = useState(false)
+
+  useEffect(() => {
+    getKycDeletable().then(setDeletable)
+  }, [])
 
   async function fetchData() {
     setLoading(true)
@@ -93,7 +98,7 @@ export default function KycListPage() {
         </Select>
       </div>
 
-      <KycListTable requests={requests} loading={loading} />
+      <KycListTable requests={requests} loading={loading} deletable={deletable} onDeleted={fetchData} />
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between">

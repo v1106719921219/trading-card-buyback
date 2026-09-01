@@ -624,3 +624,65 @@ export async function getKycAuditLogs(kycRequestId: string) {
 
   return { data: data as import('@/types/kyc').KycAuditLog[] }
 }
+
+/**
+ * この管理画面でeKYC削除ボタンを出してよいか（千葉店テナントのみ許可）。
+ * 東京（本番・実顧客あり）では本人確認記録を消せないようにする安全策。
+ */
+export async function getKycDeletable(): Promise<boolean> {
+  try {
+    const tenant = await getTenant()
+    return tenant?.slug === 'chiba'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * eKYCリクエストを削除する（千葉店のみ）。画像・監査ログも合わせて削除。
+ * 紐づく注文のkyc_request_idはON DELETE SET NULLで自動的に外れる（注文自体は消さない）。
+ */
+export async function deleteKycRequest(id: string) {
+  const { error: authError } = await requireRole(['admin', 'manager', 'staff'])
+  if (authError) return { error: authError }
+
+  const tenant = await getTenant()
+  if (!tenant) return { error: 'テナント情報を取得できません' }
+  if (tenant.slug !== 'chiba') {
+    return { error: 'この操作は千葉店でのみ可能です' }
+  }
+
+  const supabase = createAdminClient()
+  // 同一テナントのリクエストのみ対象。画像パスも取得
+  const { data: kyc } = await supabase
+    .from('kyc_requests')
+    .select('id, id_front_image_path, id_thickness_image_path, id_back_image_path, face_image_path')
+    .eq('id', id)
+    .eq('tenant_id', tenant.id)
+    .maybeSingle()
+
+  if (!kyc) return { error: '対象の本人確認が見つかりません' }
+
+  // 画像削除
+  const paths = [
+    kyc.id_front_image_path,
+    kyc.id_thickness_image_path,
+    kyc.id_back_image_path,
+    kyc.face_image_path,
+  ].filter(Boolean) as string[]
+  if (paths.length > 0) {
+    await supabase.storage.from('kyc-documents').remove(paths).catch(() => {})
+  }
+
+  await supabase.from('kyc_audit_logs').delete().eq('kyc_request_id', id)
+  const { error } = await supabase
+    .from('kyc_requests')
+    .delete()
+    .eq('id', id)
+    .eq('tenant_id', tenant.id)
+
+  if (error) return { error: sanitizeError(error) }
+
+  revalidatePath('/admin/kyc')
+  return { success: true }
+}
