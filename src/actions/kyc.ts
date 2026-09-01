@@ -306,6 +306,10 @@ export async function getKycRequests(options?: {
 
   if (options?.status) {
     query = query.eq('status', options.status)
+  } else {
+    // 既定では「画像アップロード待ち（pending＝撮影せず離脱した未完了）」を除外し、
+    // 対応が必要な分だけ表示する。ステータスで明示選択すれば表示可能
+    query = query.neq('status', 'pending')
   }
 
   if (options?.search) {
