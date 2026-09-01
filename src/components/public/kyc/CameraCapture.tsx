@@ -159,6 +159,45 @@ export function CameraCapture({
     }
   }
 
+  // カメラが使えない場合のフォールバック: 端末のカメラアプリ／写真から選ぶ
+  async function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const bitmap = await createImageBitmap(file)
+      let w = bitmap.width
+      let h = bitmap.height
+      if (Math.max(w, h) > MAX_IMAGE_SIZE) {
+        const r = MAX_IMAGE_SIZE / Math.max(w, h)
+        w = Math.round(w * r)
+        h = Math.round(h * r)
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      ctx.drawImage(bitmap, 0, 0, w, h)
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            setCapturedBlob(blob)
+            setPreview(URL.createObjectURL(blob))
+            stopCamera()
+          }
+        },
+        'image/jpeg',
+        JPEG_QUALITY
+      )
+    } catch {
+      // createImageBitmap非対応時はそのまま使う
+      setCapturedBlob(file)
+      setPreview(URL.createObjectURL(file))
+      stopCamera()
+    }
+  }
+
   if (cameraError) {
     return (
       <Card>
@@ -166,9 +205,26 @@ export function CameraCapture({
           <CardTitle className="text-lg">{title}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {cameraError}
+          <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700 space-y-1">
+            <p>{cameraError}</p>
+            <p className="text-xs">
+              iPhoneの場合：設定 → LINE → カメラ をONにしてから開き直してください。
+            </p>
           </div>
+          {/* フォールバック: 端末のカメラアプリ／写真から選ぶ */}
+          <label className="block">
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleFilePick}
+            />
+            <span className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-green-600 px-4 text-base font-medium text-white hover:bg-green-700">
+              <Camera className="h-5 w-5" />
+              端末のカメラで撮影する
+            </span>
+          </label>
           <Button variant="outline" onClick={onBack} className="w-full">
             <ArrowLeft className="mr-2 h-4 w-4" />
             戻る
@@ -288,6 +344,19 @@ export function CameraCapture({
                 <ArrowLeft className="mr-1 h-4 w-4" />
                 戻る
               </Button>
+              {/* カメラがうまく動かない場合のフォールバック */}
+              <label className="block text-center">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleFilePick}
+                />
+                <span className="cursor-pointer text-xs text-muted-foreground underline underline-offset-2">
+                  カメラが使えない場合は、端末のカメラアプリで撮影
+                </span>
+              </label>
             </div>
           </>
         ) : (
