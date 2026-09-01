@@ -153,13 +153,17 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [bankAccountNumber, setBankAccountNumber] = useState(prefillCustomer?.bank_account_number ?? '')
   const [bankAccountHolder, setBankAccountHolder] = useState(prefillCustomer?.bank_account_holder ?? '')
 
-  // --- 入力途中の一時保存（端末内のみ・初めての人が離脱→再開しても再入力を減らす） ---
-  const DRAFT_KEY = 'buyback_apply_draft_v1'
-  // 復元（サーバー側の自動入力が無い場合のみ。LINE本人の自動入力があれば後から上書きされる）
+  // --- 入力途中の一時保存（端末内のみ・LINE本人単位で保存し、別の人の端末では復元しない） ---
+  // ※共有端末で前の人の口座情報が復元されないよう、必ずLINE本人ID(idTokenのsub)でキーを分ける
+  const [draftUserId, setDraftUserId] = useState<string | null>(null)
+  function draftKey(uid: string) {
+    return `buyback_apply_draft_v2_${uid}`
+  }
+  // 本人が確定したら（LIFF本人）その人の下書きだけ復元（自動入力が無い時のみ）
   useEffect(() => {
-    if (prefillCustomer) return
+    if (!draftUserId || prefillCustomer || linePrefilled) return
     try {
-      const raw = localStorage.getItem(DRAFT_KEY)
+      const raw = localStorage.getItem(draftKey(draftUserId))
       if (!raw) return
       const d = JSON.parse(raw)
       if (d.customerName) setCustomerName(d.customerName)
@@ -179,12 +183,13 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
       if (d.bankAccountHolder) setBankAccountHolder(d.bankAccountHolder)
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  // 保存（変更を500ms後に端末内へ保存）
+  }, [draftUserId])
+  // 保存（LINE本人がいる時のみ・本人単位のキーで端末内に保存）
   useEffect(() => {
+    if (!draftUserId) return
     const t = setTimeout(() => {
       try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        localStorage.setItem(draftKey(draftUserId), JSON.stringify({
           customerName, customerLineName, customerPhone, customerBirthDate,
           customerOccupation, customerPrefecture, customerAddress, customerPostalCode,
           customerNotInvoiceIssuer, invoiceIssuerNumber,
@@ -193,7 +198,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
       } catch {}
     }, 500)
     return () => clearTimeout(t)
-  }, [customerName, customerLineName, customerPhone, customerBirthDate, customerOccupation, customerPrefecture, customerAddress, customerPostalCode, customerNotInvoiceIssuer, invoiceIssuerNumber, bankName, bankBranch, bankAccountType, bankAccountNumber, bankAccountHolder])
+  }, [draftUserId, customerName, customerLineName, customerPhone, customerBirthDate, customerOccupation, customerPrefecture, customerAddress, customerPostalCode, customerNotInvoiceIssuer, invoiceIssuerNumber, bankName, bankBranch, bankAccountType, bankAccountNumber, bankAccountHolder])
 
   const categories = initialCategories
   const products = initialProducts
@@ -369,6 +374,14 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   useEffect(() => {
     initLiff().then(async (state) => {
       setLiff(state)
+      // idTokenのsub（LINE本人ID）を取り出し、一時保存を本人単位にするためのキーにする
+      if (state.idToken) {
+        try {
+          const payload = state.idToken.split('.')[1]
+          const sub = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))).sub
+          if (sub) setDraftUserId(String(sub))
+        } catch {}
+      }
       // LINE連携済み＋eKYC済みの本人なら、過去情報を安全に自動入力
       if (state.inLiff && state.idToken) {
         const data = await getLinePrefillByIdToken(state.idToken)
@@ -459,7 +472,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
       }
 
       // 申込完了したら一時保存を消す
-      try { localStorage.removeItem(DRAFT_KEY) } catch {}
+      try { if (draftUserId) localStorage.removeItem(draftKey(draftUserId)) } catch {}
       router.push(`/apply/complete?order_number=${result.order_number}&office_id=${result.office_id}`)
     } catch (e) {
       setLoading(false)

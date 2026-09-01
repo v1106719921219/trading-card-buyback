@@ -114,7 +114,7 @@ export default function TrackPage() {
         ) : (
           <div className="space-y-3">
             {pending.map((o) => (
-              <Card key={o.order_number}>
+              <Card key={`${o._db ?? 't'}-${o.order_number}`}>
                 <CardContent className="space-y-2 py-4">
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-1.5 font-mono text-sm">

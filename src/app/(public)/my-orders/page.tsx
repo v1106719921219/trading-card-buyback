@@ -156,7 +156,7 @@ export default function MyOrdersPage() {
               const s = CUSTOMER_STATUS[o.status] ?? { label: o.status, color: 'bg-gray-100 text-gray-700', step: 0 }
               const amount = (o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount ?? 0)
               return (
-                <Card key={o.order_number}>
+                <Card key={`${o._db ?? 't'}-${o.order_number}`}>
                   <CardContent className="space-y-2 py-4">
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-1.5 font-mono text-sm">

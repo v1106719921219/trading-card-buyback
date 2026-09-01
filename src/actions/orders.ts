@@ -128,11 +128,16 @@ export async function createOrder(input: CreateOrderInput) {
       if (kyc_request_id) {
         const { data: submitted } = await supabase
           .from('kyc_requests')
-          .select('id, status, id_document_type')
+          .select('id, status, id_document_type, customer_name')
           .eq('tenant_id', tenantId)
           .eq('id', kyc_request_id)
           .maybeSingle()
-        if (submitted && ['processing', 'approved'].includes(submitted.status)) {
+        // 撮影後に氏名を変更した等の食い違いを防ぐため、氏名一致も確認する
+        if (
+          submitted &&
+          ['processing', 'approved'].includes(submitted.status) &&
+          normalize(submitted.customer_name) === normalize(customer.customer_name)
+        ) {
           matched = { id: submitted.id, status: submitted.status, docType: submitted.id_document_type }
         }
       }
