@@ -102,6 +102,8 @@ export async function verifyLineIdToken(idToken: string): Promise<VerifiedResult
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ id_token: idToken, client_id: channelId }),
+      // ハング防止（応答が無いとServer Actionの順番待ちが詰まり画面が進まなくなる）
+      signal: AbortSignal.timeout(5000),
     })
 
     if (!res.ok) {

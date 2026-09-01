@@ -397,10 +397,14 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const kycDone = kycStatus === 'verified' || kycStatus === 'submitted'
 
   useEffect(() => {
-    // 確認画面に入ったタイミングで、このLINE本人が確認済み（スキップ可）かをチェック
+    // 確認画面に入ったタイミングで、このLINE本人が確認済み（スキップ可）かをチェック。
+    // 事前チェックが遅くても撮影に進めるよう、6秒でタイムアウトして'none'（撮影が必要）にフォールバック
     if (step === 2 && needsKyc && customerName && liff?.idToken) {
       setKycStatus('checking')
-      checkKycForApply(liff.idToken, customerName).then(setKycStatus)
+      Promise.race<'checking' | 'verified' | 'submitted' | 'none'>([
+        checkKycForApply(liff.idToken, customerName),
+        new Promise((resolve) => setTimeout(() => resolve('none'), 6000)),
+      ]).then(setKycStatus)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, needsKyc, liff?.idToken])
