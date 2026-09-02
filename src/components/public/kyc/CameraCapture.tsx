@@ -302,6 +302,9 @@ export function CameraCapture({
         (blob) => {
           URL.revokeObjectURL(url)
           if (blob) {
+            // エラー画面はプレビューより先に分岐するため、ここで解除しないと
+            // 撮影後もカメラアプリ案内の画面のまま止まってしまう
+            setCameraError(null)
             setCapturedBlob(blob)
             setCapturedMeta({
               src: 'file',
