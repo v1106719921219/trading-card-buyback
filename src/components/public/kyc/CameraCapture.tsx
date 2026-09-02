@@ -3,7 +3,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Camera, RotateCcw, Check, ArrowLeft, RefreshCw, Settings } from 'lucide-react'
+import { Camera, RotateCcw, Check, ArrowLeft, RefreshCw, Settings, Image as ImageIcon } from 'lucide-react'
 
 // 撮影時の画面状況。写真の写り（枠ズレ等）の原因調査用に監査ログへ残す
 export type CaptureMeta = {
@@ -326,8 +326,22 @@ export function CameraCapture({
             {cameraError}
           </div>
 
-          {/* いちばん早い解決策を最上部に: 設定を変えずに端末のカメラアプリ／写真から選ぶ */}
-          <div className="space-y-1">
+          {/* 設定を変えずに進める手段。capture属性がないとAndroidではカメラではなく
+              フォトピッカーが開いてしまうため、「カメラ」と「写真から選ぶ」を分ける */}
+          <div className="space-y-2">
+            <label className="block">
+              <input
+                type="file"
+                accept="image/*"
+                capture={facingMode === 'user' ? 'user' : 'environment'}
+                className="hidden"
+                onChange={handleFilePick}
+              />
+              <span className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-green-600 px-4 text-base font-medium text-white hover:bg-green-700">
+                <Camera className="h-5 w-5" />
+                端末のカメラアプリで撮影する
+              </span>
+            </label>
             <label className="block">
               <input
                 type="file"
@@ -335,9 +349,9 @@ export function CameraCapture({
                 className="hidden"
                 onChange={handleFilePick}
               />
-              <span className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-green-600 px-4 text-base font-medium text-white hover:bg-green-700">
-                <Camera className="h-5 w-5" />
-                端末のカメラで撮影する
+              <span className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <ImageIcon className="h-4 w-4" />
+                撮影済みの写真から選ぶ
               </span>
             </label>
             <p className="text-center text-xs text-muted-foreground">
@@ -489,18 +503,32 @@ export function CameraCapture({
                 <ArrowLeft className="mr-1 h-4 w-4" />
                 戻る
               </Button>
-              {/* カメラがうまく動かない場合のフォールバック */}
-              <label className="block text-center">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleFilePick}
-                />
-                <span className="cursor-pointer text-xs text-muted-foreground underline underline-offset-2">
-                  カメラが使えない場合は、端末のカメラアプリで撮影
-                </span>
-              </label>
+              {/* カメラがうまく動かない場合のフォールバック（カメラ／写真選択を分ける） */}
+              <div className="flex items-center justify-center gap-4">
+                <label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture={facingMode === 'user' ? 'user' : 'environment'}
+                    className="hidden"
+                    onChange={handleFilePick}
+                  />
+                  <span className="cursor-pointer text-xs text-muted-foreground underline underline-offset-2">
+                    端末のカメラで撮影
+                  </span>
+                </label>
+                <label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFilePick}
+                  />
+                  <span className="cursor-pointer text-xs text-muted-foreground underline underline-offset-2">
+                    写真から選ぶ
+                  </span>
+                </label>
+              </div>
             </div>
           </>
         ) : (
