@@ -315,6 +315,9 @@ export function CameraCapture({
     },
   }[device]
 
+  // Android×LINEはWebカメラが使えないので、カメラアプリ撮影を主経路にする
+  const isLineAndroid = device === 'android-line'
+
   if (cameraError) {
     return (
       <Card>
@@ -322,12 +325,21 @@ export function CameraCapture({
           <CardTitle className="text-lg">{title}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {cameraError}
-          </div>
+          {/* Android版LINEの内部ブラウザはWebカメラ(getUserMedia)自体を許可しないため、
+              OS権限をONにしても直らない。エラーとして見せず、端末のカメラアプリ撮影を
+              通常の手順として案内する */}
+          {isLineAndroid ? (
+            <div className="rounded-md border bg-gray-50 p-3 text-sm text-gray-700">
+              LINEの画面ではカメラを直接使えません。下のボタンから
+              <span className="font-medium">端末のカメラアプリ</span>で撮影してください。
+            </div>
+          ) : (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {cameraError}
+            </div>
+          )}
 
-          {/* 設定を変えずに進める手段。本人確認なので保存済み写真の流用は認めず、
-              capture属性で端末のカメラアプリを直接起動させる */}
+          {/* 本人確認なので保存済み写真の流用は認めず、capture属性でカメラアプリを直接起動する */}
           <div className="space-y-2">
             <label className="block">
               <input
@@ -337,40 +349,69 @@ export function CameraCapture({
                 className="hidden"
                 onChange={handleFilePick}
               />
-              <span className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-green-600 px-4 text-base font-medium text-white hover:bg-green-700">
-                <Camera className="h-5 w-5" />
-                端末のカメラアプリで撮影する
+              <span className="flex h-14 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-green-600 px-4 text-lg font-medium text-white hover:bg-green-700">
+                <Camera className="h-6 w-6" />
+                カメラを起動して撮影する
               </span>
             </label>
             <p className="text-center text-xs text-muted-foreground">
-              設定を変えずにこのまま進められます（おすすめ）<br />
+              {guideType === 'ellipse'
+                ? '顔全体が大きく写るように撮影してください'
+                : guideType === 'thickness'
+                ? '表面の記載が見える状態のまま少し傾けて、厚み（側面）も一緒に写してください'
+                : 'カードが画面いっぱいになるように、文字がはっきり読めるように撮影してください'}
+              <br />
               本人確認のため、その場で撮影してください（保存済みの写真は使えません）
             </p>
           </div>
 
-          {/* 設定を変えたい人向け: 端末別の手順 → 再試行まで一本で案内 */}
-          <div className="rounded-md border bg-gray-50 p-3">
-            <p className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
-              <Settings className="h-4 w-4" />
-              {settingsGuide.title}
-            </p>
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
-              {settingsGuide.steps.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ol>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setCameraError(null)
-                setRetryKey((k) => k + 1)
-              }}
-              className="mt-3 h-11 w-full"
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              カメラを再試行
-            </Button>
-          </div>
+          {/* 端末別の設定手順。Android×LINEは設定を変えても直らないので折りたたみに格下げ */}
+          {isLineAndroid ? (
+            <details className="rounded-md border bg-gray-50 p-3">
+              <summary className="cursor-pointer text-sm font-medium text-gray-800">
+                カメラが起動しない場合
+              </summary>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+                {settingsGuide.steps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setCameraError(null)
+                  setRetryKey((k) => k + 1)
+                }}
+                className="mt-3 h-11 w-full"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                カメラを再試行
+              </Button>
+            </details>
+          ) : (
+            <div className="rounded-md border bg-gray-50 p-3">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
+                <Settings className="h-4 w-4" />
+                {settingsGuide.title}
+              </p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+                {settingsGuide.steps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setCameraError(null)
+                  setRetryKey((k) => k + 1)
+                }}
+                className="mt-3 h-11 w-full"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                カメラを再試行
+              </Button>
+            </div>
+          )}
 
           <Button variant="outline" onClick={onBack} className="w-full">
             <ArrowLeft className="mr-2 h-4 w-4" />
