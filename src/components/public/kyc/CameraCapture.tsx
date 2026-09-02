@@ -431,9 +431,6 @@ export function CameraCapture({
                 カメラを起動して撮影する
               </span>
             </label>
-            <p className="text-center text-xs text-muted-foreground">
-              本人確認のため、その場で撮影してください（保存済みの写真は使えません）
-            </p>
           </div>
 
           {/* 端末別の設定手順。Android×LINEは設定を変えても直らないので折りたたみに格下げ */}
