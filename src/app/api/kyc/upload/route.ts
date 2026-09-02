@@ -27,6 +27,16 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File | null
     const kycRequestId = formData.get('kyc_request_id') as string | null
     const imageType = formData.get('image_type') as string | null
+    // 撮影時の画面状況（任意）。写りズレの原因調査用に監査ログへ残すだけで、動作には影響させない
+    const captureMetaRaw = formData.get('capture_meta')
+    let captureMeta: unknown = undefined
+    if (typeof captureMetaRaw === 'string' && captureMetaRaw.length <= 1000) {
+      try {
+        captureMeta = JSON.parse(captureMetaRaw)
+      } catch {
+        captureMeta = undefined
+      }
+    }
 
     // バリデーション
     if (!file || !kycRequestId || !imageType) {
@@ -96,7 +106,12 @@ export async function POST(request: NextRequest) {
       tenantId: kycRequest.tenant_id,
       kycRequestId,
       action: 'image_uploaded',
-      details: { image_type: imageType, file_size: file.size, content_type: file.type },
+      details: {
+        image_type: imageType,
+        file_size: file.size,
+        content_type: file.type,
+        ...(captureMeta ? { capture: captureMeta } : {}),
+      },
       ipAddress: ip,
       userAgent: request.headers.get('user-agent'),
     }).catch((err) => console.error('[KYC] Audit log error:', err))

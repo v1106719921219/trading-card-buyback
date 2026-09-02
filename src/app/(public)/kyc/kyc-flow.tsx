@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { KycStart } from '@/components/public/kyc/KycStart'
 import { IdTypeSelect } from '@/components/public/kyc/IdTypeSelect'
-import { CameraCapture } from '@/components/public/kyc/CameraCapture'
+import { CameraCapture, type CaptureMeta } from '@/components/public/kyc/CameraCapture'
 import { KycConfirm } from '@/components/public/kyc/KycConfirm'
 import { KycComplete } from '@/components/public/kyc/KycComplete'
 import { createKycRequest, submitKycRequest } from '@/actions/kyc'
@@ -59,6 +59,8 @@ export function KycFlow({
     id_back: null,
     face: null,
   })
+  // 撮影時の画面状況（枠ズレ調査用。監査ログに残す）
+  const [captureMeta, setCaptureMeta] = useState<Record<string, CaptureMeta | undefined>>({})
   const [error, setError] = useState<string | null>(null)
 
   const needsBackImage = idDocumentType ? REQUIRES_BACK_IMAGE.includes(idDocumentType) : false
@@ -95,9 +97,14 @@ export function KycFlow({
     setStep('id_capture_front')
   }
 
-  function handleCapture(imageType: 'id_front' | 'id_thickness' | 'id_back' | 'face', blob: Blob) {
+  function handleCapture(
+    imageType: 'id_front' | 'id_thickness' | 'id_back' | 'face',
+    blob: Blob,
+    meta?: CaptureMeta
+  ) {
     if (isPreview) return // プレビューモードでは何も送信せずその場に留まる
     setImages((prev) => ({ ...prev, [imageType]: blob }))
+    setCaptureMeta((prev) => ({ ...prev, [imageType]: meta }))
 
     if (imageType === 'id_front') {
       if (needsThicknessImage) {
@@ -134,6 +141,7 @@ export function KycFlow({
         fd.append('file', images.id_front, 'id_front.jpg')
         fd.append('kyc_request_id', kycRequestId)
         fd.append('image_type', 'id_front')
+        if (captureMeta.id_front) fd.append('capture_meta', JSON.stringify(captureMeta.id_front))
         uploads.push(fetch('/api/kyc/upload', { method: 'POST', body: fd }))
       }
 
@@ -142,6 +150,7 @@ export function KycFlow({
         fd.append('file', images.id_thickness, 'id_thickness.jpg')
         fd.append('kyc_request_id', kycRequestId)
         fd.append('image_type', 'id_thickness')
+        if (captureMeta.id_thickness) fd.append('capture_meta', JSON.stringify(captureMeta.id_thickness))
         uploads.push(fetch('/api/kyc/upload', { method: 'POST', body: fd }))
       }
 
@@ -150,6 +159,7 @@ export function KycFlow({
         fd.append('file', images.id_back, 'id_back.jpg')
         fd.append('kyc_request_id', kycRequestId)
         fd.append('image_type', 'id_back')
+        if (captureMeta.id_back) fd.append('capture_meta', JSON.stringify(captureMeta.id_back))
         uploads.push(fetch('/api/kyc/upload', { method: 'POST', body: fd }))
       }
 
@@ -158,6 +168,7 @@ export function KycFlow({
         fd.append('file', images.face, 'face.jpg')
         fd.append('kyc_request_id', kycRequestId)
         fd.append('image_type', 'face')
+        if (captureMeta.face) fd.append('capture_meta', JSON.stringify(captureMeta.face))
         uploads.push(fetch('/api/kyc/upload', { method: 'POST', body: fd }))
       }
 
@@ -205,7 +216,7 @@ export function KycFlow({
           description="枠内に収まるように撮影してください"
           guideType="rectangle"
           facingMode="environment"
-          onCapture={(blob) => handleCapture('id_front', blob)}
+          onCapture={(blob, meta) => handleCapture('id_front', blob, meta)}
           onBack={() => setStep('id_type')}
         />
       )}
@@ -216,7 +227,7 @@ export function KycFlow({
           description="表面の記載が見える状態のまま少し傾けて、厚み（側面）も一緒に写るように撮影してください"
           guideType="thickness"
           facingMode="environment"
-          onCapture={(blob) => handleCapture('id_thickness', blob)}
+          onCapture={(blob, meta) => handleCapture('id_thickness', blob, meta)}
           onBack={() => setStep('id_capture_front')}
         />
       )}
@@ -227,7 +238,7 @@ export function KycFlow({
           description="裏面を枠内に収まるように撮影してください"
           guideType="rectangle"
           facingMode="environment"
-          onCapture={(blob) => handleCapture('id_back', blob)}
+          onCapture={(blob, meta) => handleCapture('id_back', blob, meta)}
           onBack={() => needsThicknessImage ? setStep('id_capture_thickness') : setStep('id_capture_front')}
         />
       )}
@@ -238,7 +249,7 @@ export function KycFlow({
           description="枠内に顔が収まるように撮影してください"
           guideType="ellipse"
           facingMode="user"
-          onCapture={(blob) => handleCapture('face', blob)}
+          onCapture={(blob, meta) => handleCapture('face', blob, meta)}
           onBack={() => needsBackImage ? setStep('id_capture_back') : needsThicknessImage ? setStep('id_capture_thickness') : setStep('id_capture_front')}
         />
       )}

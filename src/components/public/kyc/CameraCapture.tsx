@@ -5,12 +5,26 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Camera, RotateCcw, Check, ArrowLeft, RefreshCw, Settings } from 'lucide-react'
 
+// 撮影時の画面状況。写真の写り（枠ズレ等）の原因調査用に監査ログへ残す
+export type CaptureMeta = {
+  src: 'camera' | 'file'
+  vw?: number
+  vh?: number
+  dispW?: number
+  dispH?: number
+  outW?: number
+  outH?: number
+  vpW?: number
+  vpH?: number
+  dpr?: number
+}
+
 interface CameraCaptureProps {
   title: string
   description: string
   guideType: 'rectangle' | 'ellipse' | 'thickness'
   facingMode: 'user' | 'environment'
-  onCapture: (blob: Blob) => void
+  onCapture: (blob: Blob, meta?: CaptureMeta) => void
   onBack: () => void
 }
 
@@ -30,10 +44,12 @@ export function CameraCapture({
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const viewfinderRef = useRef<HTMLDivElement>(null)
   const [cameraReady, setCameraReady] = useState(false)
   const [captureReady, setCaptureReady] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
+  const [capturedMeta, setCapturedMeta] = useState<CaptureMeta | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
   // 「カメラを再試行」用。エラー画面ではvideo要素が消えているため、
   // キーを更新して再マウント後に startCamera を走らせる
@@ -74,6 +90,12 @@ export function CameraCapture({
         videoRef.current.srcObject = stream
         videoRef.current.onloadedmetadata = () => {
           setCameraReady(true)
+          // ダイアログがスクロールしていると、見えているのがビデオの一部だけになり
+          // 中央のガイド枠に合わせられない（撮った写真が上下にズレる）。
+          // カメラ起動時にビューファインダー全体が見える位置まで自動スクロールする
+          setTimeout(() => {
+            viewfinderRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          }, 0)
           // 少し待ってから撮影可能にする（ユーザーが位置合わせする時間）
           setTimeout(() => setCaptureReady(true), CAPTURE_DELAY_MS)
         }
@@ -156,6 +178,16 @@ export function CameraCapture({
       (blob) => {
         if (blob) {
           setCapturedBlob(blob)
+          setCapturedMeta({
+            src: 'camera',
+            vw, vh,
+            dispW, dispH,
+            outW: canvas.width,
+            outH: canvas.height,
+            vpW: window.innerWidth,
+            vpH: window.innerHeight,
+            dpr: window.devicePixelRatio,
+          })
           setPreview(URL.createObjectURL(blob))
           stopCamera()
         }
@@ -171,11 +203,12 @@ export function CameraCapture({
     }
     setPreview(null)
     setCapturedBlob(null)
+    setCapturedMeta(null)
   }
 
   function handleConfirm() {
     if (capturedBlob) {
-      onCapture(capturedBlob)
+      onCapture(capturedBlob, capturedMeta ?? undefined)
     }
   }
 
@@ -210,6 +243,14 @@ export function CameraCapture({
           URL.revokeObjectURL(url)
           if (blob) {
             setCapturedBlob(blob)
+            setCapturedMeta({
+              src: 'file',
+              outW: w,
+              outH: h,
+              vpW: window.innerWidth,
+              vpH: window.innerHeight,
+              dpr: window.devicePixelRatio,
+            })
             setPreview(URL.createObjectURL(blob))
             stopCamera()
           }
@@ -346,13 +387,13 @@ export function CameraCapture({
       <CardContent className="space-y-4">
         {!preview ? (
           <>
-            <div className="relative overflow-hidden rounded-lg bg-black">
+            <div ref={viewfinderRef} className="relative overflow-hidden rounded-lg bg-black">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full max-h-[62vh] object-cover"
+                className="w-full max-h-[40vh] object-cover"
                 style={{
                   transform: facingMode === 'user' ? 'scaleX(-1)' : undefined,
                 }}
@@ -433,8 +474,9 @@ export function CameraCapture({
               )}
             </div>
             <canvas ref={canvasRef} className="hidden" />
-            {/* 片手（親指）で押しやすいよう、撮影は幅いっぱいの大きなボタンにする */}
-            <div className="space-y-2">
+            {/* 片手（親指）で押しやすいよう、撮影は幅いっぱいの大きなボタンにする。
+                ダイアログがスクロールしても押せるよう下端に固定する */}
+            <div className="sticky bottom-0 z-10 space-y-2 bg-background pb-1 pt-2">
               <Button
                 onClick={handleCapture}
                 disabled={!captureReady}
@@ -465,7 +507,7 @@ export function CameraCapture({
           <>
             <div className="overflow-hidden rounded-lg bg-black">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={preview} alt="プレビュー" className="w-full max-h-[62vh] object-contain" />
+              <img src={preview} alt="プレビュー" className="w-full max-h-[40vh] object-contain" />
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleRetake} className="flex-1">
