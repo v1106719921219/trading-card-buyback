@@ -3,7 +3,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Camera, RotateCcw, Check, ArrowLeft } from 'lucide-react'
+import { Camera, RotateCcw, Check, ArrowLeft, RefreshCw, Settings } from 'lucide-react'
 
 interface CameraCaptureProps {
   title: string
@@ -35,6 +35,26 @@ export function CameraCapture({
   const [preview, setPreview] = useState<string | null>(null)
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  // 「カメラを再試行」用。エラー画面ではvideo要素が消えているため、
+  // キーを更新して再マウント後に startCamera を走らせる
+  const [retryKey, setRetryKey] = useState(0)
+  // 端末・ブラウザ別の設定手順を出し分ける（SSR差分を避けるためマウント後に判定）
+  const [device, setDevice] = useState<'ios-line' | 'android-line' | 'ios' | 'android' | 'other'>('other')
+
+  useEffect(() => {
+    const ua = navigator.userAgent
+    const isIOS =
+      /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document)
+    const isAndroid = /Android/i.test(ua)
+    const inLine = /Line\//i.test(ua)
+    setDevice(
+      isIOS && inLine ? 'ios-line'
+        : isAndroid && inLine ? 'android-line'
+        : isIOS ? 'ios'
+        : isAndroid ? 'android'
+        : 'other'
+    )
+  }, [])
 
   const startCamera = useCallback(async () => {
     try {
@@ -62,7 +82,7 @@ export function CameraCapture({
       console.error('Camera error:', err)
       if (err instanceof DOMException) {
         if (err.name === 'NotAllowedError') {
-          setCameraError('カメラへのアクセスが拒否されました。ブラウザの設定でカメラの使用を許可してください。')
+          setCameraError('カメラへのアクセスが拒否されました。下のどちらかの方法で撮影できます。')
         } else if (err.name === 'NotFoundError') {
           setCameraError('カメラが見つかりません。カメラが接続されているか確認してください。')
         } else {
@@ -88,7 +108,7 @@ export function CameraCapture({
       startCamera()
     }
     return () => stopCamera()
-  }, [startCamera, stopCamera, preview])
+  }, [startCamera, stopCamera, preview, retryKey])
 
   function handleCapture() {
     if (!captureReady) return
@@ -205,6 +225,55 @@ export function CameraCapture({
     img.src = url
   }
 
+  // Webから設定アプリを直接開くAPIはiOS/Androidとも存在しないため、
+  // 端末・ブラウザに合わせた手順を出して「再試行」まで一本の導線にする
+  const settingsGuide = {
+    'ios-line': {
+      title: 'iPhoneでカメラを許可する手順',
+      steps: [
+        'ホーム画面の「設定」アプリを開く',
+        '下にスクロールして「LINE」をタップ',
+        '「カメラ」のスイッチをONにする',
+        'LINEに戻り、下の「カメラを再試行」をタップ',
+      ],
+    },
+    'android-line': {
+      title: 'Androidでカメラを許可する手順',
+      steps: [
+        '「設定」アプリ →「アプリ」を開く',
+        '一覧から「LINE」をタップ',
+        '「権限」→「カメラ」→「許可」を選ぶ',
+        'LINEに戻り、下の「カメラを再試行」をタップ',
+      ],
+    },
+    ios: {
+      title: 'Safariでカメラを許可する手順',
+      steps: [
+        'アドレスバー左の「ぁあ」をタップ',
+        '「Webサイトの設定」をタップ',
+        '「カメラ」を「許可」に変更',
+        'この画面に戻り、下の「カメラを再試行」をタップ',
+      ],
+    },
+    android: {
+      title: 'ブラウザでカメラを許可する手順',
+      steps: [
+        'アドレスバー左の鍵アイコンをタップ',
+        '「権限」（サイトの設定）を開く',
+        '「カメラ」を「許可」に変更',
+        'この画面に戻り、下の「カメラを再試行」をタップ',
+      ],
+    },
+    other: {
+      title: 'ブラウザでカメラを許可する手順',
+      steps: [
+        'アドレスバーのサイト情報（鍵アイコン）を開く',
+        'カメラの項目を「許可」に変更',
+        'この画面に戻り、下の「カメラを再試行」をタップ',
+      ],
+    },
+  }[device]
+
   if (cameraError) {
     return (
       <Card>
@@ -212,25 +281,53 @@ export function CameraCapture({
           <CardTitle className="text-lg">{title}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700 space-y-1">
-            <p>{cameraError}</p>
-            <p className="text-xs">
-              iPhoneの場合：設定 → LINE → カメラ をONにしてから開き直してください。
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {cameraError}
+          </div>
+
+          {/* いちばん早い解決策を最上部に: 設定を変えずに端末のカメラアプリ／写真から選ぶ */}
+          <div className="space-y-1">
+            <label className="block">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFilePick}
+              />
+              <span className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-green-600 px-4 text-base font-medium text-white hover:bg-green-700">
+                <Camera className="h-5 w-5" />
+                端末のカメラで撮影する
+              </span>
+            </label>
+            <p className="text-center text-xs text-muted-foreground">
+              設定を変えずにこのまま進められます（おすすめ）
             </p>
           </div>
-          {/* フォールバック: 端末のカメラアプリ／写真から選ぶ */}
-          <label className="block">
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFilePick}
-            />
-            <span className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-green-600 px-4 text-base font-medium text-white hover:bg-green-700">
-              <Camera className="h-5 w-5" />
-              端末のカメラで撮影する
-            </span>
-          </label>
+
+          {/* 設定を変えたい人向け: 端末別の手順 → 再試行まで一本で案内 */}
+          <div className="rounded-md border bg-gray-50 p-3">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
+              <Settings className="h-4 w-4" />
+              {settingsGuide.title}
+            </p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
+              {settingsGuide.steps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setCameraError(null)
+                setRetryKey((k) => k + 1)
+              }}
+              className="mt-3 h-11 w-full"
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              カメラを再試行
+            </Button>
+          </div>
+
           <Button variant="outline" onClick={onBack} className="w-full">
             <ArrowLeft className="mr-2 h-4 w-4" />
             戻る
