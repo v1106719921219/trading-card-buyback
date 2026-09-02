@@ -19,9 +19,66 @@ export type CaptureMeta = {
   dpr?: number
 }
 
+type ImageKind = 'id_front' | 'id_thickness' | 'id_back' | 'face'
+
+/**
+ * 端末のカメラアプリで撮る場合はガイド枠が出せず、カメラに切り替わると画面の説明も
+ * 見えなくなるため、「何を撮るのか」を図で示す
+ */
+function StepIllustration({ kind }: { kind: ImageKind }) {
+  const line = '#cbd5e1'
+  const ink = '#64748b'
+  if (kind === 'face') {
+    return (
+      <svg viewBox="0 0 140 96" className="h-28 w-full" role="img" aria-label="顔写真の撮影見本">
+        <ellipse cx="70" cy="44" rx="26" ry="33" fill="none" stroke={ink} strokeWidth="2" strokeDasharray="5 4" />
+        <circle cx="70" cy="40" r="15" fill={line} />
+        <path d="M50 80c3-12 11-18 20-18s17 6 20 18" fill={line} />
+      </svg>
+    )
+  }
+  if (kind === 'id_thickness') {
+    return (
+      <svg viewBox="0 0 140 96" className="h-28 w-full" role="img" aria-label="厚みの撮影見本">
+        <polygon points="26,30 114,22 120,54 32,64" fill="#f8fafc" stroke={ink} strokeWidth="2" />
+        <rect x="94" y="30" width="16" height="20" fill={line} transform="rotate(-5 102 40)" />
+        <line x1="36" y1="40" x2="82" y2="36" stroke={line} strokeWidth="3" />
+        <line x1="36" y1="48" x2="72" y2="45" stroke={line} strokeWidth="3" />
+        <polygon points="32,64 120,54 120,61 32,71" fill={ink} />
+        <text x="70" y="88" textAnchor="middle" fontSize="11" fill={ink}>この厚み（側面）も一緒に写す</text>
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 140 96" className="h-28 w-full" role="img" aria-label="身分証明書の撮影見本">
+      <rect x="16" y="20" width="108" height="60" rx="6" fill="#f8fafc" stroke={ink} strokeWidth="2" />
+      {kind === 'id_front' ? (
+        <>
+          <rect x="94" y="32" width="22" height="28" fill={line} />
+          <line x1="26" y1="34" x2="84" y2="34" stroke={line} strokeWidth="4" />
+          <line x1="26" y1="44" x2="84" y2="44" stroke={line} strokeWidth="4" />
+          <line x1="26" y1="54" x2="70" y2="54" stroke={line} strokeWidth="4" />
+          <line x1="26" y1="64" x2="60" y2="64" stroke={line} strokeWidth="4" />
+        </>
+      ) : (
+        <>
+          <line x1="26" y1="36" x2="114" y2="36" stroke={line} strokeWidth="4" />
+          <line x1="26" y1="48" x2="96" y2="48" stroke={line} strokeWidth="4" />
+        </>
+      )}
+      <text x="70" y="92" textAnchor="middle" fontSize="11" fill={ink}>4隅まで入れて大きく写す</text>
+    </svg>
+  )
+}
+
 interface CameraCaptureProps {
   title: string
   description: string
+  /** 撮影対象。カメラアプリ撮影時の見本図の出し分けに使う */
+  imageKind: ImageKind
+  /** 全何枚中の何枚目か（カメラアプリ撮影では進捗が分からなくなるため表示する） */
+  stepIndex?: number
+  stepTotal?: number
   guideType: 'rectangle' | 'ellipse' | 'thickness'
   facingMode: 'user' | 'environment'
   onCapture: (blob: Blob, meta?: CaptureMeta) => void
@@ -36,6 +93,9 @@ const CAPTURE_DELAY_MS = 1500
 export function CameraCapture({
   title,
   description,
+  imageKind,
+  stepIndex,
+  stepTotal,
   guideType,
   facingMode,
   onCapture,
@@ -322,6 +382,11 @@ export function CameraCapture({
     return (
       <Card>
         <CardHeader>
+          {stepIndex && stepTotal && (
+            <p className="text-xs font-medium text-muted-foreground">
+              全{stepTotal}枚中 {stepIndex}枚目
+            </p>
+          )}
           <CardTitle className="text-lg">{title}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -338,6 +403,23 @@ export function CameraCapture({
               {cameraError}
             </div>
           )}
+
+          {/* カメラアプリに切り替わると画面の説明が見えなくなるため、
+              「何を撮るのか」を図と短い文で先に見せる */}
+          <div className="rounded-md border bg-white p-3">
+            <StepIllustration kind={imageKind} />
+            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-gray-600">
+              <li>
+                {imageKind === 'face'
+                  ? '正面を向いて、顔全体が大きく写るように'
+                  : imageKind === 'id_thickness'
+                  ? '表面の記載が見えたまま少し傾けて、厚み（側面）も一緒に'
+                  : 'カードの4隅まで入れて、画面いっぱいに大きく'}
+              </li>
+              <li>文字がはっきり読めるように（ピンボケ・手ブレに注意）</li>
+              <li>光の反射や影が入らないように</li>
+            </ul>
+          </div>
 
           {/* 本人確認なので保存済み写真の流用は認めず、capture属性でカメラアプリを直接起動する */}
           <div className="space-y-2">
@@ -425,6 +507,11 @@ export function CameraCapture({
   return (
     <Card>
       <CardHeader>
+        {stepIndex && stepTotal && (
+          <p className="text-xs font-medium text-muted-foreground">
+            全{stepTotal}枚中 {stepIndex}枚目
+          </p>
+        )}
         <CardTitle className="text-lg">{title}</CardTitle>
         <p className="text-sm text-muted-foreground">{description}</p>
       </CardHeader>

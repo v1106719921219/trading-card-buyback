@@ -65,6 +65,8 @@ export function KycFlow({
 
   const needsBackImage = idDocumentType ? REQUIRES_BACK_IMAGE.includes(idDocumentType) : false
   const needsThicknessImage = idDocumentType ? REQUIRES_THICKNESS_IMAGE.includes(idDocumentType) : false
+  // 表面 + (厚み) + (裏面) + 顔写真
+  const captureTotal = 2 + (needsThicknessImage ? 1 : 0) + (needsBackImage ? 1 : 0)
 
   async function handleStart(email: string, name: string) {
     setError(null)
@@ -216,6 +218,9 @@ export function KycFlow({
           description="枠内に収まるように撮影してください"
           guideType="rectangle"
           facingMode="environment"
+          imageKind="id_front"
+          stepIndex={1}
+          stepTotal={captureTotal}
           onCapture={(blob, meta) => handleCapture('id_front', blob, meta)}
           onBack={() => setStep('id_type')}
         />
@@ -227,6 +232,9 @@ export function KycFlow({
           description="表面の記載が見える状態のまま少し傾けて、厚み（側面）も一緒に写るように撮影してください"
           guideType="thickness"
           facingMode="environment"
+          imageKind="id_thickness"
+          stepIndex={2}
+          stepTotal={captureTotal}
           onCapture={(blob, meta) => handleCapture('id_thickness', blob, meta)}
           onBack={() => setStep('id_capture_front')}
         />
@@ -238,6 +246,9 @@ export function KycFlow({
           description="裏面を枠内に収まるように撮影してください"
           guideType="rectangle"
           facingMode="environment"
+          imageKind="id_back"
+          stepIndex={needsThicknessImage ? 3 : 2}
+          stepTotal={captureTotal}
           onCapture={(blob, meta) => handleCapture('id_back', blob, meta)}
           onBack={() => needsThicknessImage ? setStep('id_capture_thickness') : setStep('id_capture_front')}
         />
@@ -249,6 +260,9 @@ export function KycFlow({
           description="枠内に顔が収まるように撮影してください"
           guideType="ellipse"
           facingMode="user"
+          imageKind="face"
+          stepIndex={captureTotal}
+          stepTotal={captureTotal}
           onCapture={(blob, meta) => handleCapture('face', blob, meta)}
           onBack={() => needsBackImage ? setStep('id_capture_back') : needsThicknessImage ? setStep('id_capture_thickness') : setStep('id_capture_front')}
         />
