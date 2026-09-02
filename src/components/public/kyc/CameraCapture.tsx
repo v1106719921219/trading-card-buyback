@@ -392,13 +392,8 @@ export function CameraCapture({
         <CardContent className="space-y-4">
           {/* Android版LINEの内部ブラウザはWebカメラ(getUserMedia)自体を許可しないため、
               OS権限をONにしても直らない。エラーとして見せず、端末のカメラアプリ撮影を
-              通常の手順として案内する */}
-          {isLineAndroid ? (
-            <div className="rounded-md border bg-gray-50 p-3 text-sm text-gray-700">
-              LINEの画面ではカメラを直接使えません。下のボタンから
-              <span className="font-medium">端末のカメラアプリ</span>で撮影してください。
-            </div>
-          ) : (
+              通常の手順としてそのまま案内する（原因の説明は出さない） */}
+          {!isLineAndroid && (
             <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
               {cameraError}
             </div>
@@ -437,12 +432,6 @@ export function CameraCapture({
               </span>
             </label>
             <p className="text-center text-xs text-muted-foreground">
-              {guideType === 'ellipse'
-                ? '顔全体が大きく写るように撮影してください'
-                : guideType === 'thickness'
-                ? '表面の記載が見える状態のまま少し傾けて、厚み（側面）も一緒に写してください'
-                : 'カードが画面いっぱいになるように、文字がはっきり読めるように撮影してください'}
-              <br />
               本人確認のため、その場で撮影してください（保存済みの写真は使えません）
             </p>
           </div>
