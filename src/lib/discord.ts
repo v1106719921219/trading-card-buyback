@@ -7,13 +7,13 @@
  */
 
 /**
- * システム異常（バックアップ失敗など）をDiscordの日報チャンネルへ通知する
- * 環境変数 DISCORD_REPORT_WEBHOOK_URL を使用（日報と同じチャンネル）
+ * システム異常（バックアップ失敗など）をDiscordへ通知する
+ * 送信先はバックオフィスサーバーの「🚨｜システムエラー」チャンネル（DISCORD_ALERT_WEBHOOK_URL）
  */
 export async function notifyDiscordSystemAlert(message: string): Promise<void> {
-  const webhookUrl = process.env.DISCORD_REPORT_WEBHOOK_URL
+  const webhookUrl = process.env.DISCORD_ALERT_WEBHOOK_URL || process.env.DISCORD_REPORT_WEBHOOK_URL
   if (!webhookUrl) {
-    console.warn('[Discord] DISCORD_REPORT_WEBHOOK_URL が未設定のためシステム通知をスキップ:', message)
+    console.warn('[Discord] DISCORD_ALERT_WEBHOOK_URL が未設定のためシステム通知をスキップ:', message)
     return
   }
   try {
