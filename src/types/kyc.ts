@@ -48,6 +48,11 @@ export interface KycAuditLog {
 }
 
 // ラベル定数
+/** 一覧表示用: 紐付く注文（注文番号・詳細リンク）を付けたもの */
+export interface KycRequestWithOrder extends KycRequest {
+  order?: { id: string; order_number: string } | null
+}
+
 export const KYC_STATUS_LABELS: Record<KycStatus, string> = {
   pending: '画像アップロード待ち',
   processing: '審査中',

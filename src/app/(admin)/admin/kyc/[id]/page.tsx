@@ -16,14 +16,14 @@ import {
   KYC_STATUS_LABELS,
   KYC_STATUS_COLORS,
   ID_DOCUMENT_TYPE_LABELS,
-  type KycRequest,
+  type KycRequestWithOrder,
   type KycAuditLog,
 } from '@/types/kyc'
 
 export default function KycDetailPage() {
   const params = useParams()
   const id = params.id as string
-  const [kycRequest, setKycRequest] = useState<KycRequest | null>(null)
+  const [kycRequest, setKycRequest] = useState<KycRequestWithOrder | null>(null)
   const [auditLogs, setAuditLogs] = useState<KycAuditLog[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -110,8 +110,19 @@ export default function KycDetailPage() {
               <dd className="font-medium">{kycRequest.customer_name ?? '-'}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">メールアドレス</dt>
-              <dd className="font-medium">{kycRequest.customer_email}</dd>
+              <dt className="text-muted-foreground">注文番号</dt>
+              <dd className="font-medium">
+                {kycRequest.order ? (
+                  <Link
+                    href={`/admin/orders/${kycRequest.order.id}`}
+                    className="text-primary underline underline-offset-2"
+                  >
+                    {kycRequest.order.order_number}
+                  </Link>
+                ) : (
+                  '-'
+                )}
+              </dd>
             </div>
             <div>
               <dt className="text-muted-foreground">身分証種類</dt>

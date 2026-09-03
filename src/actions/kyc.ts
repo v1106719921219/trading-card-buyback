@@ -12,7 +12,7 @@ import { createSignedUrl } from '@/lib/kyc/storage'
 import { runAiKycReview, type AiKycReview } from '@/lib/kyc/ai-review'
 import { ID_DOCUMENT_TYPE_LABELS } from '@/types/kyc'
 import type { KycSubmitInput, KycReviewInput } from '@/lib/validators/kyc'
-import type { KycRequest, KycStatus } from '@/types/kyc'
+import type { KycRequest, KycRequestWithOrder, KycStatus } from '@/types/kyc'
 
 /**
  * 新規KYCリクエスト作成（公開フォームから）
@@ -324,7 +324,37 @@ export async function getKycRequests(options?: {
     return { error: sanitizeError(error) }
   }
 
-  return { data: data as KycRequest[], count: count ?? 0 }
+  // 紐付く注文番号を付ける。千葉DBは orders.kyc_request_id に外部キーが無く
+  // PostgRESTの結合が使えないため、別クエリで引いてJS側で突き合わせる
+  const rows = (data ?? []) as KycRequest[]
+  const ids = rows.map((r) => r.id)
+  const orderIds = rows.map((r) => r.order_id).filter(Boolean) as string[]
+  const byKycId = new Map<string, { id: string; order_number: string }>()
+  const byOrderId = new Map<string, { id: string; order_number: string }>()
+
+  if (ids.length > 0) {
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('id, order_number, kyc_request_id')
+      .in('kyc_request_id', ids)
+    for (const o of orders ?? []) {
+      if (o.kyc_request_id) byKycId.set(o.kyc_request_id, { id: o.id, order_number: o.order_number })
+    }
+  }
+  if (orderIds.length > 0) {
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('id, order_number')
+      .in('id', orderIds)
+    for (const o of orders ?? []) byOrderId.set(o.id, { id: o.id, order_number: o.order_number })
+  }
+
+  const withOrder = rows.map((r) => ({
+    ...r,
+    order: byKycId.get(r.id) ?? (r.order_id ? byOrderId.get(r.order_id) : undefined) ?? null,
+  }))
+
+  return { data: withOrder as KycRequestWithOrder[], count: count ?? 0 }
 }
 
 /**
@@ -346,7 +376,25 @@ export async function getKycRequest(id: string) {
     return { error: sanitizeError(error) }
   }
 
-  return { data: data as KycRequest }
+  // 紐付く注文（注文番号・詳細リンク用のid）。千葉DBは外部キーが無いので別クエリで引く
+  const row = data as KycRequest
+  let order: { id: string; order_number: string } | null = null
+  const { data: byKyc } = await supabase
+    .from('orders')
+    .select('id, order_number')
+    .eq('kyc_request_id', row.id)
+    .maybeSingle()
+  order = byKyc ?? null
+  if (!order && row.order_id) {
+    const { data: byId } = await supabase
+      .from('orders')
+      .select('id, order_number')
+      .eq('id', row.order_id)
+      .maybeSingle()
+    order = byId ?? null
+  }
+
+  return { data: { ...row, order } as KycRequestWithOrder }
 }
 
 /**

@@ -14,14 +14,14 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react'
-import type { KycRequest, KycStatus } from '@/types/kyc'
+import type { KycRequestWithOrder, KycStatus } from '@/types/kyc'
 import { KYC_STATUS_LABELS } from '@/types/kyc'
 
 const ITEMS_PER_PAGE = 20
 const KYC_STATUSES: KycStatus[] = ['pending', 'processing', 'approved', 'rejected', 'expired']
 
 export default function KycListPage() {
-  const [requests, setRequests] = useState<KycRequest[]>([])
+  const [requests, setRequests] = useState<KycRequestWithOrder[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('all')
