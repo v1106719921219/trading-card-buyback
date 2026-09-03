@@ -255,7 +255,7 @@ export default function OrderDetailPage() {
       return
     }
 
-    toast.success('注文を承認しました。お客様にLINEで通知しました。')
+    toast.success('注文を承認しました')
     fetchOrder()
   }
 
