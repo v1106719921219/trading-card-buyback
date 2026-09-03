@@ -10,7 +10,7 @@ import { Footer } from '@/components/public/footer'
 import { Package, FileDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { initLiff } from '@/lib/liff-client'
-import { getMyOrdersByIdToken, submitTrackingByIdToken, getMyInspectionPdf } from '@/actions/orders'
+import { getMyOrdersByIdToken, submitTrackingByIdToken, createMyInspectionPdfLink } from '@/actions/orders'
 
 // お客様向けのステータス表示（社内ステータスをお客様にわかる言葉に変換）
 const CUSTOMER_STATUS: Record<string, { label: string; color: string; step: number }> = {
@@ -89,20 +89,20 @@ export default function MyOrdersPage() {
   async function handleDownloadPdf(orderNumber: string, db?: string) {
     if (!idToken) return
     setDownloadingPdf(orderNumber)
-    const result = await getMyInspectionPdf(idToken, orderNumber, db)
+    const result = await createMyInspectionPdfLink(idToken, orderNumber, db)
     setDownloadingPdf(null)
     if ('error' in result && result.error) {
       toast.error(result.error)
       return
     }
-    if ('data' in result && result.data) {
-      // base64 → Blob → 新しいタブで開く（LINEアプリ内ブラウザで表示・保存できる）
-      const bytes = Uint8Array.from(atob(result.data), (c) => c.charCodeAt(0))
-      const blob = new Blob([bytes], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob)
-      window.open(url, '_blank')
-      setTimeout(() => URL.revokeObjectURL(url), 60000)
-    }
+    if (!('path' in result) || !result.path) return
+
+    // blob URL + window.open はLINEアプリ内ブラウザで開けず、
+    // サーバー応答を待ってからのwindow.openはポップアップとしても弾かれるため、
+    // 署名付きの実URLへ遷移させる。LINE内ではopenExternalBrowser=1で外部ブラウザに渡す。
+    const inLine = /Line\//i.test(navigator.userAgent)
+    const url = `${window.location.origin}${result.path}${inLine ? '&openExternalBrowser=1' : ''}`
+    window.location.href = url
   }
 
   return (

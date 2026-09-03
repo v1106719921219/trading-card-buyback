@@ -523,6 +523,38 @@ export async function getMyOrdersByIdToken(idToken: string) {
 }
 
 // LIFF（LINEアプリ内）用: IDトークンで本人確認し、自分の注文の査定結果PDFを取得
+/**
+ * 査定結果PDFを開くための署名付きURL（パス部分）を返す。
+ * LINEアプリ内ブラウザはblob URLの新規ウィンドウを開けず、
+ * サーバー応答を待ってからwindow.openするとポップアップとしても弾かれるため、
+ * 実URLへ遷移させる方式にしている。
+ */
+export async function createMyInspectionPdfLink(
+  idToken: string,
+  orderNumber: string,
+  db?: string
+) {
+  const userId = await resolveLineUserId(idToken)
+  if (!userId) return { error: 'LINEの本人確認に失敗しました' }
+
+  const supabase = clientForDb(db)
+  const { data: order } = await supabase
+    .from('orders')
+    .select('order_number, status')
+    .eq('order_number', orderNumber)
+    .eq('line_user_id', userId)
+    .maybeSingle()
+
+  if (!order) return { error: '注文が見つかりません' }
+  if (!['検品完了', '振込済', '振込確認済'].includes(order.status)) {
+    return { error: '査定結果は検品完了後にご覧いただけます' }
+  }
+
+  const { createInspectionPdfToken } = await import('@/lib/pdf-link')
+  const token = createInspectionPdfToken({ o: order.order_number, u: userId, db })
+  return { path: `/api/my-orders/inspection-pdf?t=${encodeURIComponent(token)}` }
+}
+
 export async function getMyInspectionPdf(idToken: string, orderNumber: string, db?: string) {
   const { generateInspectionPdf } = await import('@/lib/pdf')
   const userId = await resolveLineUserId(idToken)
