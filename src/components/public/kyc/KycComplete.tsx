@@ -13,7 +13,7 @@ export function KycComplete() {
           本人確認書類を受け付けました。
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
-          審査結果はLINEの「査定状況」からご確認いただけます。
+          書類に不備があった場合は、担当者よりご連絡いたします。
         </p>
         <div className="mt-6 rounded-md bg-blue-50 p-3 text-xs text-blue-700">
           <p>審査には通常1〜3営業日かかります。</p>

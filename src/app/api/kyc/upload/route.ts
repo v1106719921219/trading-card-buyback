@@ -107,8 +107,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '画像の保存に失敗しました' }, { status: 500 })
     }
 
-    // 監査ログ
-    writeKycAuditLog({
+    // 監査ログ（awaitしないとレスポンス後に書き込みが残り、記録漏れ・順序ズレが起きる）
+    await writeKycAuditLog({
       tenantId: kycRequest.tenant_id,
       kycRequestId,
       action: 'image_uploaded',

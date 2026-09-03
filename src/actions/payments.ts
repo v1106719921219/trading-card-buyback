@@ -19,6 +19,20 @@ export async function getPaymentQueue() {
 export async function markAsPaid(orderId: string) {
   const supabase = createAdminClient()
 
+  // 振込ゲート: eKYCが紐付いている注文は本人確認の承認完了まで振込済にできない。
+  // 紙運用（eKYC記録なし）の注文は従来通り対象外
+  const { data: kycCheck } = await supabase
+    .from('orders')
+    .select('order_number, kyc_request_id, identity_verified_at')
+    .eq('id', orderId)
+    .single()
+
+  if (kycCheck?.kyc_request_id && !kycCheck.identity_verified_at) {
+    return {
+      error: `${kycCheck.order_number}: 本人確認が未承認のため振込済にできません。検品画面または本人確認詳細から承認してください`,
+    }
+  }
+
   // Atomic update: WHERE status = '検品完了' で TOCTOU 防止
   const { data: updated, error: updateError } = await supabase
     .from('orders')
@@ -68,11 +82,11 @@ export async function bulkMarkAsPaid(orderIds: string[]) {
 
   for (const id of orderIds) {
     const result = await markAsPaid(id)
-    if (result.error) errors.push(`${id}: ${result.error}`)
+    if (result.error) errors.push(result.error)
   }
 
   if (errors.length > 0) {
-    return { error: `一部の振込処理に失敗しました` }
+    return { error: `一部の振込処理に失敗しました: ${errors.join(' / ')}` }
   }
 
   revalidatePath('/admin/payments')

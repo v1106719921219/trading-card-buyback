@@ -403,6 +403,8 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const [showKycDialog, setShowKycDialog] = useState(false)
   // eKYC撮影完了時にKycFlowから受け取るリクエストID（申込時にそのまま紐付ける）
   const [kycRequestId, setKycRequestId] = useState<string | null>(null)
+  // 撮影・照合が成立した時点の氏名。後から氏名を変えた場合は別名義の書類になるため無効化に使う
+  const [kycName, setKycName] = useState<string | null>(null)
 
   useEffect(() => {
     getEkycRolloutEnabled().then(setEkycRollout)
@@ -413,17 +415,28 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   const kycDone = kycStatus === 'verified' || kycStatus === 'submitted'
 
   useEffect(() => {
+    if (step !== 2 || !needsKyc) return
+    // 撮影/照合済みでも、その後step1で氏名を変えて戻ってきたら別名義の書類になるため無効化して再撮影へ
+    if (kycName && kycName !== customerName) {
+      setKycStatus('none')
+      setKycRequestId(null)
+      setKycName(null)
+    }
     // 確認画面に入ったタイミングで、このLINE本人が確認済み（スキップ可）かをチェック。
     // 事前チェックが遅くても撮影に進めるよう、6秒でタイムアウトして'none'（撮影が必要）にフォールバック
-    if (step === 2 && needsKyc && customerName && liff?.idToken) {
+    if (customerName && liff?.idToken) {
       setKycStatus('checking')
+      const nameAtCheck = customerName
       Promise.race<'checking' | 'verified' | 'submitted' | 'none'>([
-        checkKycForApply(liff.idToken, customerName),
+        checkKycForApply(liff.idToken, nameAtCheck),
         new Promise((resolve) => setTimeout(() => resolve('none'), 6000)),
-      ]).then(setKycStatus)
+      ]).then((s) => {
+        setKycStatus(s)
+        if (s === 'verified' || s === 'submitted') setKycName(nameAtCheck)
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, needsKyc, liff?.idToken])
+  }, [step, needsKyc, liff?.idToken, customerName])
 
   async function handleSubmit() {
     if (submittingRef.current) return
@@ -1326,6 +1339,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
               onComplete={(id) => {
                 setKycRequestId(id)
                 setKycStatus('submitted')
+                setKycName(customerName)
                 setShowKycDialog(false)
                 toast.success('本人確認書類の撮影が完了しました')
               }}

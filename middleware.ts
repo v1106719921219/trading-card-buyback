@@ -79,9 +79,10 @@ export async function middleware(request: NextRequest) {
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('X-XSS-Protection', '1; mode=block')
+  // camera=(self): eKYC撮影で自オリジンのgetUserMediaを使うため。()にすると自サイトでもカメラが拒否される
   response.headers.set(
     'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=()'
+    'camera=(self), microphone=(), geolocation=()'
   )
   
   // 本番環境のみHSTSを設定
