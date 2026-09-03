@@ -40,7 +40,7 @@ function safeName(s: string): string {
   return s.replace(/[\\/:*?"<>|]/g, '_').trim()
 }
 
-export async function backupKycToDrive(kyc: KycBackupTarget): Promise<{ success: boolean; error?: string }> {
+export async function backupKycToDrive(kyc: KycBackupTarget, storeLabel?: string): Promise<{ success: boolean; error?: string }> {
   const url = process.env.GOOGLE_KYC_BACKUP_SCRIPT_URL
   if (!url) return { success: false, error: 'GOOGLE_KYC_BACKUP_SCRIPT_URL が未設定' }
 
@@ -70,12 +70,14 @@ export async function backupKycToDrive(kyc: KycBackupTarget): Promise<{ success:
   const baseDate = kyc.reviewed_at ?? kyc.created_at
   const ymd = new Date(baseDate).toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }) // YYYY-MM-DD
   const yearMonth = ymd.slice(0, 7)
+  // 東京・千葉で同じDriveフォルダに保存するため、店舗ラベルをフォルダ名に含める
   const folderName = safeName(
-    `${ymd}_${kyc.customer_name ?? '氏名不明'}${kyc.order_number ? `_${kyc.order_number}` : ''}`
+    `${ymd}_${storeLabel ? `${storeLabel}_` : ''}${kyc.customer_name ?? '氏名不明'}${kyc.order_number ? `_${kyc.order_number}` : ''}`
   )
 
   const infoText = [
     '【本人確認記録（古物台帳）】',
+    `店舗: ${storeLabel ?? ''}`,
     `氏名: ${kyc.customer_name ?? ''}`,
     `メールアドレス: ${kyc.customer_email}`,
     `本人確認書類: ${DOC_TYPE_LABEL[kyc.id_document_type] ?? kyc.id_document_type}`,

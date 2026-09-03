@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { backupKycToDrive, type KycBackupTarget } from '@/lib/kyc/drive-backup'
+import { notifyDiscordSystemAlert } from '@/lib/discord'
 
 export const maxDuration = 300
+
+// 東京・千葉の両デプロイが同じDriveフォルダへ保存するため、フォルダ名に付ける店舗ラベル
+function storeLabelForTenant(slug: string | null | undefined): string {
+  return slug === 'chiba' ? '千葉' : '東京'
+}
 
 // 承認済みeKYCの本人確認データ（画像＋記録テキスト）をGoogleドライブへ日次バックアップ（古物台帳）
 export async function GET(request: Request) {
@@ -16,7 +22,7 @@ export async function GET(request: Request) {
   const { data: targets, error } = await supabase
     .from('kyc_requests')
     .select(
-      'id, customer_name, customer_email, id_document_type, id_front_image_path, id_thickness_image_path, id_back_image_path, face_image_path, ocr_extracted_name, ocr_extracted_address, ocr_extracted_birth_date, reviewed_at, created_at, order:orders!kyc_requests_order_id_fkey(order_number)'
+      'id, tenant_id, customer_name, customer_email, id_document_type, id_front_image_path, id_thickness_image_path, id_back_image_path, face_image_path, ocr_extracted_name, ocr_extracted_address, ocr_extracted_birth_date, reviewed_at, created_at, order:orders!kyc_requests_order_id_fkey(order_number)'
     )
     .eq('status', 'approved')
     .is('drive_backed_up_at', null)
@@ -24,13 +30,25 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: true })
     .limit(15)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    await notifyDiscordSystemAlert(
+      `🚨 **eKYC Driveバックアップ失敗**\n対象データの取得でエラーが発生しました: ${error.message}`
+    )
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  const { data: tenants } = await supabase.from('tenants').select('id, slug')
+  const slugById = new Map((tenants ?? []).map((t) => [t.id, t.slug]))
 
   const results = { backedUp: 0, failed: 0, errors: [] as string[] }
   for (const t of targets ?? []) {
     const order = t.order as { order_number: string } | { order_number: string }[] | null
     const orderNumber = Array.isArray(order) ? order[0]?.order_number : order?.order_number
-    const result = await backupKycToDrive({ ...t, order_number: orderNumber ?? null } as KycBackupTarget)
+    const storeLabel = storeLabelForTenant(slugById.get(t.tenant_id))
+    const result = await backupKycToDrive(
+      { ...t, order_number: orderNumber ?? null } as KycBackupTarget,
+      storeLabel
+    )
     if (result.success) {
       await supabase
         .from('kyc_requests')
@@ -39,9 +57,23 @@ export async function GET(request: Request) {
       results.backedUp++
     } else {
       results.failed++
-      results.errors.push(`${t.id}: ${result.error}`)
+      results.errors.push(`${t.customer_name ?? t.id}: ${result.error}`)
       console.error('[KYC Driveバックアップ] 失敗:', t.id, result.error)
     }
+  }
+
+  // 失敗があればDiscordへ通知（未処理のまま残ると翌日以降も再試行されるが、原因は人が見ないと直らない）
+  if (results.failed > 0) {
+    await notifyDiscordSystemAlert(
+      [
+        `🚨 **eKYC Driveバックアップ失敗** (${results.failed}件)`,
+        ...results.errors.slice(0, 5).map((e) => `・${e}`),
+        results.errors.length > 5 ? `…ほか${results.errors.length - 5}件` : '',
+        '対象は翌日の実行で自動再試行されますが、原因の確認をお願いします。',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    )
   }
 
   return NextResponse.json({ success: true, ...results })

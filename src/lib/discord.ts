@@ -6,6 +6,28 @@
  * Server Action としてサーバー側で実行される（環境変数へのアクセスが必要なため）
  */
 
+/**
+ * システム異常（バックアップ失敗など）をDiscordの日報チャンネルへ通知する
+ * 環境変数 DISCORD_REPORT_WEBHOOK_URL を使用（日報と同じチャンネル）
+ */
+export async function notifyDiscordSystemAlert(message: string): Promise<void> {
+  const webhookUrl = process.env.DISCORD_REPORT_WEBHOOK_URL
+  if (!webhookUrl) {
+    console.warn('[Discord] DISCORD_REPORT_WEBHOOK_URL が未設定のためシステム通知をスキップ:', message)
+    return
+  }
+  try {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: message }),
+    })
+    if (!res.ok) console.error('[Discord] システム通知送信失敗:', res.status, await res.text())
+  } catch (err) {
+    console.error('[Discord] システム通知送信エラー:', err)
+  }
+}
+
 interface InspectionIssuePayload {
   orderId: string
   orderNumber: string
