@@ -12,7 +12,7 @@ import { requireTenantId } from '@/lib/tenant'
 import { requireRole, assertBelongsToTenant, sanitizeError } from '@/lib/security'
 import { verifyLineUserToken, pushTextMessage } from '@/lib/line'
 import { verifyLineIdToken } from '@/lib/line-verify'
-import { idReminderMessage, orderReceivedMessage } from '@/lib/line-messages'
+import { idReminderMessage } from '@/lib/line-messages'
 
 
 export async function createOrder(input: CreateOrderInput) {
@@ -426,13 +426,7 @@ export async function approveOrder(orderId: string) {
 
   if (error) return { error: error.message }
 
-  // 承認後、本物アカウント連携済みなら受付メッセージを送信（メールは全廃）
-  if (order.line_push_user_id) {
-    pushTextMessage(
-      order.line_push_user_id,
-      orderReceivedMessage(order.order_number, order.total_amount)
-    ).catch((err) => console.error('[approveOrder] LINE送信エラー:', err))
-  }
+  // 承認時のお客様への自動通知は廃止（査定状況のリッチメニューから確認してもらう）
 
   revalidatePath(`/admin/orders/${orderId}`)
   revalidatePath('/admin/orders')
@@ -452,24 +446,10 @@ export async function getLineLinkUrl(orderNumber: string): Promise<string | null
 }
 
 // 検品完了時に減額があれば、LINE連携済みのお客様へ自動通知する（減額なし・未連携は何もしない）
-export async function notifyReductionLine(orderId: string) {
-  const supabase = createAdminClient()
-  const { data: order } = await supabase
-    .from('orders')
-    .select('order_number, line_push_user_id, total_amount, inspected_total_amount, inspection_discount, inspection_notes')
-    .eq('id', orderId)
-    .single()
-
-  if (!order?.line_push_user_id) return
-  const original = order.total_amount
-  const final = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
-  if (final >= original) return // 減額なし（同額・増額）は送らない
-
-  const { reductionMessage } = await import('@/lib/line-messages')
-  await pushTextMessage(
-    order.line_push_user_id,
-    reductionMessage(order.order_number, original, final, order.inspection_notes)
-  ).catch((err) => console.error('[notifyReductionLine] LINE送信エラー:', err))
+// 減額時のお客様への自動通知は廃止（査定状況のリッチメニューから確認してもらう）。
+// 呼び出し元を残したまま無効化しておく
+export async function notifyReductionLine(_orderId: string) {
+  return
 }
 
 // 本人のLINE IDを特定する（自前の署名トークン u= か、LIFFのIDトークンのどちらでも可）

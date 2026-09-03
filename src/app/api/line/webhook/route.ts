@@ -78,23 +78,12 @@ async function handleTextMessage(event: any, tenantId: string, tenantSlug: strin
     if (orderNumber) {
       const supabase = createAdminClient()
       // 送信用のLINE ID（本物アカウント）を紐付け。閲覧用のline_user_id(LIFF)とは別に持つ
-      const { data: updated } = await supabase
+      // 連携できてもお客様への自動通知は送らない（査定状況のリッチメニューから確認してもらう）
+      await supabase
         .from('orders')
         .update({ line_push_user_id: lineUserId })
         .eq('order_number', orderNumber)
         .eq('tenant_id', tenantId)
-        .select('order_number, total_amount')
-        .maybeSingle()
-
-      // 連携できたら、申込完了メッセージ（状況確認リンク付き）を送る
-      if (updated) {
-        const { pushTextMessage } = await import('@/lib/line')
-        const { orderReceivedMessage } = await import('@/lib/line-messages')
-        await pushTextMessage(
-          lineUserId,
-          orderReceivedMessage(updated.order_number, updated.total_amount)
-        ).catch((err) => console.error('[LINE連携] 申込完了送信エラー:', err))
-      }
     }
     return
   }
