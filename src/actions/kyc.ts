@@ -659,13 +659,15 @@ export async function deleteKycRequest(id: string) {
 
   const supabase = createAdminClient()
   // 同一テナントのリクエストのみ対象。画像パスも取得
-  const { data: kyc } = await supabase
+  const { data: kyc, error: fetchError } = await supabase
     .from('kyc_requests')
     .select('id, id_front_image_path, id_thickness_image_path, id_back_image_path, face_image_path')
     .eq('id', id)
     .eq('tenant_id', tenant.id)
     .maybeSingle()
 
+  // DBエラー（列が無い等）を「見つかりません」で握り潰すと原因が分からなくなる
+  if (fetchError) return { error: sanitizeError(fetchError) }
   if (!kyc) return { error: '対象の本人確認が見つかりません' }
 
   // 画像削除

@@ -96,10 +96,16 @@ export async function POST(request: NextRequest) {
           ? 'id_back_image_path'
           : 'face_image_path'
 
-    await supabase
+    // 更新に失敗すると画像だけ保存されてパスが残らず、後から取り出せなくなる
+    const { error: updateError } = await supabase
       .from('kyc_requests')
       .update({ [updateField]: path })
       .eq('id', kycRequestId)
+
+    if (updateError) {
+      console.error('[KYC Upload] path update error:', updateError)
+      return NextResponse.json({ error: '画像の保存に失敗しました' }, { status: 500 })
+    }
 
     // 監査ログ
     writeKycAuditLog({
