@@ -12,7 +12,6 @@ import { requireTenantId } from '@/lib/tenant'
 import { requireRole, assertBelongsToTenant, sanitizeError } from '@/lib/security'
 import { verifyLineUserToken, pushTextMessage } from '@/lib/line'
 import { verifyLineIdToken } from '@/lib/line-verify'
-import { idReminderMessage } from '@/lib/line-messages'
 
 
 export async function createOrder(input: CreateOrderInput) {
@@ -969,43 +968,6 @@ export async function updateOrderOffice(orderId: string, officeId: string) {
 
 // 本人確認書類の同封忘れをお客様の公式LINEへ自動連絡する
 // 認証済み管理画面から呼ばれる想定（RLSにより未認証は注文を取得できない）
-export async function sendIdReminderLineMessage(orderId: string) {
-  const supabase = await createClient()
-
-  const { data: order, error: fetchError } = await supabase
-    .from('orders')
-    .select('id, order_number, line_push_user_id, customer_line_name, id_reminder_sent_at')
-    .eq('id', orderId)
-    .single()
-
-  if (fetchError || !order) {
-    return { error: '注文が見つかりません' }
-  }
-
-  if (!order.line_push_user_id) {
-    // 本物アカウント未連携の注文はuserId不明のため自動送信不可 → 手動送信用フォールバック
-    return { noLineUser: true as const }
-  }
-
-  const result = await pushTextMessage(order.line_push_user_id, idReminderMessage(order.order_number))
-  if (!result.success) {
-    return { error: result.error || 'LINE送信に失敗しました' }
-  }
-
-  const sentAt = new Date().toISOString()
-  const { error: updateError } = await supabase
-    .from('orders')
-    .update({ id_reminder_sent_at: sentAt })
-    .eq('id', orderId)
-
-  if (updateError) {
-    // 送信自体は成功しているため記録失敗は警告に留める
-    console.error('[sendIdReminderLineMessage] 送信記録の保存に失敗:', updateError.message)
-  }
-
-  revalidatePath(`/admin/orders/${orderId}`)
-  return { success: true, sentAt }
-}
 
 export async function deleteOrder(orderId: string) {
   const currentUser = await getCurrentUser()

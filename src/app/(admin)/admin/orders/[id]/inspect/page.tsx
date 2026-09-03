@@ -42,11 +42,9 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { notifyDiscordInspectionIssue } from '@/lib/discord'
-import { sendIdReminderLineMessage } from '@/actions/orders'
 import { getInspectorOptions } from '@/actions/inspection'
 import { getOrderKycInfo, reviewKycRequest } from '@/actions/kyc'
 import { notifyReductionLine } from '@/actions/orders'
-import { idReminderMessage } from '@/lib/line-messages'
 import type { Order, OrderItem, Product, Category, InspectionStatus } from '@/types/database'
 import { INSPECTION_STATUSES } from '@/lib/constants'
 
@@ -78,8 +76,6 @@ export default function InspectPage() {
   const [inspectionStatus, setInspectionStatus] = useState<InspectionStatus | ''>('')
   const [arrivalDate, setArrivalDate] = useState('')
   const [openProductSearch, setOpenProductSearch] = useState<string | null>(null)
-  const [idReminderSending, setIdReminderSending] = useState(false)
-  const [showIdReminderFallback, setShowIdReminderFallback] = useState(false)
   const [inspectors, setInspectors] = useState<string[]>([])
   const [inspectorName, setInspectorName] = useState('')
 
@@ -264,32 +260,6 @@ export default function InspectPage() {
 
   // 既存商品（_isNew=false）が全て入力済みかどうか
   const allInspected = items.filter((i) => !i._isNew).every((i) => i._inspected !== null)
-
-  async function handleSendIdReminder() {
-    if (!order || idReminderSending) return
-    setIdReminderSending(true)
-    try {
-      const result = await sendIdReminderLineMessage(order.id)
-      if ('noLineUser' in result && result.noLineUser) {
-        // LINE経由でない注文は自動送信不可 → 定型文コピーで手動送信
-        setShowIdReminderFallback(true)
-      } else if ('error' in result && result.error) {
-        toast.error(result.error)
-      } else {
-        toast.success('本人確認書類のご案内をLINEで送信しました')
-        setOrder({ ...order, id_reminder_sent_at: new Date().toISOString() })
-      }
-    } catch {
-      toast.error('送信に失敗しました')
-    }
-    setIdReminderSending(false)
-  }
-
-  async function handleCopyIdReminder() {
-    if (!order) return
-    await navigator.clipboard.writeText(idReminderMessage(order.order_number))
-    toast.success('定型文をコピーしました')
-  }
 
   const inspectedTotal = inspectedSubtotal - discount
   const difference = inspectedTotal - originalTotal
@@ -851,26 +821,6 @@ export default function InspectPage() {
         </AlertDialog>
       </div>
 
-      {/* LINE userId未紐付け注文用フォールバック（手動送信） */}
-      <AlertDialog open={showIdReminderFallback} onOpenChange={setShowIdReminderFallback}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>自動送信できません</AlertDialogTitle>
-            <AlertDialogDescription className="whitespace-pre-wrap">
-              この注文はLINE経由の申込ではないため、お客様のLINEアカウントが紐付いていません。
-              {'\n'}公式LINEの管理画面から「{order.customer_line_name || order.customer_name}」様のトークを開き、以下の定型文を手動で送信してください。
-              {'\n\n'}{idReminderMessage(order.order_number)}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>閉じる</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCopyIdReminder}>
-              <Copy className="mr-2 h-4 w-4" />
-              定型文をコピー
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
