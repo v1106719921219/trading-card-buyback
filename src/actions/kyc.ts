@@ -37,7 +37,7 @@ export async function createKycRequest(input: KycSubmitInput) {
   }
 
   const supabase = createAdminClient()
-  const { customer_email, customer_name, id_document_type, order_number, line_id_token } = parsed.data
+  const { customer_email, customer_name, id_document_type, order_number, line_id_token, consented_at } = parsed.data
 
   // LINE本人（line_user_id）を復元。以降のeKYC照合はメールではなくこれで行う
   let lineUserId: string | null = null
@@ -101,7 +101,8 @@ export async function createKycRequest(input: KycSubmitInput) {
     tenantId,
     kycRequestId: kycRequest.id,
     action: 'request_created',
-    details: { customer_email, id_document_type },
+    // 同意した事実を後から確認できるよう監査ログに残す
+    details: { id_document_type, consented_at: consented_at ?? null },
   }).catch((err) => console.error('[KYC] Audit log error:', err))
 
   return { success: true, kyc_request_id: kycRequest.id }

@@ -10,6 +10,8 @@ export const kycSubmitSchema = z.object({
   order_number: z.string().max(50).optional(),
   // LIFFのIDトークン（LINE本人でeKYCを紐付ける）
   line_id_token: z.string().optional().nullable(),
+  // プライバシーポリシーへ同意した日時（撮影前の同意画面で記録）
+  consented_at: z.string().datetime().optional().nullable(),
 })
 
 export type KycSubmitInput = z.infer<typeof kycSubmitSchema>

@@ -75,7 +75,7 @@ export function KycFlow({
     setStep('id_type')
   }
 
-  async function handleIdTypeSelect(type: IdDocumentType) {
+  async function handleIdTypeSelect(type: IdDocumentType, consentedAt: string) {
     setError(null)
     setIdDocumentType(type)
 
@@ -86,6 +86,7 @@ export function KycFlow({
       id_document_type: type,
       order_number: orderNumber,
       line_id_token: lineIdToken || null,
+      consented_at: consentedAt,
     })
 
     if (result.error) {

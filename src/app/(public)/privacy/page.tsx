@@ -47,7 +47,60 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold mb-3">4. 個人情報の提供・開示について</h2>
+            <h2 className="text-xl font-bold mb-3">4. 本人確認（eKYC）で取得する情報の取扱い</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+              買取のお申込みにあたり、古物営業法に基づく本人確認のため、以下の情報を取得します。
+            </p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+              <li>本人確認書類の画像（表面・裏面・厚みが分かる画像）</li>
+              <li>お客様のお顔の画像</li>
+              <li>氏名、生年月日、住所、職業</li>
+            </ul>
+
+            <p className="text-sm font-medium mt-4 mb-1">利用目的</p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+              <li>古物営業法第15条および同法施行規則第15条に基づく本人確認</li>
+              <li>なりすまし・不正な取引の防止</li>
+              <li>同法に基づく取引記録（帳簿）の作成・保存</li>
+            </ul>
+            <p className="text-sm text-muted-foreground leading-relaxed mt-2">
+              取得した本人確認書類および顔写真は、上記の目的以外には利用しません。広告・宣伝には一切使用しません。
+            </p>
+
+            <p className="text-sm font-medium mt-4 mb-1">保管期間</p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              古物営業法に定める帳簿等の保存期間（最終の取引の日から3年間）に準じて保管し、
+              期間の経過後は速やかに削除します。
+            </p>
+
+            <p className="text-sm font-medium mt-4 mb-1">業務の委託について</p>
+            <p className="text-sm text-muted-foreground leading-relaxed mb-2">
+              本人確認業務の遂行にあたり、以下の外部サービスを利用しています。いずれも当社の管理のもとで
+              取り扱われ、当社が定めた目的以外での利用は行いません。
+            </p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+              <li>
+                画像の内容確認を補助するための生成AIサービス（Anthropic, PBC）。
+                送信した画像がAIの学習に利用されることはありません
+              </li>
+              <li>画像およびデータの保管のためのクラウドサービス（Supabase, Google LLC）</li>
+            </ul>
+
+            <p className="text-sm font-medium mt-4 mb-1">安全管理措置</p>
+            <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+              <li>通信および保存時の暗号化</li>
+              <li>閲覧できる担当者の制限</li>
+              <li>閲覧・操作の履歴（監査ログ）の記録</li>
+            </ul>
+
+            <p className="text-sm text-muted-foreground leading-relaxed mt-3">
+              本人確認書類および顔写真の開示・削除をご希望の場合は、下記の窓口までご連絡ください。
+              ただし、法令により保存が義務付けられている期間中は削除できない場合があります。
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold mb-3">5. 個人情報の提供・開示について</h2>
             <p className="text-sm text-muted-foreground leading-relaxed mb-3">
               当社は、お客様の同意なく、個人情報を第三者に提供することはいたしません。ただし、以下の例外的な場合には、法令に基づき情報を開示することがあります：
             </p>
@@ -58,7 +111,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold mb-3">5. 個人情報に関する苦情および訂正の問い合わせ窓口</h2>
+            <h2 className="text-xl font-bold mb-3">6. 個人情報に関する苦情および訂正の問い合わせ窓口</h2>
             <p className="text-sm text-muted-foreground leading-relaxed mb-3">
               当社が保有する個人情報についての苦情、開示、訂正、削除のご依頼については、以下の窓口までお問い合わせください。
             </p>
