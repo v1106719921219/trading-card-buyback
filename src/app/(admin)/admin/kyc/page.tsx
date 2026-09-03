@@ -73,7 +73,7 @@ export default function KycListPage() {
         <form onSubmit={handleSearch} className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="メール・お名前で検索..."
+            placeholder="お名前で検索..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="pl-9"

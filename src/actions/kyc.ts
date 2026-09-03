@@ -314,7 +314,7 @@ export async function getKycRequests(options?: {
 
   if (options?.search) {
     query = query.or(
-      `customer_email.ilike.%${options.search}%,customer_name.ilike.%${options.search}%`
+      `customer_name.ilike.%${options.search}%`
     )
   }
 

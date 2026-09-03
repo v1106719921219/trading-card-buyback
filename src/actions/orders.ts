@@ -329,7 +329,7 @@ export async function getOrders(
 
   if (search) {
     query = query.or(
-      `order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`
+      `order_number.ilike.%${search}%,customer_name.ilike.%${search}%`
     )
   }
 

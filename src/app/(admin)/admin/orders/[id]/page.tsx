@@ -255,7 +255,7 @@ export default function OrderDetailPage() {
       return
     }
 
-    toast.success('注文を承認しました。確認メールを送信しました。')
+    toast.success('注文を承認しました。お客様にLINEで通知しました。')
     fetchOrder()
   }
 
@@ -976,7 +976,7 @@ export default function OrderDetailPage() {
               <CardContent className="space-y-3">
                 <p className="text-sm text-purple-700">
                   LINE未経由の申込です。内容を確認の上、承認してください。<br />
-                  承認するとお客様に申込完了メールが送信されます。
+                  承認するとお客様に申込完了のLINEが送信されます。
                 </p>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>

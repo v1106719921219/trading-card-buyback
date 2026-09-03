@@ -56,11 +56,15 @@ export async function markAsPaid(orderId: string) {
   revalidatePath('/admin')
 
   if (!notified) {
+    // 「未連携で送っていない」のか「送信に失敗した」のかで対応が変わるため区別する
+    const notice = order.line_push_user_id ? ('send_failed' as const) : ('not_linked' as const)
     return {
       success: true,
-      warning: order.line_push_user_id
-        ? 'ステータスは更新しましたが、LINE通知の送信に失敗しました'
-        : 'ステータスは更新しました（LINE未連携のためお客様への通知は送信されていません）',
+      notice,
+      warning:
+        notice === 'send_failed'
+          ? 'ステータスは更新しましたが、LINE通知の送信に失敗しました'
+          : 'ステータスは更新しました（LINE未連携のためお客様への通知は送信されていません）',
     }
   }
   return { success: true }
@@ -89,12 +93,14 @@ export async function downloadInspectionPdf(orderId: string) {
 
 export async function bulkMarkAsPaid(orderIds: string[]) {
   const errors: string[] = []
-  const warnings: string[] = []
+  let notLinked = 0
+  let sendFailed = 0
 
   for (const id of orderIds) {
     const result = await markAsPaid(id)
     if (result.error) errors.push(`${id}: ${result.error}`)
-    if ('warning' in result && result.warning) warnings.push(result.warning)
+    if ('notice' in result && result.notice === 'not_linked') notLinked++
+    if ('notice' in result && result.notice === 'send_failed') sendFailed++
   }
 
   if (errors.length > 0) {
@@ -105,8 +111,12 @@ export async function bulkMarkAsPaid(orderIds: string[]) {
   revalidatePath('/admin/orders')
   revalidatePath('/admin')
 
-  if (warnings.length > 0) {
-    return { success: true, warning: `${warnings.length}件でメール送信に失敗しました` }
+  // 何件がどの理由で通知できなかったのかを出す（対応が変わるため）
+  const notes: string[] = []
+  if (notLinked > 0) notes.push(`${notLinked}件はLINE未連携のため通知していません`)
+  if (sendFailed > 0) notes.push(`${sendFailed}件はLINE通知の送信に失敗しました`)
+  if (notes.length > 0) {
+    return { success: true, warning: `振込処理は完了しました（${notes.join('、')}）` }
   }
   return { success: true }
 }

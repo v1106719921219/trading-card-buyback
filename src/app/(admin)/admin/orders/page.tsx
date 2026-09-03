@@ -371,7 +371,7 @@ export default function OrdersPage() {
 
     if (search) {
       query = query.or(
-        `order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`
+        `order_number.ilike.%${search}%,customer_name.ilike.%${search}%`
       )
     }
 
@@ -404,7 +404,7 @@ export default function OrdersPage() {
       }
       if (search) {
         totalsQuery = totalsQuery.or(
-          `order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`
+          `order_number.ilike.%${search}%,customer_name.ilike.%${search}%`
         )
       }
 
@@ -491,7 +491,7 @@ export default function OrdersPage() {
         <form onSubmit={handleSearch} className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="注文番号・お名前・メールで検索..."
+            placeholder="注文番号・お名前で検索..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             className="pl-9"
