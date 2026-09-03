@@ -10,7 +10,7 @@ import { appendOrderToSheet } from '@/lib/google-sheets'
 import { getCurrentUser } from '@/actions/auth'
 import { requireTenantId } from '@/lib/tenant'
 import { requireRole, assertBelongsToTenant, sanitizeError } from '@/lib/security'
-import { verifyLineUserToken, pushTextMessage } from '@/lib/line'
+import { verifyLineUserToken } from '@/lib/line'
 import { verifyLineIdToken } from '@/lib/line-verify'
 
 
