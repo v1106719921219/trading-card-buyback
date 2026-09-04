@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { KycStart } from '@/components/public/kyc/KycStart'
 import { IdTypeSelect } from '@/components/public/kyc/IdTypeSelect'
 import { CameraCapture, type CaptureMeta } from '@/components/public/kyc/CameraCapture'
@@ -197,8 +197,19 @@ export function KycFlow({
     }
   }
 
+  // ステップが進むたびにスクロール位置が下がっていかないよう、
+  // 切り替え時に最も近いスクロール可能な祖先（ダイアログ本体 or ページ）を先頭へ戻す
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    let sc: HTMLElement | null = el.parentElement
+    while (sc && sc.scrollHeight <= sc.clientHeight + 1) sc = sc.parentElement
+    if (sc) sc.scrollTo({ top: 0 })
+  }, [step])
+
   return (
-    <div>
+    <div ref={rootRef}>
       {error && (
         <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}

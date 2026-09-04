@@ -152,9 +152,22 @@ export function CameraCapture({
           setCameraReady(true)
           // ダイアログがスクロールしていると、見えているのがビデオの一部だけになり
           // 中央のガイド枠に合わせられない（撮った写真が上下にズレる）。
-          // カメラ起動時にビューファインダー全体が見える位置まで自動スクロールする
+          // カメラ起動時にビューファインダー全体が見える位置まで自動スクロールする。
+          // ※scrollIntoViewは祖先要素すべて（ダイアログの背後のページまで）を
+          //   スクロールさせ、撮影のたびに画面が下へ流れていくため使わない。
+          //   最も近いスクロール可能な祖先（ダイアログ本体 or ページ）だけを動かす
           setTimeout(() => {
-            viewfinderRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+            const el = viewfinderRef.current
+            if (!el) return
+            let sc: HTMLElement | null = el.parentElement
+            while (sc && sc.scrollHeight <= sc.clientHeight + 1) sc = sc.parentElement
+            if (!sc) return
+            const top =
+              el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop
+            sc.scrollTo({
+              top: Math.max(0, top - Math.max(0, (sc.clientHeight - el.clientHeight) / 2)),
+              behavior: 'smooth',
+            })
           }, 0)
           // 少し待ってから撮影可能にする（ユーザーが位置合わせする時間）
           setTimeout(() => setCaptureReady(true), CAPTURE_DELAY_MS)
