@@ -17,9 +17,6 @@ export type CaptureMeta = {
   vpW?: number
   vpH?: number
   dpr?: number
-  // 撮影時にビデオが画面外にはみ出していて、見えている範囲だけを切り出した場合の記録
-  clipTop?: number
-  clipVisH?: number
 }
 
 type ImageKind = 'id_front' | 'id_thickness' | 'id_back' | 'face'
@@ -216,41 +213,15 @@ export function CameraCapture({
 
     const vw = video.videoWidth
     const vh = video.videoHeight
-    // 画面表示は object-cover で切り取られているため、撮影も「画面に見えている範囲」だけを切り出す。
-    // これをしないと、枠に合わせて撮っても保存画像に余分な範囲が入り対象が小さく下にズレる。
     const dispW = video.clientWidth
     const dispH = video.clientHeight
-    let sx = 0, sy = 0, srcW = vw, srcH = vh
-    let clipTop: number | undefined
-    let clipVisH: number | undefined
-    if (dispW > 0 && dispH > 0) {
-      const scale = Math.max(dispW / vw, dispH / vh) // object-cover の拡大率
-      srcW = dispW / scale
-      srcH = dispH / scale
-      sx = (vw - srcW) / 2
-      sy = (vh - srcH) / 2
-      // ビデオが画面外にはみ出た状態で撮影されると、お客様は「見えている部分」で
-      // 位置合わせしているのに、保存画像はビデオ全体になり被写体が上下にズレる。
-      // 見えている範囲だけを切り出して「見たまま＝保存画像」にする
-      const rect = video.getBoundingClientRect()
-      if (rect.height > 0) {
-        const visTop = Math.max(rect.top, 0)
-        const visBottom = Math.min(rect.bottom, window.innerHeight)
-        const visH = visBottom - visTop
-        const partiallyHidden = visTop > rect.top + 1 || visBottom < rect.bottom - 1
-        // 3割未満しか見えていない極端な状態では全体を残す（細切れ画像を防ぐ）
-        if (partiallyHidden && visH > rect.height * 0.3) {
-          const perPx = srcH / rect.height
-          sy += (visTop - rect.top) * perPx
-          srcH = visH * perPx
-          clipTop = Math.round(visTop - rect.top)
-          clipVisH = Math.round(visH)
-        }
-      }
-    }
-
-    let width = srcW
-    let height = srcH
+    // 映像フレーム全体をそのまま保存する（トリミングしない）。
+    // 以前は object-cover の表示に合わせて中央を切り出していたが、
+    // iOSのLINE内ブラウザ等では video の object-cover が効かず全体が縮小表示（レターボックス）
+    // されるため、cover前提の切り出しだと表示と保存がズレて被写体が下で切れていた。
+    // 表示側も object-contain に統一したので「見えているフレーム全体＝保存画像」で必ず一致する。
+    let width = vw
+    let height = vh
     if (width > MAX_IMAGE_SIZE || height > MAX_IMAGE_SIZE) {
       const ratio = Math.min(MAX_IMAGE_SIZE / width, MAX_IMAGE_SIZE / height)
       width = Math.round(width * ratio)
@@ -267,8 +238,7 @@ export function CameraCapture({
       ctx.scale(-1, 1)
     }
 
-    // 表示されている範囲（sx,sy,srcW,srcH）だけをキャンバス全体に描画
-    ctx.drawImage(video, sx, sy, srcW, srcH, 0, 0, width, height)
+    ctx.drawImage(video, 0, 0, vw, vh, 0, 0, width, height)
 
     canvas.toBlob(
       (blob) => {
@@ -283,7 +253,6 @@ export function CameraCapture({
             vpW: window.innerWidth,
             vpH: window.innerHeight,
             dpr: window.devicePixelRatio,
-            ...(clipTop !== undefined ? { clipTop, clipVisH } : {}),
           })
           setPreview(URL.createObjectURL(blob))
           stopCamera()
@@ -550,7 +519,7 @@ export function CameraCapture({
                 autoPlay
                 playsInline
                 muted
-                className="w-full max-h-[40vh] object-cover"
+                className="mx-auto max-h-[45vh] w-full object-contain"
                 style={{
                   transform: facingMode === 'user' ? 'scaleX(-1)' : undefined,
                 }}
