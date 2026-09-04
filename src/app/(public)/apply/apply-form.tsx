@@ -433,6 +433,10 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
       ]).then((s) => {
         setKycStatus(s)
         if (s === 'verified' || s === 'submitted') setKycName(nameAtCheck)
+      }).catch(() => {
+        // 照会自体が失敗（通信エラー・デプロイ跨ぎの古いバンドル等）しても「照会中」で固まらせない。
+        // 撮影が必要な側に倒せば、承認済みの人でも撮影し直すだけで先に進める
+        setKycStatus('none')
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
