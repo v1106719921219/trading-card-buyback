@@ -17,6 +17,9 @@ export type CaptureMeta = {
   vpW?: number
   vpH?: number
   dpr?: number
+  // 撮影時にビデオが画面外にはみ出していて、見えている範囲だけを切り出した場合の記録
+  clipTop?: number
+  clipVisH?: number
 }
 
 type ImageKind = 'id_front' | 'id_thickness' | 'id_back' | 'face'
@@ -218,12 +221,32 @@ export function CameraCapture({
     const dispW = video.clientWidth
     const dispH = video.clientHeight
     let sx = 0, sy = 0, srcW = vw, srcH = vh
+    let clipTop: number | undefined
+    let clipVisH: number | undefined
     if (dispW > 0 && dispH > 0) {
       const scale = Math.max(dispW / vw, dispH / vh) // object-cover の拡大率
       srcW = dispW / scale
       srcH = dispH / scale
       sx = (vw - srcW) / 2
       sy = (vh - srcH) / 2
+      // ビデオが画面外にはみ出た状態で撮影されると、お客様は「見えている部分」で
+      // 位置合わせしているのに、保存画像はビデオ全体になり被写体が上下にズレる。
+      // 見えている範囲だけを切り出して「見たまま＝保存画像」にする
+      const rect = video.getBoundingClientRect()
+      if (rect.height > 0) {
+        const visTop = Math.max(rect.top, 0)
+        const visBottom = Math.min(rect.bottom, window.innerHeight)
+        const visH = visBottom - visTop
+        const partiallyHidden = visTop > rect.top + 1 || visBottom < rect.bottom - 1
+        // 3割未満しか見えていない極端な状態では全体を残す（細切れ画像を防ぐ）
+        if (partiallyHidden && visH > rect.height * 0.3) {
+          const perPx = srcH / rect.height
+          sy += (visTop - rect.top) * perPx
+          srcH = visH * perPx
+          clipTop = Math.round(visTop - rect.top)
+          clipVisH = Math.round(visH)
+        }
+      }
     }
 
     let width = srcW
@@ -260,6 +283,7 @@ export function CameraCapture({
             vpW: window.innerWidth,
             vpH: window.innerHeight,
             dpr: window.devicePixelRatio,
+            ...(clipTop !== undefined ? { clipTop, clipVisH } : {}),
           })
           setPreview(URL.createObjectURL(blob))
           stopCamera()
