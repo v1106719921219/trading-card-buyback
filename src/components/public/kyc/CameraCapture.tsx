@@ -111,6 +111,9 @@ export function CameraCapture({
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null)
   const [capturedMeta, setCapturedMeta] = useState<CaptureMeta | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  // object-contain表示で映像が実際に描画されている矩形（左右/上下の黒帯を除いた領域）。
+  // ガイド枠をこの矩形に合わせ、黒帯にはみ出さないようにする
+  const [drawRect, setDrawRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
   // 「カメラを再試行」用。エラー画面ではvideo要素が消えているため、
   // キーを更新して再マウント後に startCamera を走らせる
   const [retryKey, setRetryKey] = useState(0)
@@ -204,6 +207,32 @@ export function CameraCapture({
     }
     return () => stopCamera()
   }, [startCamera, stopCamera, preview, retryKey])
+
+  // 映像の実描画矩形（object-containで黒帯を除いた領域）を計測し、ガイド枠をそこに合わせる
+  useEffect(() => {
+    if (preview) return
+    const video = videoRef.current
+    if (!video) return
+    const update = () => {
+      const cw = video.clientWidth
+      const ch = video.clientHeight
+      const vw = video.videoWidth
+      const vh = video.videoHeight
+      if (!vw || !vh || !cw || !ch) return
+      const scale = Math.min(cw / vw, ch / vh) // object-contain の縮小率
+      const dw = vw * scale
+      const dh = vh * scale
+      setDrawRect({ left: (cw - dw) / 2, top: (ch - dh) / 2, width: dw, height: dh })
+    }
+    update()
+    video.addEventListener('loadedmetadata', update)
+    const ro = new ResizeObserver(update)
+    ro.observe(video)
+    return () => {
+      video.removeEventListener('loadedmetadata', update)
+      ro.disconnect()
+    }
+  }, [preview, retryKey, cameraReady])
 
   function handleCapture() {
     if (!captureReady) return
@@ -524,9 +553,9 @@ export function CameraCapture({
                   transform: facingMode === 'user' ? 'scaleX(-1)' : undefined,
                 }}
               />
-              {/* ガイド枠オーバーレイ */}
+              {/* ガイド枠オーバーレイ（映像の実描画領域に合わせて黒帯にはみ出さないようにする） */}
               {cameraReady && guideType === 'thickness' && (
-                <div className="absolute inset-0">
+                <div className="absolute" style={drawRect ?? { inset: 0 }}>
                   {/* 厚み撮影用: 切り抜きと緑枠を同一の台形で描画（ズレ防止のため1つのSVGにまとめる） */}
                   <svg
                     className="absolute inset-0 h-full w-full"
@@ -571,7 +600,7 @@ export function CameraCapture({
                 </div>
               )}
               {cameraReady && guideType !== 'thickness' && (
-                <div className="absolute inset-0">
+                <div className="absolute" style={drawRect ?? { inset: 0 }}>
                   {/* ガイド枠。枠の外側はbox-shadowで暗くする（枠と完全に一致してズレない） */}
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                     <div
