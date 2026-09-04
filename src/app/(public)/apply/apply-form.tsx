@@ -159,28 +159,60 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
   function draftKey(uid: string) {
     return `buyback_apply_draft_v2_${uid}`
   }
-  // 本人が確定したら（LIFF本人）その人の下書きだけ復元（自動入力が無い時のみ）
+  // 本人が確定したら（LIFF本人）その人の下書きだけ復元
   useEffect(() => {
-    if (!draftUserId || prefillCustomer || linePrefilled) return
+    if (!draftUserId) return
     try {
       const raw = localStorage.getItem(draftKey(draftUserId))
       if (!raw) return
       const d = JSON.parse(raw)
-      if (d.customerName) setCustomerName(d.customerName)
-      if (d.customerLineName) setCustomerLineName(d.customerLineName)
-      if (d.customerPhone) setCustomerPhone(d.customerPhone)
-      if (d.customerBirthDate) setCustomerBirthDate(d.customerBirthDate)
-      if (d.customerOccupation) setCustomerOccupation(d.customerOccupation)
-      if (d.customerPrefecture) setCustomerPrefecture(d.customerPrefecture)
-      if (d.customerAddress) setCustomerAddress(d.customerAddress)
-      if (d.customerPostalCode) setCustomerPostalCode(d.customerPostalCode)
-      if (typeof d.customerNotInvoiceIssuer === 'boolean') setCustomerNotInvoiceIssuer(d.customerNotInvoiceIssuer)
-      if (d.invoiceIssuerNumber) setInvoiceIssuerNumber(d.invoiceIssuerNumber)
-      if (d.bankName) setBankName(d.bankName)
-      if (d.bankBranch) setBankBranch(d.bankBranch)
-      if (d.bankAccountType) setBankAccountType(d.bankAccountType)
-      if (d.bankAccountNumber) setBankAccountNumber(d.bankAccountNumber)
-      if (d.bankAccountHolder) setBankAccountHolder(d.bankAccountHolder)
+      // 7日以上前の下書きは復元しない（価格・商品の入れ替わりが激しいため）
+      if (d.savedAt && Date.now() - d.savedAt > 7 * 24 * 60 * 60 * 1000) return
+      // お客様情報は自動入力（過去注文プレフィル）が無い時のみ復元
+      if (!prefillCustomer && !linePrefilled) {
+        if (d.customerName) setCustomerName(d.customerName)
+        if (d.customerLineName) setCustomerLineName(d.customerLineName)
+        if (d.customerPhone) setCustomerPhone(d.customerPhone)
+        if (d.customerBirthDate) setCustomerBirthDate(d.customerBirthDate)
+        if (d.customerOccupation) setCustomerOccupation(d.customerOccupation)
+        if (d.customerPrefecture) setCustomerPrefecture(d.customerPrefecture)
+        if (d.customerAddress) setCustomerAddress(d.customerAddress)
+        if (d.customerPostalCode) setCustomerPostalCode(d.customerPostalCode)
+        if (typeof d.customerNotInvoiceIssuer === 'boolean') setCustomerNotInvoiceIssuer(d.customerNotInvoiceIssuer)
+        if (d.invoiceIssuerNumber) setInvoiceIssuerNumber(d.invoiceIssuerNumber)
+        if (d.bankName) setBankName(d.bankName)
+        if (d.bankBranch) setBankBranch(d.bankBranch)
+        if (d.bankAccountType) setBankAccountType(d.bankAccountType)
+        if (d.bankAccountNumber) setBankAccountNumber(d.bankAccountNumber)
+        if (d.bankAccountHolder) setBankAccountHolder(d.bankAccountHolder)
+      }
+      // カート・進行位置の復元。Botリンクで商品が渡されている場合はそちらを優先して上書きしない。
+      // 価格は下書き時点でなく現在の商品リストから引き直す（毎日の価格更新・受付停止に追従）
+      if (!initialCart?.length && Array.isArray(d.cartItems) && d.cartItems.length > 0) {
+        const restored: CartItem[] = []
+        for (const it of d.cartItems) {
+          const p = initialProducts.find((pp) => pp.id === it.product_id)
+          if (!p) continue
+          restored.push({
+            product_id: p.id,
+            product_name: p.name,
+            unit_price: p.price,
+            quantity: Math.max(1, Number(it.quantity) || 1),
+            category_name: p.category?.name ?? '',
+          })
+        }
+        if (restored.length > 0) {
+          setCart(restored)
+          if (d.selectedOfficeId && initialOffices.some((o) => o.id === d.selectedOfficeId)) setSelectedOfficeId(d.selectedOfficeId)
+          if (d.shippedDate) setShippedDate(d.shippedDate)
+          const savedStep = Number(d.step) || 0
+          if (savedStep > 0) {
+            const hasCustomer = !!(d.customerName && d.bankAccountNumber) || !!prefillCustomer || linePrefilled
+            setStep(Math.min(savedStep, hasCustomer ? 2 : 1))
+            toast.info('前回の入力内容を復元しました')
+          }
+        }
+      }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftUserId])
@@ -194,11 +226,15 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
           customerOccupation, customerPrefecture, customerAddress, customerPostalCode,
           customerNotInvoiceIssuer, invoiceIssuerNumber,
           bankName, bankBranch, bankAccountType, bankAccountNumber, bankAccountHolder,
+          // カート（価格は保存せず復元時に引き直す）・進行位置・発送先/発送日
+          cartItems: cart.map((c) => ({ product_id: c.product_id, quantity: c.quantity })),
+          step, selectedOfficeId, shippedDate,
+          savedAt: Date.now(),
         }))
       } catch {}
     }, 500)
     return () => clearTimeout(t)
-  }, [draftUserId, customerName, customerLineName, customerPhone, customerBirthDate, customerOccupation, customerPrefecture, customerAddress, customerPostalCode, customerNotInvoiceIssuer, invoiceIssuerNumber, bankName, bankBranch, bankAccountType, bankAccountNumber, bankAccountHolder])
+  }, [draftUserId, customerName, customerLineName, customerPhone, customerBirthDate, customerOccupation, customerPrefecture, customerAddress, customerPostalCode, customerNotInvoiceIssuer, invoiceIssuerNumber, bankName, bankBranch, bankAccountType, bankAccountNumber, bankAccountHolder, cart, step, selectedOfficeId, shippedDate])
 
   const categories = initialCategories
   const products = initialProducts
@@ -349,6 +385,9 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
     setAiParsing(false)
   }
 
+  // 生年月日の上限（今日のJST日付）。未来日は入力ミスなので弾く
+  const todayJst = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
+
   function canProceed() {
     if (step === 0) return cart.length > 0 && !!selectedOfficeId
     if (step === 1) {
@@ -356,6 +395,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
         customerName.trim() &&
         customerLineName.trim() &&
         customerBirthDate &&
+        customerBirthDate <= todayJst &&
         customerOccupation.trim() &&
         customerPrefecture &&
         customerAddress.trim() &&
@@ -948,8 +988,12 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
                       type="date"
                       value={customerBirthDate}
                       onChange={(e) => setCustomerBirthDate(e.target.value)}
+                      max={todayJst}
                       required
                     />
+                    {customerBirthDate && customerBirthDate > todayJst && (
+                      <p className="text-xs text-destructive">生年月日が未来の日付になっています</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>職業 <span className="text-destructive">*</span></Label>
