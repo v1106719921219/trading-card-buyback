@@ -7,6 +7,7 @@ import { generatePkce, getAuthUrl } from '@/lib/mf'
 export async function GET(request: Request) {
   const { user, error } = await requireRole(['admin', 'manager'])
   if (error || !user) return NextResponse.json({ error: '管理者の本人確認が必要です' }, { status: 403 })
+  if (!process.env.MF_CLIENT_ID || !process.env.MF_CLIENT_SECRET || !process.env.MF_REDIRECT_URI) return NextResponse.json({ error: 'この環境ではMF連携が設定されていません' }, { status: 503 })
   const expected = process.env.NEXT_PUBLIC_SITE_URL
   if (expected && new URL(request.url).origin !== new URL(expected).origin) return NextResponse.json({ error: 'URLが一致しません' }, { status: 400 })
   const { codeVerifier, codeChallenge } = generatePkce()
