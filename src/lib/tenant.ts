@@ -1,4 +1,5 @@
 import { headers } from 'next/headers'
+import { resolveTenantSlug } from '@/lib/tenant-slug'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cache } from 'react'
@@ -23,18 +24,8 @@ export interface Tenant {
  */
 export const getTenant = cache(async (): Promise<Tenant | null> => {
   const headersList = await headers()
-  let slug = headersList.get('x-tenant-slug')
-
-  // ミドルウェアからヘッダーが届かない場合のフォールバック
-  if (!slug) {
-    // NEXT_PUBLIC_SITE_URLからテナントを自動判定
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || ''
-    if (siteUrl.includes('chiba.')) {
-      slug = 'chiba'
-    } else {
-      slug = process.env.DEFAULT_TENANT_SLUG || 'quadra'
-    }
-  }
+  // Derive the tenant from the routed host; never trust a caller-supplied tenant header.
+  const slug = resolveTenantSlug(headersList.get('host') ?? '')
 
   // RLSをバイパスして確実にテナント情報を取得
   const supabase = createAdminClient()

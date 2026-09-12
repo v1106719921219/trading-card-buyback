@@ -328,13 +328,13 @@ async function syncToChiba() {
   async function handleInlineImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     const productId = inlineUploadTargetId.current
-    if (!file || !productId) return
+    if (!file || !productId || !tenantId) return
     setInlineUploadingId(productId)
     const ext = file.name.split('.').pop()
-    const path = `${Date.now()}.${ext}`
+    const path = `${tenantId}/${crypto.randomUUID()}.${ext}`
     const { error } = await supabase.storage
       .from('product-images')
-      .upload(path, file, { upsert: true })
+      .upload(path, file, { upsert: false })
     if (error) {
       toast.error('画像のアップロードに失敗しました')
       setInlineUploadingId(null)
@@ -358,13 +358,13 @@ async function syncToChiba() {
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file || !tenantId) return
     setUploadingImage(true)
     const ext = file.name.split('.').pop()
-    const path = `${Date.now()}.${ext}`
+    const path = `${tenantId}/${crypto.randomUUID()}.${ext}`
     const { error } = await supabase.storage
       .from('product-images')
-      .upload(path, file, { upsert: true })
+      .upload(path, file, { upsert: false })
     if (error) {
       toast.error('画像のアップロードに失敗しました')
       setUploadingImage(false)

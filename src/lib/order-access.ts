@@ -23,10 +23,10 @@ function signature(tenantId: string, orderNumber: string, expires: string) {
 }
 
 // Only call after creating the order or verifying its LINE owner.
-export async function grantOrderAccess(tenantId: string, orderNumber: string) {
-  const expires = String(Math.floor(Date.now() / 1000) + TTL)
+export async function grantOrderAccess(tenantId: string, orderNumber: string, ttl = TTL) {
+  const expires = String(Math.floor(Date.now() / 1000) + ttl)
   ;(await cookies()).set(cookieName(tenantId, orderNumber), `${expires}.${signature(tenantId, orderNumber, expires)}`, {
-    httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: TTL,
+    httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: ttl,
   })
 }
 

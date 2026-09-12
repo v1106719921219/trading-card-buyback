@@ -11,6 +11,7 @@ export type InspectionStatus = '問題あり'
 export type BuybackType = 'ar_quality' | 'minimum_guarantee'
 
 export interface Profile {
+  is_active?: boolean
   id: string
   email: string
   display_name: string

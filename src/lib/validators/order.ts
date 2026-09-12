@@ -38,7 +38,8 @@ export const customerInfoSchema = z.object({
 })
 
 export const createOrderSchema = z.object({
-  items: z.array(orderItemSchema).min(1, '商品を1つ以上選択してください'),
+  items: z.array(orderItemSchema).min(1, '商品を1つ以上選択してください').max(500),
+  quote_token: z.string().max(1_000_000),
   customer: customerInfoSchema,
   customer_id: z.string().uuid().optional(),
   office_id: z.string().uuid('発送先事務所を選択してください'),

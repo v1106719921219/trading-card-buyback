@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit'
+import { resolveTenantSlug } from '@/lib/tenant-slug'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     ?? request.headers.get('x-real-ip')
@@ -69,7 +70,7 @@ export async function middleware(request: NextRequest) {
   if (tenantSlug) {
     response.headers.set('x-tenant-slug', tenantSlug)
   }
-  response.headers.set('x-real-ip', ip)
+  // Do not echo the caller's IP address into responses.
 
   // ============================================================================
   // 4. セキュリティヘッダー付与
@@ -94,30 +95,6 @@ export async function middleware(request: NextRequest) {
   }
 
   return response
-}
-
-/**
- * ホスト名からテナントslugを解決する
- * 例:
- *   quadra.buyback.jp → 'quadra'
- *   localhost:3000    → 'quadra'（開発用デフォルト or ?tenant=xxxで切り替え）
- */
-function resolveTenantSlug(hostname: string, url: URL): string | null {
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000'
-
-  // 開発環境: ?tenant=slug で切り替え可能
-  if (hostname === 'localhost:3000' || hostname === '127.0.0.1:3000') {
-    return url.searchParams.get('tenant') || process.env.DEFAULT_TENANT_SLUG || 'quadra'
-  }
-
-  // 本番: サブドメインを抽出
-  if (hostname.endsWith(`.${rootDomain}`)) {
-    return hostname.replace(`.${rootDomain}`, '')
-  }
-
-  // ルートドメインそのもの、またはカスタムドメイン
-  // → デフォルトテナントを返す
-  return process.env.DEFAULT_TENANT_SLUG || 'quadra'
 }
 
 export const config = {

@@ -1,8 +1,14 @@
+import { requireRole } from '@/lib/security'
+import { getTenant } from '@/lib/tenant'
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@supabase/supabase-js'
 
-export async function POST(request: Request) {
+export async function POST(_request: Request) {
+  const { user, error } = await requireRole(['admin', 'manager'])
+  if (error || !user) return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+  const tenant = await getTenant()
+  if (tenant?.slug !== 'quadra') return NextResponse.json({ error: '同期元テナントが一致しません' }, { status: 403 })
   // 千葉の認証情報が設定されていない場合はスキップ（千葉デプロイ自身では何もしない）
   if (!process.env.CHIBA_SUPABASE_URL || !process.env.CHIBA_SUPABASE_SERVICE_ROLE_KEY) {
     return NextResponse.json({ skipped: true })
@@ -10,7 +16,7 @@ export async function POST(request: Request) {
 
   const tokyoSupabase = createAdminClient()
 
-  const tenantSlug = request.headers.get('x-tenant-slug') ?? 'quadra'
+  const tenantSlug = tenant.slug
 
   const { data: tokyoTenant } = await tokyoSupabase
     .from('tenants')
@@ -126,7 +132,6 @@ export async function POST(request: Request) {
   // 千葉の既存商品を全削除（tenant_id一致 + NULL両方）
   await Promise.all([
     chibaSupabase.from('products').delete().eq('tenant_id', chibaTenant.id),
-    chibaSupabase.from('products').delete().is('tenant_id', null),
   ])
 
   // 東京の商品を全件挿入

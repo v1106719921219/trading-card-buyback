@@ -11,6 +11,9 @@ import { getCurrentUser } from '@/actions/auth'
 import { requireTenantId } from '@/lib/tenant'
 import { requireRole, assertBelongsToTenant, sanitizeError } from '@/lib/security'
 import { verifyLineUserToken } from '@/lib/line'
+import { limitPublicRequest } from '@/lib/shared-rate-limit'
+import { verifyOrderQuote } from '@/lib/order-quote'
+import { hasKycAccess } from '@/lib/kyc/access'
 import { verifyLineIdToken } from '@/lib/line-verify'
 import { assertOrderAccessConfigured, grantOrderAccess, hasOrderAccess } from '@/lib/order-access'
 
@@ -30,6 +33,8 @@ export async function createOrder(input: CreateOrderInput) {
     return { error: `テナント情報の取得に失敗しました: ${e instanceof Error ? e.message : '不明'}` }
   }
 
+  if (!await limitPublicRequest('order-create', 30, 3600)) return { error: '申込回数が多すぎます。しばらくしてからお試しください' }
+
   // Fail before writing an order if the signing secret is missing.
   assertOrderAccessConfigured()
 
@@ -38,7 +43,19 @@ export async function createOrder(input: CreateOrderInput) {
 
   try {
 
-  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type, line_user_token, line_id_token, kyc_request_id } = parsed.data
+  const { customer, office_id, shipped_date, buyback_type, line_user_token, line_id_token, kyc_request_id } = parsed.data
+
+  const { items, priceDate: price_date } = verifyOrderQuote(tenantId, parsed.data.quote_token, parsed.data.items)
+  const { data: validOffice } = await supabase.from('offices').select('id').eq('id', office_id).eq('tenant_id', tenantId).eq('is_active', true).maybeSingle()
+  if (!validOffice) return { error: '発送先の事務所を確認してください' }
+  const ids = [...new Set(items.map(i => i.product_id))]
+  const { data: available } = await supabase.from('products').select('id').eq('tenant_id', tenantId).eq('is_active', true).eq('show_in_price_list', true).in('id', ids)
+  if (!available || available.length !== ids.length) return { error: '受付停止中の商品が含まれています。申込内容をご確認ください' }
+
+  if (buyback_type === 'ar_quality') {
+    const { data: setting } = await supabase.from('app_settings').select('value').eq('tenant_id', tenantId).eq('key', 'ar_quality_enabled').maybeSingle()
+    if (setting?.value !== 'true') return { error: '美品査定は現在受付していません' }
+  }
 
   // LINE userIdの復元（改ざん・なりすまし防止のためサーバー側で検証）
   // 優先: LIFF（LINEアプリ内で開いた申込）のIDトークン → 次点: Botの署名トークン
@@ -48,7 +65,7 @@ export async function createOrder(input: CreateOrderInput) {
     lineUserId = verified?.userId ?? null
   }
   if (!lineUserId && line_user_token) {
-    lineUserId = verifyLineUserToken(line_user_token)
+    lineUserId = verifyLineUserToken(line_user_token, tenantId)
   }
 
   // Calculate total
@@ -133,13 +150,14 @@ export async function createOrder(input: CreateOrderInput) {
       if (kyc_request_id) {
         const { data: submitted } = await supabase
           .from('kyc_requests')
-          .select('id, status, id_document_type, customer_name')
+          .select('id, status, id_document_type, customer_name, line_user_id')
           .eq('tenant_id', tenantId)
           .eq('id', kyc_request_id)
           .maybeSingle()
         // 撮影後に氏名を変更した等の食い違いを防ぐため、氏名一致も確認する
         if (
           submitted &&
+          ((lineUserId && submitted.line_user_id === lineUserId) || await hasKycAccess(tenantId, submitted.id)) &&
           ['processing', 'approved'].includes(submitted.status) &&
           normalize(submitted.customer_name) === normalize(customer.customer_name)
         ) {
@@ -210,7 +228,7 @@ export async function createOrder(input: CreateOrderInput) {
       bank_account_number: customer.bank_account_number,
       bank_account_holder: customer.bank_account_holder,
       total_amount,
-      customer_id: customer_id || null,
+      customer_id: null,
       office_id,
       shipped_date: shipped_date || null,
       price_date: price_date ?? null,
@@ -446,7 +464,7 @@ export async function getLineLinkUrl(orderNumber: string): Promise<string | null
   if (!await hasOrderAccess(tenantId, orderNumber)) return null
   const { signOrderNumber } = await import('@/lib/line')
   const { OFFICIAL_LINE_BASIC_ID } = await import('@/lib/constants')
-  const token = signOrderNumber(orderNumber)
+  const token = signOrderNumber(orderNumber, tenantId)
   if (!token) return null
   const text = `連携 ${token}`
   return `https://line.me/R/oaMessage/${OFFICIAL_LINE_BASIC_ID}/?${encodeURIComponent(text)}`
@@ -462,7 +480,7 @@ export async function notifyReductionLine(_orderId: string) {
 // 本人のLINE IDを特定する（自前の署名トークン u= か、LIFFのIDトークンのどちらでも可）
 async function resolveLineUserId(token: string): Promise<string | null> {
   const { verifyLineUserToken } = await import('@/lib/line')
-  const own = verifyLineUserToken(token)
+  const own = verifyLineUserToken(token, await requireTenantId())
   if (own) return own
   const { verifyLineIdToken } = await import('@/lib/line-verify')
   const v = await verifyLineIdToken(token)
@@ -810,51 +828,8 @@ export async function updateOrderItems(
     return { error: '申込または承認待ちステータスの注文のみ編集できます' }
   }
 
-  // Delete existing order items
-  const { error: deleteError } = await supabase
-    .from('order_items')
-    .delete()
-    .eq('order_id', order.id)
-    .eq('tenant_id', tenantId)
-
-  if (deleteError) {
-    return { error: `明細の削除に失敗しました: ${deleteError.message}` }
-  }
-
-  // Insert new items
-  const orderItems = items.map((item) => ({
-    order_id: order.id,
-    product_id: item.product_id,
-    product_name: item.product_name,
-    unit_price: item.unit_price,
-    quantity: item.quantity,
-    tenant_id: order.tenant_id,
-  }))
-
-  const { error: insertError } = await supabase
-    .from('order_items')
-    .insert(orderItems)
-
-  if (insertError) {
-    return { error: `明細の作成に失敗しました: ${insertError.message}` }
-  }
-
-  // Recalculate total
-  const total_amount = items.reduce(
-    (sum, item) => sum + item.unit_price * item.quantity,
-    0
-  )
-
-  const { error: updateError } = await supabase
-    .from('orders')
-    .update({ total_amount })
-    .eq('id', order.id)
-    .eq('tenant_id', tenantId)
-
-  if (updateError) {
-    return { error: `合計金額の更新に失敗しました: ${updateError.message}` }
-  }
-
+  const { error } = await supabase.rpc('replace_owned_order_items', { p_tenant: tenantId, p_order: order.id, p_items: items })
+  if (error) return { error: '商品・価格・数量が現在の受付条件と一致しません。画面を開き直してください' }
   return { success: true }
 }
 

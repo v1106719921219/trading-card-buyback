@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const BUCKET = 'kyc-documents'
@@ -15,13 +16,13 @@ export async function uploadKycImage(
 ): Promise<{ path: string; error: string | null }> {
   const supabase = createAdminClient()
   const ext = contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg'
-  const path = `${tenantId}/${kycRequestId}/${imageType}.${ext}`
+  const path = `${tenantId}/${kycRequestId}/${imageType}-${randomUUID()}.${ext}`
 
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(path, file, {
       contentType,
-      upsert: true,
+      upsert: false,
     })
 
   if (error) {

@@ -1,11 +1,14 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/security'
 import { generateInspectionPdf } from '@/lib/pdf'
 
 export async function getPaymentQueue() {
-  const supabase = createAdminClient()
+  const { user, error: authError } = await requireRole(['admin', 'manager'])
+  if (authError || !user) return { error: authError ?? '認証が必要です' }
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_items(*)')
@@ -17,7 +20,9 @@ export async function getPaymentQueue() {
 }
 
 export async function markAsPaid(orderId: string) {
-  const supabase = createAdminClient()
+  const { user, error: authError } = await requireRole(['admin', 'manager'])
+  if (authError || !user) return { error: authError ?? '認証が必要です' }
+  const supabase = await createClient()
 
   // 振込ゲート: eKYCが紐付いている注文は本人確認の承認完了まで振込済にできない。
   // 紙運用（eKYC記録なし）の注文は従来通り対象外
@@ -25,6 +30,7 @@ export async function markAsPaid(orderId: string) {
     .from('orders')
     .select('order_number, kyc_request_id, identity_verified_at')
     .eq('id', orderId)
+    .eq('tenant_id', user.tenant_id)
     .single()
 
   if (kycCheck?.kyc_request_id && !kycCheck.identity_verified_at) {
@@ -38,6 +44,7 @@ export async function markAsPaid(orderId: string) {
     .from('orders')
     .update({ status: '振込済', paid_at: new Date().toISOString() })
     .eq('id', orderId)
+    .eq('tenant_id', user.tenant_id)
     .eq('status', '検品完了')
     .select('*, order_items(*)')
 
@@ -57,12 +64,15 @@ export async function markAsPaid(orderId: string) {
 }
 
 export async function downloadInspectionPdf(orderId: string) {
-  const supabase = createAdminClient()
+  const { user, error: authError } = await requireRole(['admin', 'manager'])
+  if (authError || !user) return { error: authError ?? '認証が必要です' }
+  const supabase = await createClient()
 
   const { data: order, error: fetchError } = await supabase
     .from('orders')
     .select('*, order_items(*)')
     .eq('id', orderId)
+    .eq('tenant_id', user.tenant_id)
     .single()
 
   if (fetchError || !order) {
@@ -78,6 +88,9 @@ export async function downloadInspectionPdf(orderId: string) {
 }
 
 export async function bulkMarkAsPaid(orderIds: string[]) {
+  const { error: authError } = await requireRole(['admin', 'manager'])
+  if (authError) return { error: authError }
+  if (!Array.isArray(orderIds) || orderIds.length < 1 || orderIds.length > 100) return { error: '1〜100件を選択してください' }
   const errors: string[] = []
 
   for (const id of orderIds) {

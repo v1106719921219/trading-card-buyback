@@ -1,5 +1,8 @@
 'use server'
 
+import { limitPublicRequest, consumeLimit } from '@/lib/shared-rate-limit'
+import { grantKycAccess, hasKycAccess } from '@/lib/kyc/access'
+import { hasOrderAccess, assertOrderAccessConfigured } from '@/lib/order-access'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
@@ -30,6 +33,9 @@ export async function createKycRequest(input: KycSubmitInput) {
     return { error: 'テナント情報の取得に失敗しました' }
   }
 
+  if (!await limitPublicRequest('kyc-create', 20, 3600)) return { error: '申請回数が多すぎます。しばらくしてからお試しください' }
+  assertOrderAccessConfigured()
+
   // eKYC有効チェック
   const tenant = await getTenant()
   if (!tenant || !tenant.ekyc_enabled) {
@@ -50,6 +56,7 @@ export async function createKycRequest(input: KycSubmitInput) {
   // 注文番号が渡された場合は注文に紐付ける（同一テナントのみ）
   let orderId: string | null = null
   if (order_number) {
+    if (!await hasOrderAccess(tenantId, order_number, line_id_token ?? undefined)) return { error: '注文の本人確認が必要です' }
     const { data: order } = await supabase
       .from('orders')
       .select('id')
@@ -59,24 +66,7 @@ export async function createKycRequest(input: KycSubmitInput) {
     orderId = order?.id ?? null
   }
 
-  // 同一LINE本人の未完了リクエストがあれば作り直す（LINE未連携時はメールで代替）
-  let existingQuery = supabase
-    .from('kyc_requests')
-    .select('id, status')
-    .eq('tenant_id', tenantId)
-    .in('status', ['pending', 'processing'])
-    .limit(1)
-  existingQuery = lineUserId
-    ? existingQuery.eq('line_user_id', lineUserId)
-    : existingQuery.eq('customer_email', customer_email ?? '')
-  const { data: existing } = await existingQuery.maybeSingle()
-
-  if (existing) {
-    // 既存の未完了リクエストを削除して作り直す
-    await supabase.from('kyc_audit_logs').delete().eq('kyc_request_id', existing.id)
-    await supabase.from('kyc_requests').delete().eq('id', existing.id)
-  }
-
+  // Never delete a previous request or its audit log based on an email address.
   const { data: kycRequest, error } = await supabase
     .from('kyc_requests')
     .insert({
@@ -105,6 +95,7 @@ export async function createKycRequest(input: KycSubmitInput) {
     details: { id_document_type, consented_at: consented_at ?? null },
   }).catch((err) => console.error('[KYC] Audit log error:', err))
 
+  await grantKycAccess(tenantId, kycRequest.id)
   return { success: true, kyc_request_id: kycRequest.id }
 }
 
@@ -119,6 +110,7 @@ export async function submitKycRequest(kycRequestId: string) {
     return { error: 'テナント情報の取得に失敗しました' }
   }
 
+  if (!await hasKycAccess(tenantId, kycRequestId)) return { error: '本人確認の操作権限がありません。撮影画面からやり直してください' }
   const supabase = createAdminClient()
 
   // リクエスト取得・テナント検証
@@ -147,6 +139,10 @@ export async function submitKycRequest(kycRequestId: string) {
       .from('kyc_requests')
       .update({ status: 'processing' })
       .eq('id', kycRequestId)
+      .eq('tenant_id', tenantId)
+      .eq('status', 'pending')
+      .select('id')
+      .single()
 
     if (updateError) {
       return { error: sanitizeError(updateError) }
@@ -176,6 +172,7 @@ export async function submitKycRequest(kycRequestId: string) {
 
 /** AI審査を実行し、結果をkyc_requestsに反映する（pass=自動承認、それ以外=人間確認待ちのまま） */
 async function runAiReviewAndApply(kycRequestId: string, tenantId: string) {
+  if (!await consumeLimit(`${tenantId}:kyc-ai`, 100, 3600)) return // Remain in the human review queue.
   const supabase = createAdminClient()
 
   const { data: kyc } = await supabase
@@ -210,7 +207,7 @@ async function runAiReviewAndApply(kycRequestId: string, tenantId: string) {
     return
   }
 
-  const autoApprove = review.verdict === 'pass'
+  const autoApprove = review.verdict === 'pass' && review.name_match === true && review.face_match === true && review.document_looks_genuine === true && review.concerns.length === 0
 
   const { data: updated } = await supabase
     .from('kyc_requests')
@@ -256,30 +253,8 @@ async function runAiReviewAndApply(kycRequestId: string, tenantId: string) {
 /**
  * ステータス確認（公開ページ）
  */
-export async function getKycStatus(customerEmail: string) {
-  let tenantId: string
-  try {
-    tenantId = await requireTenantId()
-  } catch {
-    return { error: 'テナント情報の取得に失敗しました' }
-  }
-
-  const supabase = createAdminClient()
-
-  const { data, error } = await supabase
-    .from('kyc_requests')
-    .select('id, status, id_document_type, rejection_reason, created_at, updated_at')
-    .eq('tenant_id', tenantId)
-    .eq('customer_email', customerEmail)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
-
-  if (error || !data) {
-    return { data: null }
-  }
-
-  return { data }
+export async function getKycStatus(_customerEmail: string) {
+  return { data: null }
 }
 
 /**
@@ -405,6 +380,12 @@ export async function getKycImageUrl(path: string) {
   const { user, error: authError } = await requireRole(['admin', 'manager', 'staff'])
   if (authError || !user) return { error: authError ?? '認証エラー' }
 
+  if (typeof path !== 'string' || !/^[a-zA-Z0-9_./-]+$/.test(path)) return { error: '画像が見つかりません' }
+  const { data: owned } = await createAdminClient().from('kyc_requests').select('id')
+    .eq('tenant_id', user.tenant_id)
+    .or(['id_front_image_path', 'id_back_image_path', 'id_thickness_image_path', 'face_image_path'].map(c => `${c}.eq.${path}`).join(','))
+    .limit(1).maybeSingle()
+  if (!owned) return { error: '画像が見つかりません' }
   const url = await createSignedUrl(path)
   if (!url) {
     return { error: '画像URLの生成に失敗しました' }
@@ -434,6 +415,7 @@ export async function reviewKycRequest(input: KycReviewInput) {
     .from('kyc_requests')
     .select('id, status, tenant_id, order_id')
     .eq('id', kyc_request_id)
+    .eq('tenant_id', user.tenant_id)
     .single()
 
   if (fetchError || !current) {
@@ -457,6 +439,8 @@ export async function reviewKycRequest(input: KycReviewInput) {
       rejection_reason: action === 'rejected' ? rejection_reason : null,
     })
     .eq('id', kyc_request_id)
+    .eq('tenant_id', user.tenant_id)
+    .eq('status', 'processing')
     .select('id')
 
   if (updateError) {
@@ -476,6 +460,7 @@ export async function reviewKycRequest(input: KycReviewInput) {
         identity_verified_at: new Date().toISOString(),
       })
       .eq('id', current.order_id)
+      .eq('tenant_id', user.tenant_id)
     if (orderError) {
       console.error('[KYC] 注文への確認済み反映に失敗:', orderError)
     }
@@ -571,6 +556,7 @@ export async function getOrderKycInfo(orderId: string) {
     .from('orders')
     .select('id, tenant_id, customer_name, line_user_id, customer_identity_method, kyc_request_id, identity_verified_at')
     .eq('id', orderId)
+    .eq('tenant_id', user.tenant_id)
     .single()
 
   if (!order) return { error: '注文が見つかりません' }
@@ -597,6 +583,7 @@ export async function getOrderKycInfo(orderId: string) {
       .from('kyc_requests')
       .select(kycSelect)
       .eq('id', order.kyc_request_id)
+      .eq('tenant_id', user.tenant_id)
       .maybeSingle()
     kyc = data
   }
@@ -605,6 +592,7 @@ export async function getOrderKycInfo(orderId: string) {
       .from('kyc_requests')
       .select(kycSelect)
       .eq('order_id', order.id)
+      .eq('tenant_id', user.tenant_id)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -633,7 +621,7 @@ export async function getOrderKycInfo(orderId: string) {
     ]
     for (const [label, path] of paths) {
       if (!path) continue
-      const url = await createSignedUrl(path)
+      const { url } = await getKycImageUrl(path)
       if (url) images.push({ label, url })
     }
   }

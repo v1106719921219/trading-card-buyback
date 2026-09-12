@@ -23,8 +23,8 @@ function parseNames(raw: string | undefined | null): string[] {
 
 // 検品入力の選択肢: その事務所専用の名前 → 共通の名前 の順（重複は除去）
 export async function getInspectorOptions(officeId?: string | null): Promise<string[]> {
-  const user = await getCurrentUser()
-  if (!user) return []
+  const { user, error } = await requireRole(['admin', 'manager', 'staff'])
+  if (error || !user) return []
 
   const supabase = createAdminClient()
   const keys = [INSPECTOR_COMMON_KEY, ...(officeId ? [inspectorOfficeKey(officeId)] : [])]
@@ -47,8 +47,8 @@ export async function getInspectorNameSettings(): Promise<{
   common: string
   byOffice: Record<string, string>
 }> {
-  const user = await getCurrentUser()
-  if (!user) return { common: '', byOffice: {} }
+  const { user, error } = await requireRole(['admin', 'manager'])
+  if (error || !user) return { common: '', byOffice: {} }
 
   const supabase = createAdminClient()
   const { data } = await supabase

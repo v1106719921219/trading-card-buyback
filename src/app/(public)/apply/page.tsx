@@ -1,3 +1,6 @@
+import { requireTenantId } from '@/lib/tenant'
+import { createOrderQuote } from '@/lib/order-quote'
+import { getCurrentUser } from '@/actions/auth'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ApplyForm } from './apply-form'
@@ -13,13 +16,15 @@ export default async function ApplyPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
+  const tenantId = await requireTenantId()
   const params = await searchParams
   // LIFFの単一アプリで他ページも開けるよう、?view= で転送（エンドポイント=/apply想定）
   if (params.view === 'orders') redirect('/my-orders')
   if (params.view === 'track') redirect('/track')
   const priceDateParam = typeof params.price_date === 'string' ? params.price_date : undefined
   const priceAtParam = typeof params.price_at === 'string' ? params.price_at : undefined
-  const showAll = params.show_all === 'true'
+  const requester = params.show_all === 'true' ? await getCurrentUser() : null
+  const showAll = params.show_all === 'true' && requester?.tenant_id === tenantId && ['admin', 'manager'].includes(requester.role)
   const fromLine = params.from === 'line'
   const lineItemsParam = typeof params.line_items === 'string' ? params.line_items : undefined
   const luParam = typeof params.lu === 'string' ? params.lu : undefined
@@ -29,7 +34,7 @@ export default async function ApplyPage({
   let lineUserToken: string | null = null
   let prefillCustomer = null
   if (luParam) {
-    const lineUserId = verifyLineUserToken(luParam)
+    const lineUserId = verifyLineUserToken(luParam, tenantId)
     if (lineUserId) {
       lineUserToken = luParam
       prefillCustomer = await lookupCustomerByLineUserId(lineUserId)
@@ -41,7 +46,7 @@ export default async function ApplyPage({
   if (priceDateParam && /^\d{4}-\d{2}-\d{2}$/.test(priceDateParam)) {
     const d = new Date(priceDateParam + 'T00:00:00+09:00')
     const now = new Date()
-    if (!isNaN(d.getTime()) && d <= now) {
+    if (!isNaN(d.getTime()) && d <= now && priceDateParam === new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })) {
       priceDate = priceDateParam
     }
   }
@@ -75,15 +80,15 @@ export default async function ApplyPage({
 
   const [catResult, prodResult, subResult, officeResult] = await Promise.all([
     showAll
-      ? supabase.from('categories').select('*').order('sort_order')
-      : supabase.from('categories').select('*').eq('is_active', true).order('sort_order'),
+      ? supabase.from('categories').select('*').eq('tenant_id', tenantId).order('sort_order')
+      : supabase.from('categories').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order'),
     showAll
-      ? supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').gt('price', 0).order('sort_order').order('name')
-      : supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('is_active', true).eq('show_in_price_list', true).gt('price', 0).order('sort_order').order('name'),
+      ? supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('tenant_id', tenantId).gt('price', 0).order('sort_order').order('name')
+      : supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('tenant_id', tenantId).eq('is_active', true).eq('show_in_price_list', true).gt('price', 0).order('sort_order').order('name'),
     showAll
-      ? supabase.from('subcategories').select('*').order('sort_order')
-      : supabase.from('subcategories').select('*').eq('is_active', true).order('sort_order'),
-    supabase.from('offices').select('*').eq('is_active', true).order('sort_order'),
+      ? supabase.from('subcategories').select('*').eq('tenant_id', tenantId).order('sort_order')
+      : supabase.from('subcategories').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order'),
+    supabase.from('offices').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order'),
   ])
 
   const categories = (catResult.data ?? []) as Category[]
@@ -119,6 +124,7 @@ export default async function ApplyPage({
       const { data: chunk } = await supabase
         .from('product_price_history')
         .select('product_id, old_price, changed_at')
+        .eq('tenant_id', tenantId)
         .gte('changed_at', priceCutoff)
         .order('changed_at', { ascending: true })
         .order('id', { ascending: true })
@@ -181,11 +187,13 @@ export default async function ApplyPage({
     .from('app_settings')
     .select('value')
     .eq('key', 'ar_quality_enabled')
+    .eq('tenant_id', tenantId)
     .single()
   const arQualityEnabled = arQualitySetting?.value === 'true'
 
   const form = (
     <ApplyForm
+      quoteToken={createOrderQuote(tenantId, products, priceDate)}
       initialCategories={categories}
       initialProducts={products}
       initialSubcategories={subcategories}

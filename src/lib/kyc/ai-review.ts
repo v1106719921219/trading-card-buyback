@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -134,7 +135,13 @@ export async function runAiKycReview(input: {
     const match = jsonText.match(/\{[\s\S]*\}/)
     if (!match) return null
 
-    const parsed = JSON.parse(match[0]) as AiKycReview
+    const schema = z.object({
+      verdict: z.enum(['pass', 'needs_review']),
+      extracted_name: z.string().nullable(), extracted_address: z.string().nullable(), extracted_birth_date: z.string().nullable(),
+      name_match: z.boolean(), face_match: z.boolean(), document_looks_genuine: z.boolean(),
+      concerns: z.array(z.string()), summary: z.string(),
+    })
+    const parsed = schema.parse(JSON.parse(match[0]))
     if (parsed.verdict !== 'pass' && parsed.verdict !== 'needs_review') return null
     return {
       verdict: parsed.verdict,

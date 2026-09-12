@@ -6,6 +6,7 @@
  * - テナント境界の検証
  */
 
+import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/actions/auth'
 import { requireTenantId } from '@/lib/tenant'
 import type { UserRole } from '@/types/database'
@@ -63,6 +64,12 @@ export async function requireRole(allowedRoles: UserRole[]) {
   if (!allowedRoles.includes(user.role as UserRole)) {
     return { user: null, error: '権限がありません' as const }
   }
+  if (['admin', 'manager'].includes(user.role)) {
+    const db = await createClient()
+    const { data, error: mfaError } = await db.auth.mfa.getAuthenticatorAssuranceLevel()
+    if (mfaError || data?.currentLevel !== 'aal2') return { user: null, error: '二段階認証が必要です。管理画面から認証してください' as const }
+  }
+  if (user.tenant_id !== await requireTenantId()) return { user: null, error: '所属テナントが一致しません' as const }
   return { user, error: null }
 }
 

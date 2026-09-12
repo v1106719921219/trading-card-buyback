@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/select'
 import { Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { createStaff } from '@/actions/auth'
+import { createStaff, setStaffActive } from '@/actions/auth'
 import { ROLE_LABELS } from '@/lib/constants'
 import { toast } from 'sonner'
 import type { Profile, UserRole, Office } from '@/types/database'
@@ -168,11 +168,12 @@ export default function StaffPage() {
                 <div className="space-y-2">
                   <Label>パスワード <span className="text-destructive">*</span></Label>
                   <Input
-                    type="text"
+                    type="password"
+                    autoComplete="new-password"
                     value={formPassword}
                     onChange={(e) => setFormPassword(e.target.value)}
-                    placeholder="6文字以上"
-                    minLength={6}
+                    placeholder="12文字以上"
+                    minLength={12}
                     required
                   />
                 </div>
@@ -220,19 +221,19 @@ export default function StaffPage() {
               <TableHead>メールアドレス</TableHead>
               <TableHead>ロール</TableHead>
               <TableHead>所属事務所</TableHead>
-              <TableHead>登録日</TableHead>
+              <TableHead>登録日</TableHead><TableHead>利用状態</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   読み込み中...
                 </TableCell>
               </TableRow>
             ) : profiles.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   スタッフがいません
                 </TableCell>
               </TableRow>
@@ -275,6 +276,12 @@ export default function StaffPage() {
                   <TableCell className="text-sm text-muted-foreground">
                     {new Date(profile.created_at).toLocaleDateString('ja-JP')}
                   </TableCell>
+                  <TableCell><Button variant="outline" disabled={submitting} onClick={async () => {
+                    const active = profile.is_active === false
+                    if (!confirm(`${profile.display_name}の利用を${active ? '再開' : '停止'}しますか？`)) return
+                    setSubmitting(true)
+                    try { const result = await setStaffActive(profile.id, active); if (result.error) toast.error(result.error); else { toast.success(active ? '利用を再開しました' : '利用を停止しました'); await fetchProfiles() } } finally { setSubmitting(false) }
+                  }}>{profile.is_active === false ? '停止中・再開する' : '利用を停止'}</Button></TableCell>
                 </TableRow>
               ))
             )}

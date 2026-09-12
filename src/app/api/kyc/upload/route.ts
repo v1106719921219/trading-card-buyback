@@ -1,3 +1,7 @@
+import { limitPublicRequest } from '@/lib/shared-rate-limit'
+import { sanitizeImage } from '@/lib/safe-image'
+import { hasKycAccess } from '@/lib/kyc/access'
+import { requireTenantId } from '@/lib/tenant'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { uploadKycImage } from '@/lib/kyc/storage'
@@ -9,6 +13,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const ALLOWED_IMAGE_TYPES = ['id_front', 'id_thickness', 'id_back', 'face'] as const
 
 export async function POST(request: NextRequest) {
+  if (!await limitPublicRequest('kyc-upload', 100, 3600)) return NextResponse.json({ error: 'アップロード回数が多すぎます' }, { status: 429 })
   // Rate limiting
   const ip = request.headers.get('x-real-ip') ?? 'unknown'
   const rl = rateLimit(`kycUpload:${ip}`, RATE_LIMITS.kycUpload)
@@ -55,12 +60,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ファイルサイズは10MB以下にしてください' }, { status: 400 })
     }
 
+    const tenantId = await requireTenantId()
+    if (!await hasKycAccess(tenantId, kycRequestId)) return NextResponse.json({ error: '本人確認の操作権限がありません' }, { status: 403 })
+
     // KYCリクエストの存在確認・テナント検証
     const supabase = createAdminClient()
     const { data: kycRequest, error: fetchError } = await supabase
       .from('kyc_requests')
       .select('id, tenant_id, status')
       .eq('id', kycRequestId)
+      .eq('tenant_id', tenantId)
+      .eq('status', 'pending')
       .single()
 
     if (fetchError || !kycRequest) {
@@ -73,14 +83,14 @@ export async function POST(request: NextRequest) {
 
     // ファイルをBufferに変換してアップロード
     const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    const buffer = await sanitizeImage(Buffer.from(arrayBuffer), MAX_FILE_SIZE)
 
     const { path, error: uploadError } = await uploadKycImage(
       kycRequest.tenant_id,
       kycRequestId,
       imageType as 'id_front' | 'id_back' | 'face',
       buffer,
-      file.type
+      'image/jpeg'
     )
 
     if (uploadError) {
@@ -101,6 +111,10 @@ export async function POST(request: NextRequest) {
       .from('kyc_requests')
       .update({ [updateField]: path })
       .eq('id', kycRequestId)
+      .eq('tenant_id', tenantId)
+      .eq('status', 'pending')
+      .select('id')
+      .single()
 
     if (updateError) {
       console.error('[KYC Upload] path update error:', updateError)

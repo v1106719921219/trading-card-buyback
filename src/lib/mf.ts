@@ -1,3 +1,6 @@
+import 'server-only'
+import { encryptSecret, decryptSecret } from '@/lib/signed-payload'
+import { requireTenantId } from '@/lib/tenant'
 import { createHash, randomBytes } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -36,13 +39,14 @@ export function generatePkce() {
   return { codeVerifier, codeChallenge }
 }
 
-export function getAuthUrl(codeChallenge: string): string {
+export function getAuthUrl(codeChallenge: string, state: string): string {
   const { clientId, redirectUri } = getClientCredentials()
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: MF_SCOPE,
+    state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
   })
@@ -62,8 +66,7 @@ async function requestToken(body: Record<string, string>) {
     }).toString(),
   })
   if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`MFトークン取得に失敗しました (${res.status}): ${text}`)
+    throw new Error(`MFトークン取得に失敗しました (${res.status})`)
   }
   return res.json() as Promise<{
     access_token: string
@@ -74,11 +77,15 @@ async function requestToken(body: Record<string, string>) {
 
 async function saveToken(data: { access_token: string; refresh_token?: string; expires_in?: number }, prevRefreshToken = '') {
   const supabase = createAdminClient()
+  const tenantId = await requireTenantId()
   const expiresAt = new Date(Date.now() + (data.expires_in ?? 3600) * 1000).toISOString()
   const { error } = await supabase.from('mf_tokens').upsert({
     id: 1,
-    access_token: data.access_token,
-    refresh_token: data.refresh_token ?? prevRefreshToken,
+    tenant_id: tenantId,
+    access_token: '',
+    refresh_token: '',
+    access_token_encrypted: encryptSecret(data.access_token, tenantId + ":mf-access"),
+    refresh_token_encrypted: encryptSecret(data.refresh_token ?? prevRefreshToken, tenantId + ":mf-refresh"),
     expires_at: expiresAt,
     updated_at: new Date().toISOString(),
   })
@@ -103,6 +110,7 @@ async function getAccessToken(): Promise<string> {
     .from('mf_tokens')
     .select('*')
     .eq('id', 1)
+    .eq('tenant_id', await requireTenantId())
     .maybeSingle()
 
   if (error) throw new Error(`MFトークンの取得に失敗しました: ${error.message}`)
@@ -110,20 +118,20 @@ async function getAccessToken(): Promise<string> {
 
   // 60秒バッファ
   if (new Date(token.expires_at).getTime() > Date.now() + 60_000) {
-    return token.access_token
+    return decryptSecret(token.access_token_encrypted, token.tenant_id + ":mf-access")
   }
 
   const refreshed = await requestToken({
     grant_type: 'refresh_token',
-    refresh_token: token.refresh_token,
+    refresh_token: decryptSecret(token.refresh_token_encrypted, token.tenant_id + ":mf-refresh"),
   })
-  await saveToken(refreshed, token.refresh_token)
+  await saveToken(refreshed, decryptSecret(token.refresh_token_encrypted, token.tenant_id + ":mf-refresh"))
   return refreshed.access_token
 }
 
 export async function isMfConnected(): Promise<boolean> {
   const supabase = createAdminClient()
-  const { data } = await supabase.from('mf_tokens').select('id').eq('id', 1).maybeSingle()
+  const { data } = await supabase.from('mf_tokens').select('id').eq('id', 1).eq('tenant_id', await requireTenantId()).maybeSingle()
   return !!data
 }
 
@@ -136,8 +144,7 @@ async function apiGet(path: string, params: Record<string, string>) {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`MF APIエラー (${res.status}): ${text}`)
+    throw new Error(`MF APIエラー (${res.status})`)
   }
   return res.json()
 }

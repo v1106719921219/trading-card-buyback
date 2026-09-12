@@ -1,5 +1,6 @@
 'use server'
 
+import { limitPublicRequest } from '@/lib/shared-rate-limit'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -8,6 +9,7 @@ import { requireTenantId } from '@/lib/tenant'
 import type { UserRole } from '@/types/database'
 
 export async function login(formData: FormData) {
+  if (!await limitPublicRequest('login', 15, 900)) return { error: 'ログイン試行が多すぎます。15分後にお試しください' }
   const supabase = await createClient()
   const email = formData.get('email') as string
   const password = formData.get('password') as string
@@ -46,6 +48,12 @@ export async function createStaff(data: {
   const tenantId = await requireTenantId()
 
   const supabase = createAdminClient()
+
+  if (!['admin', 'manager', 'staff'].includes(data.role) || typeof data.password !== 'string' || data.password.length < 12 || data.password.length > 256) return { error: '権限と12文字以上のパスワードを指定してください' }
+  if (data.office_id) {
+    const { data: office } = await supabase.from('offices').select('id').eq('id', data.office_id).eq('tenant_id', tenantId).maybeSingle()
+    if (!office) return { error: '所属事務所を確認してください' }
+  }
 
   // Create auth user
   const { data: authData, error: createError } = await supabase.auth.admin.createUser({
@@ -94,5 +102,20 @@ export async function getCurrentUser() {
     .eq('id', user.id)
     .single()
 
-  return profile
+  return profile?.is_active === false ? null : profile
+}
+
+/** Revoke data access immediately, including already-issued sessions; preserve audit identity. */
+export async function setStaffActive(profileId: string, active: boolean) {
+  const { user, error } = await requireRole(['admin'])
+  if (error || !user) return { error: error ?? '権限がありません' }
+  if (typeof active !== 'boolean' || profileId === user.id) return { error: '自分のアカウントは停止できません' }
+  const db = createAdminClient()
+  const { data: target } = await db.from('profiles').select('id').eq('id', profileId).eq('tenant_id', user.tenant_id).maybeSingle()
+  if (!target) return { error: '対象のアカウントが見つかりません' }
+  const { error: updateError } = await db.from('profiles').update({ is_active: active }).eq('id', profileId).eq('tenant_id', user.tenant_id)
+  if (updateError) return { error: 'アカウントの状態を変更できませんでした' }
+  const { error: auditError } = await db.from('security_audit_events').insert({ tenant_id: user.tenant_id, actor_id: user.id, action: active ? 'staff_enabled' : 'staff_disabled', record_id: profileId })
+  if (auditError) console.error('[SECURITY] Staff access audit could not be saved')
+  return { success: true }
 }

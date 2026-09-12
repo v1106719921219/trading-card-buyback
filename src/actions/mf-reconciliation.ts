@@ -1,5 +1,8 @@
 'use server'
 
+import { requireRole } from '@/lib/security'
+import { requireTenantId } from '@/lib/tenant'
+
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getMfTransactions, isMfConnected, type MFTransaction } from '@/lib/mf'
@@ -72,9 +75,8 @@ function namesMatch(orderName: string, mfText: string): boolean {
 }
 
 async function requireAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('ログインが必要です')
+  const { error } = await requireRole(['admin', 'manager'])
+  if (error) throw new Error(error)
 }
 
 export type MfStatus = 'unconfigured' | 'disconnected' | 'connected'
@@ -104,6 +106,7 @@ export async function reconcileMfForOrders(
       .from('orders')
       .select('id, order_number, customer_name, bank_account_holder, total_amount, inspected_total_amount, inspection_discount, status, updated_at')
       .in('id', orderIds)
+      .eq('tenant_id', await requireTenantId())
 
     if (ordersError) return { error: `注文の取得に失敗しました: ${ordersError.message}` }
 
@@ -114,7 +117,7 @@ export async function reconcileMfForOrders(
         .from('order_status_history')
         .select('order_id, created_at')
         .eq('new_status', '振込済')
-        .in('order_id', orderIds)
+        .in('order_id', orders?.map(o => o.id) ?? [])
         .order('created_at', { ascending: true })
       for (const h of history ?? []) {
         paidDateMap.set(h.order_id, h.created_at) // 最後の振込済遷移で上書き

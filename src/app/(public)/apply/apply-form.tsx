@@ -72,6 +72,7 @@ interface PrefillCustomer {
 }
 
 interface ApplyFormProps {
+  quoteToken: string
   initialCategories: Category[]
   initialProducts: (Product & { category: Category; subcategory: Subcategory | null })[]
   initialSubcategories: Subcategory[]
@@ -88,7 +89,7 @@ interface ApplyFormProps {
   defaultOfficeId?: string
 }
 
-export function ApplyForm({ initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, priceAt, priceLockExpired, showAll, arQualityEnabled, fromLine, initialCart, prefillCustomer, lineUserToken, defaultOfficeId }: ApplyFormProps) {
+export function ApplyForm({ quoteToken, initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, priceAt, priceLockExpired, showAll, arQualityEnabled, fromLine, initialCart, prefillCustomer, lineUserToken, defaultOfficeId }: ApplyFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -490,6 +491,7 @@ export function ApplyForm({ initialCategories, initialProducts, initialSubcatego
 
     try {
       const result = await createOrder({
+        quote_token: quoteToken,
         items: cart.map(({ product_id, product_name, unit_price, quantity }) => ({
           product_id,
           product_name,

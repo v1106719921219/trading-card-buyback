@@ -1,3 +1,4 @@
+import { logout } from '@/actions/auth'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AdminSidebar } from '@/components/admin/sidebar'
@@ -21,8 +22,11 @@ export default async function AdminLayout({
     .eq('id', user.id)
     .single()
 
-  if (!profile) {
-    redirect('/login')
+  if (!profile || profile.is_active === false) return <main className="p-8"><p>このアカウントは利用できません。管理者にお問い合わせください。</p><form action={logout}><button type="submit">ログアウト</button></form></main>
+
+  if (['admin', 'manager'].includes(profile.role)) {
+    const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    if (error || data?.currentLevel !== 'aal2') redirect('/account-security')
   }
 
   return (

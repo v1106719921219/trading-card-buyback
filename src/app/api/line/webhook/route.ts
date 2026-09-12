@@ -1,4 +1,6 @@
+import { after } from 'next/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getTenant } from '@/lib/tenant'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifySignature, sendTextMessage, signLineUserId, verifyOrderToken } from '@/lib/line'
 import { getSession, upsertSession, clearSession } from '@/lib/line-session'
@@ -14,39 +16,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }
 
-  // テナント解決（middlewareが付与した x-tenant-slug を使用）
-  const tenantSlug = request.headers.get('x-tenant-slug')
-  if (!tenantSlug) {
-    console.error('LINE Webhook: テナントslugが取得できません')
-    return NextResponse.json({ status: 'ok' })
-  }
-
-  const supabase = createAdminClient()
-  const { data: tenant } = await supabase
-    .from('tenants')
-    .select('id, slug')
-    .eq('slug', tenantSlug)
-    .eq('is_active', true)
-    .single()
-
-  if (!tenant) {
-    console.error('LINE Webhook: テナントが見つかりません:', tenantSlug)
-    return NextResponse.json({ status: 'ok' })
-  }
+  const tenant = await getTenant()
+  if (!tenant) return NextResponse.json({ error: 'Tenant unavailable' }, { status: 503 })
 
   const parsed = JSON.parse(body)
   const events = parsed.events || []
 
-  // バックグラウンドで処理（waitUntilが使える環境ならそれを使用）
-  const processPromise = processEvents(events, tenant.id, tenant.slug)
-
-  // Vercel環境: waitUntilでバックグラウンド処理
-  if (typeof (globalThis as any).waitUntil === 'function') {
-    ;(globalThis as any).waitUntil(processPromise)
-  } else {
-    // waitUntilがない環境ではPromiseをfireして忘れる（エラーはcatchで処理）
-    processPromise.catch((err) => console.error('LINE Webhook processing error:', err))
-  }
+  after(() => processEvents(events, tenant.id, tenant.slug))
 
   return NextResponse.json({ status: 'ok' })
 }
@@ -54,6 +30,9 @@ export async function POST(request: NextRequest) {
 async function processEvents(events: any[], tenantId: string, tenantSlug: string) {
   for (const event of events) {
     try {
+      if (typeof event.webhookEventId !== 'string' || event.webhookEventId.length > 200) continue
+      const { error: duplicate } = await createAdminClient().from('line_webhook_events').insert({ tenant_id: tenantId, event_id: event.webhookEventId })
+      if (duplicate) continue // At-most-once: uncertain delivery is not automatically resent.
       if (event.type === 'message' && event.message?.type === 'text') {
         await handleTextMessage(event, tenantId, tenantSlug)
       } else if (event.type === 'postback') {
@@ -74,7 +53,7 @@ async function handleTextMessage(event: any, tenantId: string, tenantSlug: strin
   // 「連携 <署名トークン>」を受け取ったら、その注文にLINE IDを紐付ける
   const m = userMessage.match(/連携[\s:：]*([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/)
   if (m) {
-    const orderNumber = verifyOrderToken(m[1])
+    const orderNumber = verifyOrderToken(m[1], tenantId)
     if (orderNumber) {
       const supabase = createAdminClient()
       // 送信用のLINE ID（本物アカウント）を紐付け。閲覧用のline_user_id(LIFF)とは別に持つ
@@ -84,6 +63,7 @@ async function handleTextMessage(event: any, tenantId: string, tenantSlug: strin
         .update({ line_push_user_id: lineUserId })
         .eq('order_number', orderNumber)
         .eq('tenant_id', tenantId)
+        .is('line_push_user_id', null)
     }
     return
   }
@@ -120,7 +100,7 @@ async function handlePostback(event: any, tenantId: string, tenantSlug: string) 
     // 価格ロック: Botが金額を提示した時刻（セッション更新時刻）の価格で申込できるようにする
     const priceAt = encodeURIComponent(session.updated_at ?? new Date().toISOString())
     // LINE userIdを署名付きトークンとして付与（注文への紐付け＋顧客情報の自動入力用）
-    const luToken = signLineUserId(lineUserId)
+    const luToken = signLineUserId(lineUserId, tenantId)
     const luParam = luToken ? `&lu=${encodeURIComponent(luToken)}` : ''
     const applyUrl = `${protocol}://${tenantSlug}.${rootDomain}/apply?line_items=${encoded}&price_at=${priceAt}${luParam}`
 

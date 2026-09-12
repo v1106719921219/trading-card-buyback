@@ -1,3 +1,4 @@
+import { signPayload, readPayload } from '@/lib/signed-payload'
 import crypto from 'crypto'
 import type { ParsedItem } from '@/lib/line-session'
 
@@ -107,58 +108,21 @@ export async function pushTextMessage(lineUserId: string, text: string): Promise
 }
 
 // LINE userIdをURLに安全に埋め込むための署名付きトークン
-// 形式: base64url(userId).hmac16 — 改ざん・なりすまし防止
-export function signLineUserId(lineUserId: string): string | null {
-  const secret = process.env.LINE_CHANNEL_SECRET
-  if (!secret) return null
-  const payload = Buffer.from(lineUserId, 'utf8').toString('base64url')
-  const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url').slice(0, 22)
-  return `${payload}.${sig}`
+// 用途・テナント・有効期限を署名対象に含める。
+export function signLineUserId(lineUserId: string, tenantId: string): string {
+  return signPayload('line-user', { userId: lineUserId, tenantId }, 3600)
 }
-
-export function verifyLineUserToken(token: string): string | null {
-  const secret = process.env.LINE_CHANNEL_SECRET
-  if (!secret) return null
-  const dot = token.lastIndexOf('.')
-  if (dot <= 0) return null
-  const payload = token.slice(0, dot)
-  const sig = token.slice(dot + 1)
-  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url').slice(0, 22)
-  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
-    return null
-  }
-  try {
-    return Buffer.from(payload, 'base64url').toString('utf8')
-  } catch {
-    return null
-  }
+export function verifyLineUserToken(token: string, tenantId: string): string | null {
+  const payload = readPayload<{ userId: string; tenantId: string }>(token, 'line-user')
+  if (!payload || payload.tenantId !== tenantId || typeof payload.userId !== 'string') return null
+  return payload.userId
 }
-
-// 注文番号を改ざん防止して連携用に埋め込む署名付きトークン（LINEで送ってもらう定型文に使う）
-export function signOrderNumber(orderNumber: string): string | null {
-  const secret = process.env.LINE_CHANNEL_SECRET
-  if (!secret) return null
-  const payload = Buffer.from(orderNumber, 'utf8').toString('base64url')
-  const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url').slice(0, 22)
-  return `${payload}.${sig}`
+export function signOrderNumber(orderNumber: string, tenantId: string): string {
+  return signPayload('line-order', { orderNumber, tenantId }, 600)
 }
-
-export function verifyOrderToken(token: string): string | null {
-  const secret = process.env.LINE_CHANNEL_SECRET
-  if (!secret) return null
-  const dot = token.lastIndexOf('.')
-  if (dot <= 0) return null
-  const payload = token.slice(0, dot)
-  const sig = token.slice(dot + 1)
-  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url').slice(0, 22)
-  if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
-    return null
-  }
-  try {
-    return Buffer.from(payload, 'base64url').toString('utf8')
-  } catch {
-    return null
-  }
+export function verifyOrderToken(token: string, tenantId: string): string | null {
+  const payload = readPayload<{ orderNumber: string; tenantId: string }>(token, 'line-order')
+  return payload?.tenantId === tenantId && typeof payload.orderNumber === 'string' ? payload.orderNumber : null
 }
 
 export async function sendConfirmationMessage(
@@ -209,7 +173,8 @@ export function verifySignature(body: string, signature: string): boolean {
     .update(body)
     .digest('base64')
 
-  return hash === signature
+  const a = Buffer.from(hash); const b = Buffer.from(signature)
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
 }
 
 function truncateText(text: string, maxLength: number): string {
