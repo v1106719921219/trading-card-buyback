@@ -25,7 +25,8 @@ import {
 } from '@/actions/orders'
 import { getActiveProducts } from '@/actions/products'
 import { getEkycRolloutEnabled } from '@/actions/kyc'
-import type { Office, OrderItem, Product } from '@/types/database'
+import { initLiff } from '@/lib/liff-client'
+import type { Office, Product } from '@/types/database'
 
 interface EditableItem {
   product_id: string
@@ -78,7 +79,7 @@ function CompleteContent() {
 
   useEffect(() => {
     if (orderNumber) {
-      getOrderByOrderNumber(orderNumber).then((order) => {
+      initLiff().then(({ idToken }) => getOrderByOrderNumber(orderNumber, idToken ?? undefined)).then((order) => {
         if (order) {
           setOrderStatus(order.status)
           setExistingTrackingNumber(order.tracking_number)
@@ -98,9 +99,9 @@ function CompleteContent() {
   useEffect(() => {
     if (orderNumber) {
       setItemsLoading(true)
-      getOrderWithItems(orderNumber).then((order) => {
+      initLiff().then(({ idToken }) => getOrderWithItems(orderNumber, idToken ?? undefined)).then((order) => {
         if (order?.order_items) {
-          const items: EditableItem[] = order.order_items.map((item: OrderItem) => ({
+          const items: EditableItem[] = order.order_items.map((item) => ({
             product_id: item.product_id || '',
             product_name: item.product_name,
             unit_price: item.unit_price,
@@ -108,6 +109,8 @@ function CompleteContent() {
           }))
           setOrderItems(items)
           setOriginalItems(items)
+        } else {
+          setError('注文を確認できません。公式LINEの「査定状況」からお開きください。')
         }
         setItemsLoading(false)
       })

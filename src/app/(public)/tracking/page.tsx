@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { ArrowLeft, Truck } from 'lucide-react'
 import { Header } from '@/components/public/header'
 import { Footer } from '@/components/public/footer'
+import { initLiff } from '@/lib/liff-client'
 import { getOrderByOrderNumber } from '@/actions/orders'
 
 export default function TrackingPage() {
@@ -26,10 +27,11 @@ export default function TrackingPage() {
     setLoading(true)
     setError('')
 
-    const order = await getOrderByOrderNumber(trimmed)
+    const { idToken } = await initLiff()
+    const order = await getOrderByOrderNumber(trimmed, idToken ?? undefined)
 
     if (!order) {
-      setError('注文番号が見つかりません。申込完了画面に表示された注文番号をご確認ください。')
+      setError('注文を確認できません。公式LINEの「査定状況」からお開きください。')
       setLoading(false)
       return
     }

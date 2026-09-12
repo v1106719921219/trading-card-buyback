@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { ApplyForm } from './apply-form'
 import { LineConfirmGate } from './line-confirm-gate'
 import { verifyLineUserToken } from '@/lib/line'
-import { lookupCustomerByLineUserId } from '@/actions/customers'
+import { lookupCustomerByLineUserId } from '@/lib/customer-prefill'
 import type { Category, Product, Office, Subcategory } from '@/types/database'
 
 export const dynamic = 'force-dynamic'

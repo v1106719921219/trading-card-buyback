@@ -12,6 +12,7 @@ import { requireTenantId } from '@/lib/tenant'
 import { requireRole, assertBelongsToTenant, sanitizeError } from '@/lib/security'
 import { verifyLineUserToken } from '@/lib/line'
 import { verifyLineIdToken } from '@/lib/line-verify'
+import { assertOrderAccessConfigured, grantOrderAccess, hasOrderAccess } from '@/lib/order-access'
 
 
 export async function createOrder(input: CreateOrderInput) {
@@ -29,12 +30,15 @@ export async function createOrder(input: CreateOrderInput) {
     return { error: `テナント情報の取得に失敗しました: ${e instanceof Error ? e.message : '不明'}` }
   }
 
+  // Fail before writing an order if the signing secret is missing.
+  assertOrderAccessConfigured()
+
   // Use admin client for public form submission (bypasses RLS)
   const supabase = createAdminClient()
 
   try {
 
-  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type, from_line, line_user_token, line_id_token, kyc_request_id } = parsed.data
+  const { items, customer, customer_id, office_id, shipped_date, price_date, buyback_type, line_user_token, line_id_token, kyc_request_id } = parsed.data
 
   // LINE userIdの復元（改ざん・なりすまし防止のためサーバー側で検証）
   // 優先: LIFF（LINEアプリ内で開いた申込）のIDトークン → 次点: Botの署名トークン
@@ -70,6 +74,7 @@ export async function createOrder(input: CreateOrderInput) {
       .maybeSingle()
 
     if (existingOrder) {
+      await grantOrderAccess(tenantId, existingOrder.order_number)
       return { success: true, order_number: existingOrder.order_number, office_id }
     }
   }
@@ -174,7 +179,7 @@ export async function createOrder(input: CreateOrderInput) {
 
   // LINE経由（LIFF/Botでline_user_idが紐付いた本人）は承認不要ですぐ「申込」。
   // LINE経由でない（未連携＝Web直接や勝手な申込）は「承認待ち」にしてスタッフが承認する
-  const isLineVerified = !!lineUserId || !!from_line
+  const isLineVerified = !!lineUserId
 
   // Create order
   const { data: order, error: orderError } = await supabase
@@ -300,6 +305,7 @@ export async function createOrder(input: CreateOrderInput) {
     console.error('[createOrder] Google Sheets backup error:', err)
   }
 
+  await grantOrderAccess(tenantId, order.order_number)
   return { success: true, order_number: order.order_number, office_id }
   } catch (err) {
     console.error('[createOrder] エラー:', err)
@@ -436,6 +442,8 @@ export async function approveOrder(orderId: string) {
 // 完了画面用: LINE連携リンク（公式LINEを開き「連携 <署名トークン>」を定型文として送れる）
 // お客様が送信すると、Webhookがその注文にLINE IDを紐付ける（自動返信はしない）
 export async function getLineLinkUrl(orderNumber: string): Promise<string | null> {
+  const tenantId = await requireTenantId()
+  if (!await hasOrderAccess(tenantId, orderNumber)) return null
   const { signOrderNumber } = await import('@/lib/line')
   const { OFFICIAL_LINE_BASIC_ID } = await import('@/lib/constants')
   const token = signOrderNumber(orderNumber)
@@ -601,9 +609,10 @@ export async function submitTrackingByIdToken(
   return { success: true }
 }
 
-export async function getOrderByOrderNumber(orderNumber: string) {
+export async function getOrderByOrderNumber(orderNumber: string, idToken?: string) {
   // 公開追跡ページ用：テナント絞り込みを行う
   const tenantId = await requireTenantId()
+  if (!await hasOrderAccess(tenantId, orderNumber, idToken)) return null
   const supabase = createAdminClient()
 
   const { data, error } = await supabase
@@ -617,18 +626,19 @@ export async function getOrderByOrderNumber(orderNumber: string) {
   return data
 }
 
-export async function submitTrackingNumber(orderNumber: string, trackingNumber: string) {
+export async function submitTrackingNumber(orderNumber: string, trackingNumber: string, idToken?: string) {
   if (!orderNumber || !trackingNumber) {
     return { error: '注文番号と追跡番号を入力してください' }
   }
 
-  // 公開ページ（申込完了ページ）からお客様が利用するため認証不要
+  // 注文の本人確認を行ってから参照・更新する
   let tenantId: string
   try {
     tenantId = await requireTenantId()
   } catch {
     return { error: 'テナント情報の取得に失敗しました' }
   }
+  if (!await hasOrderAccess(tenantId, orderNumber, idToken)) return { error: '公式LINEの「査定状況」から本人確認してお開きください' }
   const supabase = createAdminClient()
 
   // テナント絞り込みで検索
@@ -681,17 +691,20 @@ export async function submitTrackingNumber(orderNumber: string, trackingNumber: 
   return { error: 'この注文には追跡番号を追加できません' }
 }
 
-export async function addTrackingNumber(orderNumber: string, trackingNumber: string) {
+export async function addTrackingNumber(orderNumber: string, trackingNumber: string, idToken?: string) {
   if (!orderNumber || !trackingNumber) {
     return { error: '注文番号と追跡番号を入力してください' }
   }
 
+  const tenantId = await requireTenantId()
+  if (!await hasOrderAccess(tenantId, orderNumber, idToken)) return { error: '公式LINEの「査定状況」から本人確認してお開きください' }
   const supabase = createAdminClient()
 
   const { data: order, error: fetchError } = await supabase
     .from('orders')
     .select('id, status, tracking_number')
     .eq('order_number', orderNumber)
+    .eq('tenant_id', tenantId)
     .single()
 
   if (fetchError || !order) {
@@ -709,6 +722,7 @@ export async function addTrackingNumber(orderNumber: string, trackingNumber: str
     .from('orders')
     .update({ tracking_number: newValue })
     .eq('id', order.id)
+    .eq('tenant_id', tenantId)
 
   if (updateError) {
     return { error: `更新に失敗しました: ${updateError.message}` }
@@ -731,14 +745,15 @@ export async function updateOrderNotes(orderId: string, notes: string) {
   return { success: true }
 }
 
-export async function getOrderWithItems(orderNumber: string) {
+export async function getOrderWithItems(orderNumber: string, idToken?: string) {
   // 公開ページ（配送状況確認等）: テナント境界で絞り込む
   const tenantId = await requireTenantId()
+  if (!await hasOrderAccess(tenantId, orderNumber, idToken)) return null
   const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('orders')
-    .select('*, order_items(*)')
+    .select('order_number, order_items(product_id, product_name, unit_price, quantity)')
     .eq('order_number', orderNumber)
     .eq('tenant_id', tenantId)  // テナント境界
     .single()
@@ -768,12 +783,15 @@ export async function getOrdersForCSV(year: number, month: number) {
 
 export async function updateOrderItems(
   orderNumber: string,
-  items: { product_id: string; product_name: string; unit_price: number; quantity: number }[]
+  items: { product_id: string; product_name: string; unit_price: number; quantity: number }[],
+  idToken?: string
 ) {
   if (!items || items.length === 0) {
     return { error: '商品を1つ以上選択してください' }
   }
 
+  const tenantId = await requireTenantId()
+  if (!await hasOrderAccess(tenantId, orderNumber, idToken)) return { error: '公式LINEの「査定状況」から本人確認してお開きください' }
   const supabase = createAdminClient()
 
   // Fetch order
@@ -781,6 +799,7 @@ export async function updateOrderItems(
     .from('orders')
     .select('id, status, tenant_id')
     .eq('order_number', orderNumber)
+    .eq('tenant_id', tenantId)
     .single()
 
   if (fetchError || !order) {
@@ -796,6 +815,7 @@ export async function updateOrderItems(
     .from('order_items')
     .delete()
     .eq('order_id', order.id)
+    .eq('tenant_id', tenantId)
 
   if (deleteError) {
     return { error: `明細の削除に失敗しました: ${deleteError.message}` }
@@ -829,6 +849,7 @@ export async function updateOrderItems(
     .from('orders')
     .update({ total_amount })
     .eq('id', order.id)
+    .eq('tenant_id', tenantId)
 
   if (updateError) {
     return { error: `合計金額の更新に失敗しました: ${updateError.message}` }

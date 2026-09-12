@@ -21,8 +21,8 @@ type Payload = {
 }
 
 function secret() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!key) throw new Error('署名キーが設定されていません')
+  const key = process.env.ORDER_ACCESS_SECRET
+  if (!key || key.length < 32) throw new Error('署名キーが設定されていません')
   return crypto.createHash('sha256').update(`inspection-pdf:${key}`).digest()
 }
 
