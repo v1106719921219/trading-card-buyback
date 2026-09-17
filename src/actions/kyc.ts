@@ -274,35 +274,73 @@ export async function getKycRequests(options?: {
   const limit = options?.limit ?? 20
   const offset = (page - 1) * limit
 
-  let query = supabase
-    .from('kyc_requests')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1)
+  let rows: KycRequest[] = []
+  let totalCount = 0
 
   if (options?.status) {
-    query = query.eq('status', options.status)
+    let query = supabase
+      .from('kyc_requests')
+      .select('*', { count: 'exact' })
+      .eq('status', options.status)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (options?.search) {
+      query = query.or(
+        `customer_name.ilike.%${options.search}%`
+      )
+    }
+
+    const { data, count, error } = await query
+    if (error) {
+      return { error: sanitizeError(error) }
+    }
+    rows = (data ?? []) as KycRequest[]
+    totalCount = count ?? 0
   } else {
     // 既定では「画像アップロード待ち（pending＝撮影せず離脱した未完了）」を除外し、
-    // 対応が必要な分だけ表示する。ステータスで明示選択すれば表示可能
-    query = query.neq('status', 'pending')
-  }
+    // 対応が必要な「審査中（processing）」を常に先頭に出す（件数が増えると埋もれるため）。
+    // PostgRESTは任意のORDER BY式を書けないので、2クエリに分けてページを合成する
+    const buildQuery = (forProcessing: boolean) => {
+      let q = supabase
+        .from('kyc_requests')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+      q = forProcessing
+        ? q.eq('status', 'processing')
+        : q.not('status', 'in', '(pending,processing)')
+      if (options?.search) {
+        q = q.or(
+          `customer_name.ilike.%${options.search}%`
+        )
+      }
+      return q
+    }
 
-  if (options?.search) {
-    query = query.or(
-      `customer_name.ilike.%${options.search}%`
-    )
-  }
+    const procRes = await buildQuery(true).range(offset, offset + limit - 1)
+    if (procRes.error) {
+      return { error: sanitizeError(procRes.error) }
+    }
+    const procCount = procRes.count ?? 0
+    rows = (procRes.data ?? []) as KycRequest[]
 
-  const { data, count, error } = await query
-
-  if (error) {
-    return { error: sanitizeError(error) }
+    // 審査中だけでページが埋まらない分は、残りステータスの先頭から補う
+    const restOffset = Math.max(0, offset - procCount)
+    const restLimit = limit - rows.length
+    const restRes = restLimit > 0
+      ? await buildQuery(false).range(restOffset, restOffset + restLimit - 1)
+      : await buildQuery(false).range(0, 0)
+    if (restRes.error) {
+      return { error: sanitizeError(restRes.error) }
+    }
+    if (restLimit > 0) {
+      rows = rows.concat((restRes.data ?? []) as KycRequest[])
+    }
+    totalCount = procCount + (restRes.count ?? 0)
   }
 
   // 紐付く注文番号を付ける。千葉DBは orders.kyc_request_id に外部キーが無く
   // PostgRESTの結合が使えないため、別クエリで引いてJS側で突き合わせる
-  const rows = (data ?? []) as KycRequest[]
   const ids = rows.map((r) => r.id)
   const orderIds = rows.map((r) => r.order_id).filter(Boolean) as string[]
   const byKycId = new Map<string, { id: string; order_number: string }>()
@@ -330,7 +368,7 @@ export async function getKycRequests(options?: {
     order: byKycId.get(r.id) ?? (r.order_id ? byOrderId.get(r.order_id) : undefined) ?? null,
   }))
 
-  return { data: withOrder as KycRequestWithOrder[], count: count ?? 0 }
+  return { data: withOrder as KycRequestWithOrder[], count: totalCount }
 }
 
 /**
