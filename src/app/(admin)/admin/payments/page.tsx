@@ -427,6 +427,9 @@ export default function PaymentsPage() {
                             {!order.customer_not_invoice_issuer ? '適格' : '非適格'}
                           </Badge>
                         </span>
+                        {order.customer_line_name && (
+                          <p className="text-xs text-muted-foreground">LINE: {order.customer_line_name}</p>
+                        )}
                         {repeatWarnings.has(order.id) && (
                           <div className="mt-1 space-y-0.5">
                             {repeatWarnings.get(order.id)!.map((w) => (
@@ -555,6 +558,9 @@ export default function PaymentsPage() {
                             {!order.customer_not_invoice_issuer ? '適格' : '非適格'}
                           </Badge>
                         </span>
+                        {order.customer_line_name && (
+                          <p className="text-xs text-muted-foreground">LINE: {order.customer_line_name}</p>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm hidden md:table-cell">
                         {order.bank_name && order.bank_branch ? (
