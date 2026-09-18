@@ -64,7 +64,8 @@ export async function markAsPaid(orderId: string) {
 }
 
 export async function downloadInspectionPdf(orderId: string) {
-  const { user, error: authError } = await requireRole(['admin', 'manager'])
+  // スタッフもお客様への査定結果送付に使うため許可（振込系の操作はadmin/manager限定のまま）
+  const { user, error: authError } = await requireRole(['admin', 'manager', 'staff'])
   if (authError || !user) return { error: authError ?? '認証が必要です' }
   const supabase = await createClient()
 
