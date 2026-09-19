@@ -35,7 +35,7 @@ export async function markAsPaid(orderId: string) {
 
   if (kycCheck?.kyc_request_id && !kycCheck.identity_verified_at) {
     return {
-      error: `${kycCheck.order_number}: 本人確認が未承認のため振込済にできません。検品画面または本人確認詳細から承認してください`,
+      error: `${kycCheck.order_number}: 本人確認が未承認のため振込済にできません。本人確認一覧または本人確認詳細から承認してください`,
     }
   }
 
