@@ -401,12 +401,19 @@ const Single30thCanvas = React.forwardRef<HTMLDivElement, {
         boxSizing: 'border-box',
       }}
     >
-      {/* Background image */}
+      {/* Background image（30th専用・左上の白六角形にロゴを重ねる） */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/assets/single-promo-bg.png"
+        src="/assets/single-30th-bg.png"
         alt=""
         style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, zIndex: 0 }}
+        crossOrigin="anonymous"
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/assets/logo-full.png"
+        alt=""
+        style={{ position: 'absolute', left: 97, top: 93, width: 140, height: 140, zIndex: 1 }}
         crossOrigin="anonymous"
       />
 
