@@ -242,7 +242,7 @@ const Single30thCanvas = React.forwardRef<HTMLDivElement, {
   const totalGridH = H - gridTop - footerH
   const gridW = W - padX * 2
 
-  const cols = 8
+  const cols = products.length > 32 ? 10 : 8
   const rows = Math.max(1, Math.ceil(products.length / cols))
   const cellH = Math.floor((totalGridH - gap * (rows - 1)) / rows)
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
