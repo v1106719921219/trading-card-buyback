@@ -15,8 +15,17 @@ import type { Product, Category, Subcategory } from '@/types/database'
 const SETTING_KEY = 'sns_30th_single_default_products'
 const CATEGORY_ID = 'db02ec12-d529-453c-a749-53da99e05533'
 const SUBCATEGORY_ID = 'ca8f802a-52f1-495a-ab49-158063b00d64'
-// sort_order = カード番号。103以下はミラーピカチュウ(017〜046)、104以降は高レア(AR/SAR等)
-const HIGH_RARE_MIN_SORT = 104
+// model_numberのカード番号でセクション判定。103以下はミラーピカチュウ(017〜046・コンプセット含む)、104以降は高レア(AR/SAR等)
+// ※sort_orderは商品管理の並び順（価格の高い順）に使うためセクション判定には使わない
+const HIGH_RARE_MIN_NUM = 104
+function cardNum(p: Product): number {
+  const m = p.model_number?.match(/M6a (\d+)/)
+  return m ? Number(m[1]) : 999
+}
+// コンプセット商品はピカチュウセクションの末尾に置く
+function p2comp(p: Product): number {
+  return p.model_number?.includes('コンプ') || p.name.includes('コンプ') ? 1 : 0
+}
 
 type ProductWithRelations = Product & {
   category: Category | null
@@ -100,10 +109,18 @@ export default function Singles30thPage() {
   // 高レアはスニダン相場の高い順（相場未取得は末尾・同額はカード番号順）
   const rares = useMemo(() =>
     products
-      .filter((p) => p.sort_order >= HIGH_RARE_MIN_SORT)
-      .sort((a, b) => (b.market_price ?? -1) - (a.market_price ?? -1) || a.sort_order - b.sort_order),
+      .filter((p) => cardNum(p) >= HIGH_RARE_MIN_NUM)
+      .sort((a, b) => (b.market_price ?? -1) - (a.market_price ?? -1) || cardNum(a) - cardNum(b)),
   [products])
-  const pikachus = useMemo(() => products.filter((p) => p.sort_order < HIGH_RARE_MIN_SORT), [products])
+  // ミラーピカチュウはカード番号順、コンプセットは末尾
+  const pikachus = useMemo(() =>
+    products
+      .filter((p) => cardNum(p) < HIGH_RARE_MIN_NUM)
+      .sort((a, b) => {
+        const compA = p2comp(a); const compB = p2comp(b)
+        return compA - compB || cardNum(a) - cardNum(b)
+      }),
+  [products])
 
   function toggleProduct(id: string) {
     setSelectedIds((prev) => {
