@@ -24,6 +24,7 @@ import {
 import { Search, Eye, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getOrdersForCSV } from '@/actions/orders'
+import { toast } from 'sonner'
 import { ORDER_STATUSES, STATUS_COLORS, ITEMS_PER_PAGE, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
 import type { Order, OrderItem, OrderStatus, BuybackType, InspectionStatus } from '@/types/database'
 
@@ -60,11 +61,13 @@ export default function OrdersPage() {
     }
   })
 
-  function escapeCSVField(value: string): string {
-    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-      return `"${value.replace(/"/g, '""')}"`
+  function escapeCSVField(value: string | null | undefined): string {
+    // メール任意化などでnullが混ざってもCSV生成が止まらないようにする
+    const s = value == null ? '' : String(value)
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      return `"${s.replace(/"/g, '""')}"`
     }
-    return value
+    return s
   }
 
   async function handleCSVDownload() {
@@ -206,6 +209,7 @@ export default function OrdersPage() {
       URL.revokeObjectURL(url)
     } catch (e) {
       console.error('CSV download failed:', e)
+      toast.error('CSVの出力に失敗しました')
     } finally {
       setCsvLoading(false)
     }
@@ -240,7 +244,7 @@ export default function OrdersPage() {
         customerMap.set(key, {
           orderNumber: order.order_number,
           name: order.customer_name,
-          email: order.customer_email,
+          email: order.customer_email ?? '',
           address: `${order.customer_prefecture ?? ''}${order.customer_address ?? ''}`,
           totalAmount: order.total_amount,
           inspectedTotalAmount: amount,
@@ -350,6 +354,7 @@ export default function OrdersPage() {
       URL.revokeObjectURL(url)
     } catch (e) {
       console.error('Summary CSV download failed:', e)
+      toast.error('月次集計の出力に失敗しました')
     } finally {
       setSummaryLoading(false)
     }
