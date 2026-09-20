@@ -21,6 +21,7 @@ import {
   ImageIcon,
   ClipboardList,
   IdCard,
+  Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -45,6 +46,7 @@ const navItems = [
   { href: '/admin/products', label: '商品管理', icon: Package },
   { href: '/admin/products/price-history', label: '価格履歴', icon: TrendingUp },
   { href: '/admin/last-cost', label: '最終仕入原価', icon: ClipboardList },
+  { href: '/admin/singles-30th', label: '30thシングル買取一覧', icon: Sparkles },
   { href: '/admin/categories', label: 'カテゴリ管理', icon: FolderOpen },
   { href: '/admin/marketing', label: 'ポケモンBOX投稿文', icon: Megaphone },
   { href: '/admin/marketing/text-single', label: 'ポケモンシングル投稿文', icon: Megaphone },
