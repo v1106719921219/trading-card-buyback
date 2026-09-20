@@ -97,7 +97,12 @@ export default function Singles30thPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const rares = useMemo(() => products.filter((p) => p.sort_order >= HIGH_RARE_MIN_SORT), [products])
+  // 高レアはスニダン相場の高い順（相場未取得は末尾・同額はカード番号順）
+  const rares = useMemo(() =>
+    products
+      .filter((p) => p.sort_order >= HIGH_RARE_MIN_SORT)
+      .sort((a, b) => (b.market_price ?? -1) - (a.market_price ?? -1) || a.sort_order - b.sort_order),
+  [products])
   const pikachus = useMemo(() => products.filter((p) => p.sort_order < HIGH_RARE_MIN_SORT), [products])
 
   function toggleProduct(id: string) {
