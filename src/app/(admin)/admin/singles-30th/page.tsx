@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import React from 'react'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
@@ -15,20 +15,39 @@ import type { Product, Category, Subcategory } from '@/types/database'
 const SETTING_KEY = 'sns_30th_single_default_products'
 const CATEGORY_ID = 'db02ec12-d529-453c-a749-53da99e05533'
 const SUBCATEGORY_ID = 'ca8f802a-52f1-495a-ab49-158063b00d64'
+// sort_order = カード番号。103以下はミラーピカチュウ(017〜046)、104以降は高レア(AR/SAR等)
+const HIGH_RARE_MIN_SORT = 104
 
 type ProductWithRelations = Product & {
   category: Category | null
   subcategory: Subcategory | null
 }
 
+type PageJob = {
+  key: string
+  sectionLabel: string
+  sectionLabelEn: string
+  fileLabel: string
+  pageNo: number
+  pageCount: number
+  products: ProductWithRelations[]
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
+}
+
 export default function Singles30thPage() {
   const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [highPriceIds, setHighPriceIds] = useState<Set<string>>(new Set())
+  const [pageSize, setPageSize] = useState(24)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const previewRef = useRef<HTMLDivElement>(null)
+  const pageRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const supabase = createClient()
 
   useEffect(() => {
@@ -77,10 +96,23 @@ export default function Singles30thPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  const rares = useMemo(() => products.filter((p) => p.sort_order >= HIGH_RARE_MIN_SORT), [products])
+  const pikachus = useMemo(() => products.filter((p) => p.sort_order < HIGH_RARE_MIN_SORT), [products])
+
   function toggleProduct(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSection(items: ProductWithRelations[], selectAll: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const p of items) {
+        if (selectAll) next.add(p.id); else next.delete(p.id)
+      }
       return next
     })
   }
@@ -109,8 +141,31 @@ export default function Singles30thPage() {
     else toast.success('デフォルト選択を保存しました')
   }
 
-  async function handleDownload() {
-    if (!previewRef.current) return
+  // セクションごとにページ分割した画像ジョブ一覧
+  const pageJobs = useMemo<PageJob[]>(() => {
+    const jobs: PageJob[] = []
+    const sections = [
+      { label: '高レアカード', labelEn: 'HIGH RARE CARDS', file: '高レア', items: rares.filter((p) => selectedIds.has(p.id)) },
+      { label: 'ミラーピカチュウ', labelEn: 'PIKACHU MIRROR', file: 'ピカチュウ', items: pikachus.filter((p) => selectedIds.has(p.id)) },
+    ]
+    for (const sec of sections) {
+      const pages = chunk(sec.items, pageSize)
+      pages.forEach((items, i) => {
+        jobs.push({
+          key: `${sec.file}-${i}`,
+          sectionLabel: sec.label,
+          sectionLabelEn: sec.labelEn,
+          fileLabel: sec.file,
+          pageNo: i + 1,
+          pageCount: pages.length,
+          products: items,
+        })
+      })
+    }
+    return jobs
+  }, [rares, pikachus, selectedIds, pageSize])
+
+  async function downloadPages(jobs: PageJob[]) {
     setDownloading(true)
     try {
       await document.fonts.load('700 16px "Noto Sans JP"')
@@ -120,14 +175,21 @@ export default function Singles30thPage() {
 
       const { toPng } = await import('html-to-image')
       const options = { quality: 1, pixelRatio: 2 }
-      await toPng(previewRef.current, options)
-      const dataUrl = await toPng(previewRef.current, options)
-
-      const a = document.createElement('a')
-      a.href = dataUrl
-      a.download = `30thシングル買取価格表_${new Date().toLocaleDateString('ja-JP').replace(/\//g, '')}.png`
-      a.click()
-      toast.success('画像をダウンロードしました')
+      const date = new Date().toLocaleDateString('ja-JP').replace(/\//g, '')
+      for (const job of jobs) {
+        const node = pageRefs.current[job.key]
+        if (!node) continue
+        await toPng(node, options)
+        const dataUrl = await toPng(node, options)
+        const a = document.createElement('a')
+        a.href = dataUrl
+        const suffix = job.pageCount > 1 ? `_${job.pageNo}` : ''
+        a.download = `30thシングル買取価格表_${job.fileLabel}${suffix}_${date}.png`
+        a.click()
+        // 連続ダウンロードのブラウザ制限を避ける
+        await new Promise((r) => setTimeout(r, 400))
+      }
+      toast.success(`${jobs.length}枚の画像をダウンロードしました`)
     } catch (e) {
       console.error(e)
       toast.error('画像の生成に失敗しました')
@@ -136,13 +198,16 @@ export default function Singles30thPage() {
     }
   }
 
-  const selectedProducts = products.filter((p) => selectedIds.has(p.id))
+  const sectionCards = [
+    { title: '高レアカード（AR / SAR / ex）', items: rares },
+    { title: 'ミラーピカチュウ（017〜046）', items: pikachus },
+  ]
 
   return (
     <div>
       <AdminHeader
         title="30thシングル買取一覧"
-        description="30th CELEBRATION シングルカードの買取価格一覧と、X投稿用の価格画像を生成します（1920×1080）"
+        description="30th CELEBRATION シングルカードの買取価格一覧と、X投稿用の価格画像を生成します（1920×1080・ページ自動分割）"
       />
 
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -160,60 +225,103 @@ export default function Singles30thPage() {
             </div>
           </div>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <CardTitle className="text-base">30th CELEBRATION シングルカード</CardTitle>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">{selectedIds.size} / {products.length} 件</span>
-                  <Button variant="ghost" size="icon" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? <p className="text-sm text-muted-foreground">読み込み中...</p> : (
-                <div className="space-y-1.5 max-h-[65vh] overflow-y-auto pr-1">
-                  {products.map((product) => (
-                    <div key={product.id} className="flex items-center gap-3 rounded-md border px-3 py-2 hover:bg-muted transition-colors">
-                      <Checkbox checked={selectedIds.has(product.id)} onCheckedChange={() => toggleProduct(product.id)} />
-                      {product.image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded shrink-0" />
-                      ) : (
-                        <div className="w-8 h-8 rounded border bg-muted flex items-center justify-center shrink-0"><ImageIcon className="h-4 w-4 text-muted-foreground/40" /></div>
-                      )}
-                      <span className="flex-1 text-sm truncate">{product.name}</span>
-                      {product.market_price != null && (
-                        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">相場 {product.market_price.toLocaleString('ja-JP')}円</span>
-                      )}
-                      <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">{product.price.toLocaleString('ja-JP')}円</Badge>
-                      <button
-                        type="button"
-                        onClick={() => toggleHighPrice(product.id)}
-                        className={`shrink-0 text-xs px-2 py-0.5 rounded-full border font-bold ${highPriceIds.has(product.id) ? 'bg-red-500 text-white border-red-500' : 'bg-white text-gray-400 border-gray-300'}`}
-                      >高額</button>
+          {sectionCards.map((section) => {
+            const selectedCount = section.items.filter((p) => selectedIds.has(p.id)).length
+            const allSelected = section.items.length > 0 && selectedCount === section.items.length
+            return (
+              <Card key={section.title}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <CardTitle className="text-base">{section.title}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">{selectedCount} / {section.items.length} 件</span>
+                      <Button variant="outline" size="sm" onClick={() => toggleSection(section.items, !allSelected)}>
+                        {allSelected ? '全解除' : '全選択'}
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loading ? <p className="text-sm text-muted-foreground">読み込み中...</p> : (
+                    <div className="space-y-1.5 max-h-[38vh] overflow-y-auto pr-1">
+                      {section.items.map((product) => (
+                        <div key={product.id} className="flex items-center gap-3 rounded-md border px-3 py-2 hover:bg-muted transition-colors">
+                          <Checkbox checked={selectedIds.has(product.id)} onCheckedChange={() => toggleProduct(product.id)} />
+                          {product.image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded shrink-0" />
+                          ) : (
+                            <div className="w-8 h-8 rounded border bg-muted flex items-center justify-center shrink-0"><ImageIcon className="h-4 w-4 text-muted-foreground/40" /></div>
+                          )}
+                          <span className="flex-1 text-sm truncate">{product.name}</span>
+                          {product.market_price != null && (
+                            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">相場 {product.market_price.toLocaleString('ja-JP')}円</span>
+                          )}
+                          <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">{product.price.toLocaleString('ja-JP')}円</Badge>
+                          <button
+                            type="button"
+                            onClick={() => toggleHighPrice(product.id)}
+                            className={`shrink-0 text-xs px-2 py-0.5 rounded-full border font-bold ${highPriceIds.has(product.id) ? 'bg-red-500 text-white border-red-500' : 'bg-white text-gray-400 border-gray-300'}`}
+                          >高額</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
 
-        {/* プレビュー */}
+        {/* プレビュー（セクション・ページごと） */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">プレビュー（1920×1080 / X推奨 16:9）</p>
-            <Button onClick={handleDownload} disabled={downloading || selectedProducts.length === 0} className="gap-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-muted-foreground">プレビュー（1920×1080）</p>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="h-8 rounded-md border bg-background px-2 text-sm"
+              >
+                <option value={16}>16枚 / ページ</option>
+                <option value={24}>24枚 / ページ</option>
+                <option value={32}>32枚 / ページ</option>
+              </select>
+              <span className="text-sm text-muted-foreground">全 {pageJobs.length} ページ</span>
+            </div>
+            <Button onClick={() => downloadPages(pageJobs)} disabled={downloading || pageJobs.length === 0} className="gap-2">
               <Download className="h-4 w-4" />
-              {downloading ? '生成中...' : 'PNG ダウンロード'}
+              {downloading ? '生成中...' : `PNG 一括ダウンロード（${pageJobs.length}枚）`}
             </Button>
           </div>
-          <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
-            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
-              <Single30thCanvas ref={previewRef} products={selectedProducts} highPriceIds={highPriceIds} />
+
+          {pageJobs.map((job) => (
+            <div key={job.key} className="space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground font-medium">
+                  {job.sectionLabel} {job.pageCount > 1 ? `${job.pageNo} / ${job.pageCount}` : ''}（{job.products.length}枚）
+                </p>
+                <Button variant="outline" size="sm" onClick={() => downloadPages([job])} disabled={downloading} className="gap-1 h-7 text-xs">
+                  <Download className="h-3 w-3" />
+                  このページのみ
+                </Button>
+              </div>
+              <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
+                <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
+                  <Single30thCanvas
+                    ref={(el) => { pageRefs.current[job.key] = el }}
+                    products={job.products}
+                    highPriceIds={highPriceIds}
+                    sectionLabel={job.sectionLabel}
+                    sectionLabelEn={job.sectionLabelEn}
+                    pageNo={job.pageNo}
+                    pageCount={job.pageCount}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
+          ))}
         </div>
       </div>
     </div>
@@ -224,7 +332,11 @@ export default function Singles30thPage() {
 const Single30thCanvas = React.forwardRef<HTMLDivElement, {
   products: ProductWithRelations[]
   highPriceIds: Set<string>
-}>(({ products, highPriceIds }, ref) => {
+  sectionLabel: string
+  sectionLabelEn: string
+  pageNo: number
+  pageCount: number
+}>(({ products, highPriceIds, sectionLabel, sectionLabelEn, pageNo, pageCount }, ref) => {
   const today = new Date()
   const fmt = (d: Date) =>
     `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
@@ -242,7 +354,7 @@ const Single30thCanvas = React.forwardRef<HTMLDivElement, {
   const totalGridH = H - gridTop - footerH
   const gridW = W - padX * 2
 
-  const cols = products.length > 32 ? 10 : 8
+  const cols = 8
   const rows = Math.max(1, Math.ceil(products.length / cols))
   const cellH = Math.floor((totalGridH - gap * (rows - 1)) / rows)
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
@@ -278,7 +390,8 @@ const Single30thCanvas = React.forwardRef<HTMLDivElement, {
         fontSize: 14, fontWeight: 900, letterSpacing: '0.1em',
         borderRadius: 3, border: '2px solid #111', boxShadow: '2px 2px 0 #111',
       }}>
-        30th CELEBRATION シングルカード <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em' }}>SINGLE CARDS</span>
+        30th CELEBRATION {sectionLabel} <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em' }}>{sectionLabelEn}</span>
+        {pageCount > 1 && <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 8 }}>{pageNo}/{pageCount}</span>}
       </div>
 
       {products.map((product, i) => {
