@@ -30,6 +30,7 @@ type PageJob = {
   fileLabel: string
   pageNo: number
   pageCount: number
+  cols: number
   products: ProductWithRelations[]
 }
 
@@ -141,15 +142,17 @@ export default function Singles30thPage() {
     else toast.success('デフォルト選択を保存しました')
   }
 
-  // セクションごとにページ分割した画像ジョブ一覧
+  // セクションごとの画像ジョブ一覧。高レアはページ分割、ミラーピカチュウは常に1枚（6列×5行）に全収載
   const pageJobs = useMemo<PageJob[]>(() => {
     const jobs: PageJob[] = []
     const sections = [
-      { label: '高レアカード', labelEn: 'HIGH RARE CARDS', file: '高レア', items: rares.filter((p) => selectedIds.has(p.id)) },
-      { label: 'ミラーピカチュウ', labelEn: 'PIKACHU MIRROR', file: 'ピカチュウ', items: pikachus.filter((p) => selectedIds.has(p.id)) },
+      { label: '高レアカード', labelEn: 'HIGH RARE CARDS', file: '高レア', cols: 8, split: true, items: rares.filter((p) => selectedIds.has(p.id)) },
+      { label: 'ミラーピカチュウ', labelEn: 'PIKACHU MIRROR', file: 'ピカチュウ', cols: 0, split: false, items: pikachus.filter((p) => selectedIds.has(p.id)) },
     ]
     for (const sec of sections) {
-      const pages = chunk(sec.items, pageSize)
+      // cols=0 は「1枚に全収載」: 5行に収まる列数を自動計算（最低6列）
+      const cols = sec.cols || Math.max(6, Math.ceil(sec.items.length / 5))
+      const pages = sec.split ? chunk(sec.items, pageSize) : (sec.items.length > 0 ? [sec.items] : [])
       pages.forEach((items, i) => {
         jobs.push({
           key: `${sec.file}-${i}`,
@@ -158,6 +161,7 @@ export default function Singles30thPage() {
           fileLabel: sec.file,
           pageNo: i + 1,
           pageCount: pages.length,
+          cols,
           products: items,
         })
       })
@@ -284,9 +288,9 @@ export default function Singles30thPage() {
                 onChange={(e) => setPageSize(Number(e.target.value))}
                 className="h-8 rounded-md border bg-background px-2 text-sm"
               >
-                <option value={16}>16枚 / ページ</option>
-                <option value={24}>24枚 / ページ</option>
-                <option value={32}>32枚 / ページ</option>
+                <option value={16}>高レア 16枚 / ページ</option>
+                <option value={24}>高レア 24枚 / ページ</option>
+                <option value={32}>高レア 32枚 / ページ</option>
               </select>
               <span className="text-sm text-muted-foreground">全 {pageJobs.length} ページ</span>
             </div>
@@ -317,6 +321,7 @@ export default function Singles30thPage() {
                     sectionLabelEn={job.sectionLabelEn}
                     pageNo={job.pageNo}
                     pageCount={job.pageCount}
+                    cols={job.cols}
                   />
                 </div>
               </div>
@@ -336,7 +341,8 @@ const Single30thCanvas = React.forwardRef<HTMLDivElement, {
   sectionLabelEn: string
   pageNo: number
   pageCount: number
-}>(({ products, highPriceIds, sectionLabel, sectionLabelEn, pageNo, pageCount }, ref) => {
+  cols: number
+}>(({ products, highPriceIds, sectionLabel, sectionLabelEn, pageNo, pageCount, cols }, ref) => {
   const today = new Date()
   const fmt = (d: Date) =>
     `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
@@ -354,7 +360,6 @@ const Single30thCanvas = React.forwardRef<HTMLDivElement, {
   const totalGridH = H - gridTop - footerH
   const gridW = W - padX * 2
 
-  const cols = 8
   const rows = Math.max(1, Math.ceil(products.length / cols))
   const cellH = Math.floor((totalGridH - gap * (rows - 1)) / rows)
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
