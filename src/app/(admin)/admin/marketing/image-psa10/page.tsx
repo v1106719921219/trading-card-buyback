@@ -82,6 +82,8 @@ export default function PSA10ImagePage() {
         .eq('is_active', true)
         .eq('category_id', CATEGORY_ID)
         .eq('subcategory_id', PSA10_SUBCATEGORY_ID)
+        // 価格表に表示中の商品のみ掲載（非表示・締切・0円は除外）
+        .eq('show_in_price_list', true)
         .gt('price', 0)
         .order('price', { ascending: false }),
       supabase.from('app_settings').select('value').eq('key', SETTING_KEY).maybeSingle(),
