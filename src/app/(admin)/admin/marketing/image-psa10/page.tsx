@@ -18,8 +18,6 @@ const PSA10_SUBCATEGORY_ID = '8b34c75d-d7f8-4393-89fe-7685b3f61e5b'
 const TENANT_ID = 'aaaaaaaa-0000-0000-0000-000000000001'
 // 12列×4行 = 48件で1枚
 const MAX_PER_PAGE = 48
-// プレビュー表示の縮尺（実画像は1920×1080のまま）
-const PREVIEW_SCALE = 0.55
 
 // ポケモン別グループ（先に長い名前からマッチさせる: ミュウツー→ミュウ の順が必須）
 const CHARACTER_GROUPS = [
@@ -353,20 +351,42 @@ export default function PSA10ImagePage() {
             <p className="text-sm text-muted-foreground mb-1">
               {page.group}{page.pageNo > 0 ? ` ${page.pageNo}/${page.totalPages}` : ''}（{page.products.length}件）
             </p>
-            <div className="border rounded-lg bg-muted/30 max-w-full overflow-x-auto">
-              <div style={{ width: Math.ceil(1920 * PREVIEW_SCALE), height: Math.ceil(1080 * PREVIEW_SCALE), overflow: 'hidden', position: 'relative' }}>
-                <div style={{ transform: `scale(${PREVIEW_SCALE})`, transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
-                  <PSA10Canvas
-                    ref={(el) => { pageRefs.current[i] = el }}
-                    products={page.products}
-                    groupLabel={page.group}
-                    pageLabel={page.pageNo > 0 ? CIRCLED[page.pageNo - 1] ?? `(${page.pageNo})` : undefined}
-                  />
-                </div>
-              </div>
-            </div>
+            <PreviewFrame>
+              <PSA10Canvas
+                ref={(el) => { pageRefs.current[i] = el }}
+                products={page.products}
+                groupLabel={page.group}
+                pageLabel={page.pageNo > 0 ? CIRCLED[page.pageNo - 1] ?? `(${page.pageNo})` : undefined}
+              />
+            </PreviewFrame>
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// 画面幅に合わせて1920×1080のキャンバスを縮小表示するラッパー
+function PreviewFrame({ children }: { children: React.ReactNode }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(0.55)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const update = () => setScale(Math.min(el.clientWidth / 1920, 1))
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={containerRef} className="border rounded-lg bg-muted/30 w-full overflow-hidden">
+      <div style={{ width: '100%', height: Math.ceil(1080 * scale), overflow: 'hidden', position: 'relative' }}>
+        <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
+          {children}
+        </div>
       </div>
     </div>
   )
