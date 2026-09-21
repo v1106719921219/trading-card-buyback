@@ -408,9 +408,10 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const padX = 12
   const gap = 3
 
-  // 背景画像のレイアウトに合わせた座標（ヘッダー帯 ~310px、フッター帯 ~990px〜）
-  const gridTop = 322
-  const gridBottom = 980
+  // ヘッダーはHTML描画に変更しコンパクト化（~180px）。背景はテクスチャのみのflat版
+  // フッター帯は ~950px〜
+  const gridTop = 190
+  const gridBottom = 942
   const gridH = gridBottom - gridTop
   const gridW = W - padX * 2
 
@@ -464,61 +465,73 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         color: '#fff',
       }}
     >
-      {/* Background image */}
+      {/* Background image (テクスチャのみ) */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/assets/psa10-bg.png"
+        src="/assets/psa10-bg-flat.png"
         alt=""
         style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, objectFit: 'fill', zIndex: 0 }}
         crossOrigin="anonymous"
       />
 
-      {/* Logo inside white circle (top-left of bg) */}
+      {/* Logo inside white circle */}
       <div style={{
-        position: 'absolute', left: 100, top: 54, width: 205, height: 205,
-        borderRadius: '50%', zIndex: 4,
+        position: 'absolute', left: 56, top: 18, width: 150, height: 150,
+        borderRadius: '50%', zIndex: 4, background: '#fff',
+        border: `3px solid ${P.BASE}`,
+        boxShadow: `0 0 18px rgba(232,194,92,0.55)`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
+        overflow: 'hidden',
       }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/assets/logo-full.png" alt="買取スクエア" style={{ width: 235, height: 235, objectFit: 'contain' }} crossOrigin="anonymous" />
+        <img src="/assets/logo-full.png" alt="買取スクエア" style={{ width: 165, height: 165, objectFit: 'contain' }} crossOrigin="anonymous" />
       </div>
 
-      {/* Pokemon name plate (centered below the title, above the grid).
-          背景装飾と被らないよう金縁の黒プレートを敷く */}
-      {groupLabel && (
-        <div style={{
-          position: 'absolute', left: 0, right: 0, top: 236, zIndex: 4,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12,
+      {/* Title + Pokemon name (HTML描画・コンパクトヘッダー) */}
+      <div style={{
+        position: 'absolute', left: 0, right: 0, top: 30, zIndex: 4,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28,
+      }}>
+        <span style={{
+          fontSize: 96, fontWeight: 900, lineHeight: 1,
+          letterSpacing: '0.04em', whiteSpace: 'nowrap',
+          background: `linear-gradient(180deg, ${P.WHITE} 0%, ${P.LIGHT} 30%, ${P.BASE} 62%, ${P.DARK} 88%, ${P.MID} 100%)`,
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+          filter: `drop-shadow(0 0 16px rgba(232,194,92,0.5)) drop-shadow(0 3px 4px rgba(0,0,0,0.9))`,
+        }}>PSA10買取表</span>
+        {groupLabel && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 12,
             background: 'linear-gradient(180deg, rgba(10,8,2,0.95) 0%, rgba(28,20,6,0.95) 100%)',
             border: `2px solid ${P.MID}`,
             borderRadius: 999,
-            padding: '8px 40px 10px',
+            padding: '10px 34px 12px',
             boxShadow: `0 0 14px rgba(232,194,92,0.4), inset 0 1px 0 rgba(255,251,232,0.25)`,
           }}>
             <span style={{
-              fontSize: 44, fontWeight: 900, lineHeight: 1,
-              letterSpacing: '0.1em', whiteSpace: 'nowrap',
+              fontSize: 46, fontWeight: 900, lineHeight: 1,
+              letterSpacing: '0.08em', whiteSpace: 'nowrap',
               background: `linear-gradient(180deg, ${P.WHITE} 0%, ${P.LIGHT} 35%, ${P.BASE} 70%, ${P.MID} 100%)`,
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
               filter: `drop-shadow(0 1px 2px rgba(0,0,0,0.9))`,
             }}>{groupLabel}</span>
             {pageLabel && (
               <span style={{
-                fontSize: 44, fontWeight: 900, lineHeight: 1, color: P.LIGHT,
+                fontSize: 46, fontWeight: 900, lineHeight: 1, color: P.LIGHT,
                 textShadow: `0 0 12px ${P.BASE}, 0 1px 3px rgba(0,0,0,0.8)`,
               }}>{pageLabel}</span>
             )}
-          </div>
-        </div>
-      )}
+          </span>
+        )}
+      </div>
 
-      {/* Update date inside top-right plaque */}
+      {/* Update date plaque (top-right) */}
       <div style={{
-        position: 'absolute', left: 1565, top: 46, width: 315, height: 84, zIndex: 4,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'absolute', right: 44, top: 40, zIndex: 4,
+        padding: '14px 30px',
+        background: 'linear-gradient(180deg, rgba(10,8,2,0.95) 0%, rgba(28,20,6,0.95) 100%)',
+        border: `2px solid ${P.MID}`, borderRadius: 10,
+        boxShadow: `0 0 12px rgba(232,194,92,0.35)`,
         color: P.LIGHT, fontSize: 30, fontWeight: 900,
         letterSpacing: '0.06em', whiteSpace: 'nowrap',
         textShadow: '0 1px 3px rgba(0,0,0,0.8)',
