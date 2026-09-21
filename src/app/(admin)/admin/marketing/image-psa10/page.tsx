@@ -414,29 +414,40 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const gridH = gridBottom - gridTop
   const gridW = W - padX * 2
 
-  // 12列×4行固定（48件でぴったり埋まる。端数でもセルサイズは変えない）
-  const cols = 12
-  const rows = 4
+  // 件数に応じて列数を選び、画像全体を使ってカードを最大化する
+  // （48件=12列×4行、30件=10列×3行、24件以下=2行 など。最大12列×4行）
+  const CARD_ASPECT = 0.74
+  const count = Math.max(products.length, 1)
+  let cols = 12
+  let bestCard = 0
+  for (let c = 6; c <= 12; c++) {
+    const r = Math.ceil(count / c)
+    if (r > 4) continue
+    const ch = Math.floor((gridH - gap * (r - 1)) / r)
+    const cw = Math.floor((gridW - gap * (c - 1)) / c)
+    const ih = ch - Math.max(Math.min(Math.floor(ch * 0.14), 44), 20)
+    const cardW = Math.min(cw, Math.floor(ih * CARD_ASPECT))
+    if (cardW > bestCard) { bestCard = cardW; cols = c }
+  }
+  const rows = Math.ceil(count / cols)
 
   const cellH = Math.floor((gridH - gap * (rows - 1)) / rows)
 
   // Card inner layout
-  const priceBarH = Math.max(Math.min(Math.floor(cellH * 0.14), 34), 20)
-  const nameH = Math.max(Math.min(Math.floor(cellH * 0.11), 26), 14)
+  const priceBarH = Math.max(Math.min(Math.floor(cellH * 0.14), 44), 20)
+  const nameH = Math.max(Math.min(Math.floor(cellH * 0.11), 32), 14)
   const imgH = cellH - priceBarH
 
   // セル幅はカードの縦横比に合わせて詰め、白余白をなくす（グリッド全体は中央寄せ）
-  const CARD_ASPECT = 0.74
   const availCellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellW = Math.min(availCellW, Math.floor(imgH * CARD_ASPECT) + 6)
   const totalGridW = cols * cellW + gap * (cols - 1)
   const gridOffsetX = Math.floor((W - totalGridW) / 2)
 
-  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.62), 13), 8)
-  const priceFontSize = Math.max(Math.min(Math.floor(priceBarH * 0.75), 26), 14)
+  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.62), 18), 8)
+  const priceFontSize = Math.max(Math.min(Math.floor(priceBarH * 0.75), 34), 14)
 
   // 最終行が中途半端な数のときは中央寄せ
-  const count = Math.max(products.length, 1)
   const lastRowCount = count - Math.floor((count - 1) / cols) * cols
 
   return (
