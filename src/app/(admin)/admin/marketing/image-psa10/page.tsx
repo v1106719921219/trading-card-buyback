@@ -406,7 +406,7 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const W = 1920
   const H = 1080
   const padX = 12
-  const gap = 4
+  const gap = 3
 
   // 背景画像のレイアウトに合わせた座標（ヘッダー帯 ~310px、フッター帯 ~990px〜）
   const gridTop = 322
@@ -414,49 +414,19 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const gridH = gridBottom - gridTop
   const gridW = W - padX * 2
 
-  // カードの縦横比（PSAスラブ想定）
-  const CARD_ASPECT = 0.74
+  // 12列×4行固定（48件でぴったり埋まる。端数でもセルサイズは変えない）
+  const cols = 12
+  const rows = 4
 
-  // 件数に応じて列数を最適化: カードが最も大きく写る列数を選ぶ
-  // （48件=12列×4行、30件=10列×3行、24件以下=2行 など）
-  const n = Math.max(products.length, 1)
-  let cols = 12
-  let bestScore = 0
-  for (let c = 6; c <= 12; c++) {
-    const r = Math.ceil(n / c)
-    const ch = Math.floor((gridH - gap * (r - 1)) / r)
-    const cw = Math.floor((gridW - gap * (c - 1)) / c)
-    const ih = ch - Math.max(Math.min(Math.floor(ch * 0.14), 40), 20)
-    const cardW = Math.min(cw, Math.floor(ih * CARD_ASPECT))
-    if (cardW > bestScore) { bestScore = cardW; cols = c }
-  }
-  const rows = Math.ceil(n / cols)
-
+  const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellH = Math.floor((gridH - gap * (rows - 1)) / rows)
-  const priceBarH = Math.max(Math.min(Math.floor(cellH * 0.14), 40), 20)
+
+  // Card inner layout
+  const priceBarH = Math.max(Math.min(Math.floor(cellH * 0.14), 34), 20)
+  const nameH = Math.max(Math.min(Math.floor(cellH * 0.11), 26), 14)
   const imgH = cellH - priceBarH
-  // カード幅に合わせてセル幅を詰め、横の白余白を減らす
-  const availCellW = Math.floor((gridW - gap * (cols - 1)) / cols)
-  const cellW = Math.min(availCellW, Math.floor(imgH * CARD_ASPECT) + 8)
-  // グリッド全体を中央寄せ
-  const totalGridW = cols * cellW + gap * (cols - 1)
-  const offsetX = Math.floor((W - totalGridW) / 2)
-
-  const nameH = Math.max(Math.min(Math.floor(cellH * 0.11), 30), 14)
-  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.62), 16), 8)
-  const priceFontSize = Math.max(Math.min(Math.floor(priceBarH * 0.75), 32), 14)
-
-  // 最終行が中途半端な数のときは中央寄せ
-  const lastRowCount = n - (rows - 1) * cols
-  function cellX(index: number) {
-    const col = index % cols
-    const row = Math.floor(index / cols)
-    const isLastRow = row === rows - 1
-    const rowOffset = isLastRow && lastRowCount < cols
-      ? Math.floor(((cols - lastRowCount) * (cellW + gap)) / 2)
-      : 0
-    return offsetX + rowOffset + col * (cellW + gap)
-  }
+  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.62), 13), 8)
+  const priceFontSize = Math.max(Math.min(Math.floor(priceBarH * 0.75), 26), 14)
 
   return (
     <div
@@ -534,8 +504,9 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
 
       {/* Product cards - absolute positioning */}
       {products.map((product, index) => {
+        const col = index % cols
         const row = Math.floor(index / cols)
-        const x = cellX(index)
+        const x = padX + col * (cellW + gap)
         const y = gridTop + row * (cellH + gap)
 
         return (
