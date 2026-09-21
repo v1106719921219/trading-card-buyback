@@ -129,3 +129,45 @@ export async function repricePsa10Products(): Promise<{
   }
   return { repriced, errors }
 }
+
+// 30thシングルカードは相場と同額（100円未満切り捨て）で自動追従させる（ユーザー決定 2026-09-21）。
+// ミラーピカチュウ30種（017〜046/103）は一律200円の手動運用のため対象外。
+// スニダン側の最安が下限値(1,000円)に張り付くため相場追従すると高すぎになる。
+const MIRROR_PIKACHU_RE = /^ピカチュウ \(0(1[7-9]|2\d|3\d|4[0-6])\/103\)/
+
+export async function reprice30thProducts(): Promise<{
+  repriced: number
+  errors: string[]
+}> {
+  const supabase = createAdminClient()
+  const { data: subs, error: subError } = await supabase
+    .from('subcategories')
+    .select('id')
+    .eq('name', '30thシングルカード')
+  if (subError) return { repriced: 0, errors: [subError.message] }
+  const subIds = (subs ?? []).map((s) => s.id)
+  if (subIds.length === 0) return { repriced: 0, errors: [] }
+
+  const { data: products, error } = await supabase
+    .from('products')
+    .select('id, name, price, market_price')
+    .in('subcategory_id', subIds)
+    .gt('price', 0)
+    .not('market_price', 'is', null)
+  if (error) return { repriced: 0, errors: [error.message] }
+
+  let repriced = 0
+  const errors: string[] = []
+  for (const p of products ?? []) {
+    if (MIRROR_PIKACHU_RE.test(p.name)) continue
+    const newPrice = Math.floor(p.market_price / 100) * 100
+    if (newPrice <= 0 || newPrice === p.price) continue
+    const { error: updateError } = await supabase
+      .from('products')
+      .update({ price: newPrice, previous_price: p.price })
+      .eq('id', p.id)
+    if (updateError) errors.push(`${p.id}: ${updateError.message}`)
+    else repriced++
+  }
+  return { repriced, errors }
+}
