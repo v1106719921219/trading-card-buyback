@@ -418,15 +418,26 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const cols = 12
   const rows = 4
 
-  const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellH = Math.floor((gridH - gap * (rows - 1)) / rows)
 
   // Card inner layout
   const priceBarH = Math.max(Math.min(Math.floor(cellH * 0.14), 34), 20)
   const nameH = Math.max(Math.min(Math.floor(cellH * 0.11), 26), 14)
   const imgH = cellH - priceBarH
+
+  // セル幅はカードの縦横比に合わせて詰め、白余白をなくす（グリッド全体は中央寄せ）
+  const CARD_ASPECT = 0.74
+  const availCellW = Math.floor((gridW - gap * (cols - 1)) / cols)
+  const cellW = Math.min(availCellW, Math.floor(imgH * CARD_ASPECT) + 6)
+  const totalGridW = cols * cellW + gap * (cols - 1)
+  const gridOffsetX = Math.floor((W - totalGridW) / 2)
+
   const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.62), 13), 8)
   const priceFontSize = Math.max(Math.min(Math.floor(priceBarH * 0.75), 26), 14)
+
+  // 最終行が中途半端な数のときは中央寄せ
+  const count = Math.max(products.length, 1)
+  const lastRowCount = count - Math.floor((count - 1) / cols) * cols
 
   return (
     <div
@@ -506,7 +517,11 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
       {products.map((product, index) => {
         const col = index % cols
         const row = Math.floor(index / cols)
-        const x = padX + col * (cellW + gap)
+        const isLastRow = row === Math.floor((count - 1) / cols)
+        const rowOffset = isLastRow && lastRowCount < cols
+          ? Math.floor(((cols - lastRowCount) * (cellW + gap)) / 2)
+          : 0
+        const x = gridOffsetX + rowOffset + col * (cellW + gap)
         const y = gridTop + row * (cellH + gap)
 
         return (
