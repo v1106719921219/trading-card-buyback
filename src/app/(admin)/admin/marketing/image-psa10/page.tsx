@@ -178,17 +178,6 @@ export default function PSA10ImagePage() {
     else toast.success('デフォルト選択を保存しました')
   }
 
-  async function downloadNode(node: HTMLDivElement, filename: string) {
-    const { toPng } = await import('html-to-image')
-    const options = { quality: 1, pixelRatio: 2 }
-    await toPng(node, options) // warm up
-    const dataUrl = await toPng(node, options)
-    const a = document.createElement('a')
-    a.href = dataUrl
-    a.download = filename
-    a.click()
-  }
-
   async function handleDownload() {
     setDownloading(true)
     try {
@@ -198,17 +187,35 @@ export default function PSA10ImagePage() {
       await document.fonts.load('900 16px "Inter"')
       await document.fonts.ready
 
+      const { toPng, getFontEmbedCSS } = await import('html-to-image')
+      const JSZip = (await import('jszip')).default
       const dateStr = new Date().toLocaleDateString('ja-JP').replace(/\//g, '')
+      const zip = new JSZip()
       let count = 0
+      let fontEmbedCSS: string | undefined
       for (let i = 0; i < pages.length; i++) {
         const node = pageRefs.current[i]
         if (!node) continue
+        // フォント埋め込みCSSの生成は重いので最初の1回だけ行い全ページで使い回す
+        if (fontEmbedCSS === undefined) {
+          fontEmbedCSS = await getFontEmbedCSS(node)
+          await toPng(node, { quality: 1, pixelRatio: 2, fontEmbedCSS }) // 初回のみウォームアップ
+        }
+        const dataUrl = await toPng(node, { quality: 1, pixelRatio: 2, fontEmbedCSS })
         const page = pages[i]
         const suffix = page.pageNo > 0 ? `${page.pageNo}` : ''
-        await downloadNode(node, `PSA10買取表_${page.group}${suffix}_${dateStr}.png`)
+        zip.file(`PSA10買取表_${page.group}${suffix}_${dateStr}.png`, dataUrl.split(',')[1], { base64: true })
         count++
       }
-      toast.success(`${count}枚の画像をダウンロードしました`)
+      // ブラウザの連続ダウンロード制限を避けるため1つのZIPにまとめる
+      const blob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `PSA10買取表_${dateStr}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success(`${count}枚の画像をZIPでダウンロードしました`)
     } catch (e) {
       console.error(e)
       toast.error('画像の生成に失敗しました')
