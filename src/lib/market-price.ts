@@ -88,3 +88,44 @@ export async function updateMarketPrices(): Promise<{ updated: number; errors: s
 
   return { updated, errors }
 }
+
+// PSA10シングルの買取価格は相場の93%で自動追従させる（ユーザー決定 2026-09-20）。
+// 対象はPSA10サブカテゴリで既に価格が付いている（公開運用中の）商品のみ。
+// BOX等の他カテゴリや、価格0円の旧ラインナップには触らない。
+const PSA10_PRICE_RATIO = 0.93
+
+export async function repricePsa10Products(): Promise<{
+  repriced: number
+  errors: string[]
+}> {
+  const supabase = createAdminClient()
+  const { data: subs, error: subError } = await supabase
+    .from('subcategories')
+    .select('id')
+    .eq('name', 'PSA10')
+  if (subError) return { repriced: 0, errors: [subError.message] }
+  const subIds = (subs ?? []).map((s) => s.id)
+  if (subIds.length === 0) return { repriced: 0, errors: [] }
+
+  const { data: products, error } = await supabase
+    .from('products')
+    .select('id, price, market_price')
+    .in('subcategory_id', subIds)
+    .gt('price', 0)
+    .not('market_price', 'is', null)
+  if (error) return { repriced: 0, errors: [error.message] }
+
+  let repriced = 0
+  const errors: string[] = []
+  for (const p of products ?? []) {
+    const newPrice = Math.floor((p.market_price * PSA10_PRICE_RATIO) / 100) * 100
+    if (newPrice <= 0 || newPrice === p.price) continue
+    const { error: updateError } = await supabase
+      .from('products')
+      .update({ price: newPrice, previous_price: p.price })
+      .eq('id', p.id)
+    if (updateError) errors.push(`${p.id}: ${updateError.message}`)
+    else repriced++
+  }
+  return { repriced, errors }
+}

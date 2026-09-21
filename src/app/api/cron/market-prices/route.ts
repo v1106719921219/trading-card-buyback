@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { updateMarketPrices } from '@/lib/market-price'
+import { updateMarketPrices, repricePsa10Products } from '@/lib/market-price'
 
 export const maxDuration = 300
 
@@ -11,5 +11,7 @@ export async function GET(request: Request) {
   }
 
   const result = await updateMarketPrices()
-  return NextResponse.json({ success: true, ...result })
+  // PSA10シングルは取得した最新相場の93%に買取価格を自動追従させる
+  const reprice = await repricePsa10Products()
+  return NextResponse.json({ success: true, ...result, reprice })
 }
