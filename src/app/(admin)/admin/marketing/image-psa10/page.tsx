@@ -16,7 +16,20 @@ const SETTING_KEY = 'sns_psa10_default_products'
 const CATEGORY_ID = 'db02ec12-d529-453c-a749-53da99e05533'
 const PSA10_SUBCATEGORY_ID = '8b34c75d-d7f8-4393-89fe-7685b3f61e5b'
 const TENANT_ID = 'aaaaaaaa-0000-0000-0000-000000000001'
+// 12列×4行 = 48件で1枚
 const MAX_PER_PAGE = 48
+
+// ポケモン別グループ（先に長い名前からマッチさせる: ミュウツー→ミュウ の順が必須）
+const CHARACTER_GROUPS = [
+  'ミュウツー', 'ミュウ', 'リザードン', 'ピカチュウ', 'ブラッキー', 'イーブイ',
+  'ニンフィア', 'エーフィ', 'リーフィア', 'グレイシア', 'シャワーズ', 'サンダース',
+  'ブースター', 'コイキング', 'ゲンガー', 'カイリュー',
+]
+const OTHER_GROUP = 'その他'
+
+function characterOf(name: string): string {
+  return CHARACTER_GROUPS.find((c) => name.includes(c)) ?? OTHER_GROUP
+}
 
 // Gold palette
 const P = {
@@ -33,14 +46,23 @@ type ProductWithRelations = Product & {
   subcategory: Subcategory | null
 }
 
+type PageDef = {
+  group: string
+  /** グループ内のページ番号（1始まり）。グループが1枚に収まる場合は0 */
+  pageNo: number
+  totalPages: number
+  products: ProductWithRelations[]
+}
+
+const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩']
+
 export default function PSA10ImagePage() {
   const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const previewRef1 = useRef<HTMLDivElement>(null)
-  const previewRef2 = useRef<HTMLDivElement>(null)
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([])
   const supabase = createClient()
 
   useEffect(() => {
@@ -60,7 +82,8 @@ export default function PSA10ImagePage() {
         .eq('is_active', true)
         .eq('category_id', CATEGORY_ID)
         .eq('subcategory_id', PSA10_SUBCATEGORY_ID)
-        .order('sort_order'),
+        .gt('price', 0)
+        .order('price', { ascending: false }),
       supabase.from('app_settings').select('value').eq('key', SETTING_KEY).maybeSingle(),
     ])
 
@@ -70,13 +93,24 @@ export default function PSA10ImagePage() {
       return
     }
 
-    const prods = (productsResult.data || []) as ProductWithRelations[]
+    // ポケモン別 → 価格が高い順に整列（グループの並びは最高額の高い順）
+    const raw = (productsResult.data || []) as ProductWithRelations[]
+    const groupOrder = [...new Set(raw.map((p) => characterOf(p.name)))]
+      .sort((a, b) => {
+        const maxA = Math.max(...raw.filter((p) => characterOf(p.name) === a).map((p) => p.price))
+        const maxB = Math.max(...raw.filter((p) => characterOf(p.name) === b).map((p) => p.price))
+        return maxB - maxA
+      })
+    const prods = groupOrder.flatMap((g) =>
+      raw.filter((p) => characterOf(p.name) === g).sort((a, b) => b.price - a.price)
+    )
     setProducts(prods)
 
     if (settingResult.data?.value) {
       try {
         const savedIds: string[] = JSON.parse(settingResult.data.value)
-        setSelectedIds(new Set(savedIds.filter((id) => prods.some((p) => p.id === id))))
+        const valid = savedIds.filter((id) => prods.some((p) => p.id === id))
+        setSelectedIds(valid.length > 0 ? new Set(valid) : new Set(prods.map((p) => p.id)))
       } catch {
         setSelectedIds(new Set(prods.map((p) => p.id)))
       }
@@ -100,6 +134,18 @@ export default function PSA10ImagePage() {
     })
   }
 
+  function toggleGroup(group: string, ids: string[]) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      const allSelected = ids.every((id) => next.has(id))
+      for (const id of ids) {
+        if (allSelected) next.delete(id)
+        else next.add(id)
+      }
+      return next
+    })
+  }
+
   async function saveDefaults() {
     setSaving(true)
     const value = JSON.stringify(Array.from(selectedIds))
@@ -115,12 +161,11 @@ export default function PSA10ImagePage() {
     else toast.success('デフォルト選択を保存しました')
   }
 
-  async function downloadRef(ref: React.RefObject<HTMLDivElement | null>, filename: string) {
-    if (!ref.current) return
+  async function downloadNode(node: HTMLDivElement, filename: string) {
     const { toPng } = await import('html-to-image')
     const options = { quality: 1, pixelRatio: 2 }
-    await toPng(ref.current, options) // warm up
-    const dataUrl = await toPng(ref.current, options)
+    await toPng(node, options) // warm up
+    const dataUrl = await toPng(node, options)
     const a = document.createElement('a')
     a.href = dataUrl
     a.download = filename
@@ -137,14 +182,16 @@ export default function PSA10ImagePage() {
       await document.fonts.ready
 
       const dateStr = new Date().toLocaleDateString('ja-JP').replace(/\//g, '')
-      if (page2Products.length > 0) {
-        await downloadRef(previewRef1, `PSA10買取表_1_${dateStr}.png`)
-        await downloadRef(previewRef2, `PSA10買取表_2_${dateStr}.png`)
-        toast.success('2枚の画像をダウンロードしました')
-      } else {
-        await downloadRef(previewRef1, `PSA10買取表_${dateStr}.png`)
-        toast.success('画像をダウンロードしました')
+      let count = 0
+      for (let i = 0; i < pages.length; i++) {
+        const node = pageRefs.current[i]
+        if (!node) continue
+        const page = pages[i]
+        const suffix = page.pageNo > 0 ? `${page.pageNo}` : ''
+        await downloadNode(node, `PSA10買取表_${page.group}${suffix}_${dateStr}.png`)
+        count++
       }
+      toast.success(`${count}枚の画像をダウンロードしました`)
     } catch (e) {
       console.error(e)
       toast.error('画像の生成に失敗しました')
@@ -156,15 +203,33 @@ export default function PSA10ImagePage() {
   const selectedProducts = products.filter((p) => selectedIds.has(p.id))
   const noImageCount = selectedProducts.filter((p) => !p.image_url).length
 
-  const needsSplit = selectedProducts.length > MAX_PER_PAGE
-  const page1Products = selectedProducts.slice(0, MAX_PER_PAGE)
-  const page2Products = needsSplit ? selectedProducts.slice(MAX_PER_PAGE) : []
+  // ポケモン別にページ分割（各グループ48件/枚。複数枚になるグループは①②…を付ける）
+  const pages: PageDef[] = []
+  {
+    const groups = [...new Set(selectedProducts.map((p) => characterOf(p.name)))]
+    for (const group of groups) {
+      const groupProducts = selectedProducts.filter((p) => characterOf(p.name) === group)
+      const totalPages = Math.ceil(groupProducts.length / MAX_PER_PAGE)
+      for (let i = 0; i < totalPages; i++) {
+        pages.push({
+          group,
+          pageNo: totalPages > 1 ? i + 1 : 0,
+          totalPages,
+          products: groupProducts.slice(i * MAX_PER_PAGE, (i + 1) * MAX_PER_PAGE),
+        })
+      }
+    }
+  }
+  pageRefs.current.length = pages.length
+
+  // 左リストのグループ見出し用
+  const listGroups = [...new Set(products.map((p) => characterOf(p.name)))]
 
   return (
     <div>
       <AdminHeader
         title="PSA10買取画像生成"
-        description="PSA10鑑定カードの買取価格画像を自動生成します（1920×1080）"
+        description="PSA10鑑定カードの買取価格画像をポケモン別に自動生成します（1920×1080 / 12×4=48枚毎）"
       />
 
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -198,63 +263,83 @@ export default function PSA10ImagePage() {
                 <p className="text-sm text-muted-foreground">読み込み中...</p>
               ) : (
                 <div className="space-y-1.5 max-h-[70vh] overflow-y-auto pr-1">
-                  {products.map((product) => (
-                    <label
-                      key={product.id}
-                      className="flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
-                    >
-                      <Checkbox
-                        checked={selectedIds.has(product.id)}
-                        onCheckedChange={() => toggleProduct(product.id)}
-                      />
-                      {product.image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded shrink-0" />
-                      ) : (
-                        <div className="w-8 h-8 rounded border bg-muted flex items-center justify-center shrink-0">
-                          <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
+                  {listGroups.map((group) => {
+                    const groupProducts = products.filter((p) => characterOf(p.name) === group)
+                    const groupIds = groupProducts.map((p) => p.id)
+                    const selectedCount = groupIds.filter((id) => selectedIds.has(id)).length
+                    return (
+                      <div key={group}>
+                        <div className="flex items-center gap-2 sticky top-0 bg-background py-1.5 z-10 border-b">
+                          <Checkbox
+                            checked={selectedCount === groupIds.length}
+                            onCheckedChange={() => toggleGroup(group, groupIds)}
+                          />
+                          <span className="text-sm font-bold">{group}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {selectedCount}/{groupIds.length}件
+                          </span>
                         </div>
-                      )}
-                      <span className="flex-1 text-sm truncate">{product.name}</span>
-                      <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">
-                        {product.price.toLocaleString('ja-JP')}円
-                      </Badge>
-                    </label>
-                  ))}
+                        {groupProducts.map((product) => (
+                          <label
+                            key={product.id}
+                            className="flex items-center gap-3 rounded-md border px-3 py-2 mt-1.5 cursor-pointer hover:bg-muted transition-colors"
+                          >
+                            <Checkbox
+                              checked={selectedIds.has(product.id)}
+                              onCheckedChange={() => toggleProduct(product.id)}
+                            />
+                            {product.image_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded shrink-0" />
+                            ) : (
+                              <div className="w-8 h-8 rounded border bg-muted flex items-center justify-center shrink-0">
+                                <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
+                              </div>
+                            )}
+                            <span className="flex-1 text-sm truncate">{product.name}</span>
+                            <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">
+                              {product.price.toLocaleString('ja-JP')}円
+                            </Badge>
+                          </label>
+                        ))}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Right: preview */}
+        {/* Right: previews */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              プレビュー（1920×1080）{needsSplit && '— 2枚に分割'}
+              プレビュー（1920×1080）— {pages.length}枚
             </p>
-            <Button onClick={handleDownload} disabled={downloading || selectedIds.size === 0} className="gap-2">
+            <Button onClick={handleDownload} disabled={downloading || pages.length === 0} className="gap-2">
               <Download className="h-4 w-4" />
-              {downloading ? '生成中...' : needsSplit ? '2枚ダウンロード' : 'PNG ダウンロード'}
+              {downloading ? '生成中...' : `${pages.length}枚ダウンロード`}
             </Button>
           </div>
 
-          <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
-            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
-              <PSA10Canvas ref={previewRef1} products={page1Products} pageLabel={needsSplit ? '①' : undefined} />
-            </div>
-          </div>
-
-          {page2Products.length > 0 && (
-            <>
-              <p className="text-sm text-muted-foreground">2枚目</p>
+          {pages.map((page, i) => (
+            <div key={`${page.group}-${page.pageNo}`}>
+              <p className="text-sm text-muted-foreground mb-1">
+                {page.group}{page.pageNo > 0 ? ` ${page.pageNo}/${page.totalPages}` : ''}（{page.products.length}件）
+              </p>
               <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
                 <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
-                  <PSA10Canvas ref={previewRef2} products={page2Products} pageLabel="②" />
+                  <PSA10Canvas
+                    ref={(el) => { pageRefs.current[i] = el }}
+                    products={page.products}
+                    groupLabel={page.group}
+                    pageLabel={page.pageNo > 0 ? CIRCLED[page.pageNo - 1] ?? `(${page.pageNo})` : undefined}
+                  />
                 </div>
               </div>
-            </>
-          )}
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -264,8 +349,9 @@ export default function PSA10ImagePage() {
 // --- PSA10 Canvas (1920x1080) ---
 const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   products: ProductWithRelations[]
+  groupLabel?: string
   pageLabel?: string
-}>(({ products, pageLabel }, ref) => {
+}>(({ products, groupLabel, pageLabel }, ref) => {
   const today = new Date()
   const month = today.getMonth() + 1
   const day = today.getDate()
@@ -282,12 +368,12 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const gridH = gridBottom - gridTop
   const gridW = W - padX * 2
 
-  // 12列固定（48件 = 12列×4行でぴったり埋まる）
+  // 12列×4行固定（48件でぴったり埋まる。端数でもセルサイズは変えない）
   const cols = 12
-  const rows = Math.max(Math.ceil(products.length / cols), 1)
+  const rows = 4
 
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
-  const cellH = rows > 0 ? Math.floor((gridH - gap * (rows - 1)) / rows) : 0
+  const cellH = Math.floor((gridH - gap * (rows - 1)) / rows)
 
   // Card inner layout
   const priceBarH = Math.max(Math.min(Math.floor(cellH * 0.14), 34), 20)
@@ -329,14 +415,26 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         <img src="/assets/logo-full.png" alt="買取スクエア" style={{ width: 235, height: 235, objectFit: 'contain' }} crossOrigin="anonymous" />
       </div>
 
-      {/* Page label next to title */}
-      {pageLabel && (
+      {/* Pokemon name plate (title right side) */}
+      {groupLabel && (
         <div style={{
-          position: 'absolute', left: 1480, top: 108, zIndex: 4,
-          fontSize: 72, fontWeight: 900, lineHeight: 1,
-          color: P.LIGHT,
-          textShadow: `0 0 12px ${P.BASE}, 0 2px 4px rgba(0,0,0,0.8)`,
-        }}>{pageLabel}</div>
+          position: 'absolute', left: 1400, top: 160, zIndex: 4,
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <span style={{
+            fontSize: 58, fontWeight: 900, lineHeight: 1,
+            letterSpacing: '0.04em', whiteSpace: 'nowrap',
+            background: `linear-gradient(180deg, ${P.WHITE} 0%, ${P.LIGHT} 35%, ${P.BASE} 70%, ${P.MID} 100%)`,
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            filter: `drop-shadow(0 0 10px rgba(232,194,92,0.55)) drop-shadow(0 2px 3px rgba(0,0,0,0.9))`,
+          }}>{groupLabel}</span>
+          {pageLabel && (
+            <span style={{
+              fontSize: 58, fontWeight: 900, lineHeight: 1, color: P.LIGHT,
+              textShadow: `0 0 12px ${P.BASE}, 0 2px 4px rgba(0,0,0,0.8)`,
+            }}>{pageLabel}</span>
+          )}
+        </div>
       )}
 
       {/* Update date inside top-right plaque */}
