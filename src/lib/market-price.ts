@@ -134,6 +134,9 @@ export async function repricePsa10Products(): Promise<{
 // ミラーピカチュウ30種（017〜046/103）は一律200円の手動運用のため対象外。
 // スニダン側の最安が下限値(1,000円)に張り付くため相場追従すると高すぎになる。
 const MIRROR_PIKACHU_RE = /^ピカチュウ \(0(1[7-9]|2\d|3\d|4[0-6])\/103\)/
+// スニダンの最低出品価格。相場がこの値のときは下限張り付きで実勢より高い可能性が
+// 高いため自動追従しない（低額ARカード等は手動価格を維持する）
+const SNKRDUNK_FLOOR_PRICE = 1000
 
 export async function reprice30thProducts(): Promise<{
   repriced: number
@@ -160,6 +163,7 @@ export async function reprice30thProducts(): Promise<{
   const errors: string[] = []
   for (const p of products ?? []) {
     if (MIRROR_PIKACHU_RE.test(p.name)) continue
+    if (p.market_price <= SNKRDUNK_FLOOR_PRICE) continue
     const newPrice = Math.floor(p.market_price / 100) * 100
     if (newPrice <= 0 || newPrice === p.price) continue
     const { error: updateError } = await supabase
