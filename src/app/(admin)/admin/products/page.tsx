@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Pencil, Trash2, Search, Upload, Download, Eye, EyeOff, Settings, ImageIcon, RefreshCw, GripVertical, Link as LinkIcon } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, Upload, Download, Eye, EyeOff, Settings, ImageIcon, RefreshCw, GripVertical, Link as LinkIcon, ExternalLink } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -1309,22 +1309,36 @@ async function syncToChiba() {
                         onBlur={() => saveInlineUrl(product.id)}
                       />
                     ) : (
-                      <span
-                        className="cursor-pointer hover:text-primary text-sm"
-                        title={product.market_price != null
-                          ? `出品数: ${product.market_listing_count ?? '-'}件\n更新: ${product.market_price_updated_at ? new Date(product.market_price_updated_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '-'}\nクリックでURL編集`
-                          : 'クリックでスニダンURLを設定'}
-                        onClick={() => {
-                          setEditingUrlId(product.id)
-                          editingUrlRef.current = product.snkrdunk_url || ''
-                          setEditingUrlValue(product.snkrdunk_url || '')
-                        }}
-                      >
-                        {product.market_price != null
-                          ? `${product.market_price.toLocaleString()}円`
-                          : product.snkrdunk_url
-                            ? <span className="text-muted-foreground/50">未取得</span>
-                            : <span className="text-muted-foreground/50">URL設定</span>}
+                      <span className="inline-flex items-center justify-end gap-1.5">
+                        <span
+                          className="cursor-pointer hover:text-primary text-sm"
+                          title={product.market_price != null
+                            ? `出品数: ${product.market_listing_count ?? '-'}件\n更新: ${product.market_price_updated_at ? new Date(product.market_price_updated_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '-'}\nクリックでURL編集`
+                            : 'クリックでスニダンURLを設定'}
+                          onClick={() => {
+                            setEditingUrlId(product.id)
+                            editingUrlRef.current = product.snkrdunk_url || ''
+                            setEditingUrlValue(product.snkrdunk_url || '')
+                          }}
+                        >
+                          {product.market_price != null
+                            ? `${product.market_price.toLocaleString()}円`
+                            : product.snkrdunk_url
+                              ? <span className="text-muted-foreground/50">未取得</span>
+                              : <span className="text-muted-foreground/50">URL設定</span>}
+                        </span>
+                        {product.snkrdunk_url && (
+                          <a
+                            href={product.snkrdunk_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="スニダンで開く"
+                            className="text-muted-foreground hover:text-primary"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        )}
                       </span>
                     )}
                   </TableCell>
