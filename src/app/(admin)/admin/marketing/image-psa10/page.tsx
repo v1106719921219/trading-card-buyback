@@ -18,6 +18,8 @@ const PSA10_SUBCATEGORY_ID = '8b34c75d-d7f8-4393-89fe-7685b3f61e5b'
 const TENANT_ID = 'aaaaaaaa-0000-0000-0000-000000000001'
 // 12列×4行 = 48件で1枚
 const MAX_PER_PAGE = 48
+// プレビュー表示の縮尺（実画像は1920×1080のまま）
+const PREVIEW_SCALE = 0.55
 
 // ポケモン別グループ（先に長い名前からマッチさせる: ミュウツー→ミュウ の順が必須）
 const CHARACTER_GROUPS = [
@@ -313,25 +315,30 @@ export default function PSA10ImagePage() {
           </Card>
         </div>
 
-        {/* Right: previews */}
+        {/* Right: download */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              プレビュー（1920×1080）— {pages.length}枚
+              プレビュー（1920×1080）— {pages.length}枚（下に表示）
             </p>
             <Button onClick={handleDownload} disabled={downloading || pages.length === 0} className="gap-2">
               <Download className="h-4 w-4" />
               {downloading ? '生成中...' : `${pages.length}枚ダウンロード`}
             </Button>
           </div>
+        </div>
+      </div>
 
-          {pages.map((page, i) => (
-            <div key={`${page.group}-${page.pageNo}`}>
-              <p className="text-sm text-muted-foreground mb-1">
-                {page.group}{page.pageNo > 0 ? ` ${page.pageNo}/${page.totalPages}` : ''}（{page.products.length}件）
-              </p>
-              <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
-                <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
+      {/* Previews: full width below for larger display */}
+      <div className="mt-6 space-y-6">
+        {pages.map((page, i) => (
+          <div key={`${page.group}-${page.pageNo}`}>
+            <p className="text-sm text-muted-foreground mb-1">
+              {page.group}{page.pageNo > 0 ? ` ${page.pageNo}/${page.totalPages}` : ''}（{page.products.length}件）
+            </p>
+            <div className="border rounded-lg bg-muted/30 max-w-full overflow-x-auto">
+              <div style={{ width: Math.ceil(1920 * PREVIEW_SCALE), height: Math.ceil(1080 * PREVIEW_SCALE), overflow: 'hidden', position: 'relative' }}>
+                <div style={{ transform: `scale(${PREVIEW_SCALE})`, transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
                   <PSA10Canvas
                     ref={(el) => { pageRefs.current[i] = el }}
                     products={page.products}
@@ -341,8 +348,8 @@ export default function PSA10ImagePage() {
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -417,22 +424,22 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         <img src="/assets/logo-full.png" alt="買取スクエア" style={{ width: 235, height: 235, objectFit: 'contain' }} crossOrigin="anonymous" />
       </div>
 
-      {/* Pokemon name plate (title right side) */}
+      {/* Pokemon name plate (centered below the title, above the grid) */}
       {groupLabel && (
         <div style={{
-          position: 'absolute', left: 1400, top: 160, zIndex: 4,
-          display: 'flex', alignItems: 'center', gap: 12,
+          position: 'absolute', left: 0, right: 0, top: 238, zIndex: 4,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
         }}>
           <span style={{
-            fontSize: 58, fontWeight: 900, lineHeight: 1,
-            letterSpacing: '0.04em', whiteSpace: 'nowrap',
+            fontSize: 52, fontWeight: 900, lineHeight: 1,
+            letterSpacing: '0.12em', whiteSpace: 'nowrap',
             background: `linear-gradient(180deg, ${P.WHITE} 0%, ${P.LIGHT} 35%, ${P.BASE} 70%, ${P.MID} 100%)`,
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
             filter: `drop-shadow(0 0 10px rgba(232,194,92,0.55)) drop-shadow(0 2px 3px rgba(0,0,0,0.9))`,
           }}>{groupLabel}</span>
           {pageLabel && (
             <span style={{
-              fontSize: 58, fontWeight: 900, lineHeight: 1, color: P.LIGHT,
+              fontSize: 52, fontWeight: 900, lineHeight: 1, color: P.LIGHT,
               textShadow: `0 0 12px ${P.BASE}, 0 2px 4px rgba(0,0,0,0.8)`,
             }}>{pageLabel}</span>
           )}
