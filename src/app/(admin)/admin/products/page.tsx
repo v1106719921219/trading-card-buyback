@@ -715,9 +715,10 @@ async function syncToChiba() {
 
   async function togglePriceList(product: Product) {
     const newValue = !product.show_in_price_list
+    // 表示に戻す操作は自動締切の解除を兼ねる
     const { error } = await supabase
       .from('products')
-      .update({ show_in_price_list: newValue })
+      .update(newValue ? { show_in_price_list: true, auto_closed_at: null } : { show_in_price_list: false })
       .eq('id', product.id)
 
     if (error) {
@@ -729,9 +730,9 @@ async function syncToChiba() {
   }
 
   async function handleBulkTogglePriceList(show: boolean) {
-    // 表示にする場合、0円の商品は除外する
+    // 表示にする場合、0円の商品と自動締切中（申込済み）の商品は除外する
     const targets = show
-      ? filteredProducts.filter((p) => p.price > 0)
+      ? filteredProducts.filter((p) => p.price > 0 && !p.auto_closed_at)
       : filteredProducts
     const ids = targets.map((p) => p.id)
     if (ids.length === 0) return
@@ -751,7 +752,7 @@ async function syncToChiba() {
     }
     const skipped = show ? filteredProducts.length - ids.length : 0
     const msg = `${ids.length}件を価格表${show ? '表示' : '非表示'}にしました`
-    toast.success(skipped > 0 ? `${msg}（0円の${skipped}件は非表示のまま）` : msg)
+    toast.success(skipped > 0 ? `${msg}（0円・申込済締切の${skipped}件は非表示のまま）` : msg)
     fetchData()
   }
 
@@ -1344,11 +1345,12 @@ async function syncToChiba() {
                   </TableCell>
                   <TableCell>
                     <Badge
-                      variant={product.show_in_price_list ? 'default' : 'secondary'}
+                      variant={product.show_in_price_list ? 'default' : product.auto_closed_at ? 'destructive' : 'secondary'}
                       className="cursor-pointer"
+                      title={!product.show_in_price_list && product.auto_closed_at ? `申込により自動締切 (${new Date(product.auto_closed_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })})\nクリックで再開` : undefined}
                       onClick={() => togglePriceList(product)}
                     >
-                      {product.show_in_price_list ? '表示' : '非表示'}
+                      {product.show_in_price_list ? '表示' : product.auto_closed_at ? '締切' : '非表示'}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">

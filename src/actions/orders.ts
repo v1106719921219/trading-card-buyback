@@ -263,6 +263,24 @@ export async function createOrder(input: CreateOrderInput) {
     return { error: `注文明細の作成に失敗しました: ${itemsError.message}` }
   }
 
+  // PSA10シングルは1枚でも申込が入ったら自動締切（価格表から外して以降の申込を止める）。
+  // auto_closed_atを立てておくことで、毎朝の一括表示でも復活しない（解除は商品ごとの表示切替）。
+  try {
+    const { data: psaSubs } = await supabase.from('subcategories').select('id').eq('name', 'PSA10')
+    const psaSubIds = (psaSubs ?? []).map((s) => s.id)
+    if (psaSubIds.length > 0) {
+      await supabase
+        .from('products')
+        .update({ show_in_price_list: false, auto_closed_at: new Date().toISOString() })
+        .in('id', ids)
+        .in('subcategory_id', psaSubIds)
+        .eq('tenant_id', tenantId)
+    }
+  } catch (e) {
+    // 締切処理の失敗で注文自体は失敗させない
+    console.error('[createOrder] PSA10自動締切に失敗:', e)
+  }
+
   // 申込前に提出されたeKYCを注文に紐付け（承認時に本人確認済みが自動反映される）
   if (pendingKycId) {
     const { data: linkedKyc } = await supabase

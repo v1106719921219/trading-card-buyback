@@ -63,6 +63,7 @@ export interface Product {
   market_listing_count: number | null
   market_top5_prices: number[] | null
   market_price_updated_at: string | null
+  auto_closed_at: string | null
   created_at: string
   updated_at: string
   // joined
