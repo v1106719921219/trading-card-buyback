@@ -33,6 +33,21 @@ function characterOf(name: string): string {
   return CHARACTER_GROUPS.find((c) => name.includes(c)) ?? OTHER_GROUP
 }
 
+// 画像1枚のまとまり（少数キャラは合体させて1枚の空きを減らす）
+const DISPLAY_GROUPS: { label: string; members: string[] }[] = [
+  { label: 'リザードン', members: ['リザードン'] },
+  { label: 'ピカチュウ', members: ['ピカチュウ'] },
+  { label: 'ミュウツー・ミュウ', members: ['ミュウツー', 'ミュウ'] },
+  { label: 'ブイズ', members: ['イーブイ', 'ブラッキー', 'ニンフィア', 'エーフィ', 'リーフィア', 'グレイシア', 'シャワーズ', 'サンダース', 'ブースター'] },
+  { label: 'コイキング・ゲンガー・カイリュー', members: ['コイキング', 'ゲンガー', 'カイリュー'] },
+  { label: OTHER_GROUP, members: [OTHER_GROUP] },
+]
+
+function displayGroupOf(name: string): string {
+  const ch = characterOf(name)
+  return DISPLAY_GROUPS.find((g) => g.members.includes(ch))?.label ?? OTHER_GROUP
+}
+
 // Gold palette
 const P = {
   WHITE: '#fffbe8',
@@ -97,16 +112,16 @@ export default function PSA10ImagePage() {
       return
     }
 
-    // ポケモン別 → 価格が高い順に整列（グループの並びは最高額の高い順）
+    // 表示グループ別 → 価格が高い順に整列（グループの並びは最高額の高い順）
     const raw = (productsResult.data || []) as ProductWithRelations[]
-    const groupOrder = [...new Set(raw.map((p) => characterOf(p.name)))]
+    const groupOrder = [...new Set(raw.map((p) => displayGroupOf(p.name)))]
       .sort((a, b) => {
-        const maxA = Math.max(...raw.filter((p) => characterOf(p.name) === a).map((p) => p.price))
-        const maxB = Math.max(...raw.filter((p) => characterOf(p.name) === b).map((p) => p.price))
+        const maxA = Math.max(...raw.filter((p) => displayGroupOf(p.name) === a).map((p) => p.price))
+        const maxB = Math.max(...raw.filter((p) => displayGroupOf(p.name) === b).map((p) => p.price))
         return maxB - maxA
       })
     const prods = groupOrder.flatMap((g) =>
-      raw.filter((p) => characterOf(p.name) === g).sort((a, b) => b.price - a.price)
+      raw.filter((p) => displayGroupOf(p.name) === g).sort((a, b) => b.price - a.price)
     )
     setProducts(prods)
 
@@ -207,19 +222,21 @@ export default function PSA10ImagePage() {
   const selectedProducts = products.filter((p) => selectedIds.has(p.id))
   const noImageCount = selectedProducts.filter((p) => !p.image_url).length
 
-  // ポケモン別にページ分割（各グループ48件/枚。複数枚になるグループは①②…を付ける）
+  // 表示グループ別にページ分割（48件/枚上限）。複数枚になる場合は
+  // 48+1のような偏りを避けるため均等に配分する（例: 49件 → 25+24件）
   const pages: PageDef[] = []
   {
-    const groups = [...new Set(selectedProducts.map((p) => characterOf(p.name)))]
+    const groups = [...new Set(selectedProducts.map((p) => displayGroupOf(p.name)))]
     for (const group of groups) {
-      const groupProducts = selectedProducts.filter((p) => characterOf(p.name) === group)
+      const groupProducts = selectedProducts.filter((p) => displayGroupOf(p.name) === group)
       const totalPages = Math.ceil(groupProducts.length / MAX_PER_PAGE)
+      const perPage = Math.ceil(groupProducts.length / totalPages)
       for (let i = 0; i < totalPages; i++) {
         pages.push({
           group,
           pageNo: totalPages > 1 ? i + 1 : 0,
           totalPages,
-          products: groupProducts.slice(i * MAX_PER_PAGE, (i + 1) * MAX_PER_PAGE),
+          products: groupProducts.slice(i * perPage, (i + 1) * perPage),
         })
       }
     }
@@ -227,7 +244,7 @@ export default function PSA10ImagePage() {
   pageRefs.current.length = pages.length
 
   // 左リストのグループ見出し用
-  const listGroups = [...new Set(products.map((p) => characterOf(p.name)))]
+  const listGroups = [...new Set(products.map((p) => displayGroupOf(p.name)))]
 
   return (
     <div>
@@ -268,7 +285,7 @@ export default function PSA10ImagePage() {
               ) : (
                 <div className="space-y-1.5 max-h-[70vh] overflow-y-auto pr-1">
                   {listGroups.map((group) => {
-                    const groupProducts = products.filter((p) => characterOf(p.name) === group)
+                    const groupProducts = products.filter((p) => displayGroupOf(p.name) === group)
                     const groupIds = groupProducts.map((p) => p.id)
                     const selectedCount = groupIds.filter((id) => selectedIds.has(id)).length
                     return (
@@ -424,25 +441,35 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         <img src="/assets/logo-full.png" alt="買取スクエア" style={{ width: 235, height: 235, objectFit: 'contain' }} crossOrigin="anonymous" />
       </div>
 
-      {/* Pokemon name plate (centered below the title, above the grid) */}
+      {/* Pokemon name plate (centered below the title, above the grid).
+          背景装飾と被らないよう金縁の黒プレートを敷く */}
       {groupLabel && (
         <div style={{
-          position: 'absolute', left: 0, right: 0, top: 238, zIndex: 4,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+          position: 'absolute', left: 0, right: 0, top: 236, zIndex: 4,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <span style={{
-            fontSize: 52, fontWeight: 900, lineHeight: 1,
-            letterSpacing: '0.12em', whiteSpace: 'nowrap',
-            background: `linear-gradient(180deg, ${P.WHITE} 0%, ${P.LIGHT} 35%, ${P.BASE} 70%, ${P.MID} 100%)`,
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            filter: `drop-shadow(0 0 10px rgba(232,194,92,0.55)) drop-shadow(0 2px 3px rgba(0,0,0,0.9))`,
-          }}>{groupLabel}</span>
-          {pageLabel && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            background: 'linear-gradient(180deg, rgba(10,8,2,0.95) 0%, rgba(28,20,6,0.95) 100%)',
+            border: `2px solid ${P.MID}`,
+            borderRadius: 999,
+            padding: '8px 40px 10px',
+            boxShadow: `0 0 14px rgba(232,194,92,0.4), inset 0 1px 0 rgba(255,251,232,0.25)`,
+          }}>
             <span style={{
-              fontSize: 52, fontWeight: 900, lineHeight: 1, color: P.LIGHT,
-              textShadow: `0 0 12px ${P.BASE}, 0 2px 4px rgba(0,0,0,0.8)`,
-            }}>{pageLabel}</span>
-          )}
+              fontSize: 44, fontWeight: 900, lineHeight: 1,
+              letterSpacing: '0.1em', whiteSpace: 'nowrap',
+              background: `linear-gradient(180deg, ${P.WHITE} 0%, ${P.LIGHT} 35%, ${P.BASE} 70%, ${P.MID} 100%)`,
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              filter: `drop-shadow(0 1px 2px rgba(0,0,0,0.9))`,
+            }}>{groupLabel}</span>
+            {pageLabel && (
+              <span style={{
+                fontSize: 44, fontWeight: 900, lineHeight: 1, color: P.LIGHT,
+                textShadow: `0 0 12px ${P.BASE}, 0 1px 3px rgba(0,0,0,0.8)`,
+              }}>{pageLabel}</span>
+            )}
+          </div>
         </div>
       )}
 
