@@ -198,7 +198,7 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
             product_id: p.id,
             product_name: p.name,
             unit_price: p.price,
-            quantity: Math.max(1, Number(it.quantity) || 1),
+            quantity: p.subcategory?.name === 'PSA10' ? 1 : Math.max(1, Number(it.quantity) || 1),
             category_name: p.category?.name ?? '',
           })
         }
@@ -289,9 +289,18 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
     return matchesCategory && matchesSubcategory && matchesSearch && (showAll || p.category?.is_active)
   })
 
+  // PSA10シングルはお一人様1枚まで（申込1件で自動締切になるため）
+  function isPsa10Product(productId: string) {
+    return products.find((p) => p.id === productId)?.subcategory?.name === 'PSA10'
+  }
+
   function addToCart(product: Product & { category: Category }) {
     const existing = cart.find((item) => item.product_id === product.id)
     if (existing) {
+      if (isPsa10Product(product.id)) {
+        toast.info('PSA10商品はお一人様1枚までです')
+        return
+      }
       setCart(cart.map((item) =>
         item.product_id === product.id
           ? { ...item, quantity: item.quantity + 1 }
@@ -321,12 +330,17 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
     setCart(cart.map((item) => {
       if (item.product_id !== productId) return item
       const newQty = item.quantity + delta
+      if (newQty > 1 && isPsa10Product(productId)) {
+        toast.info('PSA10商品はお一人様1枚までです')
+        return item
+      }
       return newQty > 0 ? { ...item, quantity: newQty } : item
     }))
   }
 
   function setQuantity(productId: string, qty: number) {
-    const val = Math.max(1, Math.min(9999, qty))
+    const max = isPsa10Product(productId) ? 1 : 9999
+    const val = Math.max(1, Math.min(max, qty))
     setCart(cart.map((item) =>
       item.product_id === productId ? { ...item, quantity: val } : item
     ))
@@ -363,11 +377,12 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
       for (const item of result.items) {
         const existing = newCart.find((c) => c.product_id === item.product_id)
         if (existing) {
-          existing.quantity += item.quantity
+          existing.quantity = isPsa10Product(item.product_id) ? 1 : existing.quantity + item.quantity
         } else {
           const product = products.find((p) => p.id === item.product_id)
           newCart.push({
             ...item,
+            quantity: isPsa10Product(item.product_id) ? 1 : item.quantity,
             category_name: product?.category?.name || '',
           })
         }
@@ -902,10 +917,15 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
                               variant="outline"
                               size="icon"
                               className="h-9 w-9 sm:h-7 sm:w-7"
+                              disabled={isPsa10Product(item.product_id)}
+                              title={isPsa10Product(item.product_id) ? 'PSA10商品はお一人様1枚までです' : undefined}
                               onClick={() => updateQuantity(item.product_id, 1)}
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
+                            {isPsa10Product(item.product_id) && (
+                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">1枚まで</span>
+                            )}
                             <span className="ml-auto text-sm font-medium">
                               {(item.unit_price * item.quantity).toLocaleString()}円
                             </span>

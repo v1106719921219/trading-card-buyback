@@ -52,6 +52,24 @@ export async function createOrder(input: CreateOrderInput) {
   const { data: available } = await supabase.from('products').select('id').eq('tenant_id', tenantId).eq('is_active', true).eq('show_in_price_list', true).in('id', ids)
   if (!available || available.length !== ids.length) return { error: '受付停止中の商品が含まれています。申込内容をご確認ください' }
 
+  // PSA10シングルはお一人様1枚まで（申込1件で自動締切とセットの運用）
+  const { data: psaSubs } = await supabase.from('subcategories').select('id').eq('name', 'PSA10')
+  const psaSubIds = (psaSubs ?? []).map((s) => s.id)
+  let psa10ProductIds = new Set<string>()
+  if (psaSubIds.length > 0) {
+    const { data: psaProds } = await supabase.from('products').select('id').in('id', ids).in('subcategory_id', psaSubIds)
+    psa10ProductIds = new Set((psaProds ?? []).map((p) => p.id))
+    const qtyByProduct = new Map<string, number>()
+    for (const it of items) {
+      if (psa10ProductIds.has(it.product_id)) qtyByProduct.set(it.product_id, (qtyByProduct.get(it.product_id) ?? 0) + it.quantity)
+    }
+    const over = [...qtyByProduct.entries()].find(([, qty]) => qty > 1)
+    if (over) {
+      const name = items.find((i) => i.product_id === over[0])?.product_name ?? ''
+      return { error: `PSA10商品はお一人様1枚までです（${name}）` }
+    }
+  }
+
   if (buyback_type === 'ar_quality') {
     const { data: setting } = await supabase.from('app_settings').select('value').eq('tenant_id', tenantId).eq('key', 'ar_quality_enabled').maybeSingle()
     if (setting?.value !== 'true') return { error: '美品査定は現在受付していません' }
@@ -266,14 +284,11 @@ export async function createOrder(input: CreateOrderInput) {
   // PSA10シングルは1枚でも申込が入ったら自動締切（価格表から外して以降の申込を止める）。
   // auto_closed_atを立てておくことで、毎朝の一括表示でも復活しない（解除は商品ごとの表示切替）。
   try {
-    const { data: psaSubs } = await supabase.from('subcategories').select('id').eq('name', 'PSA10')
-    const psaSubIds = (psaSubs ?? []).map((s) => s.id)
-    if (psaSubIds.length > 0) {
+    if (psa10ProductIds.size > 0) {
       await supabase
         .from('products')
         .update({ show_in_price_list: false, auto_closed_at: new Date().toISOString() })
-        .in('id', ids)
-        .in('subcategory_id', psaSubIds)
+        .in('id', [...psa10ProductIds])
         .eq('tenant_id', tenantId)
     }
   } catch (e) {
