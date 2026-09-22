@@ -4,15 +4,18 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import React from 'react'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
-import { Download, RefreshCw, Save, ImageIcon } from 'lucide-react'
+import { Download, RefreshCw, Save, ImageIcon, Copy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Product, Category, Subcategory } from '@/types/database'
 
 const SETTING_KEY = 'sns_30th_single_default_products'
+const DEFAULT_HEADER = '🃏30th CELEBRATION シングルカード 高価買取中🃏'
+const DEFAULT_FOOTER = '▼ 買取価格一覧 ▼\nkaitorisquare.com/prices\n手続きは簡単！LINEから気軽に買取査定が可能です。\nhttp://lin.ee/MYCtHk9'
 const CATEGORY_ID = 'db02ec12-d529-453c-a749-53da99e05533'
 const SUBCATEGORY_ID = 'ca8f802a-52f1-495a-ab49-158063b00d64'
 // model_numberのカード番号でセクション判定。103以下はミラーピカチュウ(017〜046・コンプセット含む)、104以降は高レア(AR/SAR等)
@@ -53,6 +56,8 @@ export default function Singles30thPage() {
   const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [highPriceIds, setHighPriceIds] = useState<Set<string>>(new Set())
+  const [header, setHeader] = useState(DEFAULT_HEADER)
+  const [footer, setFooter] = useState(DEFAULT_FOOTER)
   const [pageSize, setPageSize] = useState(24)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
@@ -92,7 +97,9 @@ export default function Singles30thPage() {
 
     if (settingResult.data?.value) {
       try {
-        const saved: { singles: string[] } = JSON.parse(settingResult.data.value)
+        const saved: { singles: string[]; header?: string; footer?: string } = JSON.parse(settingResult.data.value)
+        setHeader(typeof saved.header === 'string' ? saved.header : DEFAULT_HEADER)
+        setFooter(typeof saved.footer === 'string' ? saved.footer : DEFAULT_FOOTER)
         setSelectedIds(new Set(saved.singles.filter((id) => s.some((x) => x.id === id))))
       } catch {
         setSelectedIds(new Set(s.map((x) => x.id)))
@@ -150,18 +157,18 @@ export default function Singles30thPage() {
 
   async function saveDefaults() {
     setSaving(true)
-    const value = JSON.stringify({ singles: Array.from(selectedIds) })
+    const value = JSON.stringify({ singles: Array.from(selectedIds), header, footer })
     const tenantId = 'aaaaaaaa-0000-0000-0000-000000000001'
     const { data: existing } = await supabase.from('app_settings').select('key').eq('key', SETTING_KEY).maybeSingle()
     let error
     if (existing) {
       ({ error } = await supabase.from('app_settings').update({ value }).eq('key', SETTING_KEY))
     } else {
-      ({ error } = await supabase.from('app_settings').insert({ key: SETTING_KEY, value, description: '30thシングル画像のデフォルト掲載商品', tenant_id: tenantId }))
+      ({ error } = await supabase.from('app_settings').insert({ key: SETTING_KEY, value, description: '30thシングルの掲載商品・投稿文設定', tenant_id: tenantId }))
     }
     setSaving(false)
     if (error) toast.error('保存に失敗しました')
-    else toast.success('デフォルト選択を保存しました')
+    else toast.success('商品選択と投稿文設定を保存しました')
   }
 
   // セクションごとの画像ジョブ一覧。高レアはページ分割、ミラーピカチュウは常に1枚（6列×5行）に全収載
@@ -229,18 +236,35 @@ export default function Singles30thPage() {
     { title: 'ミラーピカチュウ（017〜046）', items: pikachus },
   ]
 
+  const postSections = [
+    { title: '高レア・コンプリートセット', items: rares },
+    { title: 'ミラーピカチュウ', items: pikachus },
+  ]
+  const generatedMessage = [header, '', ...postSections.flatMap(({ title, items }) => {
+    const selected = items.filter(p => selectedIds.has(p.id))
+    return selected.length ? [`【${title}】`, ...selected.map(p =>
+      `${p.name}👉【${p.price > 0 ? `${p.price.toLocaleString('ja-JP')}円` : 'ASK'}】`), ''] : []
+  }), footer].join('\n')
+
+  async function copyPost() {
+    try {
+      await navigator.clipboard.writeText(generatedMessage)
+      toast.success('投稿文をコピーしました')
+    } catch { toast.error('コピーに失敗しました') }
+  }
+
   return (
     <div>
       <AdminHeader
         title="30thシングル買取一覧"
-        description="30th CELEBRATION シングルカードの買取価格一覧と、X投稿用の価格画像を生成します（1920×1080・ページ自動分割）"
+        description="30th CELEBRATION シングルカードの買取価格一覧・SNS投稿文・価格画像を生成します（1920×1080・ページ自動分割）"
       />
 
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2 rounded-lg border bg-card px-4 py-3">
             <p className="text-xs text-muted-foreground">
-              チェックを変更したら「デフォルトとして保存」で次回以降も同じ選択が維持されます
+              「デフォルトとして保存」で商品選択と投稿文の冒頭・末尾を保存できます
             </p>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">計 {selectedIds.size} 件選択中</span>
@@ -300,8 +324,29 @@ export default function Singles30thPage() {
           })}
         </div>
 
-        {/* プレビュー（セクション・ページごと） */}
+        {/* 投稿文と価格画像は同じ商品選択を使用 */}
         <div className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">SNS投稿文</CardTitle>
+              <p className="text-sm text-muted-foreground">チェックした商品と現在の買取価格を反映します。</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <label className="block text-sm space-y-1">
+                <span>投稿文の冒頭</span>
+                <Textarea aria-label="投稿文の冒頭" value={header} onChange={e => setHeader(e.target.value)} rows={2} />
+              </label>
+              <label className="block text-sm space-y-1">
+                <span>投稿文の末尾</span>
+                <Textarea aria-label="投稿文の末尾" value={footer} onChange={e => setFooter(e.target.value)} rows={4} />
+              </label>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-muted-foreground">{Array.from(generatedMessage).length}文字（投稿先の文字数制限を確認してください）</span>
+                <Button onClick={copyPost} disabled={loading || selectedIds.size === 0} className="gap-2"><Copy className="h-4 w-4" />投稿文をコピー</Button>
+              </div>
+              <Textarea aria-label="投稿文プレビュー" readOnly value={generatedMessage} rows={14} className="font-mono text-sm" />
+            </CardContent>
+          </Card>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <p className="text-sm text-muted-foreground">プレビュー（1920×1080）</p>
