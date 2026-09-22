@@ -96,6 +96,7 @@ const PSA10_PRICE_RATIO = 0.97
 
 export async function repricePsa10Products(): Promise<{
   repriced: number
+  held?: { id: string; reason: string }[]
   errors: string[]
 }> {
   const supabase = createAdminClient()
@@ -109,15 +110,32 @@ export async function repricePsa10Products(): Promise<{
 
   const { data: products, error } = await supabase
     .from('products')
-    .select('id, price, market_price')
+    .select('id, price, market_price, market_listing_count, market_price_updated_at')
     .in('subcategory_id', subIds)
+    .eq('is_active', true)
     .gt('price', 0)
     .not('market_price', 'is', null)
   if (error) return { repriced: 0, errors: [error.message] }
 
   let repriced = 0
   const errors: string[] = []
+  const held: { id: string; reason: string }[] = []
   for (const p of products ?? []) {
+    // 少数出品の希望価格をそのまま買取価格へ反映しない。
+    if (!Number.isInteger(p.market_listing_count) || p.market_listing_count < 3) {
+      held.push({ id: p.id, reason: 'PSA10出品3件未満または件数不明：要確認' })
+      continue
+    }
+    const updatedAt = Date.parse(p.market_price_updated_at ?? '')
+    const age = Date.now() - updatedAt
+    if (!Number.isFinite(updatedAt) || age < 0 || age > 24 * 60 * 60 * 1000) {
+      held.push({ id: p.id, reason: '相場の取得日時が不明または24時間超：要確認' })
+      continue
+    }
+    if (!Number.isFinite(p.market_price) || p.market_price <= 0) {
+      held.push({ id: p.id, reason: '相場価格が不正：要確認' })
+      continue
+    }
     const newPrice = Math.floor((p.market_price * PSA10_PRICE_RATIO) / 100) * 100
     if (newPrice <= 0 || newPrice === p.price) continue
     const { error: updateError } = await supabase
@@ -127,7 +145,7 @@ export async function repricePsa10Products(): Promise<{
     if (updateError) errors.push(`${p.id}: ${updateError.message}`)
     else repriced++
   }
-  return { repriced, errors }
+  return { repriced, held, errors }
 }
 
 // 30thシングルカードは相場と同額（100円未満切り捨て）で自動追従させる（ユーザー決定 2026-09-21）。
