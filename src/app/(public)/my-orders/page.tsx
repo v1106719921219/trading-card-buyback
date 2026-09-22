@@ -7,10 +7,21 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Header } from '@/components/public/header'
 import { Footer } from '@/components/public/footer'
-import { Package, FileDown } from 'lucide-react'
+import { Package, FileDown, Plus, Minus, X, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { initLiff } from '@/lib/liff-client'
-import { getMyOrdersByIdToken, submitTrackingByIdToken, createMyInspectionPdfLink } from '@/actions/orders'
+import { getMyOrdersByIdToken, submitTrackingByIdToken, createMyInspectionPdfLink, getMyOrderAddableProducts, addMyOrderItems } from '@/actions/orders'
+
+// お客様自身で商品を追加できるステータス（検品が始まる前まで）
+const ADDABLE_STATUSES = ['承認待ち', '申込', '発送済']
+
+interface AddableProduct {
+  id: string
+  name: string
+  price: number
+  category_name: string
+  subcategory_name: string
+}
 
 // お客様向けのステータス表示（社内ステータスをお客様にわかる言葉に変換）
 const CUSTOMER_STATUS: Record<string, { label: string; color: string; step: number }> = {
@@ -82,6 +93,68 @@ export default function MyOrdersPage() {
     }
     toast.success('追跡番号を登録しました')
     setTrackingInput((prev) => ({ ...prev, [orderNumber]: '' }))
+    await loadOrders(idToken)
+  }
+
+  // --- 商品の追加（申込後に「あれも送ります」となったとき用） ---
+  const [addOpenFor, setAddOpenFor] = useState<string | null>(null)
+  const [addProducts, setAddProducts] = useState<AddableProduct[]>([])
+  const [addLoading, setAddLoading] = useState(false)
+  const [addSearch, setAddSearch] = useState('')
+  const [addCart, setAddCart] = useState<Record<string, number>>({})
+  const [submittingAdd, setSubmittingAdd] = useState(false)
+
+  async function toggleAddPanel(orderNumber: string, db?: string) {
+    if (addOpenFor === orderNumber) {
+      setAddOpenFor(null)
+      return
+    }
+    if (!idToken) return
+    setAddOpenFor(orderNumber)
+    setAddCart({})
+    setAddSearch('')
+    setAddProducts([])
+    setAddLoading(true)
+    const result = await getMyOrderAddableProducts(idToken, orderNumber, db)
+    setAddLoading(false)
+    if ('error' in result && result.error) {
+      toast.error(result.error)
+      setAddOpenFor(null)
+      return
+    }
+    if ('products' in result && result.products) setAddProducts(result.products)
+  }
+
+  function changeAddQty(productId: string, delta: number) {
+    setAddCart((prev) => {
+      const next = { ...prev }
+      const qty = (next[productId] ?? 0) + delta
+      // PSA10は1枚までのため、画面側でも1で止める（最終判定はサーバー側）
+      const isPsa10 = addProducts.find((p) => p.id === productId)?.subcategory_name === 'PSA10'
+      if (isPsa10 && qty > 1) {
+        toast.info('PSA10商品はお一人様1枚までです')
+        return prev
+      }
+      if (qty <= 0) delete next[productId]
+      else next[productId] = qty
+      return next
+    })
+  }
+
+  async function handleAddItems(orderNumber: string, db?: string) {
+    if (!idToken) return
+    const items = Object.entries(addCart).map(([product_id, quantity]) => ({ product_id, quantity }))
+    if (items.length === 0) return
+    setSubmittingAdd(true)
+    const result = await addMyOrderItems(idToken, orderNumber, items, db)
+    setSubmittingAdd(false)
+    if (result.error) {
+      toast.error(result.error)
+      return
+    }
+    toast.success('商品を追加しました')
+    setAddOpenFor(null)
+    setAddCart({})
     await loadOrders(idToken)
   }
 
@@ -232,6 +305,119 @@ export default function MyOrdersPage() {
                           </Button>
                         </div>
                       </div>
+                    )}
+
+                    {/* 検品前の注文は、あとから商品を追加できる */}
+                    {ADDABLE_STATUSES.includes(o.status) && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => toggleAddPanel(o.order_number, o._db)}
+                        >
+                          {addOpenFor === o.order_number ? (
+                            <><X className="mr-1.5 h-4 w-4" />追加をやめる</>
+                          ) : (
+                            <><Plus className="mr-1.5 h-4 w-4" />商品を追加する</>
+                          )}
+                        </Button>
+
+                        {addOpenFor === o.order_number && (
+                          <div className="space-y-2 rounded-md bg-muted/50 p-2">
+                            <p className="text-xs text-muted-foreground">
+                              追加する商品は<strong>本日の買取価格</strong>でのお申込みとなります
+                            </p>
+                            {addLoading ? (
+                              <p className="py-4 text-center text-sm text-muted-foreground">読み込み中...</p>
+                            ) : addProducts.length === 0 ? (
+                              <p className="py-4 text-center text-sm text-muted-foreground">
+                                ただいま受付中の商品がありません
+                              </p>
+                            ) : (
+                              <>
+                                <div className="relative">
+                                  <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                  <Input
+                                    value={addSearch}
+                                    onChange={(e) => setAddSearch(e.target.value)}
+                                    placeholder="商品名で検索..."
+                                    className="h-9 bg-white pl-8 text-sm"
+                                  />
+                                </div>
+                                <div className="max-h-64 space-y-1 overflow-y-auto">
+                                  {addProducts
+                                    .filter((p) => !addSearch || p.name.toLowerCase().includes(addSearch.toLowerCase()))
+                                    .slice(0, 80)
+                                    .map((p) => (
+                                      <div
+                                        key={p.id}
+                                        className="flex items-center gap-2 rounded border bg-white px-2 py-1.5"
+                                      >
+                                        <div className="min-w-0 flex-1">
+                                          <p className="truncate text-xs font-medium">{p.name}</p>
+                                          <p className="text-xs text-muted-foreground">
+                                            {p.price.toLocaleString()}円
+                                          </p>
+                                        </div>
+                                        {addCart[p.id] ? (
+                                          <div className="flex shrink-0 items-center gap-1">
+                                            <Button
+                                              variant="outline"
+                                              size="icon"
+                                              className="h-7 w-7"
+                                              onClick={() => changeAddQty(p.id, -1)}
+                                            >
+                                              <Minus className="h-3 w-3" />
+                                            </Button>
+                                            <span className="w-6 text-center text-sm">{addCart[p.id]}</span>
+                                            <Button
+                                              variant="outline"
+                                              size="icon"
+                                              className="h-7 w-7"
+                                              disabled={p.subcategory_name === 'PSA10'}
+                                              onClick={() => changeAddQty(p.id, 1)}
+                                            >
+                                              <Plus className="h-3 w-3" />
+                                            </Button>
+                                          </div>
+                                        ) : (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 shrink-0"
+                                            onClick={() => changeAddQty(p.id, 1)}
+                                          >
+                                            追加
+                                          </Button>
+                                        )}
+                                      </div>
+                                    ))}
+                                </div>
+                                {Object.keys(addCart).length > 0 && (
+                                  <div className="space-y-1.5 border-t pt-2">
+                                    <p className="text-sm font-medium">
+                                      追加分の合計{' '}
+                                      {Object.entries(addCart)
+                                        .reduce((sum, [id, qty]) => sum + (addProducts.find((p) => p.id === id)?.price ?? 0) * qty, 0)
+                                        .toLocaleString()}
+                                      円
+                                    </p>
+                                    <Button
+                                      className="w-full"
+                                      size="sm"
+                                      disabled={submittingAdd}
+                                      onClick={() => handleAddItems(o.order_number, o._db)}
+                                    >
+                                      {submittingAdd ? '追加中...' : 'この内容で追加する'}
+                                    </Button>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </>
                     )}
                   </CardContent>
                 </Card>

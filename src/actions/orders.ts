@@ -1019,3 +1019,166 @@ export async function deleteOrder(orderId: string) {
   revalidatePath('/admin')
   return { success: true }
 }
+
+// LIFF（LINEアプリ内）用: お客様が自分の注文に商品を後から追加する。
+// 「あとで思い出した」「もう1箱送りたい」をスタッフを介さず反映できるようにするもの。
+// 価格は申込時ではなく「追加した時点の買取価格」を使う（買取価格は日ごとに変わるため）。
+const MY_ORDER_EDITABLE_STATUSES = ['承認待ち', '申込', '発送済']
+
+export async function getMyOrderAddableProducts(
+  idToken: string,
+  orderNumber: string,
+  db?: string
+) {
+  const userId = await resolveLineUserId(idToken)
+  if (!userId) return { error: 'LINEの本人確認に失敗しました' }
+
+  const supabase = clientForDb(db)
+  const { data: order } = await supabase
+    .from('orders')
+    .select('id, status, tenant_id')
+    .eq('order_number', orderNumber)
+    .eq('line_user_id', userId)
+    .maybeSingle()
+
+  if (!order) return { error: '注文が見つかりません' }
+  if (!MY_ORDER_EDITABLE_STATUSES.includes(order.status)) {
+    return { error: 'この注文はすでに検品が進んでいるため、商品を追加できません' }
+  }
+
+  const { data: products, error } = await supabase
+    .from('products')
+    .select('id, name, price, category:categories(name), subcategory:subcategories(name)')
+    .eq('tenant_id', order.tenant_id)
+    .eq('is_active', true)
+    .eq('show_in_price_list', true)
+    .gt('price', 0)
+    .order('sort_order')
+    .order('name')
+
+  if (error) return { error: sanitizeError(error) }
+
+  return {
+    products: (products ?? []).map((p) => {
+      const category = p.category as unknown as { name: string } | null
+      const subcategory = p.subcategory as unknown as { name: string } | null
+      return {
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        category_name: category?.name ?? '',
+        subcategory_name: subcategory?.name ?? '',
+      }
+    }),
+  }
+}
+
+export async function addMyOrderItems(
+  idToken: string,
+  orderNumber: string,
+  items: { product_id: string; quantity: number }[],
+  db?: string
+) {
+  if (!Array.isArray(items) || items.length === 0) return { error: '追加する商品を選択してください' }
+  if (items.length > 50) return { error: '一度に追加できるのは50種類までです' }
+  for (const it of items) {
+    if (typeof it?.product_id !== 'string' || !Number.isSafeInteger(it?.quantity) || it.quantity < 1 || it.quantity > 9999) {
+      return { error: '数量が正しくありません' }
+    }
+  }
+
+  const userId = await resolveLineUserId(idToken)
+  if (!userId) return { error: 'LINEの本人確認に失敗しました' }
+  if (!await limitPublicRequest('my-order-add-items', 30, 3600)) {
+    return { error: '操作が多すぎます。しばらくしてからお試しください' }
+  }
+
+  const supabase = clientForDb(db)
+  const { data: order } = await supabase
+    .from('orders')
+    .select('id, status, tenant_id')
+    .eq('order_number', orderNumber)
+    .eq('line_user_id', userId)
+    .maybeSingle()
+
+  if (!order) return { error: '注文が見つかりません' }
+  if (!MY_ORDER_EDITABLE_STATUSES.includes(order.status)) {
+    return { error: 'この注文はすでに検品が進んでいるため、商品を追加できません' }
+  }
+
+  // 価格・受付状況はクライアントの申告を信用せず、必ずサーバー側の現在値を使う
+  const ids = [...new Set(items.map((i) => i.product_id))]
+  const { data: products } = await supabase
+    .from('products')
+    .select('id, name, price, subcategory_id')
+    .eq('tenant_id', order.tenant_id)
+    .eq('is_active', true)
+    .eq('show_in_price_list', true)
+    .gt('price', 0)
+    .in('id', ids)
+
+  const productMap = new Map((products ?? []).map((p) => [p.id, p]))
+  if (productMap.size !== ids.length) {
+    return { error: '受付停止中の商品が含まれています。画面を開き直してご確認ください' }
+  }
+
+  // PSA10はお一人様1枚まで（既存明細＋今回追加分の合計で判定）
+  const { data: psaSubs } = await supabase.from('subcategories').select('id').eq('name', 'PSA10')
+  const psaSubIds = new Set((psaSubs ?? []).map((s) => s.id))
+  const psaIds = ids.filter((id) => psaSubIds.has(productMap.get(id)!.subcategory_id))
+  if (psaIds.length > 0) {
+    const { data: existing } = await supabase
+      .from('order_items')
+      .select('product_id, quantity')
+      .eq('order_id', order.id)
+      .in('product_id', psaIds)
+    const already = new Map<string, number>()
+    for (const e of existing ?? []) already.set(e.product_id, (already.get(e.product_id) ?? 0) + e.quantity)
+    for (const it of items) {
+      if (!psaSubIds.has(productMap.get(it.product_id)!.subcategory_id)) continue
+      if ((already.get(it.product_id) ?? 0) + it.quantity > 1) {
+        return { error: `PSA10商品はお一人様1枚までです（${productMap.get(it.product_id)!.name}）` }
+      }
+    }
+  }
+
+  const rows = items.map((it) => {
+    const p = productMap.get(it.product_id)!
+    return {
+      order_id: order.id,
+      product_id: p.id,
+      product_name: p.name,
+      unit_price: p.price,
+      quantity: it.quantity,
+      tenant_id: order.tenant_id,
+    }
+  })
+
+  const { error: insertError } = await supabase.from('order_items').insert(rows)
+  if (insertError) return { error: sanitizeError(insertError) }
+
+  // 合計金額を再計算
+  const { data: allItems } = await supabase
+    .from('order_items')
+    .select('unit_price, quantity')
+    .eq('order_id', order.id)
+  const total_amount = (allItems ?? []).reduce((sum, i) => sum + i.unit_price * i.quantity, 0)
+  await supabase.from('orders').update({ total_amount }).eq('id', order.id)
+
+  // 申込と同じく、PSA10は1枚入った時点で自動締切にする
+  try {
+    const addedPsaIds = ids.filter((id) => psaSubIds.has(productMap.get(id)!.subcategory_id))
+    if (addedPsaIds.length > 0) {
+      await supabase
+        .from('products')
+        .update({ show_in_price_list: false, auto_closed_at: new Date().toISOString() })
+        .in('id', addedPsaIds)
+        .eq('tenant_id', order.tenant_id)
+    }
+  } catch (e) {
+    console.error('[addMyOrderItems] PSA10自動締切に失敗:', e)
+  }
+
+  revalidatePath('/admin/orders')
+  return { success: true, total_amount }
+}
