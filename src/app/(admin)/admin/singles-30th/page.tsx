@@ -61,6 +61,8 @@ export default function Singles30thPage() {
   const [pageSize, setPageSize] = useState(24)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState('')
+  const exportFontCache = useRef<{ text: string; css: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const pageRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const supabase = createClient()
@@ -199,35 +201,71 @@ export default function Singles30thPage() {
   }, [rares, pikachus, selectedIds, pageSize])
 
   async function downloadPages(jobs: PageJob[]) {
+    if (downloading || jobs.length === 0) return
     setDownloading(true)
+    setDownloadProgress('画像を準備中…')
+    let completed = 0
     try {
-      await document.fonts.load('700 16px "Noto Sans JP"')
-      await document.fonts.load('800 16px "Noto Sans JP"')
-      await document.fonts.load('900 16px "Noto Sans JP"')
-      await document.fonts.ready
-
-      const { toPng } = await import('html-to-image')
-      const options = { quality: 1, pixelRatio: 2 }
-      const date = new Date().toLocaleDateString('ja-JP').replace(/\//g, '')
-      for (const job of jobs) {
+      const nodes = jobs.map(job => {
         const node = pageRefs.current[job.key]
-        if (!node) continue
-        await toPng(node, options)
-        const dataUrl = await toPng(node, options)
+        if (!node) throw new Error('プレビューが準備できていません')
+        return node
+      })
+      // html-to-image の全フォント走査を避け、今回使用する文字だけを取得。
+      // 共通CSSを全ページで再利用し、再ダウンロード時も文字が同じなら再取得しない。
+      const text = Array.from(new Set(nodes.map(node => node.textContent || '').join(''))).sort().join('')
+      let fontEmbedCSS = exportFontCache.current?.text === text ? exportFontCache.current.css : undefined
+      if (!fontEmbedCSS) {
+        const cssUrl = `https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700;900&display=block&text=${encodeURIComponent(text)}`
+        const response = await fetch(cssUrl)
+        if (!response.ok) throw new Error('フォントの取得に失敗しました')
+        let css = await response.text()
+        const urls = Array.from(new Set(Array.from(css.matchAll(/url\((['"]?)(.*?)\1\)/g), match => match[2])))
+        if (urls.length === 0) throw new Error('フォントが見つかりません')
+        const embedded = await Promise.all(urls.map(async url => {
+          const fontResponse = await fetch(url)
+          if (!fontResponse.ok) throw new Error('フォントの取得に失敗しました')
+          const blob = await fontResponse.blob()
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(String(reader.result))
+            reader.onerror = () => reject(new Error('フォントの読込に失敗しました'))
+            reader.readAsDataURL(blob)
+          })
+          return { url, dataUrl }
+        }))
+        for (const { url, dataUrl } of embedded) css = css.split(url).join(dataUrl)
+        fontEmbedCSS = css
+        exportFontCache.current = { text, css }
+      }
+      // 元画像の読込完了を待つことで、捨て描画（2回生成）を不要にする。
+      await Promise.all(nodes.flatMap(node => Array.from(node.querySelectorAll('img')).map(img => img.decode())))
+      const { toBlob } = await import('html-to-image')
+      const options = { pixelRatio: 2, fontEmbedCSS }
+      const date = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }).replace(/\//g, '')
+      for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i]
+        setDownloadProgress(`画像を生成中 ${i + 1}/${jobs.length}`)
+        const blob = await toBlob(nodes[i], options)
+        if (!blob) throw new Error('画像の生成に失敗しました')
+        const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
-        a.href = dataUrl
+        a.href = url
         const suffix = job.pageCount > 1 ? `_${job.pageNo}` : ''
         a.download = `30thシングル買取価格表_${job.fileLabel}${suffix}_${date}.png`
         a.click()
-        // 連続ダウンロードのブラウザ制限を避ける
-        await new Promise((r) => setTimeout(r, 400))
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+        completed++
+        // 連続ダウンロードのブラウザ制限を避ける（最後の待機は不要）。
+        if (i < jobs.length - 1) await new Promise(r => setTimeout(r, 400))
       }
-      toast.success(`${jobs.length}枚の画像をダウンロードしました`)
+      toast.success(`${completed}枚の画像をダウンロードしました`)
     } catch (e) {
       console.error(e)
-      toast.error('画像の生成に失敗しました')
+      toast.error(`画像の生成に失敗しました（${completed}/${jobs.length}枚完了）。再読み込みしてお試しください`)
     } finally {
       setDownloading(false)
+      setDownloadProgress('')
     }
   }
 
@@ -363,7 +401,7 @@ export default function Singles30thPage() {
             </div>
             <Button onClick={() => downloadPages(pageJobs)} disabled={downloading || pageJobs.length === 0} className="gap-2">
               <Download className="h-4 w-4" />
-              {downloading ? '生成中...' : `PNG 一括ダウンロード（${pageJobs.length}枚）`}
+              {downloading ? downloadProgress : `PNG 一括ダウンロード（${pageJobs.length}枚）`}
             </Button>
           </div>
 
@@ -410,10 +448,7 @@ const Single30thCanvas = React.forwardRef<HTMLDivElement, {
   pageCount: number
   cols: number
 }>(({ products, highPriceIds, sectionLabel, sectionLabelEn, pageNo, pageCount, cols }, ref) => {
-  const today = new Date()
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
-  const updatedAt = fmt(today)
+  const updatedAt = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')
 
   const W = 1920
   const H = 1080
