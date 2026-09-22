@@ -89,10 +89,10 @@ export async function updateMarketPrices(): Promise<{ updated: number; errors: s
   return { updated, errors }
 }
 
-// PSA10シングルの買取価格は相場の93%で自動追従させる（ユーザー決定 2026-09-20）。
+// PSA10シングルの買取価格は相場の97%で自動追従させる（ユーザー決定 2026-09-22）。
 // 対象はPSA10サブカテゴリで既に価格が付いている（公開運用中の）商品のみ。
 // BOX等の他カテゴリや、価格0円の旧ラインナップには触らない。
-const PSA10_PRICE_RATIO = 0.93
+const PSA10_PRICE_RATIO = 0.97
 
 export async function repricePsa10Products(): Promise<{
   repriced: number
