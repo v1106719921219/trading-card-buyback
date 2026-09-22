@@ -94,7 +94,7 @@ export async function updateMarketPrices(): Promise<{ updated: number; errors: s
 // BOX等の他カテゴリや、価格0円の旧ラインナップには触らない。
 const PSA10_PRICE_RATIO = 0.97
 
-export async function repricePsa10Products(): Promise<{
+export async function repricePsa10Products(options: { holdOnly?: boolean } = {}): Promise<{
   repriced: number
   held?: { id: string; reason: string }[]
   errors: string[]
@@ -110,11 +110,10 @@ export async function repricePsa10Products(): Promise<{
 
   const { data: products, error } = await supabase
     .from('products')
-    .select('id, price, market_price, market_listing_count, market_price_updated_at')
+    .select('id, price, market_price, market_listing_count, market_price_updated_at, show_in_price_list, auto_closed_at')
     .in('subcategory_id', subIds)
     .eq('is_active', true)
     .gt('price', 0)
-    .not('market_price', 'is', null)
   if (error) return { repriced: 0, errors: [error.message] }
 
   let repriced = 0
@@ -136,6 +135,7 @@ export async function repricePsa10Products(): Promise<{
       held.push({ id: p.id, reason: '相場価格が不正：要確認' })
       continue
     }
+    if (options.holdOnly) continue
     const newPrice = Math.floor((p.market_price * PSA10_PRICE_RATIO) / 100) * 100
     if (newPrice <= 0 || newPrice === p.price) continue
     const { error: updateError } = await supabase
@@ -144,6 +144,19 @@ export async function repricePsa10Products(): Promise<{
       .eq('id', p.id)
     if (updateError) errors.push(`${p.id}: ${updateError.message}`)
     else repriced++
+  }
+  // 相場保留は新規受付も停止。一括公開で復活させず、確認後の個別再開のみ許可する。
+  for (const item of held) {
+    const product = products?.find((p) => p.id === item.id)
+    if (!product || (!product.show_in_price_list && product.auto_closed_at)) continue
+    const { error: holdError } = await supabase
+      .from('products')
+      .update({
+        show_in_price_list: false,
+        auto_closed_at: product.auto_closed_at ?? new Date().toISOString(),
+      })
+      .eq('id', item.id)
+    if (holdError) errors.push(`${item.id}: 受付停止に失敗: ${holdError.message}`)
   }
   return { repriced, held, errors }
 }

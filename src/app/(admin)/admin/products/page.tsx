@@ -100,6 +100,9 @@ export default function ProductsPage() {
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterSubcategory, setFilterSubcategory] = useState<string>('all')
   const [search, setSearch] = useState('')
+  const [priceBasis, setPriceBasis] = useState('buyback')
+  const [minPrice, setMinPrice] = useState('')
+  const [maxPrice, setMaxPrice] = useState('')
 
   // Form state
   const [formName, setFormName] = useState('')
@@ -200,8 +203,16 @@ export default function ProductsPage() {
     const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory
     const matchesSubcategory = filterSubcategory === 'all' || p.subcategory_id === filterSubcategory
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.model_number && p.model_number.toLowerCase().includes(search.toLowerCase()))
-    return matchesCategory && matchesSubcategory && matchesSearch
+    const amount = priceBasis === 'market' ? p.market_price : p.price
+    const hasPriceFilter = minPrice !== '' || maxPrice !== ''
+    const matchesPrice = !hasPriceFilter || (amount != null && amount > 0 &&
+      (minPrice === '' || amount >= Number(minPrice)) &&
+      (maxPrice === '' || amount <= Number(maxPrice)))
+    return matchesCategory && matchesSubcategory && matchesSearch && matchesPrice
   })
+
+  const bulkShowTargets = filteredProducts.filter((p) => p.is_active && p.price > 0 && !p.auto_closed_at)
+  const bulkTargetCount = bulkAction === 'show' ? bulkShowTargets.length : filteredProducts.length
 
 async function syncToChiba() {
     setSyncing(true)
@@ -730,18 +741,17 @@ async function syncToChiba() {
   }
 
   async function handleBulkTogglePriceList(show: boolean) {
-    // 表示にする場合、0円の商品と自動締切中（申込済み）の商品は除外する
+    // 表示にする場合、0円の商品と自動締切中（申込済み・相場確認待ち）の商品は除外する
     const targets = show
-      ? filteredProducts.filter((p) => p.price > 0 && !p.auto_closed_at)
+      ? bulkShowTargets
       : filteredProducts
     const ids = targets.map((p) => p.id)
     if (ids.length === 0) return
 
     setBulkUpdating(true)
-    const { error } = await supabase
-      .from('products')
-      .update({ show_in_price_list: show })
-      .in('id', ids)
+    let query = supabase.from('products').update({ show_in_price_list: show }).in('id', ids)
+    if (show) query = query.is('auto_closed_at', null).gt('price', 0).eq('is_active', true)
+    const { data: updated, error } = await query.select('id')
 
     setBulkUpdating(false)
     setBulkAction(null)
@@ -750,9 +760,10 @@ async function syncToChiba() {
       toast.error(`一括更新に失敗しました: ${error.message}`)
       return
     }
-    const skipped = show ? filteredProducts.length - ids.length : 0
-    const msg = `${ids.length}件を価格表${show ? '表示' : '非表示'}にしました`
-    toast.success(skipped > 0 ? `${msg}（0円・申込済締切の${skipped}件は非表示のまま）` : msg)
+    const updatedCount = updated?.length ?? 0
+    const skipped = show ? filteredProducts.length - updatedCount : 0
+    const msg = `${updatedCount}件を価格表${show ? '表示' : '非表示'}にしました`
+    toast.success(skipped > 0 ? `${msg}（0円・受付停止中の${skipped}件は非表示のまま）` : msg)
     fetchData()
   }
 
@@ -1109,7 +1120,7 @@ async function syncToChiba() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         <div className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -1147,12 +1158,30 @@ async function syncToChiba() {
             </SelectContent>
           </Select>
         )}
+        <Select value={priceBasis} onValueChange={setPriceBasis}>
+          <SelectTrigger aria-label="価格の基準" className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="buyback">買取価格で絞る</SelectItem>
+            <SelectItem value="market">スニダン相場で絞る</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input aria-label="価格の下限" type="number" min="0" placeholder="下限（円）" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} className="w-32" />
+          <span>〜</span>
+          <Input aria-label="価格の上限" type="number" min="0" placeholder="上限（円）" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="w-32" />
+          <Button variant="outline" size="sm" onClick={() => { setMinPrice(''); setMaxPrice('20000') }}>2万円以下</Button>
+          <Button variant="ghost" size="sm" onClick={() => { setMinPrice(''); setMaxPrice('') }}>価格条件を解除</Button>
+        </div>
+        <p className="text-sm text-muted-foreground w-full">
+          絞り込み {filteredProducts.length}件 ／ 一括表示対象 {bulkShowTargets.length}件
+          （0円・受付停止中は表示対象外。価格帯指定時は価格未取得・0円も除外）
+        </p>
         <div className="flex gap-2 sm:ml-auto">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setBulkAction('show')}
-            disabled={filteredProducts.length === 0}
+            disabled={bulkShowTargets.length === 0}
           >
             <Eye className="mr-1 h-4 w-4" />
             一括：表示
@@ -1174,7 +1203,8 @@ async function syncToChiba() {
                 価格表の一括{bulkAction === 'show' ? '表示' : '非表示'}
               </AlertDialogTitle>
               <AlertDialogDescription>
-                {filteredProducts.length}件の商品を価格表に{bulkAction === 'show' ? '表示' : '非表示'}にしますか？
+                現在の絞り込みから{bulkTargetCount}件の商品を価格表に{bulkAction === 'show' ? '表示' : '非表示'}にしますか？
+                {bulkAction === 'show' && ` 0円・受付停止中の${filteredProducts.length - bulkShowTargets.length}件は除外します。`}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -1183,7 +1213,7 @@ async function syncToChiba() {
                 onClick={() => handleBulkTogglePriceList(bulkAction === 'show')}
                 disabled={bulkUpdating}
               >
-                {bulkUpdating ? '更新中...' : `${filteredProducts.length}件を${bulkAction === 'show' ? '表示' : '非表示'}にする`}
+                {bulkUpdating ? '更新中...' : `${bulkTargetCount}件を${bulkAction === 'show' ? '表示' : '非表示'}にする`}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -1347,7 +1377,7 @@ async function syncToChiba() {
                     <Badge
                       variant={product.show_in_price_list ? 'default' : product.auto_closed_at ? 'destructive' : 'secondary'}
                       className="cursor-pointer"
-                      title={!product.show_in_price_list && product.auto_closed_at ? `申込により自動締切 (${new Date(product.auto_closed_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })})\nクリックで再開` : undefined}
+                      title={!product.show_in_price_list && product.auto_closed_at ? `自動締切（申込済み・相場確認待ち） (${new Date(product.auto_closed_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })})\nクリックで再開` : undefined}
                       onClick={() => togglePriceList(product)}
                     >
                       {product.show_in_price_list ? '表示' : product.auto_closed_at ? '締切' : '非表示'}
