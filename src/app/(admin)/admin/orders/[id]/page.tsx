@@ -533,7 +533,18 @@ export default function OrderDetailPage() {
                 <TableBody>
                   {items.map((item) => (
                     <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.product_name}</TableCell>
+                      <TableCell className="font-medium">
+                        {item.product_name}
+                        {item.added_at && (
+                          <Badge
+                            variant="outline"
+                            className="ml-2 border-amber-400 bg-amber-50 text-amber-800"
+                            title={`お客様が申込後に追加（${new Date(item.added_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}）`}
+                          >
+                            後から追加
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         {editingQuantities ? (
                           <div className="flex items-center justify-end gap-1">

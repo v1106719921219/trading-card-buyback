@@ -1142,6 +1142,8 @@ export async function addMyOrderItems(
     }
   }
 
+  // added_at を入れて「申込後に追加された明細」と分かるようにする
+  const addedAt = new Date().toISOString()
   const rows = items.map((it) => {
     const p = productMap.get(it.product_id)!
     return {
@@ -1151,6 +1153,7 @@ export async function addMyOrderItems(
       unit_price: p.price,
       quantity: it.quantity,
       tenant_id: order.tenant_id,
+      added_at: addedAt,
     }
   })
 

@@ -325,9 +325,15 @@ export default function MyOrdersPage() {
 
                         {addOpenFor === o.order_number && (
                           <div className="space-y-2 rounded-md bg-muted/50 p-2">
-                            <p className="text-xs text-muted-foreground">
-                              追加する商品は<strong>本日の買取価格</strong>でのお申込みとなります
-                            </p>
+                            <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+                              <p className="font-bold">⚠ 追加の際は必ずLINEでご連絡ください</p>
+                              <p className="mt-1">
+                                ご連絡がない場合、商品が到着しても買取できかねることがございます。
+                              </p>
+                              <p className="mt-1">
+                                追加する商品は<strong>本日の買取価格</strong>でのお申込みとなります。
+                              </p>
+                            </div>
                             {addLoading ? (
                               <p className="py-4 text-center text-sm text-muted-foreground">読み込み中...</p>
                             ) : addProducts.length === 0 ? (
@@ -402,6 +408,9 @@ export default function MyOrdersPage() {
                                         .reduce((sum, [id, qty]) => sum + (addProducts.find((p) => p.id === id)?.price ?? 0) * qty, 0)
                                         .toLocaleString()}
                                       円
+                                    </p>
+                                    <p className="text-xs text-amber-900">
+                                      追加後、<strong>LINEでのご連絡をお願いします</strong>
                                     </p>
                                     <Button
                                       className="w-full"

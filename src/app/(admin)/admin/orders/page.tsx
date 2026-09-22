@@ -84,7 +84,7 @@ export default function OrdersPage() {
         '職業', 'メール', '電話番号', '都道府県', '住所', '本人確認方法',
         '銀行名', '支店名', '口座種別', '口座番号', '口座名義',
         '追跡番号', '宛先', '商品名', '単価', '数量', '小計',
-        '検品後数量', '返品数量', '見積合計', '検品後合計',
+        '検品後数量', '返品数量', '後から追加', '見積合計', '検品後合計',
       ]
       const headers = isChiba
         ? [...baseHeaders, '到着日', '日次集計']
@@ -135,7 +135,7 @@ export default function OrdersPage() {
             order.tracking_number ?? '',
             officeName,
             '', '', '', '',
-            '', '',
+            '', '', '',
             String(order.total_amount),
             order.inspected_total_amount != null ? String(order.inspected_total_amount) : '',
           ]
@@ -172,6 +172,7 @@ export default function OrdersPage() {
               String(subtotal),
               item.inspected_quantity != null ? String(item.inspected_quantity) : '',
               item.returned_quantity != null ? String(item.returned_quantity) : '',
+              item.added_at ? '後から追加' : '',
               String(order.total_amount),
               order.inspected_total_amount != null ? String(order.inspected_total_amount) : '',
             ]

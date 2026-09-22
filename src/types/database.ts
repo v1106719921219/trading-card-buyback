@@ -153,6 +153,8 @@ export interface OrderItem {
   unit_price: number
   quantity: number
   inspected_quantity: number | null
+  /** 申込後に追加された明細の追加時刻。NULLなら申込時の明細 */
+  added_at?: string | null
   returned_quantity: number | null
   created_at: string
 }

@@ -58,6 +58,8 @@ interface InspectItem {
   _returned: number
   _isNew: boolean
   _isCustom: boolean
+  /** お客様が申込後に追加した明細（申込時の明細と区別する） */
+  _addedAt?: string | null
 }
 
 export default function InspectPage() {
@@ -126,6 +128,7 @@ export default function InspectPage() {
         _returned: item.returned_quantity ?? 0,
         _isNew: false,
         _isCustom: false,
+        _addedAt: item.added_at ?? null,
       }))
     )
     if (productResult.data) {
@@ -475,6 +478,15 @@ export default function InspectPage() {
                     )}
                     {item._isNew && (
                       <Badge variant="outline" className="mt-1">追加</Badge>
+                    )}
+                    {item._addedAt && (
+                      <Badge
+                        variant="outline"
+                        className="mt-1 border-amber-400 bg-amber-50 text-amber-800"
+                        title={`お客様が申込後に追加（${new Date(item._addedAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}）`}
+                      >
+                        後から追加
+                      </Badge>
                     )}
                     {!item._isNew && (
                       <div className="mt-0.5 space-y-0.5">
