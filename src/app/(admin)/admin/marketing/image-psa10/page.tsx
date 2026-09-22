@@ -6,13 +6,16 @@ import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Download, RefreshCw, Save, ImageIcon } from 'lucide-react'
+import { Download, RefreshCw, Save, ImageIcon, Copy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Product, Category, Subcategory } from '@/types/database'
 
 const SETTING_KEY = 'sns_psa10_default_products'
+const DEFAULT_HEADER = '🃏PSA10鑑定カード 高価買取中🃏'
+const DEFAULT_FOOTER = '▼ 買取価格一覧 ▼\nkaitorisquare.com/prices\n手続きは簡単！LINEから気軽に買取査定が可能です。\nhttp://lin.ee/MYCtHk9'
 const CATEGORY_ID = 'db02ec12-d529-453c-a749-53da99e05533'
 const PSA10_SUBCATEGORY_ID = '8b34c75d-d7f8-4393-89fe-7685b3f61e5b'
 const TENANT_ID = 'aaaaaaaa-0000-0000-0000-000000000001'
@@ -74,6 +77,8 @@ const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', 
 export default function PSA10ImagePage() {
   const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [header, setHeader] = useState(DEFAULT_HEADER)
+  const [footer, setFooter] = useState(DEFAULT_FOOTER)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -125,9 +130,13 @@ export default function PSA10ImagePage() {
 
     if (settingResult.data?.value) {
       try {
-        const savedIds: string[] = JSON.parse(settingResult.data.value)
-        const valid = savedIds.filter((id) => prods.some((p) => p.id === id))
-        setSelectedIds(valid.length > 0 ? new Set(valid) : new Set(prods.map((p) => p.id)))
+        const saved = JSON.parse(settingResult.data.value)
+        const savedIds: unknown[] = Array.isArray(saved) ? saved : saved.ids
+        if (!Array.isArray(savedIds)) throw new Error('Invalid saved selection')
+        const valid = savedIds.filter((id): id is string => typeof id === 'string' && prods.some((p) => p.id === id))
+        setSelectedIds(new Set(valid))
+        setHeader(typeof saved.header === 'string' ? saved.header : DEFAULT_HEADER)
+        setFooter(typeof saved.footer === 'string' ? saved.footer : DEFAULT_FOOTER)
       } catch {
         setSelectedIds(new Set(prods.map((p) => p.id)))
       }
@@ -165,17 +174,17 @@ export default function PSA10ImagePage() {
 
   async function saveDefaults() {
     setSaving(true)
-    const value = JSON.stringify(Array.from(selectedIds))
+    const value = JSON.stringify({ ids: Array.from(selectedIds), header, footer })
     const { data: existing } = await supabase.from('app_settings').select('key').eq('key', SETTING_KEY).maybeSingle()
     let error
     if (existing) {
       ({ error } = await supabase.from('app_settings').update({ value }).eq('key', SETTING_KEY))
     } else {
-      ({ error } = await supabase.from('app_settings').insert({ key: SETTING_KEY, value, description: 'PSA10買取画像のデフォルト掲載商品IDリスト', tenant_id: TENANT_ID }))
+      ({ error } = await supabase.from('app_settings').insert({ key: SETTING_KEY, value, description: 'PSA10買取画像の掲載商品・投稿文設定', tenant_id: TENANT_ID }))
     }
     setSaving(false)
     if (error) toast.error('保存に失敗しました')
-    else toast.success('デフォルト選択を保存しました')
+    else toast.success('商品選択と投稿文設定を保存しました')
   }
 
   async function handleDownload() {
@@ -251,10 +260,22 @@ export default function PSA10ImagePage() {
   // 左リストのグループ見出し用
   const listGroups = [...new Set(products.map((p) => displayGroupOf(p.name)))]
 
+  const generatedMessage = [header, '', ...listGroups.flatMap(group => {
+    const selected = selectedProducts.filter(p => displayGroupOf(p.name) === group)
+    return selected.length ? [`【${group}】`, ...selected.map(p => `${p.name}👉【${p.price.toLocaleString('ja-JP')}円】`), ''] : []
+  }), footer].join('\n')
+
+  async function copyPost() {
+    try {
+      await navigator.clipboard.writeText(generatedMessage)
+      toast.success('投稿文をコピーしました')
+    } catch { toast.error('コピーに失敗しました。プレビューからコピーしてください') }
+  }
+
   return (
     <div>
       <AdminHeader
-        title="PSA10買取画像生成"
+        title="PSA10買取画像・投稿文生成"
         description="PSA10鑑定カードの買取価格画像をポケモン別に自動生成します（1920×1080 / 12×4=48枚毎）"
       />
 
@@ -269,7 +290,7 @@ export default function PSA10ImagePage() {
                   <span className="text-sm text-muted-foreground">
                     {selectedIds.size} 件選択中
                   </span>
-                  <Button variant="outline" size="sm" onClick={saveDefaults} disabled={saving} className="gap-1">
+                  <Button variant="outline" size="sm" onClick={saveDefaults} disabled={saving || loading} className="gap-1">
                     <Save className="h-3.5 w-3.5" />
                     デフォルト保存
                   </Button>
@@ -337,8 +358,28 @@ export default function PSA10ImagePage() {
           </Card>
         </div>
 
-        {/* Right: download */}
+        {/* Right: post text and download */}
         <div className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base">SNS投稿文</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">画像と同じ選択商品・買取価格を反映します。「デフォルト保存」で商品選択と冒頭・末尾を保存できます。</p>
+              <label className="block space-y-2 text-sm">
+                <span>投稿文の冒頭</span>
+                <Textarea aria-label="投稿文の冒頭" value={header} onChange={e => setHeader(e.target.value)} rows={2} disabled={loading} />
+              </label>
+              <label className="block space-y-2 text-sm">
+                <span>投稿文の末尾</span>
+                <Textarea aria-label="投稿文の末尾" value={footer} onChange={e => setFooter(e.target.value)} rows={4} disabled={loading} />
+              </label>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-muted-foreground">{Array.from(generatedMessage).length.toLocaleString('ja-JP')}文字</span>
+                <Button onClick={copyPost} disabled={loading || selectedProducts.length === 0} className="gap-2"><Copy className="h-4 w-4" />投稿文をコピー</Button>
+              </div>
+              <Textarea aria-label="投稿文プレビュー" readOnly value={generatedMessage} rows={14} className="font-mono text-sm" />
+              <p className="text-xs text-muted-foreground">投稿先の文字数制限に合わせて掲載商品を絞ってください。</p>
+            </CardContent>
+          </Card>
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               プレビュー（1920×1080）— {pages.length}枚（下に表示）
