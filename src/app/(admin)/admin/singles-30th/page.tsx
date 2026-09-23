@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Download, RefreshCw, Save, ImageIcon, Copy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { formatXProductLine, xUpdateDateLine } from '@/lib/sns-text'
 import type { Product, Category, Subcategory } from '@/types/database'
 
 const SETTING_KEY = 'sns_30th_single_default_products'
@@ -278,10 +279,25 @@ export default function Singles30thPage() {
     { title: '高レア・コンプリートセット', items: rares },
     { title: 'ミラーピカチュウ', items: pikachus },
   ]
-  const generatedMessage = [header, '', ...postSections.flatMap(({ title, items }) => {
+  // 価格先頭型: 「¥23,000 リザードン (137/103)」。高い順に並べる。
+  // ミラーピカチュウが全て同額のときは30行並べず1行にまとめる
+  const generatedMessage = [header, xUpdateDateLine(), '', ...postSections.flatMap(({ title, items }) => {
     const selected = items.filter(p => selectedIds.has(p.id))
-    return selected.length ? [`【${title}】`, ...selected.map(p =>
-      `${p.name}👉【${p.price > 0 ? `${p.price.toLocaleString('ja-JP')}円` : 'ASK'}】`), ''] : []
+    if (!selected.length) return []
+    if (title === 'ミラーピカチュウ') {
+      const mirrors = selected.filter(p => /^ピカチュウ \(0(1[7-9]|2\d|3\d|4[0-6])\/103\)/.test(p.name))
+      const others = selected.filter(p => !mirrors.includes(p))
+      const prices = [...new Set(mirrors.map(p => p.price))]
+      if (mirrors.length > 1 && prices.length === 1) {
+        return [
+          `【${title}】`,
+          `¥${prices[0].toLocaleString('ja-JP')} ミラーピカチュウ 全${mirrors.length}種 どれでも (017〜046/103)`,
+          ...[...others].sort((a, b) => b.price - a.price).map(p => formatXProductLine(p.name, p.price)),
+          '',
+        ]
+      }
+    }
+    return [`【${title}】`, ...[...selected].sort((a, b) => b.price - a.price).map(p => formatXProductLine(p.name, p.price)), '']
   }), footer].join('\n')
 
   async function copyPost() {
