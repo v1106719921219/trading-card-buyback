@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Copy, Check, RefreshCw, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { formatXProductLine, xUpdateDateLine } from '@/lib/sns-text'
 import type { Product, Category, Subcategory } from '@/types/database'
 
 const SETTING_KEY = 'sns_single_promo_default_products'
@@ -31,9 +32,12 @@ type ProductWithRelations = Product & {
   subcategory: Subcategory | null
 }
 
+// 価格先頭型: 「¥12,000 商品名 (型番)」。高い順に並べて読みやすくする
 function formatProductLine(product: ProductWithRelations): string {
-  const price = product.price > 0 ? `${product.price.toLocaleString('ja-JP')}円` : 'ASK'
-  return `${product.name}👉【${price}】`
+  return formatXProductLine(product.name, product.price)
+}
+function sortByPriceDesc(list: ProductWithRelations[]): ProductWithRelations[] {
+  return [...list].sort((a, b) => b.price - a.price)
 }
 
 export default function SinglePromoTextPage() {
@@ -156,10 +160,11 @@ export default function SinglePromoTextPage() {
 
   const generatedMessage = [
     header,
+    xUpdateDateLine(),
     '',
-    ...(selectedSingles.length > 0 ? ['【シングルカード】', ...selectedSingles.map(formatProductLine), ''] : []),
-    ...(selectedPromos.length > 0 ? ['【プロモカード】', ...selectedPromos.map(formatProductLine), ''] : []),
-    ...(selectedSpecialBoxProducts.length > 0 ? ['【スペシャルボックス】', ...selectedSpecialBoxProducts.map(formatProductLine), ''] : []),
+    ...(selectedSingles.length > 0 ? ['【シングルカード】', ...sortByPriceDesc(selectedSingles).map(formatProductLine), ''] : []),
+    ...(selectedPromos.length > 0 ? ['【プロモカード】', ...sortByPriceDesc(selectedPromos).map(formatProductLine), ''] : []),
+    ...(selectedSpecialBoxProducts.length > 0 ? ['【スペシャルボックス】', ...sortByPriceDesc(selectedSpecialBoxProducts).map(formatProductLine), ''] : []),
     footer,
   ].join('\n')
 

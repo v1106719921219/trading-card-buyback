@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Copy, Check, RefreshCw, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { formatXProductLine, xUpdateDateLine } from '@/lib/sns-text'
 import type { Product, Category, Subcategory } from '@/types/database'
 
 const SETTING_KEY = 'sns_onepiece_box_default_products'
@@ -32,9 +33,12 @@ type ProductWithRelations = Product & {
   subcategory: Subcategory | null
 }
 
+// 価格先頭型: 「¥12,000 商品名」。高い順に並べて読みやすくする
 function formatProductLine(product: ProductWithRelations): string {
-  const price = product.price.toLocaleString('ja-JP')
-  return `${product.name}🔥\n👉【${price}円】`
+  return formatXProductLine(product.name, product.price)
+}
+function sortByPriceDesc(list: ProductWithRelations[]): ProductWithRelations[] {
+  return [...list].sort((a, b) => b.price - a.price)
 }
 
 export default function MarketingPage() {
@@ -139,9 +143,10 @@ export default function MarketingPage() {
   const generatedMessage = [
     header,
     '',
-    ...selectedBox.map((p) => formatProductLine(p)),
+    xUpdateDateLine(),
+    ...sortByPriceDesc(selectedBox).map((p) => formatProductLine(p)),
     ...(selectedPromo.length > 0
-      ? ['', PROMO_HEADER, '', ...selectedPromo.map((p) => formatProductLine(p))]
+      ? ['', PROMO_HEADER, '', ...sortByPriceDesc(selectedPromo).map((p) => formatProductLine(p))]
       : []),
     '',
     footer,

@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Copy, Check, RefreshCw, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { formatXProductLine, xUpdateDateLine } from '@/lib/sns-text'
 import type { Product, Category, Subcategory } from '@/types/database'
 
 const SETTING_KEY = 'sns_special_box_default_products'
@@ -29,9 +30,12 @@ type ProductWithRelations = Product & {
   subcategory: Subcategory | null
 }
 
+// 価格先頭型: 「¥12,000 商品名」。高い順に並べて読みやすくする
 function formatProductLine(product: ProductWithRelations): string {
-  const price = product.price > 0 ? `${product.price.toLocaleString('ja-JP')}円` : 'ASK'
-  return `${product.name}🔥\n👉【${price}】`
+  return formatXProductLine(product.name, product.price)
+}
+function sortByPriceDesc(list: ProductWithRelations[]): ProductWithRelations[] {
+  return [...list].sort((a, b) => b.price - a.price)
 }
 
 export default function SpecialBoxTextPage() {
@@ -133,7 +137,8 @@ export default function SpecialBoxTextPage() {
   const generatedMessage = [
     header,
     '',
-    ...selectedProducts.map((p) => formatProductLine(p)),
+    xUpdateDateLine(),
+    ...sortByPriceDesc(selectedProducts).map((p) => formatProductLine(p)),
     '',
     footer,
   ].join('\n')

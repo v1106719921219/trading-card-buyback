@@ -535,9 +535,11 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         <img src="/assets/logo-full.png" alt="買取スクエア" style={{ width: 165, height: 165, objectFit: 'contain' }} crossOrigin="anonymous" />
       </div>
 
-      {/* Title + Pokemon name (HTML描画・コンパクトヘッダー) */}
+      {/* Title + Pokemon name (HTML描画・コンパクトヘッダー)
+          右端の更新日プレート(約280px)と被らないよう、その分を除いた領域の中央に置き、
+          長いグループ名はフォントを段階的に縮める */}
       <div style={{
-        position: 'absolute', left: 0, right: 0, top: 30, zIndex: 4,
+        position: 'absolute', left: 240, right: 330, top: 30, zIndex: 4,
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28,
       }}>
         <span style={{
@@ -547,30 +549,33 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           filter: `drop-shadow(0 0 16px rgba(232,194,92,0.5)) drop-shadow(0 3px 4px rgba(0,0,0,0.9))`,
         }}>PSA10買取表</span>
-        {groupLabel && (
+        {groupLabel && (() => {
+          const nameFontSize = groupLabel.length > 12 ? 30 : groupLabel.length > 8 ? 38 : 46
+          return (
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 12,
             background: 'linear-gradient(180deg, rgba(10,8,2,0.95) 0%, rgba(28,20,6,0.95) 100%)',
             border: `2px solid ${P.MID}`,
             borderRadius: 999,
-            padding: '10px 34px 12px',
+            padding: '10px 30px 12px',
             boxShadow: `0 0 14px rgba(232,194,92,0.4), inset 0 1px 0 rgba(255,251,232,0.25)`,
           }}>
             <span style={{
-              fontSize: 46, fontWeight: 900, lineHeight: 1,
-              letterSpacing: '0.08em', whiteSpace: 'nowrap',
+              fontSize: nameFontSize, fontWeight: 900, lineHeight: 1,
+              letterSpacing: '0.06em', whiteSpace: 'nowrap',
               background: `linear-gradient(180deg, ${P.WHITE} 0%, ${P.LIGHT} 35%, ${P.BASE} 70%, ${P.MID} 100%)`,
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
               filter: `drop-shadow(0 1px 2px rgba(0,0,0,0.9))`,
             }}>{groupLabel}</span>
             {pageLabel && (
               <span style={{
-                fontSize: 46, fontWeight: 900, lineHeight: 1, color: P.LIGHT,
+                fontSize: nameFontSize, fontWeight: 900, lineHeight: 1, color: P.LIGHT,
                 textShadow: `0 0 12px ${P.BASE}, 0 1px 3px rgba(0,0,0,0.8)`,
               }}>{pageLabel}</span>
             )}
           </span>
-        )}
+          )
+        })()}
       </div>
 
       {/* Update date plaque (top-right) */}
