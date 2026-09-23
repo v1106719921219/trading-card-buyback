@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { AdminHeader } from '@/components/admin/header'
 
 export const dynamic = 'force-dynamic'
@@ -99,10 +100,33 @@ export default async function ArrivalSchedulePage({
                           </tr>
                         </thead>
                         <tbody>
-                          {group.products.map((product) => (
-                            <tr key={product.product_name} className="border-b last:border-0">
+                          {group.products.map((product, idx) => {
+                            // カテゴリ別表示: カテゴリが変わる行の前に見出し行を挟む
+                            const prev = group.products[idx - 1]
+                            const showCategoryHeader = !prev || prev.category_name !== product.category_name
+                            const categoryTotal = group.products
+                              .filter((p) => p.category_name === product.category_name)
+                              .reduce((sum, p) => sum + p.total_quantity, 0)
+                            return (
+                              <Fragment key={product.product_name}>
+                                {showCategoryHeader && (
+                                  <tr key={`cat-${product.category_name}`} className="bg-muted/50">
+                                    <td colSpan={2} className="py-1.5 pr-4 text-xs font-bold text-muted-foreground">
+                                      📁 {product.category_name}
+                                      <span className="ml-2 font-normal">計 {categoryTotal}個</span>
+                                    </td>
+                                  </tr>
+                                )}
+                            <tr className="border-b last:border-0">
                               <td className="py-2 pr-4">
-                                <div>{product.product_name}</div>
+                                <div>
+                                  {product.product_name}
+                                  {product.subcategory_name && (
+                                    <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                      {product.subcategory_name}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                                   {product.orders.map((o) => (
                                     <span key={o.order_id} className="inline-flex items-center gap-1">
@@ -129,7 +153,9 @@ export default async function ArrivalSchedulePage({
                               </td>
                               <td className="py-2 text-right font-medium align-top">{product.total_quantity}個</td>
                             </tr>
-                          ))}
+                              </Fragment>
+                            )
+                          })}
                         </tbody>
                       </table>
                     </div>

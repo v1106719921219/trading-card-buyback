@@ -31,6 +31,9 @@ function deriveTrackingStatus(statuses: TrackingStatuses | null): {
 
 export interface ArrivalProduct {
   product_name: string
+  category_name: string
+  category_sort: number
+  subcategory_name: string | null
   total_quantity: number
   orders: ArrivalProductOrder[]
 }
@@ -52,7 +55,7 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
   // 注文を取得（order_itemsも一緒に）
   let query = supabase
     .from('orders')
-    .select('id, order_number, customer_name, customer_prefecture, office_id, shipped_date, status, tracking_statuses, order_items(product_name, quantity)')
+    .select('id, order_number, customer_name, customer_prefecture, office_id, shipped_date, status, tracking_statuses, order_items(product_id, product_name, quantity)')
 
   if (includeApplied) {
     query = query.in('status', ['発送済', '申込'])
@@ -64,6 +67,22 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
 
   if (ordersError || !orders || orders.length === 0) {
     return []
+  }
+
+  // 商品→カテゴリ/サブカテゴリの紐付け（カテゴリ別表示用）
+  const productIds = [...new Set(orders.flatMap((o) => (o.order_items ?? []).map((i: { product_id: string | null }) => i.product_id)).filter(Boolean))] as string[]
+  const { data: productRows } = productIds.length
+    ? await supabase.from('products').select('id, category:categories(name, sort_order), subcategory:subcategories(name)').in('id', productIds)
+    : { data: [] as never[] }
+  const productCategoryMap = new Map<string, { category_name: string; category_sort: number; subcategory_name: string | null }>()
+  for (const row of productRows ?? []) {
+    const cat = row.category as unknown as { name: string; sort_order: number } | null
+    const sub = row.subcategory as unknown as { name: string } | null
+    productCategoryMap.set(row.id, {
+      category_name: cat?.name ?? 'その他',
+      category_sort: cat?.sort_order ?? 999,
+      subcategory_name: sub?.name ?? null,
+    })
   }
 
   // 事務所情報を取得
@@ -108,9 +127,9 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
     const officeOrders = orders.filter((o) => o.office_id === office.id)
 
     // 日付ごと → 商品名ごとに数量＋注文情報を集計
-    const dateProductMap = new Map<string, Map<string, { total: number; orders: ArrivalProductOrder[] }>>()
+    const dateProductMap = new Map<string, Map<string, { total: number; orders: ArrivalProductOrder[]; category_name: string; category_sort: number; subcategory_name: string | null }>>()
 
-    function addToDateProduct(dateKey: string, order: typeof officeOrders[number], items: { product_name: string; quantity: number }[]) {
+    function addToDateProduct(dateKey: string, order: typeof officeOrders[number], items: { product_id?: string | null; product_name: string; quantity: number }[]) {
       if (!dateProductMap.has(dateKey)) {
         dateProductMap.set(dateKey, new Map())
       }
@@ -132,13 +151,14 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
           existing.total += item.quantity
           existing.orders.push(orderInfo)
         } else {
-          productMap.set(item.product_name, { total: item.quantity, orders: [orderInfo] })
+          const cat = (item.product_id && productCategoryMap.get(item.product_id)) || { category_name: 'その他', category_sort: 999, subcategory_name: null }
+          productMap.set(item.product_name, { total: item.quantity, orders: [orderInfo], ...cat })
         }
       }
     }
 
     for (const order of officeOrders) {
-      const items = (order as { order_items: { product_name: string; quantity: number }[] }).order_items || []
+      const items = (order as { order_items: { product_id?: string | null; product_name: string; quantity: number }[] }).order_items || []
 
       // 申込・承認待ちステータスの注文は未発送として扱う
       if ((order as { status: string }).status === '申込' || (order as { status: string }).status === '承認待ち') {
@@ -182,8 +202,8 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
 
       const productMap = dateProductMap.get(date)!
       const products: ArrivalProduct[] = [...productMap.entries()]
-        .map(([product_name, { total, orders }]) => ({ product_name, total_quantity: total, orders }))
-        .sort((a, b) => a.product_name.localeCompare(b.product_name))
+        .map(([product_name, { total, orders, category_name, category_sort, subcategory_name }]) => ({ product_name, total_quantity: total, orders, category_name, category_sort, subcategory_name }))
+        .sort((a, b) => a.category_sort - b.category_sort || a.product_name.localeCompare(b.product_name))
 
       dateGroups.push({ date, label, products })
     }
@@ -192,8 +212,8 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
     if (dateProductMap.has('unknown')) {
       const productMap = dateProductMap.get('unknown')!
       const products: ArrivalProduct[] = [...productMap.entries()]
-        .map(([product_name, { total, orders }]) => ({ product_name, total_quantity: total, orders }))
-        .sort((a, b) => a.product_name.localeCompare(b.product_name))
+        .map(([product_name, { total, orders, category_name, category_sort, subcategory_name }]) => ({ product_name, total_quantity: total, orders, category_name, category_sort, subcategory_name }))
+        .sort((a, b) => a.category_sort - b.category_sort || a.product_name.localeCompare(b.product_name))
 
       dateGroups.push({ date: 'unknown', label: '到着日不明', products })
     }
@@ -202,8 +222,8 @@ export async function getArrivalSchedule(includeApplied = false): Promise<Arriva
     if (dateProductMap.has('not_shipped')) {
       const productMap = dateProductMap.get('not_shipped')!
       const products: ArrivalProduct[] = [...productMap.entries()]
-        .map(([product_name, { total, orders }]) => ({ product_name, total_quantity: total, orders }))
-        .sort((a, b) => a.product_name.localeCompare(b.product_name))
+        .map(([product_name, { total, orders, category_name, category_sort, subcategory_name }]) => ({ product_name, total_quantity: total, orders, category_name, category_sort, subcategory_name }))
+        .sort((a, b) => a.category_sort - b.category_sort || a.product_name.localeCompare(b.product_name))
 
       dateGroups.push({ date: 'not_shipped', label: '未発送（申込済）', products })
     }
