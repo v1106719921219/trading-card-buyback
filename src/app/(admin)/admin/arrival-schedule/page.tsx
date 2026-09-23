@@ -25,12 +25,51 @@ const DEFAULT_COLOR = { border: 'border-l-gray-300', bg: 'bg-gray-50', text: 'te
 export default async function ArrivalSchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ mode?: string }>
+  searchParams: Promise<{ mode?: string; office?: string; sub?: string }>
 }) {
   const params = await searchParams
   const includeApplied = params.mode === 'all'
-  const schedules = await getArrivalSchedule(includeApplied)
+  const officeFilter = params.office || 'all'
+  const subFilter = params.sub || 'all'
+  const allSchedules = await getArrivalSchedule(includeApplied)
   const todayStr = formatDateJST(new Date())
+
+  // フィルタ用のURL生成（他の条件は維持する）
+  const buildUrl = (next: { mode?: string; office?: string; sub?: string }) => {
+    const merged = {
+      mode: next.mode ?? params.mode,
+      office: next.office ?? officeFilter,
+      sub: next.sub ?? subFilter,
+    }
+    const q = new URLSearchParams()
+    if (merged.mode === 'all') q.set('mode', 'all')
+    if (merged.office && merged.office !== 'all') q.set('office', merged.office)
+    if (merged.sub && merged.sub !== 'all') q.set('sub', merged.sub)
+    const qs = q.toString()
+    return `/admin/arrival-schedule${qs ? `?${qs}` : ''}`
+  }
+
+  // 絞り込み候補（データに存在するサブカテゴリだけ表示）
+  const officeTabs = allSchedules.map((s) => s.office)
+  const subNames = [...new Set(
+    allSchedules.flatMap((s) => s.dateGroups.flatMap((g) => g.products.map((p) => p.subcategory_name ?? 'その他')))
+  )]
+
+  // 事務所・サブカテゴリで絞り込み（空になった日付・事務所は除去）
+  const schedules = allSchedules
+    .filter((s) => officeFilter === 'all' || s.office.id === officeFilter)
+    .map((s) => ({
+      ...s,
+      dateGroups: s.dateGroups
+        .map((g) => ({
+          ...g,
+          products: subFilter === 'all'
+            ? g.products
+            : g.products.filter((p) => (p.subcategory_name ?? 'その他') === subFilter),
+        }))
+        .filter((g) => g.products.length > 0),
+    }))
+    .filter((s) => s.dateGroups.length > 0)
 
   return (
     <div className="space-y-8">
@@ -39,9 +78,9 @@ export default async function ArrivalSchedulePage({
         description="いつ何が何個届くかを事務所ごとに確認できます"
       />
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Link
-          href="/admin/arrival-schedule"
+          href={buildUrl({ mode: undefined })}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             !includeApplied
               ? 'bg-primary text-primary-foreground'
@@ -51,7 +90,7 @@ export default async function ArrivalSchedulePage({
           発送済みのみ
         </Link>
         <Link
-          href="/admin/arrival-schedule?mode=all"
+          href={buildUrl({ mode: 'all' })}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             includeApplied
               ? 'bg-primary text-primary-foreground'
@@ -62,11 +101,70 @@ export default async function ArrivalSchedulePage({
         </Link>
       </div>
 
+      {/* 事務所タブ */}
+      {officeTabs.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={buildUrl({ office: 'all' })}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              officeFilter === 'all'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
+          >
+            全事務所
+          </Link>
+          {officeTabs.map((office) => (
+            <Link
+              key={office.id}
+              href={buildUrl({ office: office.id })}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                officeFilter === office.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              📍 {office.name}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* サブカテゴリ絞り込み */}
+      {subNames.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground mr-1">絞り込み:</span>
+          <Link
+            href={buildUrl({ sub: 'all' })}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+              subFilter === 'all'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
+          >
+            すべて
+          </Link>
+          {subNames.map((name) => (
+            <Link
+              key={name}
+              href={buildUrl({ sub: name })}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                subFilter === name
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              {name}
+            </Link>
+          ))}
+        </div>
+      )}
+
       {schedules.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>現在、発送済みの注文はありません</p>
+            <p>{officeFilter !== 'all' || subFilter !== 'all' ? '絞り込み条件に一致する到着予定はありません' : '現在、発送済みの注文はありません'}</p>
           </CardContent>
         </Card>
       ) : (
