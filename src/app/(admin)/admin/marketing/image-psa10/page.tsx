@@ -261,17 +261,26 @@ export default function PSA10ImagePage() {
   // 左リストのグループ見出し用
   const listGroups = [...new Set(products.map((p) => displayGroupOf(p.name)))]
 
-  // 価格先頭型: 「¥29,000 ピカチュウ ミラー (SA-L)」。グループ内は価格の高い順
-  const generatedMessage = [header, xUpdateDateLine(), '', ...listGroups.flatMap(group => {
-    const selected = selectedProducts.filter(p => displayGroupOf(p.name) === group)
-      .sort((a, b) => b.price - a.price)
-    return selected.length ? [`【${group}】`, ...selected.map(p => formatXProductLine(p.name, p.price)), ''] : []
-  }), footer].join('\n')
+  // 価格先頭型: 「¥29,000 ピカチュウ ミラー (SA-L)」。
+  // 画像1枚（ページ）ごとに投稿文を分け、写真とセットで投稿できるようにする
+  const pageMessages = pages.map((page) => {
+    const label = page.pageNo > 0 ? `${page.group} ${CIRCLED[page.pageNo - 1] ?? page.pageNo}` : page.group
+    const text = [
+      header,
+      xUpdateDateLine(),
+      '',
+      `【${label}】`,
+      ...page.products.map((p) => formatXProductLine(p.name, p.price)),
+      '',
+      footer,
+    ].join('\n')
+    return { label, count: page.products.length, text }
+  })
 
-  async function copyPost() {
+  async function copyPageMessage(text: string, label: string) {
     try {
-      await navigator.clipboard.writeText(generatedMessage)
-      toast.success('投稿文をコピーしました')
+      await navigator.clipboard.writeText(text)
+      toast.success(`「${label}」の投稿文をコピーしました`)
     } catch { toast.error('コピーに失敗しました。プレビューからコピーしてください') }
   }
 
@@ -375,12 +384,23 @@ export default function PSA10ImagePage() {
                 <span>投稿文の末尾</span>
                 <Textarea aria-label="投稿文の末尾" value={footer} onChange={e => setFooter(e.target.value)} rows={4} disabled={loading} />
               </label>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-muted-foreground">{Array.from(generatedMessage).length.toLocaleString('ja-JP')}文字</span>
-                <Button onClick={copyPost} disabled={loading || selectedProducts.length === 0} className="gap-2"><Copy className="h-4 w-4" />投稿文をコピー</Button>
+              <div className="space-y-3">
+                {pageMessages.map((m, i) => (
+                  <div key={`${m.label}-${i}`} className="rounded-md border p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">
+                        {m.label}（{m.count}件）
+                        <span className="ml-2 text-xs text-muted-foreground">{Array.from(m.text).length.toLocaleString('ja-JP')}文字</span>
+                      </span>
+                      <Button size="sm" onClick={() => copyPageMessage(m.text, m.label)} disabled={loading} className="gap-1.5">
+                        <Copy className="h-3.5 w-3.5" />コピー
+                      </Button>
+                    </div>
+                    <Textarea aria-label={`${m.label}の投稿文`} readOnly value={m.text} rows={6} className="font-mono text-xs" />
+                  </div>
+                ))}
               </div>
-              <Textarea aria-label="投稿文プレビュー" readOnly value={generatedMessage} rows={14} className="font-mono text-sm" />
-              <p className="text-xs text-muted-foreground">投稿先の文字数制限に合わせて掲載商品を絞ってください。</p>
+              <p className="text-xs text-muted-foreground">画像1枚につき1投稿。同じ名前の画像とセットで投稿してください。</p>
             </CardContent>
           </Card>
           <div className="flex items-center justify-between">
