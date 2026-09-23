@@ -176,11 +176,15 @@ export default function ProductsPage() {
     ])
 
     if (productsResult.data) {
-      // Sort by category sort_order, then product sort_order
+      // カテゴリ → サブカテゴリ → 商品の並び順。サブカテゴリ単位で必ずまとまる
+      // （サブカテゴリなしはそのカテゴリの先頭に表示）
       const sorted = [...productsResult.data].sort((a: any, b: any) => {
         const catA = a.category?.sort_order ?? 0
         const catB = b.category?.sort_order ?? 0
         if (catA !== catB) return catA - catB
+        const subA = a.subcategory?.sort_order ?? -1
+        const subB = b.subcategory?.sort_order ?? -1
+        if (subA !== subB) return subA - subB
         return (a.sort_order ?? 0) - (b.sort_order ?? 0)
       })
       setProducts(sorted as never[])
@@ -781,6 +785,12 @@ async function syncToChiba() {
     // Only allow drag within same category
     if (draggedProduct.category_id !== targetProduct.category_id) {
       toast.error('カテゴリをまたいだ移動はできません')
+      return
+    }
+    // サブカテゴリ単位でまとめて表示しているため、またいだ移動は不可
+    // （所属を変える場合は編集画面でサブカテゴリを変更する）
+    if (draggedProduct.subcategory_id !== targetProduct.subcategory_id) {
+      toast.error('サブカテゴリをまたいだ移動はできません（編集からサブカテゴリを変更してください）')
       return
     }
 
