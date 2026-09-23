@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Download, RefreshCw, Save, ImageIcon, Copy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { formatXProductLine, xUpdateDateLine } from '@/lib/sns-text'
 import type { Product, Category, Subcategory } from '@/types/database'
 
 const SETTING_KEY = 'sns_psa10_default_products'
@@ -260,9 +261,11 @@ export default function PSA10ImagePage() {
   // 左リストのグループ見出し用
   const listGroups = [...new Set(products.map((p) => displayGroupOf(p.name)))]
 
-  const generatedMessage = [header, '', ...listGroups.flatMap(group => {
+  // 価格先頭型: 「¥29,000 ピカチュウ ミラー (SA-L)」。グループ内は価格の高い順
+  const generatedMessage = [header, xUpdateDateLine(), '', ...listGroups.flatMap(group => {
     const selected = selectedProducts.filter(p => displayGroupOf(p.name) === group)
-    return selected.length ? [`【${group}】`, ...selected.map(p => `${p.name}👉【${p.price.toLocaleString('ja-JP')}円】`), ''] : []
+      .sort((a, b) => b.price - a.price)
+    return selected.length ? [`【${group}】`, ...selected.map(p => formatXProductLine(p.name, p.price)), ''] : []
   }), footer].join('\n')
 
   async function copyPost() {
