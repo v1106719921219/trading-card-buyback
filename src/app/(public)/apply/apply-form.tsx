@@ -388,6 +388,12 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
       // 途中までしか読めなかった場合は、残りを貼り直してもらう必要があるため入力を残す
       if (!result.truncated) setAiText('')
       toast.success(`${result.items.length}件の商品をカートに追加しました`)
+      if (result.rejected && result.rejected.length > 0) {
+        toast.warning(
+          `次の${result.rejected.length}件は型番が一致する商品が見つかりませんでした。下の一覧から手動で選んでください。\n${result.rejected.slice(0, 5).join('\n')}${result.rejected.length > 5 ? '\n…ほか' : ''}`,
+          { duration: 15000 }
+        )
+      }
       if (result.truncated) {
         toast.warning(
           '商品が多いため途中までしか読み取れませんでした。カートの内容を確認し、残りを分けて貼り付けてください。'
