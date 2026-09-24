@@ -99,11 +99,27 @@ function extractCodes(s: string): Set<string> {
   return codes
 }
 
+// 「ピカチュウ (017〜046/103)」のように、検品を簡単にするため複数の型番を
+// 1商品にまとめているものがある。入力の型番がその範囲に入るなら一致とみなす。
+function inCodeRange(code: string, rangeCode: string): boolean {
+  const r = /^(\d{1,4})\s*[〜~ー−–—-]\s*(\d{1,4})\s*\/\s*(\d{1,4})$/.exec(
+    rangeCode.replace(/^.*?\s/, '').trim()
+  ) ?? /^(\d{1,4})\s*[〜~ー−–—-]\s*(\d{1,4})\s*\/\s*(\d{1,4})$/.exec(rangeCode.trim())
+  if (!r) return false
+  const c = /^(\d{1,4})\s*\/\s*(\d{1,4})$/.exec(code.replace(/^.*?\s/, '').trim())
+    ?? /^(\d{1,4})\s*\/\s*(\d{1,4})$/.exec(code.trim())
+  if (!c) return false
+  if (c[2] !== r[3]) return false
+  const n = Number(c[1])
+  return n >= Number(r[1]) && n <= Number(r[2])
+}
+
 /** 入力行と商品名の型番が食い違っていれば false（どちらかに型番が無ければ判定しない） */
 function codesAgree(inputLine: string, productName: string): boolean {
   const a = extractCodes(inputLine)
   const b = extractCodes(productName)
   if (a.size === 0 || b.size === 0) return true
+  for (const x of a) for (const y of b) if (inCodeRange(x, y)) return true
   // 「[S8b 245/184]」と「245/184」のように書式が違っても拾えるよう、
   // 括弧の中身そのものと数字部分の両方を候補に入れて突き合わせる
   for (const x of a) if (b.has(x)) return true
@@ -159,6 +175,7 @@ ${productList}
 - 「シュリなし」「シュリ無し」は「シュリンク無し」の略称です。商品名にこれが含まれる場合、シュリンク無しのサブカテゴリに該当する商品とマッチングしてください。
 - 型番（例: [SV-P 031]、[S8b 245/184]、(118/103)）が書かれている場合は、型番が完全に一致する商品だけを選んでください。カード名が同じでも型番が1文字でも違えば別の商品です。一致する商品が商品リストに無ければ、その行は返さないでください。
 - 型番が一致する商品が無いときに、似ているだけの別の型番の商品を返してはいけません。返さない方が正しい動作です。
+- ただし商品リストの型番が「(017〜046/103)」のように範囲で書かれている商品は、その範囲に入る型番（例: 031/103）をまとめて扱う商品です。範囲内であれば一致とみなしてその商品を選んでください。
 - それぞれの商品が「テキストの何行目か」を line に入れてください。
 - 商品リストの「番号」と数量と行番号だけを返してください。テキストに無い商品は返さないでください。`,
         },
