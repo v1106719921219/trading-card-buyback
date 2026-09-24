@@ -362,13 +362,8 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
         aiText,
         products.map((p) => ({ id: p.id, name: p.name, price: p.price }))
       )
-      if (result.error) {
-        toast.error(result.error)
-        setAiParsing(false)
-        return
-      }
       if (result.items.length === 0) {
-        toast.error('商品を認識できませんでした。商品名を確認してください。')
+        toast.error(result.error || '商品を認識できませんでした。商品名を確認してください。')
         setAiParsing(false)
         return
       }
@@ -390,8 +385,18 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
       const hadArBefore = cart.some(item => item.product_name.includes('AR'))
       const hasArAfter = newCart.some(item => item.product_name.includes('AR'))
       setCart(newCart)
-      setAiText('')
+      // 途中までしか読めなかった場合は、残りを貼り直してもらう必要があるため入力を残す
+      if (!result.truncated) setAiText('')
       toast.success(`${result.items.length}件の商品をカートに追加しました`)
+      if (result.truncated) {
+        toast.warning(
+          '商品が多いため途中までしか読み取れませんでした。カートの内容を確認し、残りを分けて貼り付けてください。'
+        )
+      } else if (result.inputLines && result.inputLines > result.items.length + 1) {
+        toast.warning(
+          `入力${result.inputLines}行に対して${result.items.length}件を追加しました。認識されなかった商品がないかカートを確認してください。`
+        )
+      }
       if (arQualityEnabled && hasArAfter && !hadArBefore) {
         setShowBuybackDialog(true)
       }
