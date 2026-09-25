@@ -41,3 +41,24 @@ export function initLiff(): Promise<LiffState> {
 
   return cachedPromise
 }
+
+/**
+ * URLを外部ブラウザ（Chrome/Safari）で開く。
+ *
+ * LINEアプリ内ブラウザはPDFを表示も保存もできず、ダウンロードが途中で止まってしまう。
+ * URLに openExternalBrowser=1 を付ける方法はトーク画面のリンクをタップした時しか
+ * 効かないため、LIFFの中からは liff.openWindow({ external: true }) を使う。
+ */
+export async function openExternalUrl(url: string): Promise<void> {
+  try {
+    const liff = (await import('@line/liff')).default
+    if (liff.isInClient()) {
+      liff.openWindow({ url, external: true })
+      return
+    }
+  } catch (err) {
+    console.error('[LIFF] 外部ブラウザで開けませんでした:', err)
+  }
+  // 通常のブラウザ（LINE外）はそのまま遷移させる
+  window.location.href = url
+}

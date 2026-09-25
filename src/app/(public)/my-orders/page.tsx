@@ -9,7 +9,7 @@ import { Header } from '@/components/public/header'
 import { Footer } from '@/components/public/footer'
 import { Package, FileDown, Plus, Minus, X, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import { initLiff } from '@/lib/liff-client'
+import { initLiff, openExternalUrl } from '@/lib/liff-client'
 import { getMyOrdersByIdToken, submitTrackingByIdToken, createMyInspectionPdfLink, getMyOrderAddableProducts, addMyOrderItems } from '@/actions/orders'
 
 // お客様自身で商品を追加できるステータス（検品が始まる前まで）
@@ -170,12 +170,10 @@ export default function MyOrdersPage() {
     }
     if (!('path' in result) || !result.path) return
 
-    // blob URL + window.open はLINEアプリ内ブラウザで開けず、
-    // サーバー応答を待ってからのwindow.openはポップアップとしても弾かれるため、
-    // 署名付きの実URLへ遷移させる。LINE内ではopenExternalBrowser=1で外部ブラウザに渡す。
-    const inLine = /Line\//i.test(navigator.userAgent)
-    const url = `${window.location.origin}${result.path}${inLine ? '&openExternalBrowser=1' : ''}`
-    window.location.href = url
+    // LINEアプリ内ブラウザはPDFを表示も保存もできず、ダウンロードが途中で止まる。
+    // URLの openExternalBrowser=1 はトーク画面のリンクをタップした時しか効かないため、
+    // LIFFの中からは liff.openWindow({external:true}) で外部ブラウザに渡す。
+    await openExternalUrl(`${window.location.origin}${result.path}`)
   }
 
   return (
