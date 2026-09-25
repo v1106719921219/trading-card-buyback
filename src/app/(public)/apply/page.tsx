@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { ApplyForm } from './apply-form'
 import { LineConfirmGate } from './line-confirm-gate'
 import { verifyLineUserToken } from '@/lib/line'
+import { readPayload } from '@/lib/signed-payload'
 import { lookupCustomerByLineUserId } from '@/lib/customer-prefill'
 import type { Category, Product, Office, Subcategory } from '@/types/database'
 
@@ -76,6 +77,25 @@ export default async function ApplyPage({
     }
   }
 
+  // 管理者が発行した署名付きの過去価格リンク（?pl=）。
+  // 「昨日の価格で申し込むのを忘れた」お客様向け。署名があるので日時の改ざんはできない。
+  // 有効期限はトークン自体に埋め込まれている（readPayload が期限切れを弾く）。
+  const plParam = typeof params.pl === 'string' ? params.pl : undefined
+  let priceLockedAt: string | null = null
+  if (plParam) {
+    const payload = readPayload<{ at: string; tenant_id: string }>(plParam, 'price-lock')
+    const at = payload && payload.tenant_id === tenantId ? new Date(payload.at) : null
+    if (at && !isNaN(at.getTime()) && at <= new Date()) {
+      priceLockedAt = at.toISOString()
+      priceAt = null
+      priceLockExpired = false
+      priceDate = at.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' })
+    } else {
+      // 期限切れ・改ざん・他テナント宛。最新価格で表示する
+      priceLockExpired = true
+    }
+  }
+
   const supabase = createAdminClient()
 
   const [catResult, prodResult, subResult, officeResult] = await Promise.all([
@@ -106,7 +126,9 @@ export default async function ApplyPage({
   // - price_at 指定時: その時刻（リンク発行時刻）
   // - price_date 指定時: 指定日の終わり時点（翌日0時JST）
   let priceCutoff: string | null = null
-  if (priceAt) {
+  if (priceLockedAt) {
+    priceCutoff = priceLockedAt
+  } else if (priceAt) {
     priceCutoff = priceAt
   } else if (priceDate) {
     // タイムゾーンに依存しない翌日計算（UTC固定で日付演算のみ行う）
@@ -200,6 +222,7 @@ export default async function ApplyPage({
       initialOffices={offices}
       priceDate={priceDate}
       priceAt={priceAt}
+      priceLockedAt={priceLockedAt}
       priceLockExpired={priceLockExpired}
       showAll={showAll}
       arQualityEnabled={arQualityEnabled}

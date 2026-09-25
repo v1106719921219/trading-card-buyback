@@ -79,6 +79,8 @@ interface ApplyFormProps {
   initialOffices: Office[]
   priceDate?: string | null
   priceAt?: string | null
+  /** 管理者が発行した過去価格リンク（?pl=）で固定された基準日時 */
+  priceLockedAt?: string | null
   priceLockExpired?: boolean
   showAll?: boolean
   arQualityEnabled?: boolean
@@ -89,7 +91,7 @@ interface ApplyFormProps {
   defaultOfficeId?: string
 }
 
-export function ApplyForm({ quoteToken, initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, priceAt, priceLockExpired, showAll, arQualityEnabled, fromLine, initialCart, prefillCustomer, lineUserToken, defaultOfficeId }: ApplyFormProps) {
+export function ApplyForm({ quoteToken, initialCategories, initialProducts, initialSubcategories, initialOffices, priceDate, priceAt, priceLockedAt, priceLockExpired, showAll, arQualityEnabled, fromLine, initialCart, prefillCustomer, lineUserToken, defaultOfficeId }: ApplyFormProps) {
   const router = useRouter()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -614,7 +616,18 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
             ご案内した価格の有効期限（1時間）が切れたため、現在の買取価格で表示しています
           </div>
         )}
-        {priceAt ? (
+        {priceLockedAt ? (
+          <div className="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+            {new Date(priceLockedAt).toLocaleString('ja-JP', {
+              timeZone: 'Asia/Tokyo',
+              year: 'numeric',
+              month: 'numeric',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })} 時点の買取価格で表示しています
+          </div>
+        ) : priceAt ? (
           <div className="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
             {new Date(priceAt).toLocaleString('ja-JP', {
               timeZone: 'Asia/Tokyo',

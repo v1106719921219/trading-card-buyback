@@ -19,7 +19,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog'
+import { createBackdatedPriceLink } from '@/actions/price-lock-link'
 import {
   Select,
   SelectContent,
@@ -234,6 +237,53 @@ async function syncToChiba() {
       toast.error('千葉への同期に失敗しました')
     } finally {
       setSyncing(false)
+    }
+  }
+
+  // 過去日時の価格で申し込めるリンク（署名付き）
+  const [backdateOpen, setBackdateOpen] = useState(false)
+  const [backdateAt, setBackdateAt] = useState('')
+  const [backdateDays, setBackdateDays] = useState('3')
+  const [backdateIssuing, setBackdateIssuing] = useState(false)
+
+  function openBackdateDialog() {
+    // 既定値は「昨日の23:00（JST）」＝その日の最終価格
+    const now = new Date()
+    const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+    jst.setUTCDate(jst.getUTCDate() - 1)
+    setBackdateAt(jst.toISOString().slice(0, 10) + 'T23:00')
+    setBackdateDays('3')
+    setBackdateOpen(true)
+  }
+
+  async function issueBackdatedLink() {
+    if (!backdateAt) return
+    setBackdateIssuing(true)
+    try {
+      // datetime-local はタイムゾーンを持たないのでJSTとして解釈する
+      const res = await createBackdatedPriceLink(`${backdateAt}:00+09:00`, Number(backdateDays))
+      if ('error' in res && res.error) {
+        toast.error(res.error)
+        return
+      }
+      if (!('token' in res) || !res.token) {
+        toast.error('リンクを発行できませんでした')
+        return
+      }
+      const url = `${window.location.origin}/apply?pl=${encodeURIComponent(res.token)}`
+      const atStr = new Date(res.at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      const expStr = new Date(res.expiresAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+      try {
+        await navigator.clipboard.writeText(url)
+        toast.success(`${atStr}時点の価格で申込できるリンクをコピーしました（${expStr}まで有効）`)
+      } catch {
+        window.prompt('リンクをコピーしてください', url)
+      }
+      setBackdateOpen(false)
+    } catch {
+      toast.error('リンクを発行できませんでした')
+    } finally {
+      setBackdateIssuing(false)
     }
   }
 
@@ -850,6 +900,10 @@ async function syncToChiba() {
               <LinkIcon className="mr-2 h-4 w-4" />
               価格保証リンクをコピー
             </Button>
+            <Button variant="outline" onClick={openBackdateDialog}>
+              <LinkIcon className="mr-2 h-4 w-4" />
+              過去価格リンクを発行
+            </Button>
 <Button variant="outline" onClick={syncToChiba} disabled={syncing}>
               <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? '同期中...' : '千葉に同期'}
@@ -1444,6 +1498,57 @@ async function syncToChiba() {
         className="hidden"
         onChange={handleInlineImageUpload}
       />
+
+      {/* 過去日時の価格で申し込めるリンクを発行 */}
+      <Dialog open={backdateOpen} onOpenChange={setBackdateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>過去価格リンクを発行</DialogTitle>
+            <DialogDescription>
+              指定した日時点の買取価格で申し込めるリンクを作ります。お客様が申込を忘れて価格が変わってしまった場合に使います。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>価格の基準日時（JST）</Label>
+              <Input
+                type="datetime-local"
+                value={backdateAt}
+                onChange={(e) => setBackdateAt(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                例: 前日の最終価格なら「前日 23:00」。90日前まで指定できます。
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>リンクの有効期間</Label>
+              <Select value={backdateDays} onValueChange={setBackdateDays}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1日</SelectItem>
+                  <SelectItem value="3">3日</SelectItem>
+                  <SelectItem value="7">7日</SelectItem>
+                  <SelectItem value="14">14日</SelectItem>
+                  <SelectItem value="30">30日</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                期限を過ぎたリンクは最新価格での表示に切り替わります。
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBackdateOpen(false)}>
+              キャンセル
+            </Button>
+            <Button onClick={issueBackdatedLink} disabled={!backdateAt || backdateIssuing}>
+              {backdateIssuing ? '発行中...' : 'リンクを発行してコピー'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
