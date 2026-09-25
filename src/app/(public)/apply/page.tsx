@@ -104,6 +104,10 @@ export default async function ApplyPage({
       : supabase.from('categories').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order'),
     showAll
       ? supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('tenant_id', tenantId).gt('price', 0).order('sort_order').order('name')
+      : priceLockedAt
+      // 過去価格リンクは「その日オンだった商品」を出すので、いまの表示状態では絞らずに
+      // 取得し、このあと表示履歴から当時オンだったものだけに絞り込む
+      ? supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('tenant_id', tenantId).eq('is_active', true).gt('price', 0).order('sort_order').order('name')
       : supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('tenant_id', tenantId).eq('is_active', true).eq('show_in_price_list', true).gt('price', 0).order('sort_order').order('name'),
     showAll
       ? supabase.from('subcategories').select('*').eq('tenant_id', tenantId).order('sort_order')
@@ -173,6 +177,35 @@ export default async function ApplyPage({
         return p
       })
     }
+  }
+
+  // 過去価格リンクは「その日オンだった商品」を出す。
+  // 価格表は毎晩まとめてオフにしているため、いまの表示状態で絞るとリンクを開いても
+  // 商品が1件も出てこない。表示履歴から基準時刻の状態に戻して絞り込む。
+  if (priceLockedAt) {
+    const visibilityHistory: { product_id: string | null; old_visible: boolean }[] = []
+    const pageSize = 1000
+    for (let page = 0; ; page++) {
+      const { data: chunk } = await supabase
+        .from('product_visibility_history')
+        .select('product_id, old_visible, changed_at')
+        .eq('tenant_id', tenantId)
+        .gte('changed_at', priceLockedAt)
+        .order('changed_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(page * pageSize, (page + 1) * pageSize - 1)
+      if (!chunk || chunk.length === 0) break
+      visibilityHistory.push(...chunk)
+      if (chunk.length < pageSize) break
+    }
+    // 基準時刻以降の最初の変更の old_visible が、その時点の表示状態
+    const visibleAt = new Map<string, boolean>()
+    for (const h of visibilityHistory) {
+      if (h.product_id && !visibleAt.has(h.product_id)) {
+        visibleAt.set(h.product_id, h.old_visible)
+      }
+    }
+    products = products.filter((p) => visibleAt.get(p.id) ?? p.show_in_price_list)
   }
 
   const subcategories = (subResult.data ?? []) as Subcategory[]
