@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   }
 
   const result = await updateMarketPrices()
-  // PSA10シングルは取得した最新相場の97%に買取価格を自動追従させる
+  // PSA10シングルは取得した最新相場の95%に買取価格を自動追従させる
   const reprice = await repricePsa10Products()
   // 30thシングルは相場と同額（100円切り捨て）に自動追従（ミラーピカチュウ30種は除外）
   const reprice30th = await reprice30thProducts()
