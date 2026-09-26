@@ -665,7 +665,7 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
 
             </div>
             {/* Keep the card number on a dedicated line, separate from the product name. */}
-            <div style={{ height: nameH, padding: '2px 4px', boxSizing: 'border-box', background: '#191919', color: '#fff', fontSize: nameFontSize, fontWeight: 900, textAlign: 'center', lineHeight: 1.15, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            <div style={{ height: nameH, padding: '2px 4px', boxSizing: 'border-box', background: '#191919', color: '#fff', fontSize: nameFontSize, fontWeight: 900, textAlign: 'center', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
               {cardName}
             </div>
             <div data-card-code={cardCode} style={{ height: modelH, background: '#191919', color: P.LIGHT, fontFamily: "'Inter', sans-serif", fontSize: codeFontSize, fontWeight: 800, textAlign: 'center', lineHeight: modelH + 'px', whiteSpace: 'nowrap' }}>
