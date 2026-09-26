@@ -1,5 +1,6 @@
 'use client'
 
+import { publicSubcategories } from '@/lib/public-subcategories'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -282,11 +283,11 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
     setCustomerLoaded(true)
   }
 
-  const filteredSubcategories = subcategories.filter((s) => selectedCategory !== 'all' ? s.category_id === selectedCategory : true)
+  const filteredSubcategories = publicSubcategories(subcategories, categories, products, selectedCategory)
 
   const filteredProducts = products.filter((p) => {
     const matchesCategory = selectedCategory === 'all' || p.category_id === selectedCategory
-    const matchesSubcategory = selectedSubcategory === 'all' || p.subcategory_id === selectedSubcategory
+    const matchesSubcategory = selectedSubcategory === 'all' || filteredSubcategories.find(s => s.id === selectedSubcategory)?.ids.includes(p.subcategory_id || '')
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
     return matchesCategory && matchesSubcategory && matchesSearch && (showAll || p.category?.is_active)
   })
@@ -822,13 +823,13 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
                     </Select>
                     {filteredSubcategories.length > 0 && (
                       <Select value={selectedSubcategory} onValueChange={setSelectedSubcategory}>
-                        <SelectTrigger className="w-full sm:w-52">
+                        <SelectTrigger aria-label="商品タイプ" className="w-full sm:w-72">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">全サブカテゴリ</SelectItem>
+                          <SelectItem value="all">すべての商品タイプ</SelectItem>
                           {filteredSubcategories.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

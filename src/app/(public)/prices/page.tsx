@@ -1,5 +1,6 @@
 'use client'
 
+import { publicSubcategories } from '@/lib/public-subcategories'
 import { useEffect, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import {
@@ -54,13 +55,11 @@ export default function PricesPage() {
     fetchData()
   }, [])
 
-  const filteredSubcategories = subcategories.filter((s) =>
-    selectedCategory !== 'all' ? s.category_id === selectedCategory : true
-  )
+  const filteredSubcategories = publicSubcategories(subcategories, categories, products, selectedCategory)
 
   const filteredProducts = products.filter((p) => {
     const matchesCategory = selectedCategory === 'all' || p.category_id === selectedCategory
-    const matchesSubcategory = selectedSubcategory === 'all' || p.subcategory_id === selectedSubcategory
+    const matchesSubcategory = selectedSubcategory === 'all' || filteredSubcategories.find(s => s.id === selectedSubcategory)?.ids.includes(p.subcategory_id || '')
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
     return matchesCategory && matchesSubcategory && matchesSearch
   })
@@ -70,7 +69,7 @@ export default function PricesPage() {
     const catProducts = filteredProducts
       .filter((p) => p.category_id === cat.id)
       .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    const catSubcategories = subcategories.filter((s) => s.category_id === cat.id)
+    const catSubcategories = publicSubcategories(subcategories, categories, products, cat.id)
 
     if (catSubcategories.length === 0) {
       return { ...cat, groups: [{ name: null, products: catProducts }] }
@@ -80,7 +79,7 @@ export default function PricesPage() {
       .filter((sub) => selectedSubcategory === 'all' || sub.id === selectedSubcategory)
       .map((sub) => ({
         name: sub.name,
-        products: catProducts.filter((p) => p.subcategory_id === sub.id),
+        products: catProducts.filter((p) => sub.ids.includes(p.subcategory_id || '')),
       }))
     const ungrouped = catProducts.filter((p) => !p.subcategory_id)
     if (ungrouped.length > 0 && selectedSubcategory === 'all') {
@@ -133,13 +132,13 @@ export default function PricesPage() {
             </Select>
             {filteredSubcategories.length > 0 && (
               <Select value={selectedSubcategory} onValueChange={setSelectedSubcategory}>
-                <SelectTrigger className="w-full sm:w-52 bg-white/[0.05] border-white/[0.08]">
+                <SelectTrigger aria-label="商品タイプ" className="w-full sm:w-72 bg-white/[0.05] border-white/[0.08]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全サブカテゴリ</SelectItem>
+                  <SelectItem value="all">すべての商品タイプ</SelectItem>
                   {filteredSubcategories.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
