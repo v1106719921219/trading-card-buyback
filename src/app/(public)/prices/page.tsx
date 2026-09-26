@@ -9,7 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search } from 'lucide-react'
+import { Search, ImageIcon, ZoomIn } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
 import type { Category, Subcategory } from '@/types/database'
@@ -18,6 +19,9 @@ interface ProductItem {
   id: string
   name: string
   price: number
+  image_url: string | null
+  model_number: string | null
+  set_number: string | null
   sort_order: number
   category_id: string
   subcategory_id: string | null
@@ -33,6 +37,9 @@ export default function PricesPage() {
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [preview, setPreview] = useState<ProductItem | null>(null)
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set())
+  const markImageFailed = (id: string) => setFailedImages((previous) => new Set([...previous, id]))
 
   useEffect(() => {
     async function fetchData() {
@@ -160,14 +167,38 @@ export default function PricesPage() {
                         <h3 className="font-medium text-xs text-muted-foreground mb-2 mt-3 uppercase tracking-wider">{group.name}</h3>
                       )}
                       <div className="divide-y divide-border">
-                        {group.products.map((product) => (
-                          <div key={product.id} className="flex items-center justify-between gap-4 py-3 px-1">
-                            <span className="font-medium text-sm min-w-0 break-words text-foreground">{product.name}</span>
-                            <span className="font-heading text-lg text-[#FF6B00] whitespace-nowrap shrink-0">
-                              {product.price.toLocaleString()}<span className="text-xs font-sans text-muted-foreground ml-0.5">円</span>
-                            </span>
-                          </div>
-                        ))}
+                        {group.products.map((product) => {
+                          const bracketCode = product.name.match(/\[([^\]]+)\]/)?.[1]
+                          const code = bracketCode || [product.set_number, product.model_number]
+                            .filter((v, i, values) => v && (i === 0 || !values[0]?.includes(v))).join(' / ')
+                          const name = bracketCode ? product.name.replace(/\s*\[[^\]]+\]/, '').trim() : product.name
+                          const hasImage = !!product.image_url && !failedImages.has(product.id)
+                          return (
+                            <div key={product.id} data-price-product={product.id} className="grid grid-cols-[56px_minmax(0,1fr)_auto] sm:grid-cols-[76px_minmax(0,1fr)_auto] items-center gap-2 sm:gap-4 py-3">
+                              {hasImage ? (
+                                <button type="button" onClick={() => setPreview(product)} aria-label={`${product.name}の写真を拡大`}
+                                  className="relative h-[76px] w-14 sm:h-[100px] sm:w-[76px] rounded-md border border-border bg-white p-0.5 hover:border-[#FF6B00] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF6B00]">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={product.image_url!} alt={product.name} loading="lazy" decoding="async"
+                                    onError={() => markImageFailed(product.id)} className="h-full w-full object-contain" />
+                                  <ZoomIn aria-hidden="true" className="absolute bottom-0.5 right-0.5 size-4 rounded bg-white/90 p-0.5 text-muted-foreground" />
+                                </button>
+                              ) : (
+                                <div className="flex h-[76px] w-14 sm:h-[100px] sm:w-[76px] flex-col items-center justify-center rounded-md bg-muted text-muted-foreground" aria-label="商品画像なし">
+                                  <ImageIcon aria-hidden="true" className="size-5" />
+                                  <span className="mt-1 text-[10px]">画像なし</span>
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="font-medium text-[13px] sm:text-sm break-words text-foreground">{name}</p>
+                                {code && <p className="mt-1 text-[11px] sm:text-xs break-words text-muted-foreground">{code}</p>}
+                              </div>
+                              <span className="font-heading text-base sm:text-lg text-[#FF6B00] whitespace-nowrap">
+                                {product.price.toLocaleString('ja-JP')}<span className="text-xs font-sans text-muted-foreground ml-0.5">円</span>
+                              </span>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   ))}
@@ -178,6 +209,19 @@ export default function PricesPage() {
         )}
       </div>
 
+      <Dialog open={preview !== null} onOpenChange={(open) => { if (!open) setPreview(null) }}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="pr-6 break-words text-left">{preview?.name}</DialogTitle>
+            <DialogDescription className="text-left">買取価格：{preview?.price.toLocaleString('ja-JP')}円</DialogDescription>
+          </DialogHeader>
+          {preview?.image_url && !failedImages.has(preview.id) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={preview.image_url} alt={preview.name} onError={() => markImageFailed(preview.id)}
+              className="mx-auto h-auto max-h-[60dvh] w-full rounded-md bg-white object-contain" />
+          ) : <p className="py-12 text-center text-muted-foreground">画像を表示できません</p>}
+        </DialogContent>
+      </Dialog>
       <Footer />
     </div>
   )
