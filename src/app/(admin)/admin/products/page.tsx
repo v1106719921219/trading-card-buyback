@@ -222,8 +222,8 @@ export default function ProductsPage() {
     if (productsResult.data) {
       const quotes: Record<string, SingleABQuote> = {}
       let quoteError = false
-      for (let offset = 0; offset < productsResult.data.length; offset += 500) {
-        const keys = productsResult.data.slice(offset, offset + 500).map(p => `single_ab_source_${p.id}`)
+      for (let offset = 0; offset < productsResult.data.length; offset += 50) {
+        const keys = productsResult.data.slice(offset, offset + 50).map(p => `single_ab_source_${p.id}`)
         const { data, error } = await supabase.from('app_settings').select('key,value').in('key', keys)
         if (error) { quoteError = true; break }
         for (const row of data ?? []) {
