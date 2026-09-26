@@ -20,7 +20,7 @@ export async function GET() {
  const c=await context(); if(!c)return NextResponse.json({error:'ログインが必要です'},{status:401})
  const products=[]; let total:number|null=null
  for(let offset=0;;offset+=500){
-  const {data,error,count}=await c.db.from('products').select('id,name,model_number,set_number,price,subcategory_id',{count:'exact'}).eq('tenant_id',c.profile.tenant_id).order('id').range(offset,offset+499)
+  const {data,error,count}=await c.db.from('products').select('id,name,model_number,set_number,price,subcategory_id,image_url',{count:'exact'}).eq('tenant_id',c.profile.tenant_id).order('id').range(offset,offset+499)
   if(error || (total!==null&&count!==total))return NextResponse.json({error:'商品取得に失敗しました。再読み込みしてください'},{status:503})
   total=count;products.push(...(data||[]));if(products.length===(total??0))break
   if(!data?.length)return NextResponse.json({error:'商品取得が途中で終了しました'},{status:503})
