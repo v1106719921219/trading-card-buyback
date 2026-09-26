@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { resetDailyPsa10Cutoffs } from '@/lib/psa10-daily-reset'
+
+export const maxDuration = 300
 
 export async function GET(request: Request) {
   // Vercel Cron認証
@@ -19,5 +22,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true })
+  // 23:00 JST: keep the price list closed, clear eligible daily PSA10 cutoffs.
+  try {
+    const psa10 = await resetDailyPsa10Cutoffs()
+    return NextResponse.json({ success: true, psa10 })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'PSA10締切リセット失敗' }, { status: 500 })
+  }
 }
