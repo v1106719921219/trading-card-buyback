@@ -535,7 +535,7 @@ export async function getMyOrdersByIdToken(idToken: string) {
   if (!userId) return []
 
   const cols =
-    'order_number, status, total_amount, inspected_total_amount, inspection_discount, tracking_number, office_id, created_at, paid_at'
+    'order_number, status, total_amount, inspected_total_amount, inspection_discount, tracking_number, office_id, created_at, paid_at, order_items(product_name, quantity, unit_price)'
   const fetchFrom = async (
     client: ReturnType<typeof createAdminClient>,
     db: 'tokyo' | 'chiba'

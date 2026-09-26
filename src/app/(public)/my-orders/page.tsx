@@ -34,10 +34,17 @@ const CUSTOMER_STATUS: Record<string, { label: string; color: string; step: numb
   'キャンセル': { label: 'キャンセル', color: 'bg-red-100 text-red-800', step: 0 },
 }
 
+interface MyOrderItem {
+  product_name: string
+  quantity: number
+  unit_price: number
+}
+
 interface MyOrder {
   order_number: string
   status: string
   total_amount: number
+  order_items?: MyOrderItem[]
   inspected_total_amount: number | null
   inspection_discount: number | null
   tracking_number: string | null
@@ -264,6 +271,26 @@ export default function MyOrdersPage() {
                         {s.step >= 4 ? 'お振込金額' : '申込金額'} {amount.toLocaleString()}円
                       </span>
                     </div>
+
+                    {/* 申込内容（何を申し込んだか）の明細 */}
+                    {(o.order_items?.length ?? 0) > 0 && (
+                      <details className="rounded-md bg-muted/50">
+                        <summary className="cursor-pointer list-none px-2.5 py-2 text-sm font-medium text-muted-foreground">
+                          📋 申込内容（{o.order_items!.reduce((sum, i) => sum + i.quantity, 0)}点）
+                          <span className="float-right text-xs">タップで表示</span>
+                        </summary>
+                        <div className="space-y-1 px-2.5 pb-2">
+                          {o.order_items!.map((item, i) => (
+                            <div key={i} className="flex items-start justify-between gap-2 border-t pt-1 text-xs">
+                              <span className="min-w-0 flex-1">{item.product_name}</span>
+                              <span className="shrink-0 whitespace-nowrap text-muted-foreground">
+                                {item.unit_price.toLocaleString()}円 × {item.quantity}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
 
                     {/* 検品完了以降は査定結果PDFをダウンロード可能 */}
                     {['検品完了', '振込済', '振込確認済'].includes(o.status) && (
