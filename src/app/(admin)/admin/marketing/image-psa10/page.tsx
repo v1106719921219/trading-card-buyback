@@ -44,7 +44,8 @@ const DISPLAY_GROUPS: { label: string; characters: string[] }[] = [
   { label: 'ミュウ・ミュウツー・サーナイト', characters: ['ミュウ', 'ミュウツー', 'サーナイト'] },
   { label: 'ゲッコウガ・ルカリオ', characters: ['ゲッコウガ', 'ルカリオ'] },
   { label: 'ルギア・レックウザ', characters: ['ルギア', 'レックウザ'] },
-  { label: 'リザードン・カイリュー・ガブリアス', characters: ['リザードン', 'カイリュー', 'ガブリアス'] },
+  { label: 'リザードン', characters: ['リザードン'] },
+  { label: 'カイリュー・ガブリアス', characters: ['カイリュー', 'ガブリアス'] },
   { label: 'ゲンガー・ミミッキュ・コイキング', characters: ['ゲンガー', 'ミミッキュ', 'コイキング'] },
   { label: 'レシラム・ゼクロム', characters: ['レシラム', 'ゼクロム'] },
 ]
@@ -247,7 +248,9 @@ export default function PSA10ImagePage() {
     const groups = [...new Set(selectedProducts.map((p) => displayGroupOf(p.name)))]
     for (const group of groups) {
       const groupProducts = selectedProducts.filter((p) => displayGroupOf(p.name) === group)
-      const totalPages = Math.ceil(groupProducts.length / MAX_PER_PAGE)
+      // リザードンは専用画像1枚に集約（16列×4行まで）。
+      const pageCapacity = group === 'リザードン' ? 64 : MAX_PER_PAGE
+      const totalPages = Math.ceil(groupProducts.length / pageCapacity)
       const perPage = Math.ceil(groupProducts.length / totalPages)
       for (let i = 0; i < totalPages; i++) {
         pages.push({
@@ -291,7 +294,7 @@ export default function PSA10ImagePage() {
     <div>
       <AdminHeader
         title="PSA10買取画像・投稿文生成"
-        description="PSA10鑑定カードの買取価格画像をポケモン別に自動生成します（1920×1080 / 最大48商品ずつ）"
+        description="PSA10鑑定カードの買取価格画像をポケモン別に自動生成します（1920×1080 / 通常48商品・リザードン64商品まで）"
       />
 
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
