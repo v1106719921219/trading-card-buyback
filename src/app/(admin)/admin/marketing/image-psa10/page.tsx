@@ -28,6 +28,8 @@ const CHARACTER_GROUPS = [
   'ミュウツー', 'ミュウ', 'リザードン', 'ピカチュウ', 'ブラッキー', 'イーブイ',
   'ニンフィア', 'エーフィ', 'リーフィア', 'グレイシア', 'シャワーズ', 'サンダース',
   'ブースター', 'コイキング', 'ゲンガー', 'カイリュー',
+  'レシラム', 'ゼクロム', 'ゲッコウガ', 'ルカリオ', 'ミミッキュ',
+  'ガブリアス', 'レックウザ', 'サーナイト', 'ルギア',
 ]
 const OTHER_GROUP = 'その他'
 
@@ -35,19 +37,20 @@ function characterOf(name: string): string {
   return CHARACTER_GROUPS.find((c) => name.includes(c)) ?? OTHER_GROUP
 }
 
-// 画像1枚のまとまり（少数キャラは合体させて1枚の空きを減らす）
-const DISPLAY_GROUPS: { label: string; members: string[] }[] = [
-  { label: 'リザードン', members: ['リザードン'] },
-  { label: 'ピカチュウ', members: ['ピカチュウ'] },
-  { label: 'ミュウツー・ミュウ', members: ['ミュウツー', 'ミュウ'] },
-  { label: 'ブイズ', members: ['イーブイ', 'ブラッキー', 'ニンフィア', 'エーフィ', 'リーフィア', 'グレイシア', 'シャワーズ', 'サンダース', 'ブースター'] },
-  { label: 'コイキング・ゲンガー・カイリュー', members: ['コイキング', 'ゲンガー', 'カイリュー'] },
-  { label: OTHER_GROUP, members: [OTHER_GROUP] },
+// 関連するポケモンをまとめ、少数の商品だけで画像が増えないようにする。
+const DISPLAY_GROUPS: { label: string; characters: string[] }[] = [
+  { label: 'ピカチュウ', characters: ['ピカチュウ'] },
+  { label: 'イーブイ・進化系', characters: ['イーブイ', 'ブラッキー', 'ニンフィア', 'エーフィ', 'リーフィア', 'グレイシア', 'シャワーズ', 'サンダース', 'ブースター'] },
+  { label: 'ミュウ・ミュウツー・サーナイト', characters: ['ミュウ', 'ミュウツー', 'サーナイト'] },
+  { label: 'ゲッコウガ・ルカリオ', characters: ['ゲッコウガ', 'ルカリオ'] },
+  { label: 'ルギア・レックウザ', characters: ['ルギア', 'レックウザ'] },
+  { label: 'リザードン・カイリュー・ガブリアス', characters: ['リザードン', 'カイリュー', 'ガブリアス'] },
+  { label: 'ゲンガー・ミミッキュ・コイキング', characters: ['ゲンガー', 'ミミッキュ', 'コイキング'] },
+  { label: 'レシラム・ゼクロム', characters: ['レシラム', 'ゼクロム'] },
 ]
-
 function displayGroupOf(name: string): string {
-  const ch = characterOf(name)
-  return DISPLAY_GROUPS.find((g) => g.members.includes(ch))?.label ?? OTHER_GROUP
+  const character = characterOf(name)
+  return DISPLAY_GROUPS.find((g) => g.characters.includes(character))?.label ?? character
 }
 
 // Gold palette
@@ -470,9 +473,7 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   pageLabel?: string
 }>(({ products, groupLabel, pageLabel }, ref) => {
   const today = new Date()
-  const month = today.getMonth() + 1
-  const day = today.getDate()
-  const updatedDateStr = `${month}月${day}日 更新`
+  const updatedDateStr = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' }).format(today) + ' 更新'
 
   const W = 1920
   const H = 1080
@@ -507,8 +508,9 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
 
   // Card inner layout
   const priceBarH = Math.max(Math.min(Math.floor(cellH * 0.14), 44), 20)
-  const nameH = Math.max(Math.min(Math.floor(cellH * 0.11), 32), 14)
-  const imgH = cellH - priceBarH
+  const nameH = Math.max(Math.min(Math.floor(cellH * 0.14), 44), 28)
+  const modelH = 24
+  const imgH = cellH - priceBarH - nameH - modelH - 4
 
   // セル幅はカードの縦横比に合わせて詰め、白余白をなくす（グリッド全体は中央寄せ）
   const availCellW = Math.floor((gridW - gap * (cols - 1)) / cols)
@@ -623,6 +625,11 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
           : 0
         const x = gridOffsetX + rowOffset + col * (cellW + gap)
         const y = gridTop + row * (cellH + gap)
+        const cardName = product.name.replace(/\s*\[[^\]]+\]/g, '').replace(/\s*PSA10\s*$/i, '').trim()
+        const setCode = product.set_number?.trim() || product.name.match(/\[([^\]]+)\]/)?.[1] || ''
+        const modelCode = product.model_number?.trim() || ''
+        const cardCode = [setCode, ...(modelCode && !setCode.includes(modelCode) ? [modelCode] : [])].filter(Boolean).join(' / ')
+        const codeFontSize = Math.min(20, Math.max(9, Math.floor((cellW - 12) / Math.max(cardCode.length, 1) / 0.65)))
 
         return (
           <div key={product.id} style={{
@@ -656,17 +663,13 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
                 </div>
               )}
 
-              {/* Name strip over bottom of image */}
-              <div style={{
-                position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 3,
-                background: 'rgba(0,0,0,0.7)',
-                padding: '2px 3px',
-                fontSize: nameFontSize, fontWeight: 900, color: '#fff',
-                textAlign: 'center', lineHeight: 1.2,
-                overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-              }}>
-                {product.name}
-              </div>
+            </div>
+            {/* Keep the card number on a dedicated line, separate from the product name. */}
+            <div style={{ height: nameH, padding: '2px 4px', boxSizing: 'border-box', background: '#191919', color: '#fff', fontSize: nameFontSize, fontWeight: 900, textAlign: 'center', lineHeight: 1.15, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              {cardName}
+            </div>
+            <div data-card-code={cardCode} style={{ height: modelH, background: '#191919', color: P.LIGHT, fontFamily: "'Inter', sans-serif", fontSize: codeFontSize, fontWeight: 800, textAlign: 'center', lineHeight: modelH + 'px', whiteSpace: 'nowrap' }}>
+              {cardCode || '型番未登録'}
             </div>
 
             {/* Price bar */}
