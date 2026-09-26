@@ -44,6 +44,7 @@ const navItems = [
   { href: '/admin/offices', label: '事務所別管理', icon: Building2 },
   { href: '/admin/arrival-schedule', label: '到着予定', icon: Calendar },
   { href: '/admin/products', label: '商品管理', icon: Package },
+  { href: '/admin/price-comparison', label: '他社価格比較', icon: TrendingUp },
   { href: '/admin/products/price-history', label: '価格履歴', icon: TrendingUp },
   { href: '/admin/last-cost', label: '最終仕入原価', icon: ClipboardList },
   { href: '/admin/singles-30th', label: '30thシングル買取一覧', icon: Sparkles },
