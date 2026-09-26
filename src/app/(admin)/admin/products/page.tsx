@@ -65,6 +65,22 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { Category, Product, Subcategory } from '@/types/database'
 
+// 現在の相場条件を表示し、相場保留を申込締切と混同させない。
+function psa10VisibilityStatus(product: Product & { subcategory: Subcategory | null }) {
+  if (product.subcategory?.name !== 'PSA10' || product.show_in_price_list) return null
+  if (!product.is_active) return { label: '対象外', reason: '商品が無効' }
+  if (product.price <= 0) return { label: '未設定', reason: '買取価格が未設定' }
+  if (product.market_price != null && product.market_price >= 40000) return { label: '対象外', reason: '相場4万円以上' }
+  if (!Number.isInteger(product.market_listing_count) || (product.market_listing_count ?? 0) < 3) {
+    return { label: '相場確認待ち', reason: product.market_listing_count == null ? '出品数が未確認' : `出品${product.market_listing_count}件（3件以上が必要）` }
+  }
+  const checked = Date.parse(product.market_price_updated_at ?? '')
+  if (!Number.isFinite(checked) || checked > Date.now() || Date.now() - checked > 86400000) return { label: '相場確認待ち', reason: '相場の更新が24時間超・日時未確認' }
+  if (!(product.market_price != null && product.market_price > 0)) return { label: '相場確認待ち', reason: '相場価格が未確認' }
+  if (product.price !== Math.floor(product.market_price * 0.95 / 100) * 100) return { label: '価格確認待ち', reason: '相場95％の買取価格と不一致' }
+  return null
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const DragHandleContext = createContext<{ attributes: Record<string, any>; listeners: Record<string, any> | undefined }>({ attributes: {}, listeners: undefined })
 
@@ -1444,14 +1460,19 @@ async function syncToChiba() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant={product.show_in_price_list ? 'default' : product.auto_closed_at ? 'destructive' : 'secondary'}
-                      className="cursor-pointer"
-                      title={!product.show_in_price_list && product.auto_closed_at ? `自動締切（申込済み・相場確認待ち） (${new Date(product.auto_closed_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })})\nクリックで再開` : undefined}
-                      onClick={() => togglePriceList(product)}
-                    >
-                      {product.show_in_price_list ? '表示' : product.auto_closed_at ? '締切' : '非表示'}
-                    </Badge>
+                    {(() => {
+                      const status = psa10VisibilityStatus(product)
+                      const label = product.show_in_price_list ? '表示' : status?.label ?? (product.auto_closed_at ? '締切' : '非表示')
+                      return <div className="min-w-28">
+                        <Badge
+                          variant={product.show_in_price_list ? 'default' : status ? 'outline' : product.auto_closed_at ? 'destructive' : 'secondary'}
+                          className={`cursor-pointer whitespace-nowrap ${status?.label === '対象外' ? 'border-slate-300 text-slate-600 bg-slate-50' : status ? 'border-amber-300 text-amber-800 bg-amber-50' : ''}`}
+                          title={status?.reason ?? (!product.show_in_price_list && product.auto_closed_at ? `受付締切 (${new Date(product.auto_closed_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })})\nクリックで再開` : undefined)}
+                          onClick={() => togglePriceList(product)}
+                        >{label}</Badge>
+                        {status && <div className="mt-1 max-w-44 text-xs text-muted-foreground">{status.reason}</div>}
+                      </div>
+                    })()}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
