@@ -109,7 +109,10 @@ function DragHandle() {
   )
 }
 
+type SingleABQuote = { quote: { A: { price: number }; B: { price: number }; checked_at: string } }
+
 export default function ProductsPage() {
+  const [singleABQuotes, setSingleABQuotes] = useState<Record<string, SingleABQuote>>({})
   const [products, setProducts] = useState<(Product & { category: Category; subcategory: Subcategory | null })[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
@@ -215,6 +218,26 @@ export default function ProductsPage() {
       supabase.from('categories').select('*').order('sort_order'),
       supabase.from('subcategories').select('*').order('sort_order'),
     ])
+
+    if (productsResult.data) {
+      const quotes: Record<string, SingleABQuote> = {}
+      let quoteError = false
+      for (let offset = 0; offset < productsResult.data.length; offset += 500) {
+        const keys = productsResult.data.slice(offset, offset + 500).map(p => `single_ab_source_${p.id}`)
+        const { data, error } = await supabase.from('app_settings').select('key,value').in('key', keys)
+        if (error) { quoteError = true; break }
+        for (const row of data ?? []) {
+          try {
+            const source = JSON.parse(row.value)
+            if (source.quote?.currency !== 'JPY' ||
+                !Number.isFinite(source.quote?.A?.price) || !Number.isFinite(source.quote?.B?.price)) continue
+            quotes[row.key.slice('single_ab_source_'.length)] = source
+          } catch { /* Ignore malformed saved quotes. */ }
+        }
+      }
+      setSingleABQuotes(quotes)
+      if (quoteError) toast.error('状態A・Bの相場を取得できませんでした。再読み込みしてください。')
+    }
 
     if (productsResult.error) toast.error('商品一覧の取得に失敗しました。再読み込みしてください。')
     if (productsResult.data) {
@@ -1433,7 +1456,17 @@ async function syncToChiba() {
                     )}
                   </TableCell>
                   <TableCell className="text-right hidden md:table-cell">
-                    {editingUrlId === product.id ? (
+                    {singleABQuotes[product.id] ? (
+                      <div className="inline-flex flex-col items-end gap-0.5 whitespace-nowrap text-sm">
+                        <span>状態A：{singleABQuotes[product.id].quote.A.price.toLocaleString()}円</span>
+                        <span>状態B：{singleABQuotes[product.id].quote.B.price.toLocaleString()}円</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          取得 {new Date(singleABQuotes[product.id].quote.checked_at).toLocaleString('ja-JP', {
+                            timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                          })} JST
+                        </span>
+                      </div>
+                    ) : editingUrlId === product.id ? (
                       <Input
                         type="text"
                         placeholder="スニダンURLを貼り付け"
