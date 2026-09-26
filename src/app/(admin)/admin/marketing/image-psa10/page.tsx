@@ -20,7 +20,7 @@ const DEFAULT_FOOTER = '▼ 買取価格一覧 ▼\nkaitorisquare.com/prices\n�
 const CATEGORY_ID = 'db02ec12-d529-453c-a749-53da99e05533'
 const PSA10_SUBCATEGORY_ID = '8b34c75d-d7f8-4393-89fe-7685b3f61e5b'
 const TENANT_ID = 'aaaaaaaa-0000-0000-0000-000000000001'
-// 12列×4行 = 48件で1枚
+// 1枚あたり最大48件、件数に応じて行列を調整
 const MAX_PER_PAGE = 48
 
 // ポケモン別グループ（先に長い名前からマッチさせる: ミュウツー→ミュウ の順が必須）
@@ -291,7 +291,7 @@ export default function PSA10ImagePage() {
     <div>
       <AdminHeader
         title="PSA10買取画像・投稿文生成"
-        description="PSA10鑑定カードの買取価格画像をポケモン別に自動生成します（1920×1080 / 12×4=48枚毎）"
+        description="PSA10鑑定カードの買取価格画像をポケモン別に自動生成します（1920×1080 / 最大48商品ずつ）"
       />
 
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -488,17 +488,17 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const gridW = W - padX * 2
 
   // 件数に応じて列数を選び、画像全体を使ってカードを最大化する
-  // （48件=12列×4行、30件=10列×3行、24件以下=2行 など。最大12列×4行）
+  // 写真・商品名・型番・価格の高さを含めて写真が最大になる行列を選ぶ。
   const CARD_ASPECT = 0.74
   const count = Math.max(products.length, 1)
   let cols = 12
   let bestCard = 0
-  for (let c = 6; c <= 12; c++) {
+  for (let c = 6; c <= 16; c++) {
     const r = Math.ceil(count / c)
     if (r > 4) continue
     const ch = Math.floor((gridH - gap * (r - 1)) / r)
     const cw = Math.floor((gridW - gap * (c - 1)) / c)
-    const ih = ch - Math.max(Math.min(Math.floor(ch * 0.14), 44), 20)
+    const ih = ch - Math.max(Math.min(Math.floor(ch * 0.14), 44), 20) - Math.max(Math.min(Math.floor(ch * 0.14), 44), 28) - 24 - 4
     const cardW = Math.min(cw, Math.floor(ih * CARD_ASPECT))
     if (cardW > bestCard) { bestCard = cardW; cols = c }
   }
@@ -512,9 +512,8 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const modelH = 24
   const imgH = cellH - priceBarH - nameH - modelH - 4
 
-  // セル幅はカードの縦横比に合わせて詰め、白余白をなくす（グリッド全体は中央寄せ）
-  const availCellW = Math.floor((gridW - gap * (cols - 1)) / cols)
-  const cellW = Math.min(availCellW, Math.floor(imgH * CARD_ASPECT) + 6)
+  // 横幅を全面に使う。写真は縦横比を維持し、商品情報欄も広く確保する。
+  const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const totalGridW = cols * cellW + gap * (cols - 1)
   const gridOffsetX = Math.floor((W - totalGridW) / 2)
 
