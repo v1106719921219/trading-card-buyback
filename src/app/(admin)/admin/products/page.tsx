@@ -189,11 +189,34 @@ export default function ProductsPage() {
   async function fetchData() {
     const scrollY = window.scrollY
     const [productsResult, categoriesResult, subcategoriesResult] = await Promise.all([
-      supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').order('sort_order').order('created_at', { ascending: false }),
+      (async () => {
+        const allProducts: (Product & { category: Category; subcategory: Subcategory | null })[] = []
+        const pageSize = 500
+        let total: number | null = null
+        while (true) {
+          const { data, error, count } = await supabase.from('products')
+            .select('*, category:categories(*), subcategory:subcategories(*)', { count: 'exact' })
+            .order('sort_order').order('created_at', { ascending: false }).order('id')
+            .range(allProducts.length, allProducts.length + pageSize - 1)
+          if (error) return { data: null, error }
+          if (total !== null && total !== count) {
+            return { data: null, error: new Error('商品件数が変わりました。再読み込みしてください。') }
+          }
+          total = count
+          allProducts.push(...(data ?? []))
+          if (total !== null && allProducts.length >= total) break
+          if (!data?.length) return { data: null, error: new Error('商品を全件取得できませんでした。') }
+        }
+        if (new Set(allProducts.map(p => p.id)).size !== allProducts.length) {
+          return { data: null, error: new Error('商品一覧が更新されました。再読み込みしてください。') }
+        }
+        return { data: allProducts, error: null }
+      })(),
       supabase.from('categories').select('*').order('sort_order'),
       supabase.from('subcategories').select('*').order('sort_order'),
     ])
 
+    if (productsResult.error) toast.error('商品一覧の取得に失敗しました。再読み込みしてください。')
     if (productsResult.data) {
       // カテゴリ → サブカテゴリ → 商品の並び順。サブカテゴリ単位で必ずまとまる
       // （サブカテゴリなしはそのカテゴリの先頭に表示）
