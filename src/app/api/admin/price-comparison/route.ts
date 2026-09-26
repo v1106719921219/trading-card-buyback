@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import seeds from '@/data/buyback-comparison-seed.json'
+import previousSeeds from '@/data/buyback-comparison-seed.json'
+import catalog from '@/data/cardrush-catalog.json'
+const seeds = [...previousSeeds, ...catalog]
 import { z } from 'zod'
 
 const quote = z.object({ price: z.number().int().min(0).max(100000000).nullable(), url: z.string().max(2000).refine(v => !v || /^https:\/\//.test(v)), checkedAt: z.string().max(60).nullable(), note: z.string().max(500) })
@@ -16,43 +18,50 @@ async function context() {
  if (!profile?.tenant_id || !['admin','manager','staff'].includes(profile.role)) return null
  return {db,profile}
 }
-export async function GET() {
+export async function GET(req:NextRequest) {
  const c=await context(); if(!c)return NextResponse.json({error:'ログインが必要です'},{status:401})
- const products=[]; let total:number|null=null
- for(let offset=0;;offset+=500){
-  const {data,error,count}=await c.db.from('products').select('id,name,model_number,set_number,price,subcategory_id,image_url',{count:'exact'}).eq('tenant_id',c.profile.tenant_id).order('id').range(offset,offset+499)
-  if(error || (total!==null&&count!==total))return NextResponse.json({error:'商品取得に失敗しました。再読み込みしてください'},{status:503})
-  total=count;products.push(...(data||[]));if(products.length===(total??0))break
-  if(!data?.length)return NextResponse.json({error:'商品取得が途中で終了しました'},{status:503})
+ const prefix=`comparison_v1:${c.profile.tenant_id}:`
+ const [subResult,settingResult]=await Promise.all([
+  c.db.from('subcategories').select('id,name'),
+  (async()=>{const rows:{key:string;value:string}[]=[];for(let offset=0;;offset+=500){
+   const {data,error}=await c.db.from('app_settings').select('key,value').eq('tenant_id',c.profile.tenant_id).or(`key.like.${prefix}%,key.like.single_ab_source_%`).order('key').range(offset,offset+499)
+   if(error)throw Error('参考価格を取得できませんでした');rows.push(...(data||[]));if((data||[]).length<500)return rows
+  }})().then(data=>({data,error:null})).catch(()=>({data:[],error:true}))
+ ])
+ if(subResult.error||settingResult.error)return NextResponse.json({error:'比較情報を取得できませんでした'},{status:503})
+ const ids=(subResult.data||[]).filter(s=>/シングル/.test(s.name)).map(s=>s.id)
+ const products=[]
+ if(ids.length)for(let offset=0;;offset+=500){
+  const {data,error}=await c.db.from('products').select('id,name,model_number,set_number,price,subcategory_id,image_url').eq('tenant_id',c.profile.tenant_id).in('subcategory_id',ids).order('id').range(offset,offset+499)
+  if(error)return NextResponse.json({error:'商品を取得できませんでした'},{status:503});products.push(...(data||[]));if((data||[]).length<500)break
  }
- const {data:subs,error:subError}=await c.db.from('subcategories').select('id,name')
- if(subError)return NextResponse.json({error:'分類取得に失敗しました'},{status:503})
- const singleIds=new Set((subs||[]).filter(s=>/シングル/.test(s.name)).map(s=>s.id))
- const singles=products.filter(p=>singleIds.has(p.subcategory_id))
- const saved:Record<string,unknown>={};const prefix=`comparison_v1:${c.profile.tenant_id}:`
- for(let start=0;;start+=500){
-  const {data,error}=await c.db.from('app_settings').select('key,value').eq('tenant_id',c.profile.tenant_id).like('key',`${prefix}%`).order('key').range(start,start+499)
-  if(error)return NextResponse.json({error:'比較価格の取得に失敗しました'},{status:503})
-  for(const row of data||[]){try{saved[row.key.slice(prefix.length)]=record.parse(JSON.parse(row.value))}catch{/* Invalid rows are not used. */}}
-  if((data||[]).length<500)break
+ const saved:Record<string,z.infer<typeof record>>={}
+ for(const row of settingResult.data){if(row.key.startsWith(prefix))try{saved[row.key.slice(prefix.length)]=record.parse(JSON.parse(row.value))}catch{}}
+ const productIds=new Set(products.map(p=>p.id))
+ for(const row of settingResult.data){if(!row.key.startsWith('single_ab_source_'))continue
+  const id=row.key.slice('single_ab_source_'.length),key=`product-${id}`;if(saved[key]||!productIds.has(id))continue
+  try{const src=JSON.parse(row.value);if(src.quote?.currency!=='JPY')continue
+   saved[key]=record.parse({productId:id,quotes:Object.fromEntries(['rush','dora','yuyu','hare','A','B'].map(s=>[s,{price:s==='A'||s==='B'?src.quote[s]?.price??null:null,url:s==='A'||s==='B'?src.url||'':'',checkedAt:s==='A'||s==='B'?src.quote.checked_at||null:null,note:'保存済み調査'}]))})
+  }catch{}
  }
- // Seed research belongs to Tokyo; never expose or attach it to other tenants.
- // Load the existing saved A/B quotes for registered products as defaults.
- for(let i=0;i<singles.length;i+=50){
-  const keys=singles.slice(i,i+50).map(p=>`single_ab_source_${p.id}`)
-  const {data,error}=await c.db.from('app_settings').select('key,value').eq('tenant_id',c.profile.tenant_id).in('key',keys)
-  if(error)return NextResponse.json({error:'保存済みA/B価格の取得に失敗しました'},{status:503})
-  for(const row of data||[]){
-   const id=row.key.slice('single_ab_source_'.length),k=`product-${id}`
-   if(saved[k])continue
-   try{const src=JSON.parse(row.value);if(src.quote?.currency!=='JPY')continue
-    const quotes=Object.fromEntries(['rush','dora','yuyu','hare','A','B'].map(s=>[s,{price:s==='A'||s==='B'?src.quote[s]?.price??null:null,url:s==='A'||s==='B'?src.url||'':'',checkedAt:s==='A'||s==='B'?src.quote.checked_at||null:null,note:'保存済み調査'}]))
-    saved[k]=record.parse({productId:id,quotes})
-   }catch{/* Malformed historic quotes remain unconfirmed. */}
-  }
- }
- const candidates=c.profile.tenant_id==='aaaaaaaa-0000-0000-0000-000000000001'?seeds:[]
- return NextResponse.json({products:singles,candidates,saved,canEdit:c.profile.role==='admin'})
+ const empty=()=>Object.fromEntries(['rush','dora','yuyu','hare','A','B'].map(s=>[s,{price:null,url:'',checkedAt:null,note:''}])) as z.infer<typeof record>['quotes']
+ type Row={key:string;name:string;productId:string|null;image_url?:string|null;quotes:z.infer<typeof record>['quotes'];sale_price?:number|null;sale_url?:string|null;sale_checked_at?:string|null;preferred?:boolean;normal_single?:boolean;catalog?:boolean}
+ const rows:Row[]=[...products.map(p=>({key:`product-${p.id}`,name:p.name,productId:p.id,image_url:p.image_url,quotes:empty()})),...(c.profile.tenant_id==='aaaaaaaa-0000-0000-0000-000000000001'?seeds:[])].map(r=>({...r,...saved[r.key]}))
+ const q=req.nextUrl.searchParams,search=(q.get('q')||'').normalize('NFKC').toLowerCase(),scope=q.get('scope')||'preferred',kind=q.get('kind')||'all',basis=q.get('basis')||'sale',pokemon=q.get('pokemon')||''
+ const min=q.get('min')?Number(q.get('min')):null,max=q.get('max')?Number(q.get('max')):null
+ const filtered=rows.filter(r=>{
+  if(scope==='preferred'&&(!r.catalog||!r.preferred||!r.normal_single))return false
+  if(scope==='catalog'&&!r.catalog)return false
+  if(scope==='registered'&&!r.productId)return false
+  if(kind==='linked'&&!r.productId||kind==='candidate'&&r.productId)return false
+  if(search&&!r.name.normalize('NFKC').toLowerCase().includes(search))return false
+  if(pokemon&&!r.name.includes(pokemon))return false
+  const price=basis==='sale'?r.sale_price:r.quotes.rush.price
+  if(min!==null&&(price==null||price<min)||max!==null&&(price==null||price>max))return false
+  return true
+ })
+ const pageCount=Math.max(1,Math.ceil(filtered.length/50)),page=Math.min(pageCount,Math.max(1,Number(q.get('page'))||1))
+ return NextResponse.json({products,rows:filtered.slice((page-1)*50,page*50),total:filtered.length,page,pageCount,catalogCount:catalog.length,canEdit:c.profile.role==='admin'},{headers:{'Cache-Control':'private, no-store'}})
 }
 export async function POST(req:NextRequest) {
  const c=await context();if(!c)return NextResponse.json({error:'ログインが必要です'},{status:401})
