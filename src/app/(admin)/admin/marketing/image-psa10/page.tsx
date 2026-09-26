@@ -518,7 +518,6 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
   const totalGridW = cols * cellW + gap * (cols - 1)
   const gridOffsetX = Math.floor((W - totalGridW) / 2)
 
-  const nameFontSize = Math.max(Math.min(Math.floor(nameH * 0.62), 18), 8)
   const priceFontSize = Math.max(Math.min(Math.floor(priceBarH * 0.75), 34), 14)
 
   // 最終行が中途半端な数のときは中央寄せ
@@ -627,6 +626,7 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         const y = gridTop + row * (cellH + gap)
         const cardName = product.name.replace(/\s*\[[^\]]+\]/g, '').replace(/\s*PSA10\s*$/i, '').trim()
         const setCode = product.set_number?.trim() || product.name.match(/\[([^\]]+)\]/)?.[1] || ''
+        const nameFontSize = Math.max(8, Math.min(18, Math.floor((nameH - 4) / 2.3), Math.floor((cellW - 12) * 2 / Math.max(cardName.length, 1))))
         const modelCode = product.model_number?.trim() || ''
         const cardCode = [setCode, ...(modelCode && !setCode.includes(modelCode) ? [modelCode] : [])].filter(Boolean).join(' / ')
         const codeFontSize = Math.min(20, Math.max(9, Math.floor((cellW - 12) / Math.max(cardCode.length, 1) / 0.65)))
