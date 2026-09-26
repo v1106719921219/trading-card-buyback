@@ -631,6 +631,8 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
         const nameFontSize = Math.max(8, Math.min(18, Math.floor((nameH - 4) / 2.3), Math.floor((cellW - 12) * 2 / Math.max(cardName.length, 1))))
         const modelCode = product.model_number?.trim() || ''
         const cardCode = [setCode, ...(modelCode && !setCode.includes(modelCode) ? [modelCode] : [])].filter(Boolean).join(' / ')
+        const priceLabel = `¥${product.price.toLocaleString('ja-JP')}`
+        const fittedPriceFontSize = Math.min(priceFontSize, Math.floor((cellW - 12) / (priceLabel.length * 0.7)))
         const codeFontSize = Math.min(20, Math.max(9, Math.floor((cellW - 12) / Math.max(cardCode.length, 1) / 0.65)))
 
         return (
@@ -682,13 +684,14 @@ const PSA10Canvas = React.forwardRef<HTMLDivElement, {
               borderTop: `1px solid ${P.BASE}`,
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)',
             }}>
-              <span style={{
-                color: '#fff', fontSize: priceFontSize, fontWeight: 900,
+              <span data-card-price={product.price} style={{
+                whiteSpace: 'nowrap', flexShrink: 0,
+                color: '#fff', fontSize: fittedPriceFontSize, fontWeight: 900,
                 lineHeight: 1, letterSpacing: '-0.01em',
                 fontFamily: "'Inter', sans-serif",
                 textShadow: '0 1px 2px rgba(0,0,0,0.6)',
               }}>
-                ¥{product.price.toLocaleString('ja-JP')}
+                {priceLabel}
               </span>
             </div>
           </div>

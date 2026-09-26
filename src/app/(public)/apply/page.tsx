@@ -1,3 +1,4 @@
+import { isIndividual30thPikachu } from '@/lib/30th-pikachu'
 import { requireTenantId } from '@/lib/tenant'
 import { createOrderQuote } from '@/lib/order-quote'
 import { getCurrentUser } from '@/actions/auth'
@@ -207,6 +208,8 @@ export default async function ApplyPage({
     }
     products = products.filter((p) => visibleAt.get(p.id) ?? p.show_in_price_list)
   }
+
+  products = products.filter((p) => !isIndividual30thPikachu(p))
 
   const subcategories = (subResult.data ?? []) as Subcategory[]
   const offices = (officeResult.data ?? []) as Office[]

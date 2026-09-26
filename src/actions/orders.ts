@@ -1,5 +1,6 @@
 'use server'
 
+import { isIndividual30thPikachu } from '@/lib/30th-pikachu'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient, createChibaAdminClient } from '@/lib/supabase/admin'
@@ -49,8 +50,8 @@ export async function createOrder(input: CreateOrderInput) {
   const { data: validOffice } = await supabase.from('offices').select('id').eq('id', office_id).eq('tenant_id', tenantId).eq('is_active', true).maybeSingle()
   if (!validOffice) return { error: '発送先の事務所を確認してください' }
   const ids = [...new Set(items.map(i => i.product_id))]
-  const { data: available } = await supabase.from('products').select('id').eq('tenant_id', tenantId).eq('is_active', true).eq('show_in_price_list', true).in('id', ids)
-  if (!available || available.length !== ids.length) return { error: '受付停止中の商品が含まれています。申込内容をご確認ください' }
+  const { data: available } = await supabase.from('products').select('id, name, subcategory_id').eq('tenant_id', tenantId).eq('is_active', true).eq('show_in_price_list', true).in('id', ids)
+  if (!available || available.length !== ids.length || available.some(isIndividual30thPikachu)) return { error: '受付停止中の商品が含まれています。申込内容をご確認ください' }
 
   // PSA10シングルはお一人様1枚まで（申込1件で自動締切とセットの運用）
   const { data: psaSubs } = await supabase.from('subcategories').select('id').eq('name', 'PSA10')
@@ -1048,7 +1049,7 @@ export async function getMyOrderAddableProducts(
 
   const { data: products, error } = await supabase
     .from('products')
-    .select('id, name, price, category:categories(name), subcategory:subcategories(name)')
+    .select('id, name, price, subcategory_id, category:categories(name), subcategory:subcategories(name)')
     .eq('tenant_id', order.tenant_id)
     .eq('is_active', true)
     .eq('show_in_price_list', true)
@@ -1059,7 +1060,7 @@ export async function getMyOrderAddableProducts(
   if (error) return { error: sanitizeError(error) }
 
   return {
-    products: (products ?? []).map((p) => {
+    products: (products ?? []).filter((p) => !isIndividual30thPikachu(p)).map((p) => {
       const category = p.category as unknown as { name: string } | null
       const subcategory = p.subcategory as unknown as { name: string } | null
       return {
@@ -1117,7 +1118,7 @@ export async function addMyOrderItems(
     .gt('price', 0)
     .in('id', ids)
 
-  const productMap = new Map((products ?? []).map((p) => [p.id, p]))
+  const productMap = new Map((products ?? []).filter((p) => !isIndividual30thPikachu(p)).map((p) => [p.id, p]))
   if (productMap.size !== ids.length) {
     return { error: '受付停止中の商品が含まれています。画面を開き直してご確認ください' }
   }
