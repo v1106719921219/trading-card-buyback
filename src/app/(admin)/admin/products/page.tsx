@@ -204,7 +204,11 @@ export default function ProductsPage() {
 
   const filteredSubcategories = subcategories.filter((s) =>
     filterCategory === 'all' ? true : s.category_id === filterCategory
-  )
+  ).sort((a, b) => {
+    const parentA = categories.findIndex((c) => c.id === a.category_id)
+    const parentB = categories.findIndex((c) => c.id === b.category_id)
+    return parentA - parentB || a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'ja')
+  })
 
   const filteredProducts = products.filter((p) => {
     const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory
@@ -1209,14 +1213,16 @@ async function syncToChiba() {
         </Select>
         {filteredSubcategories.length > 0 && (
           <Select value={filterSubcategory} onValueChange={setFilterSubcategory}>
-            <SelectTrigger className="w-full sm:w-52">
+            <SelectTrigger aria-label="サブカテゴリ" className="w-full sm:w-80">
               <SelectValue placeholder="全サブカテゴリ" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全サブカテゴリ</SelectItem>
               {filteredSubcategories.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {s.name}
+                  {filterCategory === 'all'
+                    ? `${categories.find((c) => c.id === s.category_id)?.name ?? '未分類'} / ${s.name}`
+                    : s.name}
                 </SelectItem>
               ))}
             </SelectContent>
