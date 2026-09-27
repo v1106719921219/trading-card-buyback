@@ -117,6 +117,8 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
   const [loading, setLoading] = useState(true)
+  const fetchGeneration = useRef(0)
+  const [visibleCount, setVisibleCount] = useState(100)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const [filterCategory, setFilterCategory] = useState<string>('all')
@@ -190,6 +192,7 @@ export default function ProductsPage() {
   }, [])
 
   async function fetchData() {
+    const generation = ++fetchGeneration.current
     const scrollY = window.scrollY
     const [productsResult, categoriesResult, subcategoriesResult] = await Promise.all([
       (async () => {
@@ -219,31 +222,13 @@ export default function ProductsPage() {
       supabase.from('subcategories').select('*').order('sort_order'),
     ])
 
-    if (productsResult.data) {
-      const quotes: Record<string, SingleABQuote> = {}
-      let quoteError = false
-      for (let offset = 0; offset < productsResult.data.length; offset += 50) {
-        const keys = productsResult.data.slice(offset, offset + 50).map(p => `single_ab_source_${p.id}`)
-        const { data, error } = await supabase.from('app_settings').select('key,value').in('key', keys)
-        if (error) { quoteError = true; break }
-        for (const row of data ?? []) {
-          try {
-            const source = JSON.parse(row.value)
-            if (source.quote?.currency !== 'JPY' ||
-                !Number.isFinite(source.quote?.A?.price) || !Number.isFinite(source.quote?.B?.price)) continue
-            quotes[row.key.slice('single_ab_source_'.length)] = source
-          } catch { /* Ignore malformed saved quotes. */ }
-        }
-      }
-      setSingleABQuotes(quotes)
-      if (quoteError) toast.error('状態A・Bの相場を取得できませんでした。再読み込みしてください。')
-    }
+    if (generation !== fetchGeneration.current) return
 
     if (productsResult.error) toast.error('商品一覧の取得に失敗しました。再読み込みしてください。')
     if (productsResult.data) {
       // カテゴリ → サブカテゴリ → 商品の並び順。サブカテゴリ単位で必ずまとまる
       // （サブカテゴリなしはそのカテゴリの先頭に表示）
-      const sorted = [...productsResult.data].sort((a: any, b: any) => {
+      const sorted = [...productsResult.data].sort((a, b) => {
         const catA = a.category?.sort_order ?? 0
         const catB = b.category?.sort_order ?? 0
         if (catA !== catB) return catA - catB
@@ -258,10 +243,44 @@ export default function ProductsPage() {
     if (subcategoriesResult.data) setSubcategories(subcategoriesResult.data)
     setLoading(false)
     requestAnimationFrame(() => window.scrollTo(0, scrollY))
+
+    // 相場の追加情報は一覧の初期表示を待たせない。
+    if (productsResult.data) void loadSingleABQuotes(productsResult.data.map(p => p.id), generation)
+  }
+
+  async function loadSingleABQuotes(ids: string[], generation: number) {
+    const quotes: Record<string, SingleABQuote> = {}
+    let nextOffset = 0
+    let quoteError = false
+    async function worker() {
+      while (nextOffset < ids.length && generation === fetchGeneration.current) {
+        const offset = nextOffset
+        nextOffset += 50
+        const keys = ids.slice(offset, offset + 50).map(id => `single_ab_source_${id}`)
+        try {
+          const { data, error } = await supabase.from('app_settings').select('key,value').in('key', keys)
+          if (error) { quoteError = true; continue }
+          for (const row of data ?? []) {
+            try {
+              const source = JSON.parse(row.value)
+              if (source.quote?.currency !== 'JPY' ||
+                  !Number.isFinite(source.quote?.A?.price) ||
+                  !Number.isFinite(source.quote?.B?.price)) continue
+              quotes[row.key.slice('single_ab_source_'.length)] = source
+            } catch { /* Ignore malformed saved quotes. */ }
+          }
+        } catch { quoteError = true }
+      }
+    }
+    await Promise.all(Array.from({ length: 4 }, () => worker()))
+    if (generation !== fetchGeneration.current) return
+    setSingleABQuotes(quotes)
+    if (quoteError) toast.error('一部の状態A・B相場を取得できませんでした。商品一覧は利用できます。')
   }
 
   useEffect(() => {
     fetchData()
+    return () => { fetchGeneration.current += 1 }
   }, [])
 
   const filteredSubcategories = subcategories.filter((s) =>
@@ -272,7 +291,7 @@ export default function ProductsPage() {
     return parentA - parentB || a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'ja')
   })
 
-  const filteredProducts = products.filter((p) => {
+  const filteredProducts = useMemo(() => products.filter((p) => {
     const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory
     const matchesSubcategory = filterSubcategory === 'all' || p.subcategory_id === filterSubcategory
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.model_number && p.model_number.toLowerCase().includes(search.toLowerCase()))
@@ -282,7 +301,13 @@ export default function ProductsPage() {
       (minPrice === '' || amount >= Number(minPrice)) &&
       (maxPrice === '' || amount <= Number(maxPrice)))
     return matchesCategory && matchesSubcategory && matchesSearch && matchesPrice
-  })
+  }), [products, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
+
+  useEffect(() => {
+    setVisibleCount(100)
+  }, [filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
+
+  const visibleProducts = useMemo(() => filteredProducts.slice(0, visibleCount), [filteredProducts, visibleCount])
 
   const bulkShowTargets = filteredProducts.filter((p) => p.is_active && p.price > 0 && !p.auto_closed_at)
   const bulkTargetCount = bulkAction === 'show' ? bulkShowTargets.length : filteredProducts.length
@@ -953,7 +978,7 @@ async function syncToChiba() {
     useSensor(KeyboardSensor),
   )
 
-  const sortableIds = useMemo(() => filteredProducts.map((p) => p.id), [filteredProducts])
+  const sortableIds = useMemo(() => visibleProducts.map((p) => p.id), [visibleProducts])
 
   return (
     <div className="space-y-6">
@@ -1385,7 +1410,7 @@ async function syncToChiba() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredProducts.map((product) => (
+              visibleProducts.map((product) => (
                 <SortableRow key={product.id} id={product.id}>
                   <TableCell className="hidden md:table-cell">
                     <DragHandle />
@@ -1405,7 +1430,7 @@ async function syncToChiba() {
                         <RefreshCw className="h-5 w-5 text-muted-foreground animate-spin" />
                       ) : product.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded" />
+                        <img src={product.image_url} alt="" loading="lazy" decoding="async" width={32} height={32} className="w-8 h-8 object-cover rounded" />
                       ) : (
                         <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
                       )}
@@ -1570,6 +1595,18 @@ async function syncToChiba() {
         </Table>
       </div>
       </DndContext>
+      {!loading && filteredProducts.length > 0 && (
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">
+            {filteredProducts.length}件中 {visibleProducts.length}件表示（検索・一括操作は全該当商品が対象）
+          </p>
+          {visibleProducts.length < filteredProducts.length && (
+            <Button variant="outline" onClick={() => setVisibleCount(count => count + 100)}>
+              次の100件を表示
+            </Button>
+          )}
+        </div>
+      )}
       <p className="text-sm text-muted-foreground">
         {filteredProducts.length}件の商品（価格をクリックしてインライン編集・画像をクリックしてアップロード）
       </p>
