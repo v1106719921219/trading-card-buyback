@@ -25,7 +25,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, MapPin, Search, ArrowRight, ArrowLeft, Check, Send } from 'lucide-react'
+import { Loader2, Minus, Plus, Sparkles, Trash2, ShoppingCart, User, CheckCircle, MapPin, Search, ArrowRight, ArrowLeft, Check, Send, ImageIcon } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
@@ -37,6 +37,7 @@ import { initLiff, type LiffState } from '@/lib/liff-client'
 import { parseOrderText } from '@/actions/ai-parse-order'
 import { toast } from 'sonner'
 import { PREFECTURES, BANK_NAMES } from '@/lib/constants'
+import { splitProductCode, matchesProductSearch } from '@/lib/product-display'
 import type { Category, Product, Office, Subcategory } from '@/types/database'
 
 interface CartItem {
@@ -288,7 +289,7 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
   const filteredProducts = products.filter((p) => {
     const matchesCategory = selectedCategory === 'all' || p.category_id === selectedCategory
     const matchesSubcategory = selectedSubcategory === 'all' || filteredSubcategories.find(s => s.id === selectedSubcategory)?.ids.includes(p.subcategory_id || '')
-    const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase())
+    const matchesSearch = matchesProductSearch(p, search)
     return matchesCategory && matchesSubcategory && matchesSearch && (showAll || p.category?.is_active)
   })
 
@@ -805,7 +806,7 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
                 <CardContent className="space-y-4">
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Input
-                      placeholder="商品名で検索..."
+                      placeholder="商品名・型番で検索（例: 118/100）"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       className="flex-1 min-w-[150px]"
@@ -836,45 +837,57 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
                     )}
                   </div>
 
-                  <div className="max-h-56 sm:max-h-96 overflow-y-auto space-y-1">
-                    {filteredProducts.map((product) => (
-                      <div
-                        key={product.id}
-                        className="flex items-center justify-between p-3 rounded-md hover:bg-muted/50 cursor-pointer"
-                        onClick={() => addToCart(product)}
-                      >
-                        <div className="flex items-center gap-3">
+                  <div className="sm:max-h-[32rem] sm:overflow-y-auto divide-y divide-border -mx-2 sm:mx-0">
+                    {filteredProducts.map((product) => {
+                      const { name: displayName, code } = splitProductCode(product)
+                      const inCartQty = cart.find((c) => c.product_id === product.id)?.quantity ?? 0
+                      return (
+                        <div
+                          key={product.id}
+                          className="grid grid-cols-[56px_minmax(0,1fr)_auto] sm:grid-cols-[76px_minmax(0,1fr)_auto] items-center gap-3 sm:gap-4 py-3 px-2 hover:bg-muted/50 cursor-pointer"
+                          onClick={() => addToCart(product)}
+                        >
                           {product.image_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={product.image_url}
-                              alt=""
-                              loading="lazy"
-                              className="w-10 h-10 object-cover rounded shrink-0"
-                            />
+                            <div className="h-[76px] w-14 sm:h-[100px] sm:w-[76px] rounded-md border border-border bg-white p-0.5">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={product.image_url}
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                className="h-full w-full object-contain"
+                              />
+                            </div>
                           ) : (
-                            <div className="w-10 h-10 rounded bg-muted flex items-center justify-center shrink-0">
-                              <ShoppingCart className="h-4 w-4 text-muted-foreground/40" />
+                            <div className="flex h-[76px] w-14 sm:h-[100px] sm:w-[76px] flex-col items-center justify-center rounded-md bg-muted text-muted-foreground">
+                              <ImageIcon aria-hidden="true" className="size-5" />
+                              <span className="mt-1 text-[10px]">画像なし</span>
                             </div>
                           )}
-                          <div>
-                            <p className="font-medium">{product.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {product.category?.name}
-                              {product.subcategory?.name && <span className="ml-1">/ {product.subcategory.name}</span>}
-                            </p>
+                          <div className="min-w-0">
+                            <p className="font-medium text-[13px] sm:text-sm break-words text-foreground">{displayName}</p>
+                            {code && <p className="mt-1 text-[11px] sm:text-xs break-words text-muted-foreground">{code}</p>}
+                            {inCartQty > 0 && (
+                              <p className="mt-1 text-[11px] sm:text-xs font-bold text-[#FF6B00]">追加済み ×{inCartQty}</p>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-1.5">
+                            <span className="font-heading text-base sm:text-lg text-[#FF6B00] whitespace-nowrap">
+                              {product.price.toLocaleString('ja-JP')}<span className="text-xs font-sans text-muted-foreground ml-0.5">円</span>
+                            </span>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant={inCartQty > 0 ? 'default' : 'outline'}
+                              className={`h-9 w-9 rounded-full ${inCartQty > 0 ? 'bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white' : 'border-[#FF6B00]/50 text-[#FF6B00] hover:bg-[#FF6B00]/10'}`}
+                              aria-label={`${displayName}を追加`}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-semibold text-primary">
-                            {product.price.toLocaleString()}円
-                          </span>
-                          <Button size="sm" variant="outline">
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                     {filteredProducts.length === 0 && (
                       <p className="text-center py-8 text-muted-foreground">
                         商品が見つかりません
