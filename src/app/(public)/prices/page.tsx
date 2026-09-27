@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Footer } from '@/components/public/footer'
 import { Header } from '@/components/public/header'
 import type { Category, Subcategory } from '@/types/database'
+import { splitProductCode } from '@/lib/product-display'
 
 interface ProductItem {
   id: string
@@ -167,10 +168,7 @@ export default function PricesPage() {
                       )}
                       <div className="divide-y divide-border">
                         {group.products.map((product) => {
-                          const bracketCode = product.name.match(/\[([^\]]+)\]/)?.[1]
-                          const code = bracketCode || [product.set_number, product.model_number]
-                            .filter((v, i, values) => v && (i === 0 || !values[0]?.includes(v))).join(' / ')
-                          const name = bracketCode ? product.name.replace(/\s*\[[^\]]+\]/, '').trim() : product.name
+                          const { name, code } = splitProductCode(product)
                           const hasImage = !!product.image_url && !failedImages.has(product.id)
                           return (
                             <div key={product.id} data-price-product={product.id} className="grid grid-cols-[56px_minmax(0,1fr)_auto] sm:grid-cols-[76px_minmax(0,1fr)_auto] items-center gap-2 sm:gap-4 py-3">
