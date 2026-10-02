@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
+import { ImagePostText } from '@/components/admin/image-post-text'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -164,7 +165,7 @@ export default function SpecialBoxImagePage() {
   return (
     <div>
       <AdminHeader
-        title="スペシャルボックス価格画像生成"
+        title="スペシャルボックス価格画像・投稿文生成"
         description="X投稿用のスペシャルボックス買取価格画像を自動生成します（1920×1080）"
       />
 
@@ -236,6 +237,7 @@ export default function SpecialBoxImagePage() {
               <PriceImageCanvas ref={previewRef1} products={page1Products} pageLabel={totalPages > 1 ? '①' : undefined} />
             </div>
           </div>
+              <ImagePostText products={page1Products} heading="🎁ポケモンカード スペシャルボックス 高価買取中🎁" label="画像1の投稿文" />
 
           {page2Products.length > 0 && (
             <>
@@ -245,6 +247,7 @@ export default function SpecialBoxImagePage() {
                   <PriceImageCanvas ref={previewRef2} products={page2Products} pageLabel="②" />
                 </div>
               </div>
+              <ImagePostText products={page2Products} heading="🎁ポケモンカード スペシャルボックス 高価買取中🎁" label="画像2の投稿文" />
             </>
           )}
         </div>

@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
-import { Download, RefreshCw, Save, ImageIcon } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
+import { Download, RefreshCw, Save, ImageIcon, Copy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Product, Category, Subcategory } from '@/types/database'
@@ -150,11 +151,38 @@ export default function PSA10BoostImagePage() {
 
   const selectedProducts = products.filter((p) => selectedIds.has(p.id))
   const noImageCount = selectedProducts.filter((p) => !p.image_url).length
+  const postText = [
+    '🔥PSA10 買取強化中🔥',
+    '',
+    ...selectedProducts.map((p) => `${p.name.replace(/\s*PSA10\s*$/i, '').trim()}　${p.price.toLocaleString('ja-JP')}円`),
+    '',
+    '⚠️各商品1枚限定！',
+    'お申込みが入り次第、その商品は〆切となります。',
+    '',
+    '📩お申込みは公式LINEから！',
+    'https://lin.ee/MYCtHk9',
+    '',
+    '▼買取価格一覧▼',
+    'https://kaitorisquare.com/prices',
+    '',
+    '※価格・受付状況は申込時にご確認ください。',
+    '#ポケカ買取 #PSA10 #買取スクエア',
+  ].join('\n')
+
+  async function copyPostText() {
+    try {
+      await navigator.clipboard.writeText(postText)
+      toast.success('買取強化の投稿文をコピーしました')
+    } catch {
+      toast.error('コピーに失敗しました。投稿文を選択してコピーしてください')
+    }
+  }
+
 
   return (
     <div>
       <AdminHeader
-        title="PSA10強化買取画像生成"
+        title="PSA10強化買取画像・投稿文生成"
         description="PSA10買取強化の画像を自動生成します（1920×1080 / 4列）"
       />
 
@@ -238,6 +266,20 @@ export default function PSA10BoostImagePage() {
           <PreviewFrame>
             <PSA10BoostCanvas ref={previewRef} products={selectedProducts} />
           </PreviewFrame>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-base">買取強化の投稿文</CardTitle>
+                <Button variant="outline" size="sm" onClick={copyPostText} disabled={loading || selectedProducts.length === 0} className="gap-2">
+                  <Copy className="h-4 w-4" />投稿文をコピー
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">画像に選択した商品・買取価格を反映します。</p>
+            </CardHeader>
+            <CardContent>
+              <Textarea aria-label="買取強化の投稿文" readOnly value={loading ? '' : postText} rows={16} />
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

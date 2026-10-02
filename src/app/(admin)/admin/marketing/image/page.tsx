@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
+import { ImagePostText } from '@/components/admin/image-post-text'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -204,7 +205,7 @@ export default function MarketingImagePage() {
   return (
     <div>
       <AdminHeader
-        title="SNS価格画像生成"
+        title="SNS価格画像・投稿文生成"
         description="X投稿用の買取価格画像を自動生成します（1920×1080）"
       />
 
@@ -291,6 +292,7 @@ export default function MarketingImagePage() {
               <PriceImageCanvas ref={previewRef1} products={page1Products} pageLabel={totalPages > 1 ? '①' : undefined} />
             </div>
           </div>
+              <ImagePostText products={page1Products} heading="🔥🔥10BOX以上の買取依頼で着払OK🔥🔥" label="画像1の投稿文" includeNoShrink />
 
           {page2Products.length > 0 && (
             <>
@@ -300,6 +302,7 @@ export default function MarketingImagePage() {
                   <PriceImageCanvas ref={previewRef2} products={page2Products} pageLabel="②" />
                 </div>
               </div>
+              <ImagePostText products={page2Products} heading="🔥🔥10BOX以上の買取依頼で着払OK🔥🔥" label="画像2の投稿文" includeNoShrink />
             </>
           )}
 
@@ -311,6 +314,7 @@ export default function MarketingImagePage() {
                   <PriceImageCanvas ref={previewRef3} products={page3Products} pageLabel="③" />
                 </div>
               </div>
+              <ImagePostText products={page3Products} heading="🔥🔥10BOX以上の買取依頼で着払OK🔥🔥" label="画像3の投稿文" includeNoShrink />
             </>
           )}
         </div>

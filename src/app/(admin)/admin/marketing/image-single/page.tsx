@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
+import { ImagePostText } from '@/components/admin/image-post-text'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -167,7 +168,7 @@ export default function SinglePromoImagePage() {
   return (
     <div>
       <AdminHeader
-        title="シングル・プロモ価格画像生成"
+        title="シングル・プロモ価格画像・投稿文生成"
         description="X投稿用のシングル＆プロモ買取価格画像を自動生成します（1920×1080）"
       />
 
@@ -273,6 +274,7 @@ export default function SinglePromoImagePage() {
               <SinglePromoCanvas ref={previewRef} singles={selectedSingles} promos={selectedPromos} highPriceIds={highPriceIds} />
             </div>
           </div>
+          <ImagePostText products={[...selectedSingles, ...selectedPromos]} heading="🃏ポケモンカード シングル＆プロモ 高価買取中🃏" />
         </div>
       </div>
     </div>

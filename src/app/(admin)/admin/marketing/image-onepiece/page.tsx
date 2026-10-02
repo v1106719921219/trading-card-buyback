@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
+import { ImagePostText } from '@/components/admin/image-post-text'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -209,7 +210,7 @@ export default function MarketingImagePage() {
   return (
     <div>
       <AdminHeader
-        title="ワンピースBOX価格画像生成"
+        title="ワンピースBOX価格画像・投稿文生成"
         description="X投稿用のワンピースBOX買取価格画像を自動生成します（1920×1080）"
       />
 
@@ -305,6 +306,7 @@ export default function MarketingImagePage() {
               />
             </div>
           </div>
+              <ImagePostText products={page1Products} heading="🏴‍☠️ワンピースカード BOX 高価買取中🏴‍☠️" label="画像1の投稿文" />
 
           {page2Products.length > 0 && (
             <>
@@ -317,6 +319,7 @@ export default function MarketingImagePage() {
                   />
                 </div>
               </div>
+              <ImagePostText products={page2Products} heading="🏴‍☠️ワンピースカード BOX 高価買取中🏴‍☠️" label="画像2の投稿文" />
             </>
           )}
         </div>
