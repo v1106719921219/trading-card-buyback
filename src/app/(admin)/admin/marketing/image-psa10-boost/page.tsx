@@ -16,7 +16,7 @@ const SETTING_KEY = 'sns_psa10_boost_default_products'
 const CATEGORY_ID = 'db02ec12-d529-453c-a749-53da99e05533'
 const PSA10_SUBCATEGORY_ID = '8b34c75d-d7f8-4393-89fe-7685b3f61e5b'
 const TENANT_ID = 'aaaaaaaa-0000-0000-0000-000000000001'
-const COLS = 3
+const COLS = 4
 
 // Gold palette
 const P = {
@@ -155,7 +155,7 @@ export default function PSA10BoostImagePage() {
     <div>
       <AdminHeader
         title="PSA10強化買取画像生成"
-        description="PSA10買取強化の画像を自動生成します（1920×1080 / 3列）"
+        description="PSA10買取強化の画像を自動生成します（1920×1080 / 4列）"
       />
 
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -164,7 +164,7 @@ export default function PSA10BoostImagePage() {
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <CardTitle className="text-base">掲載する商品（3〜9件推奨）</CardTitle>
+                <CardTitle className="text-base">掲載する商品（4〜8件推奨）</CardTitle>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">
                     {selectedIds.size} 件選択中
@@ -235,11 +235,34 @@ export default function PSA10BoostImagePage() {
             </Button>
           </div>
 
-          <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
-            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
-              <PSA10BoostCanvas ref={previewRef} products={selectedProducts} />
-            </div>
-          </div>
+          <PreviewFrame>
+            <PSA10BoostCanvas ref={previewRef} products={selectedProducts} />
+          </PreviewFrame>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PreviewFrame({ children }: { children: React.ReactNode }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(0.55)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const update = () => setScale(Math.min(el.clientWidth / 1920, 1))
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={containerRef} className="border rounded-lg bg-muted/30 w-full overflow-hidden">
+      <div style={{ width: '100%', height: Math.ceil(1080 * scale), overflow: 'hidden', position: 'relative' }}>
+        <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
+          {children}
         </div>
       </div>
     </div>
@@ -289,7 +312,7 @@ const PSA10BoostCanvas = React.forwardRef<HTMLDivElement, {
   const priceBarH = Math.floor(cellH * 0.20)
   const cardPad = 6
 
-  const nameFontSize = Math.max(Math.min(Math.floor(nameAreaH * 0.7), 16), 10)
+  const nameFontSize = Math.max(Math.min(Math.floor(nameAreaH * 0.7), 26), 10)
   const priceFontSize = Math.max(Math.min(Math.floor(priceBarH * 0.72), 46), 20)
   const psaBadgeSize = Math.max(Math.min(Math.floor(cellW * 0.13), 70), 36)
   const psaLogoSize = Math.floor(psaBadgeSize * 0.83)
@@ -439,7 +462,7 @@ const PSA10BoostCanvas = React.forwardRef<HTMLDivElement, {
         const row = Math.floor(index / cols)
         const x = padX + col * (cellW + cardGap)
         const y = gridTop + row * (cellH + cardGap)
-        const wantedQty = product.wanted_quantity ?? 5
+        const wantedQty = product.wanted_quantity ?? 1
 
         return (
           <div key={product.id} style={{
@@ -483,7 +506,7 @@ const PSA10BoostCanvas = React.forwardRef<HTMLDivElement, {
                   alt={product.name}
                   style={{
                     width: '100%', height: '100%',
-                    objectFit: 'cover',
+                    objectFit: 'contain',
                   }}
                   crossOrigin="anonymous"
                 />
@@ -503,11 +526,11 @@ const PSA10BoostCanvas = React.forwardRef<HTMLDivElement, {
               <div style={{
                 position: 'absolute', top: 8, left: 8,
                 background: 'rgba(0,0,0,0.85)', color: P.LIGHT,
-                padding: '3px 10px', fontSize: 13, fontWeight: 900,
+                padding: '3px 10px', fontSize: 20, fontWeight: 900,
                 letterSpacing: '0.05em', border: `1px solid ${P.BASE}`,
                 borderRadius: 2,
                 boxShadow: `0 0 10px rgba(212,168,83,0.4)`,
-              }}>{wantedQty}点募集</div>
+              }}>{wantedQty}枚限定</div>
 
               {/* Top right: PSA10 logo */}
               <div style={{
