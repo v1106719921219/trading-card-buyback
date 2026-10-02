@@ -896,18 +896,26 @@ async function syncToChiba() {
     if (ids.length === 0) return
 
     setBulkUpdating(true)
-    let query = supabase.from('products').update({ show_in_price_list: show }).in('id', ids)
-    if (show) query = query.is('auto_closed_at', null).gt('price', 0).eq('is_active', true)
-    const { data: updated, error } = await query.select('id')
-
-    setBulkUpdating(false)
-    setBulkAction(null)
-
-    if (error) {
-      toast.error(`一括更新に失敗しました: ${error.message}`)
+    let updatedCount = 0
+    try {
+      // PostgREST places the ID filter in the URL; keep each request bounded.
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        const batchIds = ids.slice(offset, offset + 100)
+        let query = supabase.from('products').update({ show_in_price_list: show }).in('id', batchIds)
+        if (show) query = query.is('auto_closed_at', null).gt('price', 0).eq('is_active', true)
+        const { data: updated, error } = await query.select('id')
+        if (error) throw error
+        updatedCount += updated?.length ?? 0
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : (error as { message?: string }).message || '不明なエラー'
+      toast.error(`${updatedCount}件更新済み。残りの一括更新に失敗しました: ${message}`)
+      fetchData()
       return
+    } finally {
+      setBulkUpdating(false)
+      setBulkAction(null)
     }
-    const updatedCount = updated?.length ?? 0
     const skipped = show ? filteredProducts.length - updatedCount : 0
     const msg = `${updatedCount}件を価格表${show ? '表示' : '非表示'}にしました`
     toast.success(skipped > 0 ? `${msg}（0円・受付停止中の${skipped}件は非表示のまま）` : msg)
