@@ -1,3 +1,4 @@
+import { calculatePsa10BuybackPrice } from '@/lib/psa10-price'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
@@ -89,12 +90,11 @@ export async function updateMarketPrices(): Promise<{ updated: number; errors: s
   return { updated, errors }
 }
 
-// PSA10シングルの買取価格は相場の95%に自動追従させる（ユーザー決定 2026-09-26）。
-// 相場4万円未満=95% / 4万円以上=買取対象外（受付停止・価格据え置き）。
+// PSA10シングルは2万円未満93%、2万円以上90%に自動追従（2026-10-02）。
+// 相場4万円以上は買取対象外（受付停止・価格据え置き）。
 // 対象はPSA10サブカテゴリで既に価格が付いている（公開運用中の）商品のみ。
 // BOX等の他カテゴリや、価格0円の旧ラインナップには触らない。
 const PSA10_MAX_MARKET_PRICE = 40000
-const PSA10_BUYBACK_RATIO = 0.95
 
 export async function repricePsa10Products(options: { holdOnly?: boolean } = {}): Promise<{
   repriced: number
@@ -143,7 +143,7 @@ export async function repricePsa10Products(options: { holdOnly?: boolean } = {})
       continue
     }
     if (options.holdOnly) continue
-    const newPrice = Math.floor((p.market_price * PSA10_BUYBACK_RATIO) / 100) * 100
+    const newPrice = calculatePsa10BuybackPrice(p.market_price)
     if (newPrice <= 0 || newPrice === p.price) continue
     const { error: updateError } = await supabase
       .from('products')

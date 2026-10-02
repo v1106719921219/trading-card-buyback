@@ -1,5 +1,7 @@
 'use client'
 
+import { calculatePsa10BuybackPrice } from '@/lib/psa10-price'
+
 import { createContext, useContext, useEffect, useRef, useState, useMemo } from 'react'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
@@ -77,7 +79,7 @@ function psa10VisibilityStatus(product: Product & { subcategory: Subcategory | n
   const checked = Date.parse(product.market_price_updated_at ?? '')
   if (!Number.isFinite(checked) || checked > Date.now() || Date.now() - checked > 86400000) return { label: '相場確認待ち', reason: '相場の更新が24時間超・日時未確認' }
   if (!(product.market_price != null && product.market_price > 0)) return { label: '相場確認待ち', reason: '相場価格が未確認' }
-  if (product.price !== Math.floor(product.market_price * 0.95 / 100) * 100) return { label: '価格確認待ち', reason: '相場95％の買取価格と不一致' }
+  if (product.price !== calculatePsa10BuybackPrice(product.market_price)) return { label: '価格確認待ち', reason: '相場2万円未満93％・2万円以上90％の買取価格と不一致' }
   return null
 }
 

@@ -1,3 +1,4 @@
+import { calculatePsa10BuybackPrice } from '@/lib/psa10-price'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 type ResetCandidate = {
@@ -23,7 +24,7 @@ export function canResetPsa10Cutoff(p: ResetCandidate, now: number): boolean {
     && p.market_listing_count >= 3
     && Number.isFinite(checked) && checked <= now && now - checked <= 24 * 60 * 60 * 1000
     && Number.isFinite(closed) && closed <= now
-    && p.price === Math.floor(market * 0.95 / 100) * 100
+    && p.price === calculatePsa10BuybackPrice(market)
 }
 
 export async function resetDailyPsa10Cutoffs(now = Date.now()) {
