@@ -1,4 +1,4 @@
-import { calculatePsa10BuybackPrice } from '@/lib/psa10-price'
+import { calculatePsa10BuybackPrice, isPsa10BoostProduct } from '@/lib/psa10-price'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
@@ -138,12 +138,12 @@ export async function repricePsa10Products(options: { holdOnly?: boolean } = {})
       continue
     }
     // 高額帯は買取対象外（相場4万円以上）。価格は据え置いたまま受付を止める
-    if (p.market_price >= PSA10_MAX_MARKET_PRICE) {
+    if (p.market_price >= PSA10_MAX_MARKET_PRICE && !isPsa10BoostProduct(p.id)) {
       held.push({ id: p.id, reason: '相場4万円以上のため買取対象外' })
       continue
     }
     if (options.holdOnly) continue
-    const newPrice = calculatePsa10BuybackPrice(p.market_price)
+    const newPrice = calculatePsa10BuybackPrice(p.market_price, p.id)
     if (newPrice <= 0 || newPrice === p.price) continue
     const { error: updateError } = await supabase
       .from('products')

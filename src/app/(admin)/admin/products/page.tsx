@@ -1,6 +1,6 @@
 'use client'
 
-import { calculatePsa10BuybackPrice } from '@/lib/psa10-price'
+import { calculatePsa10BuybackPrice, isPsa10BoostProduct } from '@/lib/psa10-price'
 
 import { createContext, useContext, useEffect, useRef, useState, useMemo } from 'react'
 import { AdminHeader } from '@/components/admin/header'
@@ -72,14 +72,14 @@ function psa10VisibilityStatus(product: Product & { subcategory: Subcategory | n
   if (product.subcategory?.name !== 'PSA10' || product.show_in_price_list) return null
   if (!product.is_active) return { label: '対象外', reason: '商品が無効' }
   if (product.price <= 0) return { label: '未設定', reason: '買取価格が未設定' }
-  if (product.market_price != null && product.market_price >= 40000) return { label: '対象外', reason: '相場4万円以上' }
+  if (product.market_price != null && product.market_price >= 40000 && !isPsa10BoostProduct(product.id)) return { label: '対象外', reason: '相場4万円以上' }
   if (!Number.isInteger(product.market_listing_count) || (product.market_listing_count ?? 0) < 3) {
     return { label: '相場確認待ち', reason: product.market_listing_count == null ? '出品数が未確認' : `出品${product.market_listing_count}件（3件以上が必要）` }
   }
   const checked = Date.parse(product.market_price_updated_at ?? '')
   if (!Number.isFinite(checked) || checked > Date.now() || Date.now() - checked > 86400000) return { label: '相場確認待ち', reason: '相場の更新が24時間超・日時未確認' }
   if (!(product.market_price != null && product.market_price > 0)) return { label: '相場確認待ち', reason: '相場価格が未確認' }
-  if (product.price !== calculatePsa10BuybackPrice(product.market_price)) return { label: '価格確認待ち', reason: '相場2万円未満93％・2万円以上90％の買取価格と不一致' }
+  if (product.price !== calculatePsa10BuybackPrice(product.market_price, product.id)) return { label: '価格確認待ち', reason: isPsa10BoostProduct(product.id) ? '強化商品の相場95％の買取価格と不一致' : '相場2万円未満93％・2万円以上90％の買取価格と不一致' }
   return null
 }
 
