@@ -518,10 +518,7 @@ const PSA10BoostCanvas = React.forwardRef<HTMLDivElement, {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: `0 0 0 2px ${P.BASE}, 0 4px 10px rgba(0,0,0,0.6)`,
               }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/assets/psa10-logo.png" alt="PSA10" style={{
-                  width: psaLogoSize, height: psaLogoSize, objectFit: 'contain',
-                }} crossOrigin="anonymous" />
+                <span style={{ color: '#b91c1c', fontSize: psaLogoSize * 0.25, fontWeight: 900, fontFamily: 'Arial, sans-serif' }}>PSA10</span>
               </div>
 
               {/* Bottom left sparkle */}
