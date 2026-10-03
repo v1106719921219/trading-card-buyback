@@ -2,4 +2,4 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert/strict'),{createR
 
 assert.equal(check({...p,market_price:10000,price:9300},now),true);assert.equal(check({...p,price:19000},now),false);console.log('Tier boundaries and both cutoff tiers passed');
 
-const boostId="62bf86dd-8abe-488b-b081-7cf21c006383";assert.equal(price(110000,boostId),104500);assert.equal(price(39300,boostId),37300);assert.equal(check({...p,id:boostId,market_price:110000,price:104500},now),true);assert.equal(check({...p,market_price:110000,price:104500},now),false);assert.equal(check({...p,id:boostId,market_price:110000,price:104500,market_listing_count:2},now),false);console.log("Boost exception and normal cap verified");
+const boostId="226cd463-8292-4d97-9de4-27eab9df5d8a";assert.equal(price(110000,boostId),104500);assert.equal(price(39300,boostId),37300);assert.equal(check({...p,id:boostId,market_price:110000,price:104500},now),true);assert.equal(check({...p,market_price:110000,price:104500},now),false);assert.equal(check({...p,id:boostId,market_price:110000,price:104500,market_listing_count:2},now),false);console.log("Boost exception and normal cap verified");
