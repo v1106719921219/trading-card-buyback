@@ -36,18 +36,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil, Plus, Check, ChevronsUpDown, IdCard } from 'lucide-react'
+import { ProductSearchList, PRODUCT_OPTION_COLUMNS, type ProductOption } from '@/components/admin/product-search-list'
+import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalLink, FileDown, Trash2, AlertTriangle, Pencil, Plus, ChevronsUpDown, IdCard } from 'lucide-react'
 import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice, addOrderItem, approveOrder } from '@/actions/orders'
 import { getOrderKycInfo } from '@/actions/kyc'
 import { downloadInspectionPdf } from '@/actions/payments'
 import { createClient } from '@/lib/supabase/client'
 import { normalizeTrackingNumber, trackingBadgeClass } from '@/lib/yamato-status'
+import { fetchAllActiveProducts } from '@/lib/fetch-active-products'
 import { STATUS_TRANSITIONS, STATUS_REVERT, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
 import { toast } from 'sonner'
-import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole, BuybackType, InspectionStatus, Product } from '@/types/database'
+import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole, BuybackType, InspectionStatus } from '@/types/database'
 
 export default function OrderDetailPage() {
   const params = useParams()
@@ -99,10 +99,11 @@ export default function OrderDetailPage() {
   const [savingBuybackType, setSavingBuybackType] = useState(false)
   const [offices, setOffices] = useState<Office[]>([])
   const [savingOffice, setSavingOffice] = useState(false)
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<ProductOption[]>([])
+  const [productsLoading, setProductsLoading] = useState(false)
   const [addingItem, setAddingItem] = useState(false)
   const [newItemProductId, setNewItemProductId] = useState('')
-  const [newItemQuantity, setNewItemQuantity] = useState(1)
+  const [newItemQuantity, setNewItemQuantity] = useState('1')
   const [productSearchOpen, setProductSearchOpen] = useState(false)
   const [savingNewItem, setSavingNewItem] = useState(false)
 
@@ -158,14 +159,6 @@ export default function OrderDetailPage() {
       .order('created_at', { ascending: false })
       .limit(10)
     setDuplicateOrders(dupes || [])
-
-    // 商品マスタ取得（申込・発送済ステータス時に商品追加で使用）
-    const { data: productData } = await supabase
-      .from('products')
-      .select('*')
-      .eq('is_active', true)
-      .order('name')
-    if (productData) setProducts(productData as Product[])
 
     // Fetch offices list and current office
     const { data: allOffices } = await supabase
@@ -341,8 +334,20 @@ export default function OrderDetailPage() {
     fetchOrder()
   }
 
+  // 商品マスタは「商品追加」を開いたときに1回だけ読み込む（注文を開くたびには取得しない）
+  async function loadProducts() {
+    if (products.length > 0 || productsLoading) return
+    setProductsLoading(true)
+    setProducts(await fetchAllActiveProducts<ProductOption>(supabase, PRODUCT_OPTION_COLUMNS))
+    setProductsLoading(false)
+  }
+
+  // 入力中は空欄も許容し（1を消して打ち直せるように）、追加時に1以上の整数かを確認する
+  const newItemQuantityNum = Number(newItemQuantity.normalize('NFKC').trim())
+  const newItemQuantityValid = Number.isInteger(newItemQuantityNum) && newItemQuantityNum >= 1
+
   async function handleAddItem() {
-    if (!newItemProductId || newItemQuantity <= 0) return
+    if (!newItemProductId || !newItemQuantityValid) return
     const product = products.find((p) => p.id === newItemProductId)
     if (!product) return
     setSavingNewItem(true)
@@ -350,7 +355,7 @@ export default function OrderDetailPage() {
       product_id: product.id,
       product_name: product.name,
       unit_price: product.price,
-      quantity: newItemQuantity,
+      quantity: newItemQuantityNum,
     })
     setSavingNewItem(false)
     if (result.error) {
@@ -360,7 +365,7 @@ export default function OrderDetailPage() {
     toast.success('商品を追加しました')
     setAddingItem(false)
     setNewItemProductId('')
-    setNewItemQuantity(1)
+    setNewItemQuantity('1')
     fetchOrder()
   }
 
@@ -499,7 +504,7 @@ export default function OrderDetailPage() {
                 return (
                   <div data-slot="card-action" className="flex gap-2">
                     {canAddItem && (
-                      <Button variant="outline" size="sm" onClick={() => setAddingItem(true)}>
+                      <Button variant="outline" size="sm" onClick={() => { setAddingItem(true); loadProducts() }}>
                         <Plus className="mr-1.5 h-3.5 w-3.5" />
                         商品追加
                       </Button>
@@ -700,32 +705,15 @@ export default function OrderDetailPage() {
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                          <Command>
-                            <CommandInput placeholder="商品名で検索..." />
-                            <CommandList>
-                              <CommandEmpty>商品が見つかりません</CommandEmpty>
-                              <CommandGroup>
-                                {products.map((p) => (
-                                  <CommandItem
-                                    key={p.id}
-                                    value={`${p.name}（${p.price.toLocaleString()}円）`}
-                                    onSelect={() => {
-                                      setNewItemProductId(p.id)
-                                      setProductSearchOpen(false)
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        newItemProductId === p.id ? "opacity-100" : "opacity-0"
-                                      )}
-                                    />
-                                    {p.name}（{p.price.toLocaleString()}円）
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
+                          <ProductSearchList
+                            products={products}
+                            loading={productsLoading}
+                            selectedId={newItemProductId}
+                            onSelect={(productId) => {
+                              setNewItemProductId(productId)
+                              setProductSearchOpen(false)
+                            }}
+                          />
                         </PopoverContent>
                       </Popover>
                     </div>
@@ -735,10 +723,7 @@ export default function OrderDetailPage() {
                         inputMode="numeric"
                         min={1}
                         value={newItemQuantity}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value, 10)
-                          setNewItemQuantity(isNaN(val) ? 1 : Math.max(1, val))
-                        }}
+                        onChange={(e) => setNewItemQuantity(e.target.value)}
                         onFocus={(e) => e.target.select()}
                         placeholder="数量"
                       />
@@ -748,7 +733,7 @@ export default function OrderDetailPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => { setAddingItem(false); setNewItemProductId(''); setNewItemQuantity(1) }}
+                      onClick={() => { setAddingItem(false); setNewItemProductId(''); setNewItemQuantity('1') }}
                       disabled={savingNewItem}
                     >
                       キャンセル
@@ -756,7 +741,7 @@ export default function OrderDetailPage() {
                     <Button
                       size="sm"
                       onClick={handleAddItem}
-                      disabled={savingNewItem || !newItemProductId}
+                      disabled={savingNewItem || !newItemProductId || !newItemQuantityValid}
                     >
                       {savingNewItem ? '追加中...' : '追加'}
                     </Button>

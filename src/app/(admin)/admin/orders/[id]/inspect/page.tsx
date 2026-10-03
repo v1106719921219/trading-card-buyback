@@ -29,22 +29,15 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
-import { ArrowLeft, Save, Plus, Trash2, ChevronsUpDown, Check, Copy } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { ProductSearchList, PRODUCT_OPTION_COLUMNS, type ProductOption } from '@/components/admin/product-search-list'
+import { ArrowLeft, Save, Plus, Trash2, ChevronsUpDown, Copy } from 'lucide-react'
+import { fetchAllActiveProducts } from '@/lib/fetch-active-products'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { notifyDiscordInspectionIssue } from '@/lib/discord'
 import { getInspectorOptions } from '@/actions/inspection'
 import { notifyReductionLine } from '@/actions/orders'
-import type { Order, OrderItem, Product, Category, InspectionStatus } from '@/types/database'
+import type { Order, OrderItem, InspectionStatus } from '@/types/database'
 import { INSPECTION_STATUSES } from '@/lib/constants'
 
 interface InspectItem {
@@ -73,7 +66,8 @@ export default function InspectPage() {
   const [saving, setSaving] = useState(false)
   const [discount, setDiscount] = useState(0)
   const [inspectionNotes, setInspectionNotes] = useState('')
-  const [products, setProducts] = useState<(Product & { category: Category })[]>([])
+  const [products, setProducts] = useState<ProductOption[]>([])
+  const [productsLoading, setProductsLoading] = useState(false)
   const [inspectionStatus, setInspectionStatus] = useState<InspectionStatus | ''>('')
   const [arrivalDate, setArrivalDate] = useState('')
   const [openProductSearch, setOpenProductSearch] = useState<string | null>(null)
@@ -84,18 +78,11 @@ export default function InspectPage() {
   const supabase = createClient()
 
   async function fetchOrder() {
-    const [orderResult, productResult] = await Promise.all([
-      supabase
-        .from('orders')
-        .select('*, order_items(*), office:offices(name)')
-        .eq('id', orderId)
-        .single(),
-      supabase
-        .from('products')
-        .select('*, category:categories(*), subcategory:subcategories(*)')
-        .eq('is_active', true)
-        .order('name'),
-    ])
+    const orderResult = await supabase
+      .from('orders')
+      .select('*, order_items(*), office:offices(name)')
+      .eq('id', orderId)
+      .single()
 
     if (orderResult.error || !orderResult.data) {
       toast.error('注文が見つかりません')
@@ -131,16 +118,23 @@ export default function InspectPage() {
         _addedAt: item.added_at ?? null,
       }))
     )
-    if (productResult.data) {
-      const sorted = [...productResult.data].sort((a: any, b: any) => {
-        const catA = a.category?.sort_order ?? 0
-        const catB = b.category?.sort_order ?? 0
-        if (catA !== catB) return catA - catB
-        return (a.sort_order ?? 0) - (b.sort_order ?? 0)
-      })
-      setProducts(sorted as (Product & { category: Category })[])
-    }
     setLoading(false)
+  }
+
+  // 商品マスタは「商品追加」を押したときに1回だけ読み込む（検品画面を開くたびには取得しない）
+  async function loadProducts() {
+    if (products.length > 0 || productsLoading) return
+    setProductsLoading(true)
+    const activeProducts = await fetchAllActiveProducts<
+      ProductOption & { sort_order: number; category: { sort_order: number } | null }
+    >(supabase, `${PRODUCT_OPTION_COLUMNS}, sort_order, category:categories(sort_order)`)
+    setProducts([...activeProducts].sort((a, b) => {
+      const catA = a.category?.sort_order ?? 0
+      const catB = b.category?.sort_order ?? 0
+      if (catA !== catB) return catA - catB
+      return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    }))
+    setProductsLoading(false)
   }
 
   useEffect(() => {
@@ -169,6 +163,7 @@ export default function InspectPage() {
   }
 
   function addItem() {
+    loadProducts()
     const newId = `new_${Date.now()}`
     setItems([...items, {
       id: newId,
@@ -436,27 +431,15 @@ export default function InspectPage() {
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                              <Command>
-                                <CommandInput placeholder="商品名で検索..." />
-                                <CommandList>
-                                  <CommandEmpty>商品が見つかりません</CommandEmpty>
-                                  <CommandGroup>
-                                    {products.map((p) => (
-                                      <CommandItem
-                                        key={p.id}
-                                        value={`${p.name}（${p.price.toLocaleString()}円）`}
-                                        onSelect={() => {
-                                          selectProduct(item.id, p.id)
-                                          setOpenProductSearch(null)
-                                        }}
-                                      >
-                                        <Check className={cn('mr-2 h-4 w-4', item.product_id === p.id ? 'opacity-100' : 'opacity-0')} />
-                                        {p.name}（{p.price.toLocaleString()}円）
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
+                              <ProductSearchList
+                                products={products}
+                                loading={productsLoading}
+                                selectedId={item.product_id}
+                                onSelect={(productId) => {
+                                  selectProduct(item.id, productId)
+                                  setOpenProductSearch(null)
+                                }}
+                              />
                             </PopoverContent>
                           </Popover>
                           <Button
