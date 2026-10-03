@@ -4,6 +4,22 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@supabase/supabase-js'
 
+// PostgRESTは1件のSELECTで最大1000行しか返さない。
+// 東京の商品は1000件を超えるため、ページングで全件取得する（取りこぼすと千葉に商品が作られない）。
+const PAGE_SIZE = 1000
+
+async function fetchAllRows<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const rows: T[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await build(from, from + PAGE_SIZE - 1)
+    if (error) throw new Error(error.message)
+    rows.push(...(data ?? []))
+    if (!data || data.length < PAGE_SIZE) return rows
+  }
+}
+
 export async function POST(_request: Request) {
   const { user, error } = await requireRole(['admin', 'manager'])
   if (error || !user) return NextResponse.json({ error: '権限がありません' }, { status: 403 })
@@ -28,23 +44,56 @@ export async function POST(_request: Request) {
     return NextResponse.json({ error: 'テナントが見つかりません' }, { status: 404 })
   }
 
-  // 東京の商品・カテゴリ・サブカテゴリを取得
-  const [{ data: products }, { data: categories }, { data: subcategories }] = await Promise.all([
-    tokyoSupabase
-      .from('products')
-      .select('name, model_number, price, show_in_price_list, is_active, sort_order, category_id, subcategory_id')
-      .eq('tenant_id', tokyoTenant.id),
-    tokyoSupabase
-      .from('categories')
-      .select('id, name, sort_order, is_active')
-      .eq('tenant_id', tokyoTenant.id),
-    tokyoSupabase
-      .from('subcategories')
-      .select('id, name, category_id, sort_order, is_active')
-      .eq('tenant_id', tokyoTenant.id),
-  ])
+  // 東京の商品・カテゴリ・サブカテゴリを取得（商品は1000件超のため全件ページング）
+  type TokyoProduct = {
+    name: string
+    model_number: string | null
+    price: number
+    show_in_price_list: boolean
+    is_active: boolean
+    sort_order: number
+    category_id: string
+    subcategory_id: string | null
+  }
+  type TokyoCategory = { id: string; name: string; sort_order: number; is_active: boolean }
+  type TokyoSubcategory = { id: string; name: string; category_id: string; sort_order: number; is_active: boolean }
 
-  if (!products || !categories) {
+  let products: TokyoProduct[]
+  let categories: TokyoCategory[]
+  let subcategories: TokyoSubcategory[]
+  try {
+    ;[products, categories, subcategories] = await Promise.all([
+      fetchAllRows<TokyoProduct>((from, to) =>
+        tokyoSupabase
+          .from('products')
+          .select('name, model_number, price, show_in_price_list, is_active, sort_order, category_id, subcategory_id')
+          .eq('tenant_id', tokyoTenant.id)
+          .order('id')
+          .range(from, to)
+      ),
+      fetchAllRows<TokyoCategory>((from, to) =>
+        tokyoSupabase
+          .from('categories')
+          .select('id, name, sort_order, is_active')
+          .eq('tenant_id', tokyoTenant.id)
+          .order('id')
+          .range(from, to)
+      ),
+      fetchAllRows<TokyoSubcategory>((from, to) =>
+        tokyoSupabase
+          .from('subcategories')
+          .select('id, name, category_id, sort_order, is_active')
+          .eq('tenant_id', tokyoTenant.id)
+          .order('id')
+          .range(from, to)
+      ),
+    ])
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '不明なエラー'
+    return NextResponse.json({ error: `東京のデータ取得に失敗しました: ${message}` }, { status: 500 })
+  }
+
+  if (categories.length === 0) {
     return NextResponse.json({ error: '東京のデータ取得に失敗しました' }, { status: 500 })
   }
 
@@ -175,13 +224,17 @@ export async function POST(_request: Request) {
   }
   const dedupedData = Array.from(deduped.values())
 
-  // ON CONFLICT DO NOTHING で競合しても失敗しない
-  const { error: insertError } = await chibaSupabase
-    .from('products')
-    .upsert(dedupedData, { onConflict: 'category_id,name', ignoreDuplicates: true })
+  // ON CONFLICT DO NOTHING で競合しても失敗しない。
+  // 2000件超を1リクエストに詰めるとペイロードが大きくなるため分割して送る。
+  const INSERT_BATCH = 500
+  for (let offset = 0; offset < dedupedData.length; offset += INSERT_BATCH) {
+    const { error: insertError } = await chibaSupabase
+      .from('products')
+      .upsert(dedupedData.slice(offset, offset + INSERT_BATCH), { onConflict: 'category_id,name', ignoreDuplicates: true })
 
-  if (insertError) {
-    return NextResponse.json({ error: `商品挿入失敗: ${insertError.message}` }, { status: 500 })
+    if (insertError) {
+      return NextResponse.json({ error: `商品挿入失敗: ${insertError.message}` }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ success: true, syncCount: dedupedData.length })
