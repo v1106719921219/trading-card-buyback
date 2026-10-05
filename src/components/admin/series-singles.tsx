@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import React from 'react'
+import { CardImage } from '@/components/admin/card-image'
 import { singleSeriesCode } from '@/lib/single-series'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
@@ -561,9 +562,7 @@ const Single30thCanvas = React.forwardRef<HTMLDivElement, {
           }}>
             <div style={{ position: 'relative', width: '100%', height: imgH }}>
               {product.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={product.image_url} alt={product.name} crossOrigin="anonymous"
-                  style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                <CardImage src={product.image_url} alt={product.name} />
               ) : (
                 <div style={{ width: '100%', height: '100%', background: 'rgba(0,0,0,0.04)' }} />
               )}
