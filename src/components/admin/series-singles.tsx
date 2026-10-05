@@ -49,10 +49,18 @@ type PageJob = {
   products: ProductWithRelations[]
 }
 
-function chunk<T>(items: T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
-  return out
+function balancedPages<T>(items: T[], maxPerPage: number): T[][] {
+  if (items.length === 0) return []
+  const count = Math.ceil(items.length / maxPerPage)
+  const base = Math.floor(items.length / count)
+  const extra = items.length % count
+  let offset = 0
+  return Array.from({ length: count }, (_, i) => {
+    const size = base + (i < extra ? 1 : 0)
+    const page = items.slice(offset, offset + size)
+    offset += size
+    return page
+  })
 }
 
 export default function SeriesSingles({ code, name, seriesOptions = [] }: { code: string; name: string; seriesOptions?: { code: string; name: string }[] }) {
@@ -68,7 +76,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
   const [highPriceIds, setHighPriceIds] = useState<Set<string>>(new Set())
   const [header, setHeader] = useState(DEFAULT_HEADER)
   const [footer, setFooter] = useState(DEFAULT_FOOTER)
-  const [pageSize, setPageSize] = useState(24)
+  const [pageSize, setPageSize] = useState(32)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState('')
@@ -214,7 +222,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
   // 選択したミラーピカチュウも通常カードの続きにまとめてページ分割する。
   const pageJobs = useMemo<PageJob[]>(() => {
     const selected = [...rares, ...pikachus].filter(p => selectedIds.has(p.id))
-    const pages = chunk(selected, pageSize)
+    const pages = balancedPages(selected, pageSize)
     return pages.map((items, i) => ({
       key: `シングル-${i}`,
       sectionLabel: 'シングルカード',
@@ -446,13 +454,14 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
             <div className="flex items-center gap-2">
               <p className="text-sm text-muted-foreground">プレビュー（1920×1080）</p>
               <select
+                aria-label="画像の分割方法"
                 value={pageSize}
                 onChange={(e) => setPageSize(Number(e.target.value))}
                 className="h-8 rounded-md border bg-background px-2 text-sm"
               >
-                <option value={16}>16枚 / ページ</option>
-                <option value={24}>24枚 / ページ</option>
-                <option value={32}>32枚 / ページ</option>
+                <option value={16}>最大16枚・均等分割</option>
+                <option value={24}>最大24枚・均等分割</option>
+                <option value={32}>自動（32枚まで1枚）</option>
               </select>
               <span className="text-sm text-muted-foreground">全 {pageJobs.length} ページ</span>
             </div>
