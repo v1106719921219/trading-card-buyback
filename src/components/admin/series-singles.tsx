@@ -211,31 +211,20 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
     else toast.success('商品選択と投稿文設定を保存しました')
   }
 
-  // セクションごとの画像ジョブ一覧。高レアはページ分割、ミラーピカチュウは常に1枚（6列×5行）に全収載
+  // 選択したミラーピカチュウも通常カードの続きにまとめてページ分割する。
   const pageJobs = useMemo<PageJob[]>(() => {
-    const jobs: PageJob[] = []
-    const sections = [
-      { label: '高レアカード', labelEn: 'HIGH RARE CARDS', file: '高レア', cols: 8, split: true, items: rares.filter((p) => selectedIds.has(p.id)) },
-      { label: 'ミラーピカチュウ', labelEn: 'PIKACHU MIRROR', file: 'ピカチュウ', cols: 0, split: false, items: pikachus.filter((p) => selectedIds.has(p.id)) },
-    ]
-    for (const sec of sections) {
-      // cols=0 は「1枚に全収載」: 5行に収まる列数を自動計算（最低6列）
-      const cols = sec.cols || Math.max(6, Math.ceil(sec.items.length / 5))
-      const pages = sec.split ? chunk(sec.items, pageSize) : (sec.items.length > 0 ? [sec.items] : [])
-      pages.forEach((items, i) => {
-        jobs.push({
-          key: `${sec.file}-${i}`,
-          sectionLabel: sec.label,
-          sectionLabelEn: sec.labelEn,
-          fileLabel: sec.file,
-          pageNo: i + 1,
-          pageCount: pages.length,
-          cols: is30th ? cols : Math.min(cols, items.length),
-          products: items,
-        })
-      })
-    }
-    return jobs
+    const selected = [...rares, ...pikachus].filter(p => selectedIds.has(p.id))
+    const pages = chunk(selected, pageSize)
+    return pages.map((items, i) => ({
+      key: `シングル-${i}`,
+      sectionLabel: 'シングルカード',
+      sectionLabelEn: 'SINGLE CARDS',
+      fileLabel: 'シングル',
+      pageNo: i + 1,
+      pageCount: pages.length,
+      cols: is30th ? 8 : Math.min(8, items.length),
+      products: items,
+    }))
   }, [rares, pikachus, selectedIds, pageSize, is30th])
 
   async function downloadPages(jobs: PageJob[]) {
@@ -334,7 +323,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
         ]
       }
     }
-    return [`【${title}】`, ...[...selected].sort(isMultiple ? compareProducts : (a, b) => b.price - a.price).map(p => formatXProductLine(is30th ? p.name : p.name.replace(/\[([^\]]+)\]/g, '($1)'), p.price)), '']
+    return [...(title === '高レア・コンプリートセット' ? [] : [`【${title}】`]), ...[...selected].sort(isMultiple ? compareProducts : (a, b) => b.price - a.price).map(p => formatXProductLine(is30th ? p.name : p.name.replace(/\[([^\]]+)\]/g, '($1)'), p.price)), '']
   }), footer].join('\n')
 
   async function copyPost() {
@@ -461,9 +450,9 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
                 onChange={(e) => setPageSize(Number(e.target.value))}
                 className="h-8 rounded-md border bg-background px-2 text-sm"
               >
-                <option value={16}>高レア 16枚 / ページ</option>
-                <option value={24}>高レア 24枚 / ページ</option>
-                <option value={32}>高レア 32枚 / ページ</option>
+                <option value={16}>16枚 / ページ</option>
+                <option value={24}>24枚 / ページ</option>
+                <option value={32}>32枚 / ページ</option>
               </select>
               <span className="text-sm text-muted-foreground">全 {pageJobs.length} ページ</span>
             </div>
