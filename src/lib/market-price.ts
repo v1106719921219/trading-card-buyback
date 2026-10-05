@@ -3,9 +3,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * スニダン相場同期（管理画面の買取価格比較用）
- * snkrdunk_url が設定された表示中の商品について、
+ * snkrdunk_url が設定された有効な商品について、
  * tokyo-stock-updater API から相場を取得して products に保存する。
  * - PSA系サブカテゴリ → PSA10中古最安
+ * - 通常シングルカード → 状態A最安（買取価格は変更しない）
  * - それ以外（未開封BOX等） → 新品最安
  */
 
@@ -25,30 +26,33 @@ export async function updateMarketPrices(): Promise<{ updated: number; errors: s
   }
 
   const supabase = createAdminClient()
-  const { data: products, error } = await supabase
-    .from('products')
-    .select('id, name, snkrdunk_url, subcategory:subcategories(name)')
-    .not('snkrdunk_url', 'is', null)
-    .eq('is_active', true)
-
-  if (error) return { updated: 0, errors: [error.message] }
+  // 件数が増えても Supabase の既定上限で同期対象が欠落しないようページングする。
+  const products: { id: string; name: string; snkrdunk_url: string | null; subcategory: unknown }[] = []
+  for (let from = 0; ; from += 500) {
+    const { data, error } = await supabase.from('products')
+      .select('id, name, snkrdunk_url, subcategory:subcategories(name)')
+      .not('snkrdunk_url', 'is', null).eq('is_active', true)
+      .order('id').range(from, from + 499)
+    if (error) return { updated: 0, errors: [error.message] }
+    products.push(...(data ?? []))
+    if (!data || data.length < 500) break
+  }
 
   const targets = (products ?? [])
     .map((p) => {
       const sub = p.subcategory as unknown as { name: string } | null
       const isPsa = /psa|鑑定/i.test(sub?.name ?? '')
-      return { id: p.id, snkrdunkId: extractSnkrdunkId(p.snkrdunk_url), kind: isPsa ? 'psa10' : 'new' }
+      return { id: p.id, snkrdunkId: extractSnkrdunkId(p.snkrdunk_url), kind: isPsa ? 'psa10' : sub?.name === 'シングルカード' ? 'single_ab' : 'new' }
     })
     .filter((t): t is typeof t & { snkrdunkId: string } => t.snkrdunkId !== null)
 
   let updated = 0
   const errors: string[] = []
 
-  for (let i = 0; i < targets.length; i += BATCH_SIZE) {
-    const batch = targets.slice(i, i + BATCH_SIZE)
-    let results: Record<string, { price?: number | null; count?: number; top5?: number[]; error?: string }>
+  async function processBatch(batch: typeof targets) {
+    let results: Record<string, { price?: number | null; count?: number; top5?: number[]; error?: string; currency?: string; A?: { price: number | null; observedCount: number; top5: number[] } }>
     try {
-      const resp = await fetch(apiUrl, {
+      const resp = await fetch(apiUrl!, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -61,13 +65,16 @@ export async function updateMarketPrices(): Promise<{ updated: number; errors: s
       results = json.results ?? {}
     } catch (err) {
       errors.push(err instanceof Error ? err.message : String(err))
-      continue
+      return
     }
 
     for (const t of batch) {
-      const r = results[t.snkrdunkId]
+      const source = results[t.snkrdunkId]
+      const r: { price?: number | null; count?: number; top5?: number[]; error?: string } | undefined = t.kind === 'single_ab'
+        ? source?.currency === 'JPY' && source.A ? { price: source.A.price, count: source.A.observedCount, top5: source.A.top5 } : undefined
+        : source
       if (!r || r.error != null || r.price == null) {
-        if (r?.error) errors.push(`${t.snkrdunkId}: ${r.error}`)
+        if (source?.error) errors.push(`${t.snkrdunkId}: ${source.error}`)
         continue
       }
       const { error: updateError } = await supabase
@@ -87,6 +94,15 @@ export async function updateMarketPrices(): Promise<{ updated: number; errors: s
     }
   }
 
+  // 同時4バッチを上限にして逐次API待ちによる実行時間超過を抑える。
+  // APIは商品IDで結果を返すので、同じIDのPSA/通常カードを同一リクエストに混ぜない。
+  const batches = ['psa10', 'single_ab', 'new'].flatMap(kind => {
+    const group = targets.filter(t => t.kind === kind)
+    return Array.from({ length: Math.ceil(group.length / BATCH_SIZE) }, (_, n) => group.slice(n * BATCH_SIZE, (n + 1) * BATCH_SIZE))
+  })
+  for (let i = 0; i < batches.length; i += 4) {
+    await Promise.all(batches.slice(i, i + 4).map(processBatch))
+  }
   return { updated, errors }
 }
 

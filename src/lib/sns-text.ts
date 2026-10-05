@@ -15,5 +15,5 @@ export function formatXProductLine(name: string, price: number): string {
 /** 「9/23更新」のような日付行 */
 export function xUpdateDateLine(): string {
   const now = new Date()
-  return `📅 ${now.getMonth() + 1}/${now.getDate()} 更新`
+  return `📅 ${new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' }).format(now)} 更新`
 }

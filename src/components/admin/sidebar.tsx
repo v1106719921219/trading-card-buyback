@@ -46,7 +46,7 @@ const navItems = [
   { href: '/admin/price-comparison', label: '他社価格比較', icon: TrendingUp },
   { href: '/admin/products/price-history', label: '価格履歴', icon: TrendingUp },
   { href: '/admin/last-cost', label: '最終仕入原価', icon: ClipboardList },
-  { href: '/admin/singles-30th', label: '30thシングル買取一覧', icon: Sparkles },
+  { href: '/admin/singles', label: 'シリーズ別シングル買取', icon: Sparkles },
   { href: '/admin/categories', label: 'カテゴリ管理', icon: FolderOpen },
   { href: '/admin/marketing/image', label: 'ポケモンBOX画像・投稿文', icon: ImageIcon },
   { href: '/admin/marketing/image-single', label: 'シングル画像・投稿文', icon: ImageIcon },

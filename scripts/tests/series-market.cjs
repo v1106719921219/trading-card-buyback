@@ -1,0 +1,12 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const vm = require('node:vm')
+const ts = require('typescript')
+const source = ts.transpileModule(fs.readFileSync('src/lib/market-price.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
+const rows = Array.from({length:1005}, (_,i)=>({id:`product-${i}`,name:'test',snkrdunk_url:`https://snkrdunk.com/apparels/${1000+i}`,subcategory:{name:'シングルカード'}}))
+rows.push({id:'psa',name:'psa',snkrdunk_url:'https://snkrdunk.com/apparels/1000',subcategory:{name:'PSA10'}},{id:'box',name:'box',snkrdunk_url:'https://snkrdunk.com/apparels/1000',subcategory:{name:'BOX'}},{id:'30th',name:'30th',snkrdunk_url:'https://snkrdunk.com/apparels/1010',subcategory:{name:'30thシングルカード'}})
+const writes = new Map(), ranges = [], requests = []
+const sb = {from:()=>{const q={select:()=>q,not:()=>q,eq:()=>q,order:()=>q,range:async(a,b)=>{ranges.push([a,b]);return {data:rows.slice(a,b+1)}},update:patch=>({eq:async(_,id)=>{writes.set(id,patch);return {error:null}}})};return q}}
+const moduleExports = {}
+vm.runInNewContext(source, {exports:moduleExports,require:name=>name.includes('supabase')?{createAdminClient:()=>sb}:{},process:{env:{TOKYO_PRICE_API_URL:'https://mock.invalid',TOKYO_PRICE_API_TOKEN:'mock'}},fetch:async(_,options)=>{const {items}=JSON.parse(options.body);requests.push(items);assert.equal(new Set(items.map(i=>i.kind)).size,1,'one condition per API request');return {ok:true,json:async()=>({results:Object.fromEntries(items.map(i=>[i.id,i.kind==='single_ab'?i.id==='1001'?{currency:'USD',A:{price:99}}:i.id==='1002'?{currency:'JPY',A:{price:null}}:{currency:'JPY',A:{price:1234,observedCount:4,top5:[1234]}}:{price:i.kind==='psa10'?9900:5500,count:8,top5:[5500]}]))})}},Date,Promise})
+;(async()=>{const result=await moduleExports.updateMarketPrices();assert.equal(ranges.length,3);assert.equal(result.updated,1006);assert.equal(writes.get('product-0').market_price,1234);assert.equal(writes.has('product-1'),false);assert.equal(writes.has('product-2'),false);assert.equal(writes.get('psa').market_price,9900);assert.equal(writes.get('box').market_price,5500);assert.equal(writes.get('30th').market_price,5500);for(const patch of writes.values()){assert.equal('price' in patch,false);assert.equal('show_in_price_list' in patch,false)}console.log('PASS: >1000 products, condition separation, JPY/A validation, existing modes, no buyback/publication changes')})().catch(e=>{console.error(e);process.exitCode=1})
