@@ -70,7 +70,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
   const productSeries = (p: Product) => p.subcategory_id === SUBCATEGORY_ID ? 'M6A' : singleSeriesCode(p)
   const is30th = code === 'M6A'
   const SETTING_KEY = is30th ? 'sns_30th_single_default_products' : `sns_single_series_${code.toLowerCase()}`
-  const DEFAULT_HEADER = `🃏${name} シングルカード 高価買取中🃏`
+  const DEFAULT_HEADER = isMultiple ? '🃏ポケモンカード シングル買取強化中🃏' : `🃏${name} シングルカード 高価買取中🃏`
   const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [highPriceIds, setHighPriceIds] = useState<Set<string>>(new Set())
@@ -124,7 +124,9 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
           setActiveSeries(Array.isArray(saved.series) ? saved.series.filter(c => typeof c === 'string') : [])
           setSortMode(saved.sort === 'series' ? 'series' : 'price')
         }
-        setHeader(typeof saved.header === 'string' ? saved.header : DEFAULT_HEADER)
+        const savedHeader = typeof saved.header === 'string' ? saved.header : DEFAULT_HEADER
+        // 旧画面から保存された標準文面も移行。利用者が編集した文面は維持する。
+        setHeader(isMultiple && savedHeader.trim() === '🃏ポケモン合同 シングルカード 高価買取中🃏' ? DEFAULT_HEADER : savedHeader)
         setFooter(typeof saved.footer === 'string' ? saved.footer : DEFAULT_FOOTER)
         setSelectedIds(new Set(saved.singles.filter((id) => s.some((x) => x.id === id && (is30th || x.price > 0)))))
       } catch {
