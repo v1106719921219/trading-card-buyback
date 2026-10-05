@@ -43,6 +43,7 @@ interface MyOrderItem {
 interface MyOrder {
   order_number: string
   status: string
+  payment_method?: string | null
   total_amount: number
   order_items?: MyOrderItem[]
   inspected_total_amount: number | null
@@ -231,7 +232,9 @@ export default function MyOrdersPage() {
         ) : (
           <div className="space-y-3">
             {orders.map((o) => {
-              const s = CUSTOMER_STATUS[o.status] ?? { label: o.status, color: 'bg-gray-100 text-gray-700', step: 0 }
+              const s = o.payment_method === 'cash' && ['振込済', '振込確認済'].includes(o.status)
+                ? { label: '現金でお支払い済み', color: 'bg-emerald-100 text-emerald-800', step: 5 }
+                : CUSTOMER_STATUS[o.status] ?? { label: o.status, color: 'bg-gray-100 text-gray-700', step: 0 }
               const amount = (o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount ?? 0)
               return (
                 <Card key={`${o._db ?? 't'}-${o.order_number}`}>

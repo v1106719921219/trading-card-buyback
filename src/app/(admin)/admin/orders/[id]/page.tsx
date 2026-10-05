@@ -42,11 +42,13 @@ import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalL
 import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice, addOrderItem, approveOrder } from '@/actions/orders'
 import { getOrderKycInfo } from '@/actions/kyc'
 import { downloadInspectionPdf } from '@/actions/payments'
+import { CashPaymentCard } from '@/components/admin/cash-payment-card'
 import { createClient } from '@/lib/supabase/client'
 import { normalizeTrackingNumber, trackingBadgeClass } from '@/lib/yamato-status'
 import { fetchAllActiveProducts } from '@/lib/fetch-active-products'
 import { STATUS_TRANSITIONS, STATUS_REVERT, STATUS_COLORS, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
 import { toast } from 'sonner'
+import { paymentStatusLabel } from '@/lib/payment-display'
 import type { Order, OrderItem, OrderStatusHistory, OrderStatus, Office, UserRole, BuybackType, InspectionStatus } from '@/types/database'
 
 export default function OrderDetailPage() {
@@ -400,7 +402,7 @@ export default function OrderDetailPage() {
 
   // 検品完了への直接変更はadminのみ（東京のみ）。それ以外のスタッフは検品入力画面（検品者選択必須）を通す
   const allowedTransitions = (STATUS_TRANSITIONS[order.status as OrderStatus] || []).filter(
-    (s) => isChiba || s !== '検品完了' || userRole === 'admin'
+    (s) => s !== '振込済' && (isChiba || s !== '検品完了' || userRole === 'admin')
   )
 
   return (
@@ -443,7 +445,7 @@ export default function OrderDetailPage() {
                 </Badge>
               )}
               <Badge className={`text-sm px-3 py-1 ${STATUS_COLORS[order.status as OrderStatus]}`}>
-                {order.status}
+                {paymentStatusLabel(order)}
               </Badge>
               {order.inspection_status && (
                 <Badge className={`text-sm px-3 py-1 ${INSPECTION_STATUS_COLORS[order.inspection_status as InspectionStatus]}`}>
@@ -963,6 +965,7 @@ export default function OrderDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          <CashPaymentCard order={order} role={userRole} onSaved={fetchOrder} />
           {/* Status change */}
           {order.status === '承認待ち' && (
             <Card className="border-purple-200 bg-purple-50">
@@ -1025,7 +1028,7 @@ export default function OrderDetailPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>ステータスを変更しますか？</AlertDialogTitle>
                       <AlertDialogDescription>
-                        「{order.status}」から「{newStatus}」に変更します。
+                        「{paymentStatusLabel(order)}」から「{newStatus}」に変更します。
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -1058,7 +1061,7 @@ export default function OrderDetailPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>ステータスを戻しますか？</AlertDialogTitle>
                       <AlertDialogDescription>
-                        「{order.status}」から「{STATUS_REVERT[order.status as OrderStatus]}」に戻します。
+                        「{paymentStatusLabel(order)}」から「{STATUS_REVERT[order.status as OrderStatus]}」に戻します。
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

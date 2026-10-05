@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { paymentStatusLabel } from '@/lib/payment-display'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -214,7 +215,7 @@ export default function OfficeOrdersPage() {
         </TableCell>
         <TableCell>
           <Badge className={STATUS_COLORS[order.status as OrderStatus]}>
-            {order.status}
+            {paymentStatusLabel(order)}
           </Badge>
         </TableCell>
         <TableCell>{order.customer_name}</TableCell>

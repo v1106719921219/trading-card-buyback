@@ -64,6 +64,7 @@ export default function PaymentVerificationPage() {
       .from('orders')
       .select('*')
       .eq('status', '振込済')
+      .or('payment_method.is.null,payment_method.eq.bank_transfer')
       .order('updated_at', { ascending: true })
 
     if (error) {
@@ -190,7 +191,7 @@ export default function PaymentVerificationPage() {
     <div className="space-y-6">
       <AdminHeader
         title="振込確認"
-        description="銀行の振込履歴を見ながら、振込金額が正しいか確認してください"
+        description="銀行振込の確認用です。現金支払済みは注文一覧で確認できます。会計確認は別途行ってください。"
       />
 
       {/* MF照合（MF未設定の環境では非表示） */}

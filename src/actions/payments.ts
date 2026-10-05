@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/security'
 import { generateInspectionPdf } from '@/lib/pdf'
+import { jstToday, validPaymentDate } from '@/lib/payment-display'
 
 export async function getPaymentQueue() {
   const { user, error: authError } = await requireRole(['admin', 'manager'])
@@ -42,7 +43,7 @@ export async function markAsPaid(orderId: string) {
   // Atomic update: WHERE status = '検品完了' で TOCTOU 防止
   const { data: updated, error: updateError } = await supabase
     .from('orders')
-    .update({ status: '振込済', paid_at: new Date().toISOString() })
+    .update({ status: '振込済', paid_at: new Date().toISOString(), payment_method: 'bank_transfer', payment_date: jstToday() })
     .eq('id', orderId)
     .eq('tenant_id', user.tenant_id)
     .eq('status', '検品完了')
@@ -107,5 +108,29 @@ export async function bulkMarkAsPaid(orderIds: string[]) {
   revalidatePath('/admin/orders')
   revalidatePath('/admin')
 
+  return { success: true }
+}
+
+// 現金の全額支払いのみ。価格や残額を変更せず、既存の振込済記録の支払方法訂正にも使う。
+export async function recordCashPayment(orderId: string, paymentDate: string, expectedUpdatedAt: string) {
+  const { user, error: authError } = await requireRole(['admin', 'manager'])
+  if (authError || !user) return { error: authError ?? '認証が必要です' }
+  if (!validPaymentDate(paymentDate)) return { error: '本日以前の正しい支払日を入力してください' }
+  const db = await createClient()
+  const { data: order, error } = await db.from('orders')
+    .select('id,status,updated_at,kyc_request_id,identity_verified_at')
+    .eq('id', orderId).eq('tenant_id', user.tenant_id).single()
+  if (error || !order) return { error: '注文が見つかりません' }
+  if (!['検品完了', '振込済'].includes(order.status)) return { error: '検品完了または支払済の注文のみ登録できます' }
+  if (order.updated_at !== expectedUpdatedAt) return { error: '注文が更新されました。画面を再読み込みして確認してください' }
+  if (order.kyc_request_id && !order.identity_verified_at) return { error: '本人確認の承認が必要です' }
+  const { data: updated, error: updateError } = await db.from('orders').update({
+    status: '振込済', payment_method: 'cash', payment_date: paymentDate,
+    paid_at: `${paymentDate}T00:00:00+09:00`,
+  }).eq('id', orderId).eq('tenant_id', user.tenant_id)
+    .eq('updated_at', expectedUpdatedAt).eq('status', order.status).select('id')
+  if (updateError) return { error: '現金支払いを保存できませんでした。本人確認と権限を確認してください' }
+  if (!updated?.length) return { error: '注文が更新されました。再読み込みしてください' }
+  for (const path of ['/admin', '/admin/orders', `/admin/orders/${orderId}`, '/admin/payments', '/admin/payment-verification']) revalidatePath(path)
   return { success: true }
 }

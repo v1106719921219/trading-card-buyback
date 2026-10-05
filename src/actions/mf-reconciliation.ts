@@ -106,6 +106,7 @@ export async function reconcileMfForOrders(
       .from('orders')
       .select('id, order_number, customer_name, bank_account_holder, total_amount, inspected_total_amount, inspection_discount, status, updated_at')
       .in('id', orderIds)
+      .or('payment_method.is.null,payment_method.eq.bank_transfer')
       .eq('tenant_id', await requireTenantId())
 
     if (ordersError) return { error: `注文の取得に失敗しました: ${ordersError.message}` }

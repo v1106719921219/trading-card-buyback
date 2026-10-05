@@ -25,6 +25,7 @@ import { Search, Eye, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getOrdersForCSV } from '@/actions/orders'
 import { toast } from 'sonner'
+import { paymentStatusLabel } from '@/lib/payment-display'
 import { ORDER_STATUSES, STATUS_COLORS, ITEMS_PER_PAGE, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
 import type { Order, OrderItem, OrderStatus, BuybackType, InspectionStatus } from '@/types/database'
 
@@ -115,7 +116,7 @@ export default function OrdersPage() {
         if (items.length === 0) {
           const row = [
             order.order_number,
-            order.status,
+            paymentStatusLabel(order),
             buybackTypeLabel,
             dateKey,
             order.customer_name,
@@ -147,7 +148,7 @@ export default function OrdersPage() {
             const subtotal = item.unit_price * item.quantity
             const row = [
               order.order_number,
-              order.status,
+              paymentStatusLabel(order),
               buybackTypeLabel,
               dateKey,
               order.customer_name,
@@ -371,7 +372,9 @@ export default function OrdersPage() {
       .order('created_at', { ascending: false })
       .range(offset, offset + ITEMS_PER_PAGE - 1)
 
-    if (statusFilter !== 'all') {
+    if (statusFilter === 'cash_paid') {
+      query = query.in('status', ['振込済', '振込確認済']).eq('payment_method', 'cash')
+    } else if (statusFilter !== 'all') {
       query = query.eq('status', statusFilter)
     }
 
@@ -405,7 +408,9 @@ export default function OrdersPage() {
         .gte('created_at', rangeStart.toISOString())
         .lt('created_at', rangeEnd.toISOString())
 
-      if (statusFilter !== 'all') {
+      if (statusFilter === 'cash_paid') {
+        totalsQuery = totalsQuery.in('status', ['振込済', '振込確認済']).eq('payment_method', 'cash')
+      } else if (statusFilter !== 'all') {
         totalsQuery = totalsQuery.eq('status', statusFilter)
       }
       if (search) {
@@ -515,8 +520,9 @@ export default function OrdersPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全ステータス</SelectItem>
+            <SelectItem value="cash_paid">現金支払済</SelectItem>
             {ORDER_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
+              <SelectItem key={s} value={s}>{s === '振込済' ? '支払済（振込・現金）' : s}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -588,7 +594,7 @@ export default function OrdersPage() {
                       <TableCell>
                         <div className="flex items-center gap-1.5">
                           <Badge className={STATUS_COLORS[order.status as OrderStatus]}>
-                            {order.status}
+                            {paymentStatusLabel(order)}
                           </Badge>
                           {order.inspection_status && (
                             <Badge className={INSPECTION_STATUS_COLORS[order.inspection_status as InspectionStatus]}>
