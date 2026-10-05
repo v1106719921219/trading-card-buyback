@@ -527,8 +527,8 @@ const Single30thCanvas = React.forwardRef<HTMLDivElement, {
   const padX = 20
   const gap = 4
 
-  // Header ends around y=310
-  const gridTop = 310
+  // 通常シリーズはロゴだけのコンパクトなヘッダーにする。
+  const gridTop = is30th ? 310 : 100
   const footerH = 36
 
   const totalGridH = H - gridTop - footerH
@@ -573,14 +573,11 @@ const Single30thCanvas = React.forwardRef<HTMLDivElement, {
 
       {!is30th && <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at top right, #fff3aa, transparent 65%), linear-gradient(135deg, #fbbf24, #fff3a0 50%, #f59e0b)', zIndex: 0 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/assets/logo-full.png" alt="" crossOrigin="anonymous" style={{ position: 'absolute', left: 40, top: 35, width: 210, height: 210, objectFit: 'contain' }} />
-        <div style={{ position: 'absolute', left: 290, top: 35, right: 35, color: '#171717', fontWeight: 900 }}>
-          <div style={{ fontSize: 48, letterSpacing: '0.04em' }}>{seriesName} シングルカード</div>
-          <div style={{ fontSize: 102, lineHeight: 1.4, textShadow: '3px 3px 0 #fff' }}>高価買取</div>
-        </div>
+        <img src="/assets/logo-full.png" alt="" crossOrigin="anonymous" style={{ position: 'absolute', left: padX, top: 8, width: 84, height: 84, objectFit: 'contain' }} />
       </div>}
+      {!is30th && pageCount > 1 && <div style={{ position: 'absolute', top: 38, right: padX, fontSize: 20, fontWeight: 700, color: '#171717' }}>{pageNo} / {pageCount}</div>}
       {/* Section label */}
-      <div style={{
+      {is30th && <div style={{
         position: 'absolute', left: padX, top: gridTop - 28, zIndex: 3,
         background: '#dc2626', color: '#fff', padding: '2px 14px',
         fontSize: 14, fontWeight: 900, letterSpacing: '0.1em',
@@ -588,7 +585,7 @@ const Single30thCanvas = React.forwardRef<HTMLDivElement, {
       }}>
         {seriesName} {sectionLabel} <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em' }}>{sectionLabelEn}</span>
         {pageCount > 1 && <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 8 }}>{pageNo}/{pageCount}</span>}
-      </div>
+      </div>}
 
       {products.map((product, i) => {
         const col = i % cols
