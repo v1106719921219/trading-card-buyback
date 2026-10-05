@@ -55,7 +55,11 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out
 }
 
-export default function SeriesSingles({ code, name }: { code: string; name: string }) {
+export default function SeriesSingles({ code, name, seriesOptions = [] }: { code: string; name: string; seriesOptions?: { code: string; name: string }[] }) {
+  const isMultiple = code === 'MULTI'
+  const [activeSeries, setActiveSeries] = useState<string[]>([])
+  const [sortMode, setSortMode] = useState<'price' | 'series'>('price')
+  const productSeries = (p: Product) => p.subcategory_id === SUBCATEGORY_ID ? 'M6A' : singleSeriesCode(p)
   const is30th = code === 'M6A'
   const SETTING_KEY = is30th ? 'sns_30th_single_default_products' : `sns_single_series_${code.toLowerCase()}`
   const DEFAULT_HEADER = `🃏${name} シングルカード 高価買取中🃏`
@@ -89,7 +93,7 @@ export default function SeriesSingles({ code, name }: { code: string; name: stri
         .select('*, category:categories(*), subcategory:subcategories(*)')
         .eq('is_active', true)
         .eq('category_id', CATEGORY_ID)
-        .in('subcategory_id', is30th ? [SUBCATEGORY_ID] : ['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9'])
+        .in('subcategory_id', isMultiple ? [SUBCATEGORY_ID, '19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9'] : is30th ? [SUBCATEGORY_ID] : ['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9'])
         .order('sort_order'),
       supabase.from('app_settings').select('value').eq('key', SETTING_KEY).maybeSingle(),
     ])
@@ -100,35 +104,61 @@ export default function SeriesSingles({ code, name }: { code: string; name: stri
       return
     }
 
-    const s = ((productsResult.data || []) as ProductWithRelations[]).filter(p => is30th || singleSeriesCode(p) === code)
+    const s = ((productsResult.data || []) as ProductWithRelations[]).filter(p => isMultiple || is30th || singleSeriesCode(p) === code)
     setProducts(s)
     setHeader(DEFAULT_HEADER)
     setFooter(DEFAULT_FOOTER)
 
     if (settingResult.data?.value) {
       try {
-        const saved: { singles: string[]; header?: string; footer?: string } = JSON.parse(settingResult.data.value)
+        const saved: { singles: string[]; header?: string; footer?: string; series?: string[]; sort?: 'price' | 'series' } = JSON.parse(settingResult.data.value)
+        if (isMultiple) {
+          setActiveSeries(Array.isArray(saved.series) ? saved.series.filter(c => typeof c === 'string') : [])
+          setSortMode(saved.sort === 'series' ? 'series' : 'price')
+        }
         setHeader(typeof saved.header === 'string' ? saved.header : DEFAULT_HEADER)
         setFooter(typeof saved.footer === 'string' ? saved.footer : DEFAULT_FOOTER)
         setSelectedIds(new Set(saved.singles.filter((id) => s.some((x) => x.id === id && (is30th || x.price > 0)))))
       } catch {
-        setSelectedIds(new Set(s.filter(x => is30th || x.price > 0).map((x) => x.id)))
+        if (isMultiple) { setActiveSeries([]); setSortMode('price') }
+        setSelectedIds(new Set(isMultiple ? [] : s.filter(x => is30th || x.price > 0).map((x) => x.id)))
       }
     } else {
-      setSelectedIds(new Set(s.filter(x => is30th || x.price > 0).map((x) => x.id)))
+      if (isMultiple) { setActiveSeries([]); setSortMode('price') }
+      setSelectedIds(new Set(isMultiple ? [] : s.filter(x => is30th || x.price > 0).map((x) => x.id)))
     }
 
     setLoading(false)
-  }, [supabase, code, is30th, SETTING_KEY, DEFAULT_HEADER])
+  }, [supabase, code, is30th, isMultiple, SETTING_KEY, DEFAULT_HEADER])
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  const visibleProducts = useMemo(() => products.filter(p => !isMultiple || activeSeries.includes(p.subcategory_id === SUBCATEGORY_ID ? 'M6A' : singleSeriesCode(p))), [products, isMultiple, activeSeries])
+  const compareProducts = useCallback((a: Product, b: Product) => {
+    if (!isMultiple) return (b.market_price ?? -1) - (a.market_price ?? -1) || cardNum(a) - cardNum(b)
+    const ac = a.subcategory_id === SUBCATEGORY_ID ? 'M6A' : singleSeriesCode(a)
+    const bc = b.subcategory_id === SUBCATEGORY_ID ? 'M6A' : singleSeriesCode(b)
+    return (sortMode === 'series' ? ac.localeCompare(bc, 'ja', { numeric: true }) : 0) || b.price - a.price || a.name.localeCompare(b.name, 'ja')
+  }, [isMultiple, sortMode])
+  function toggleSeries(seriesCode: string) {
+    const remove = activeSeries.includes(seriesCode)
+    setActiveSeries(prev => remove ? prev.filter(c => c !== seriesCode) : [...prev, seriesCode])
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      for (const p of products.filter(p => productSeries(p) === seriesCode)) {
+        if (remove) next.delete(p.id)
+        else if (p.price > 0) next.add(p.id)
+      }
+      return next
+    })
+  }
+
   // 高レアはスニダン相場の高い順（相場未取得は末尾・同額はカード番号順）
   const rares = useMemo(() =>
-    products
+    visibleProducts
       .filter((p) => !is30th || cardNum(p) >= HIGH_RARE_MIN_NUM)
-      .sort((a, b) => (b.market_price ?? -1) - (a.market_price ?? -1) || cardNum(a) - cardNum(b)),
-  [products, is30th])
+      .sort(compareProducts),
+  [visibleProducts, is30th, compareProducts])
   // ミラーピカチュウはカード番号順、コンプセットは末尾
   const pikachus = useMemo(() =>
     products
@@ -167,7 +197,7 @@ export default function SeriesSingles({ code, name }: { code: string; name: stri
 
   async function saveDefaults() {
     setSaving(true)
-    const value = JSON.stringify({ singles: Array.from(selectedIds), header, footer })
+    const value = JSON.stringify({ singles: Array.from(selectedIds), header, footer, ...(isMultiple ? { series: activeSeries, sort: sortMode } : {}) })
     const tenantId = 'aaaaaaaa-0000-0000-0000-000000000001'
     const { data: existing } = await supabase.from('app_settings').select('key').eq('key', SETTING_KEY).maybeSingle()
     let error
@@ -304,7 +334,7 @@ export default function SeriesSingles({ code, name }: { code: string; name: stri
         ]
       }
     }
-    return [`【${title}】`, ...[...selected].sort((a, b) => b.price - a.price).map(p => formatXProductLine(is30th ? p.name : p.name.replace(/\[([^\]]+)\]/g, '($1)'), p.price)), '']
+    return [`【${title}】`, ...[...selected].sort(isMultiple ? compareProducts : (a, b) => b.price - a.price).map(p => formatXProductLine(is30th ? p.name : p.name.replace(/\[([^\]]+)\]/g, '($1)'), p.price)), '']
   }), footer].join('\n')
 
   async function copyPost() {
@@ -321,8 +351,21 @@ export default function SeriesSingles({ code, name }: { code: string; name: stri
         description="シリーズ別の買取価格一覧・SNS投稿文・価格画像を生成します（1920×1080・ページ自動分割）"
       />
 
-      {!loading && <p className="mt-4 text-sm text-muted-foreground">登録 {products.length}件 ／ 価格設定済み {products.filter(p => p.price > 0).length}件 ／ 画像あり {products.filter(p => p.image_url).length}件。価格・受付の変更と相場更新は商品管理から行えます。通常シングルの参考相場は状態Aの最安出品価格です。通常シングルは価格設定後に画像へ掲載できます。</p>}
-      {!loading && products.length === 0 && <p className="mt-4 rounded border p-4">このシリーズの商品はまだ登録されていません。</p>}
+      {isMultiple && <div className="mt-4 rounded-lg border p-4 space-y-3">
+        <p className="text-sm">一緒に載せるシリーズを選択してください。価格設定済みの商品が選択され、個別に外すこともできます。</p>
+        <div className="flex flex-wrap gap-3 max-h-44 overflow-y-auto">
+          {seriesOptions.map(s => <label key={s.code} className="flex items-center gap-2 text-sm rounded border px-3 py-2">
+            <Checkbox aria-label={`${s.name}を含める`} disabled={loading} checked={activeSeries.includes(s.code)} onCheckedChange={() => toggleSeries(s.code)} />{s.name}
+          </label>)}
+        </div>
+        <label className="flex items-center gap-2 text-sm">画像・投稿文の並び順
+          <select aria-label="画像・投稿文の並び順" className="rounded border px-3 py-2" value={sortMode} onChange={e => setSortMode(e.target.value as 'price' | 'series')}>
+            <option value="price">買取価格の高い順</option><option value="series">シリーズ順（各シリーズ内は価格順）</option>
+          </select>
+        </label>
+      </div>}
+      {!loading && <p className="mt-4 text-sm text-muted-foreground">登録 {visibleProducts.length}件 ／ 価格設定済み {visibleProducts.filter(p => p.price > 0).length}件 ／ 画像あり {visibleProducts.filter(p => p.image_url).length}件。価格・受付の変更と相場更新は商品管理から行えます。通常シングルの参考相場は状態Aの最安出品価格です。通常シングルは価格設定後に画像へ掲載できます。</p>}
+      {!loading && visibleProducts.length === 0 && <p className="mt-4 rounded border p-4">{isMultiple ? 'シリーズを選択すると商品が表示されます。' : 'このシリーズの商品はまだ登録されていません。'}</p>}
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2 rounded-lg border bg-card px-4 py-3">
@@ -330,7 +373,7 @@ export default function SeriesSingles({ code, name }: { code: string; name: stri
               「デフォルトとして保存」で商品選択と投稿文の冒頭・末尾を保存できます
             </p>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">計 {selectedIds.size} 件選択中</span>
+              <span className="text-sm text-muted-foreground">計 {visibleProducts.filter(p => selectedIds.has(p.id)).length} 件選択中</span>
               <Button variant="outline" size="sm" onClick={saveDefaults} disabled={saving || loading} className="gap-1">
                 <Save className="h-3.5 w-3.5" />
                 デフォルトとして保存
@@ -405,7 +448,7 @@ export default function SeriesSingles({ code, name }: { code: string; name: stri
               </label>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-muted-foreground">{Array.from(generatedMessage).length}文字（投稿先の文字数制限を確認してください）</span>
-                <Button onClick={copyPost} disabled={loading || selectedIds.size === 0} className="gap-2"><Copy className="h-4 w-4" />投稿文をコピー</Button>
+                <Button onClick={copyPost} disabled={loading || !visibleProducts.some(p => selectedIds.has(p.id))} className="gap-2"><Copy className="h-4 w-4" />投稿文をコピー</Button>
               </div>
               <Textarea aria-label="投稿文プレビュー" readOnly value={generatedMessage} rows={14} className="font-mono text-sm" />
             </CardContent>

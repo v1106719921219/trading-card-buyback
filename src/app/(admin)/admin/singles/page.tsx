@@ -6,6 +6,7 @@ import { MEGA_SERIES, singleSeriesCode } from '@/lib/single-series'
 import { toast } from 'sonner'
 
 export default function SinglesPage() {
+  const [multiple, setMultiple] = useState(false)
   const [code, setCode] = useState('M6A')
   const [series, setSeries] = useState(MEGA_SERIES)
   useEffect(() => {
@@ -28,11 +29,15 @@ export default function SinglesPage() {
     return () => { active = false }
   }, [])
   return <>
-    <label className="mb-6 flex items-center gap-3 font-medium">シリーズ
+    <div className="mb-4 flex gap-2" aria-label="画像作成モード">
+      <button type="button" aria-pressed={!multiple} className={`rounded-md border px-4 py-2 ${!multiple ? 'bg-orange-500 text-white' : ''}`} onClick={() => setMultiple(false)}>1シリーズ</button>
+      <button type="button" aria-pressed={multiple} className={`rounded-md border px-4 py-2 ${multiple ? 'bg-orange-500 text-white' : ''}`} onClick={() => setMultiple(true)}>複数シリーズ</button>
+    </div>
+    {!multiple && <label className="mb-6 flex items-center gap-3 font-medium">シリーズ
       <select aria-label="シリーズ" className="rounded-md border bg-background px-3 py-2" value={code} onChange={e => setCode(e.target.value)}>
         {series.map(s => <option key={s.code} value={s.code}>{s.name}（{s.code}）</option>)}
       </select>
-    </label>
-    <SeriesSingles key={code} code={code} name={series.find(s => s.code === code)?.name || code} />
+    </label>}
+    {multiple ? <SeriesSingles key="MULTI" code="MULTI" name="ポケモン合同" seriesOptions={series} /> : <SeriesSingles key={code} code={code} name={series.find(s => s.code === code)?.name || code} /> }
   </>
 }
