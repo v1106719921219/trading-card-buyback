@@ -104,9 +104,10 @@ export async function reconcileMfForOrders(
 
     const { data: orders, error: ordersError } = await supabase
       .from('orders')
-      .select('id, order_number, customer_name, bank_account_holder, total_amount, inspected_total_amount, inspection_discount, status, updated_at')
+      .select('id, order_number, customer_name, bank_account_holder, total_amount, inspected_total_amount, inspection_discount, status, updated_at, payment_date')
       .in('id', orderIds)
       .or('payment_method.is.null,payment_method.eq.bank_transfer')
+      .lte('bank_payment_count', 1)
       .eq('tenant_id', await requireTenantId())
 
     if (ordersError) return { error: `注文の取得に失敗しました: ${ordersError.message}` }
@@ -135,7 +136,7 @@ export async function reconcileMfForOrders(
           customerName: o.customer_name,
           bankAccountHolder: o.bank_account_holder,
           amount: (o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount ?? 0),
-          paidDate: String(paidAt).slice(0, 10),
+          paidDate: o.payment_date ?? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date(paidAt)),
           status: o.status,
         }
       })

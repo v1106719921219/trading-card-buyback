@@ -9,6 +9,7 @@ import { Header } from '@/components/public/header'
 import { Footer } from '@/components/public/footer'
 import { Package, FileDown, Plus, Minus, X, Search } from 'lucide-react'
 import { toast } from 'sonner'
+import { remainingPayment, paidAmount } from '@/lib/payment-display'
 import { initLiff, openExternalUrl } from '@/lib/liff-client'
 import { getMyOrdersByIdToken, submitTrackingByIdToken, createMyInspectionPdfLink, getMyOrderAddableProducts, addMyOrderItems } from '@/actions/orders'
 
@@ -43,6 +44,7 @@ interface MyOrderItem {
 interface MyOrder {
   order_number: string
   status: string
+  paid_amount?: number
   payment_method?: string | null
   total_amount: number
   order_items?: MyOrderItem[]
@@ -232,7 +234,11 @@ export default function MyOrdersPage() {
         ) : (
           <div className="space-y-3">
             {orders.map((o) => {
-              const s = o.payment_method === 'cash' && ['振込済', '振込確認済'].includes(o.status)
+              const s = Number(o.paid_amount) > 0 && !['振込済', '振込確認済'].includes(o.status)
+                ? { label: '一部お支払い済み', color: 'bg-amber-100 text-amber-800', step: 4 }
+                : o.payment_method === 'mixed' && ['振込済', '振込確認済'].includes(o.status)
+                ? { label: 'お支払い完了（現金・振込）', color: 'bg-emerald-100 text-emerald-800', step: 5 }
+                : o.payment_method === 'cash' && ['振込済', '振込確認済'].includes(o.status)
                 ? { label: '現金でお支払い済み', color: 'bg-emerald-100 text-emerald-800', step: 5 }
                 : CUSTOMER_STATUS[o.status] ?? { label: o.status, color: 'bg-gray-100 text-gray-700', step: 0 }
               const amount = (o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount ?? 0)
@@ -271,10 +277,11 @@ export default function MyOrdersPage() {
                         {new Date(o.created_at).toLocaleDateString('ja-JP')} 申込
                       </span>
                       <span className="font-medium">
-                        {s.step >= 4 ? 'お振込金額' : '申込金額'} {amount.toLocaleString()}円
+                        {s.step >= 4 ? '買取金額' : '申込金額'} {amount.toLocaleString()}円
                       </span>
                     </div>
 
+                    {Number(o.paid_amount) > 0 && <div className="rounded-md bg-emerald-50 p-2 text-sm text-emerald-900">お支払い済み：{paidAmount(o).toLocaleString()}円<br />残りのお支払い：{remainingPayment(o).toLocaleString()}円</div>}
                     {/* 申込内容（何を申し込んだか）の明細 */}
                     {(o.order_items?.length ?? 0) > 0 && (
                       <details className="rounded-md bg-muted/50">

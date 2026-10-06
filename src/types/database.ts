@@ -134,7 +134,10 @@ export interface Order {
   arrival_date: string | null
   price_date: string | null
   assigned_to: string | null
-  payment_method?: 'bank_transfer' | 'cash' | null
+  payment_method?: 'bank_transfer' | 'cash' | 'mixed' | null
+  paid_amount?: number
+  bank_paid_amount?: number
+  bank_payment_count?: number
   payment_date?: string | null
   paid_at: string | null
   tenant_id: string
@@ -211,4 +214,14 @@ export interface AppSetting {
   value: string
   description: string | null
   updated_at: string
+}
+
+export interface OrderPayment {
+  id: string
+  method: 'cash' | 'bank_transfer'
+  amount: number
+  paid_on: string
+  created_at: string
+  voided_at: string | null
+  void_reason: string | null
 }

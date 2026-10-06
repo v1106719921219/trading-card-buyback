@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { remainingPayment, paidAmount } from '@/lib/payment-display'
 import type { Order, OrderItem } from '@/types/database'
 
 let fontCache: string | null = null
@@ -104,7 +105,7 @@ export async function generateInspectionPdf(
   y += 8
 
   // ===== 金額計算 =====
-  const paymentAmount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
+  const paymentAmount = remainingPayment(order)
 
   // 商品明細テーブル
   const tableData = orderItems.map((item) => {
@@ -168,6 +169,11 @@ export async function generateInspectionPdf(
     finalY += 6
   }
 
+  if (paidAmount(order) > 0) {
+    doc.text('支払済金額:', rightX - 50, finalY, { align: 'right' })
+    doc.text(`${paidAmount(order).toLocaleString()}円`, rightX, finalY, { align: 'right' })
+    finalY += 6
+  }
   // 区切り線
   doc.setDrawColor(100, 100, 100)
   doc.line(rightX - 80, finalY, rightX, finalY)
@@ -176,7 +182,7 @@ export async function generateInspectionPdf(
   // お振込金額（大きく）
   doc.setFontSize(13)
   doc.setFont('NotoSansJP', 'bold')
-  doc.text(`お振込金額:`, rightX - 55, finalY, { align: 'right' })
+  doc.text(`残りの支払金額:`, rightX - 55, finalY, { align: 'right' })
   doc.text(`${paymentAmount.toLocaleString()}円`, rightX, finalY, { align: 'right' })
   doc.setFont('NotoSansJP', 'normal')
 

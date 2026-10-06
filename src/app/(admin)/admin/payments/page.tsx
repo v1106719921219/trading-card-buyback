@@ -36,6 +36,7 @@ import { CreditCard, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { bulkMarkAsPaid } from '@/actions/payments'
+import { remainingPayment, paidAmount } from '@/lib/payment-display'
 import type { Order } from '@/types/database'
 
 // 同一人物判定用のキー（メール / 銀行口座）
@@ -133,7 +134,7 @@ export default function PaymentsPage() {
 
     const warnings = new Map<string, RepeatWarning[]>()
     for (const o of pendingOrders) {
-      const myAmount = (o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount ?? 0)
+      const myAmount = remainingPayment(o)
       const seen = new Set<string>()
       const list: RepeatWarning[] = []
       for (const key of personKeys(o)) {
@@ -146,7 +147,7 @@ export default function PaymentsPage() {
         }
         for (const other of pendingByKey.get(key) ?? []) {
           if (other.id === o.id || seen.has(other.order_number)) continue
-          const otherAmount = (other.inspected_total_amount ?? other.total_amount) - (other.inspection_discount ?? 0)
+          const otherAmount = remainingPayment(other)
           // 振込待ち内は同じ金額の場合のみ警告（同一人物の複数注文自体は正常）
           if (otherAmount !== myAmount) continue
           seen.add(other.order_number)
@@ -190,12 +191,16 @@ export default function PaymentsPage() {
     else next.delete(id)
     setSelectedIds(next)
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('orders')
       .update({ payment_checked: newChecked })
-      .eq('id', id)
+      .eq('id', id).select('*').single()
     if (error) {
       toast.error('チェック状態の保存に失敗しました')
+      fetchOrders()
+    } else if (updated) {
+      const rows = Array.isArray(updated) ? updated : [updated]
+      setOrders(previous => previous.map(o => rows.find(row => row.id === o.id) ?? o))
     }
   }
 
@@ -205,15 +210,15 @@ export default function PaymentsPage() {
     const order = list.find((o) => o.id === id)
     if (!order) return
     const newValue = !order.customer_not_invoice_issuer
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('orders')
       .update({ customer_not_invoice_issuer: newValue })
-      .eq('id', id)
+      .eq('id', id).select('*').single()
     if (error) {
       toast.error('適格事業者の更新に失敗しました')
       return
     }
-    setList(list.map((o) => o.id === id ? { ...o, customer_not_invoice_issuer: newValue } : o))
+    setList(previous => previous.map(o => o.id === id && updated ? updated : o))
     toast.success(newValue ? '適格事業者を解除しました' : '適格事業者に設定しました')
   }
 
@@ -225,15 +230,15 @@ export default function PaymentsPage() {
     const newValue = !order.bank_verified
     // チェック時: どの段階で確認したかを記録（shipped=振込予定時、pending=振込待ち時）
     const newStage = newValue ? (listType === 'shipped' ? '発送済' as const : '検品完了' as const) : null
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('orders')
       .update({ bank_verified: newValue, bank_verified_stage: newStage })
-      .eq('id', id)
+      .eq('id', id).select('*').single()
     if (error) {
       toast.error('口座確認の更新に失敗しました')
       return
     }
-    setList(list.map((o) => o.id === id ? { ...o, bank_verified: newValue, bank_verified_stage: newStage } : o))
+    setList(previous => previous.map(o => o.id === id && updated ? updated : o))
   }
 
   async function toggleAll() {
@@ -246,12 +251,16 @@ export default function PaymentsPage() {
       setSelectedIds(new Set(ids))
     }
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('orders')
       .update({ payment_checked: !allSelected })
-      .in('id', ids)
+      .in('id', ids).select('*')
     if (error) {
       toast.error('チェック状態の保存に失敗しました')
+      fetchOrders()
+    } else if (updated) {
+      const rows = Array.isArray(updated) ? updated : [updated]
+      setOrders(previous => previous.map(o => rows.find(row => row.id === o.id) ?? o))
     }
   }
 
@@ -259,7 +268,7 @@ export default function PaymentsPage() {
     setProcessing(true)
     const ids = Array.from(selectedIds)
 
-    const result = await bulkMarkAsPaid(ids)
+    const result = await bulkMarkAsPaid(orders.filter(o => ids.includes(o.id)).map(o => ({ id: o.id, amount: remainingPayment(o), updatedAt: o.updated_at, requestId: crypto.randomUUID() })))
 
     if (result.error) {
       toast.error(result.error)
@@ -285,10 +294,10 @@ export default function PaymentsPage() {
 
   const totalAmount = orders
     .filter((o) => selectedIds.has(o.id))
-    .reduce((sum, o) => sum + (o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount ?? 0), 0)
+    .reduce((sum, o) => sum + remainingPayment(o), 0)
 
   const shippedTotalAmount = shippedOrders.reduce(
-    (sum, o) => sum + o.total_amount, 0
+    (sum, o) => sum + remainingPayment(o), 0
   )
 
   return (
@@ -468,7 +477,8 @@ export default function PaymentsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {((order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)).toLocaleString()}円
+                        {remainingPayment(order).toLocaleString()}円
+                        {Number(order.paid_amount) > 0 && <div className="text-xs text-emerald-700">支払済 {paidAmount(order).toLocaleString()}円を差引済み</div>}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
                         {new Date(order.updated_at).toLocaleDateString('ja-JP')}
@@ -584,7 +594,7 @@ export default function PaymentsPage() {
                         />
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {order.total_amount.toLocaleString()}円
+                        {remainingPayment(order).toLocaleString()}円
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
                         {new Date(order.created_at).toLocaleDateString('ja-JP')}

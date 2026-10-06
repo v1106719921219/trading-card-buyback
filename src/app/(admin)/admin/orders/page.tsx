@@ -25,7 +25,7 @@ import { Search, Eye, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getOrdersForCSV } from '@/actions/orders'
 import { toast } from 'sonner'
-import { paymentStatusLabel } from '@/lib/payment-display'
+import { paymentStatusLabel, remainingPayment, paidAmount } from '@/lib/payment-display'
 import { ORDER_STATUSES, STATUS_COLORS, ITEMS_PER_PAGE, BUYBACK_TYPE_LABELS, BUYBACK_TYPE_COLORS, INSPECTION_STATUS_COLORS } from '@/lib/constants'
 import type { Order, OrderItem, OrderStatus, BuybackType, InspectionStatus } from '@/types/database'
 
@@ -372,7 +372,9 @@ export default function OrdersPage() {
       .order('created_at', { ascending: false })
       .range(offset, offset + ITEMS_PER_PAGE - 1)
 
-    if (statusFilter === 'cash_paid') {
+    if (statusFilter === 'partial_paid') {
+      query = query.gt('paid_amount', 0).not('status', 'in', '(振込済,振込確認済,キャンセル)')
+    } else if (statusFilter === 'cash_paid') {
       query = query.in('status', ['振込済', '振込確認済']).eq('payment_method', 'cash')
     } else if (statusFilter !== 'all') {
       query = query.eq('status', statusFilter)
@@ -404,11 +406,13 @@ export default function OrdersPage() {
 
       let totalsQuery = supabase
         .from('orders')
-        .select('created_at, status, total_amount, inspected_total_amount, inspection_discount')
+        .select('created_at, status, total_amount, inspected_total_amount, inspection_discount, paid_amount')
         .gte('created_at', rangeStart.toISOString())
         .lt('created_at', rangeEnd.toISOString())
 
-      if (statusFilter === 'cash_paid') {
+      if (statusFilter === 'partial_paid') {
+        totalsQuery = totalsQuery.gt('paid_amount', 0).not('status', 'in', '(振込済,振込確認済,キャンセル)')
+      } else if (statusFilter === 'cash_paid') {
         totalsQuery = totalsQuery.in('status', ['振込済', '振込確認済']).eq('payment_method', 'cash')
       } else if (statusFilter !== 'all') {
         totalsQuery = totalsQuery.eq('status', statusFilter)
@@ -431,9 +435,9 @@ export default function OrdersPage() {
           existing.total += order.total_amount
           existing.inspected += amount
           existing.count++
-          if (isUnpaid) existing.unpaid += amount
+          if (isUnpaid) existing.unpaid += remainingPayment(order)
         } else {
-          map.set(dateKey, { total: order.total_amount, inspected: amount, count: 1, unpaid: isUnpaid ? amount : 0 })
+          map.set(dateKey, { total: order.total_amount, inspected: amount, count: 1, unpaid: isUnpaid ? remainingPayment(order) : 0 })
         }
       }
       setDailyTotals(map)
@@ -521,6 +525,7 @@ export default function OrdersPage() {
           <SelectContent>
             <SelectItem value="all">全ステータス</SelectItem>
             <SelectItem value="cash_paid">現金支払済</SelectItem>
+            <SelectItem value="partial_paid">一部支払済</SelectItem>
             {ORDER_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>{s === '振込済' ? '支払済（振込・現金）' : s}</SelectItem>
             ))}
@@ -624,6 +629,7 @@ export default function OrdersPage() {
                         ) : (
                           <span>{order.total_amount.toLocaleString()}円</span>
                         )}
+                        {Number(order.paid_amount) > 0 && <div className="text-xs text-emerald-700">支払済 {paidAmount(order).toLocaleString()}円<br />残額 {remainingPayment(order).toLocaleString()}円</div>}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
                         {dateKey}

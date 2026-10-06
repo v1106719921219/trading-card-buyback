@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { ShoppingCart, Package, CreditCard, CheckCircle } from 'lucide-react'
 import { ORDER_STATUSES, STATUS_COLORS } from '@/lib/constants'
 import { Badge } from '@/components/ui/badge'
+import { jstToday } from '@/lib/payment-display'
 import type { OrderStatus } from '@/types/database'
 
 export default async function AdminDashboard() {
@@ -24,47 +25,44 @@ export default async function AdminDashboard() {
   })
 
   // Get today's stats
-  const today = new Date().toISOString().split('T')[0]
+  const today = jstToday()
   const { count: todayOrders } = await supabase
     .from('orders')
     .select('*', { count: 'exact', head: true })
-    .gte('created_at', `${today}T00:00:00`)
+    .gte('created_at', `${today}T00:00:00+09:00`)
 
-  // Get transfer history from order_status_history (when status changed to 振込済)
-  // joined with order amounts
-  const { data: transferHistory } = await supabase
-    .from('order_status_history')
-    .select('order_id, changed_at, orders(inspected_total_amount, total_amount, inspection_discount)')
-    .eq('new_status', '振込済')
-    .order('changed_at', { ascending: false })
-
-  // Aggregate by day
+  // 新しい支払履歴は実際の振込金額・支払日で集計。現金と取消分は振込金額に含めない。
+  const transfers: { date: string; amount: number }[] = []
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase.from('order_payments').select('paid_on,amount')
+      .eq('method', 'bank_transfer').is('voided_at', null).order('id').range(offset, offset + 999)
+    if (error) throw new Error('支払履歴を取得できませんでした')
+    for (const p of data ?? []) transfers.push({ date: p.paid_on, amount: Number(p.amount) })
+    if ((data?.length ?? 0) < 1000) break
+  }
+  const seenOrders = new Set<string>()
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase.from('order_status_history')
+      .select('order_id, changed_at, orders(status, inspected_total_amount, total_amount, inspection_discount, payment_method, order_payments(id))')
+      .eq('new_status', '振込済').order('changed_at', { ascending: false }).order('id').range(offset, offset + 999)
+    if (error) throw new Error('過去の振込履歴を取得できませんでした')
+    for (const h of data ?? []) {
+      const o = h.orders as unknown as { status: string; inspected_total_amount: number | null; total_amount: number; inspection_discount: number; payment_method: string | null; order_payments: { id: string }[] } | null
+      if (!o || seenOrders.has(h.order_id) || o.order_payments.length || ['cash', 'mixed'].includes(o.payment_method || '') || !['振込済', '振込確認済'].includes(o.status)) continue
+      seenOrders.add(h.order_id)
+      transfers.push({ date: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date(h.changed_at)), amount: (o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount || 0) })
+    }
+    if ((data?.length ?? 0) < 1000) break
+  }
   const dailyTotals: Record<string, { amount: number; count: number }> = {}
-  transferHistory?.forEach((h) => {
-    const order = h.orders as unknown as { inspected_total_amount: number | null; total_amount: number | null; inspection_discount: number | null } | null
-    if (!order) return
-    const date = new Date(h.changed_at).toISOString().split('T')[0]
-    const amount = ((order.inspected_total_amount ?? order.total_amount) || 0) - (order.inspection_discount || 0)
-    if (!dailyTotals[date]) dailyTotals[date] = { amount: 0, count: 0 }
-    dailyTotals[date].amount += amount
-    dailyTotals[date].count += 1
-  })
-
-  const dailyEntries = Object.entries(dailyTotals)
-    .sort(([a], [b]) => b.localeCompare(a))
-    .slice(0, 30)
-
-  // Aggregate by month
   const monthlyTotals: Record<string, { amount: number; count: number }> = {}
-  transferHistory?.forEach((h) => {
-    const order = h.orders as unknown as { inspected_total_amount: number | null; total_amount: number | null; inspection_discount: number | null } | null
-    if (!order) return
-    const month = new Date(h.changed_at).toISOString().slice(0, 7) // YYYY-MM
-    const amount = ((order.inspected_total_amount ?? order.total_amount) || 0) - (order.inspection_discount || 0)
-    if (!monthlyTotals[month]) monthlyTotals[month] = { amount: 0, count: 0 }
-    monthlyTotals[month].amount += amount
-    monthlyTotals[month].count += 1
-  })
+  for (const t of transfers) {
+    const day = dailyTotals[t.date] ??= { amount: 0, count: 0 }
+    day.amount += t.amount; day.count++
+    const month = monthlyTotals[t.date.slice(0, 7)] ??= { amount: 0, count: 0 }
+    month.amount += t.amount; month.count++
+  }
+  const dailyEntries = Object.entries(dailyTotals).sort(([a], [b]) => b.localeCompare(a)).slice(0, 30)
 
   const monthlyEntries = Object.entries(monthlyTotals)
     .sort(([a], [b]) => b.localeCompare(a))

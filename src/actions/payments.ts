@@ -20,48 +20,9 @@ export async function getPaymentQueue() {
   return data
 }
 
-export async function markAsPaid(orderId: string) {
-  const { user, error: authError } = await requireRole(['admin', 'manager'])
-  if (authError || !user) return { error: authError ?? '認証が必要です' }
-  const supabase = await createClient()
-
-  // 振込ゲート: eKYCが紐付いている注文は本人確認の承認完了まで振込済にできない。
-  // 紙運用（eKYC記録なし）の注文は従来通り対象外
-  const { data: kycCheck } = await supabase
-    .from('orders')
-    .select('order_number, kyc_request_id, identity_verified_at')
-    .eq('id', orderId)
-    .eq('tenant_id', user.tenant_id)
-    .single()
-
-  if (kycCheck?.kyc_request_id && !kycCheck.identity_verified_at) {
-    return {
-      error: `${kycCheck.order_number}: 本人確認が未承認のため振込済にできません。本人確認一覧または本人確認詳細から承認してください`,
-    }
-  }
-
-  // Atomic update: WHERE status = '検品完了' で TOCTOU 防止
-  const { data: updated, error: updateError } = await supabase
-    .from('orders')
-    .update({ status: '振込済', paid_at: new Date().toISOString(), payment_method: 'bank_transfer', payment_date: jstToday() })
-    .eq('id', orderId)
-    .eq('tenant_id', user.tenant_id)
-    .eq('status', '検品完了')
-    .select('*, order_items(*)')
-
-  if (updateError) return { error: updateError.message }
-
-  if (!updated || updated.length === 0) {
-    return { error: '検品完了の注文のみ振込済に変更できます（既に変更済みの可能性があります）' }
-  }
-
-  // お客様への自動通知は廃止（査定状況のリッチメニューから確認してもらう）
-
-  revalidatePath('/admin/payments')
-  revalidatePath('/admin/orders')
-  revalidatePath('/admin')
-
-  return { success: true }
+// 一括振込も画面で確認した残額・更新日時を使う。再取得した別の金額で勝手に確定しない。
+export async function markAsPaid(orderId: string, amount: number, expectedUpdatedAt: string, requestId: string) {
+  return recordPayment(orderId, 'bank_transfer', amount, jstToday(), expectedUpdatedAt, requestId, true)
 }
 
 export async function downloadInspectionPdf(orderId: string) {
@@ -89,48 +50,53 @@ export async function downloadInspectionPdf(orderId: string) {
   }
 }
 
-export async function bulkMarkAsPaid(orderIds: string[]) {
+export async function bulkMarkAsPaid(payments: { id: string; amount: number; updatedAt: string; requestId: string }[]) {
   const { error: authError } = await requireRole(['admin', 'manager'])
   if (authError) return { error: authError }
-  if (!Array.isArray(orderIds) || orderIds.length < 1 || orderIds.length > 100) return { error: '1〜100件を選択してください' }
+  if (!Array.isArray(payments) || payments.length < 1 || payments.length > 100) return { error: '1〜100件を選択してください' }
   const errors: string[] = []
-
-  for (const id of orderIds) {
-    const result = await markAsPaid(id)
+  for (const p of payments) {
+    const result = await markAsPaid(p.id, p.amount, p.updatedAt, p.requestId)
     if (result.error) errors.push(result.error)
   }
-
-  if (errors.length > 0) {
-    return { error: `一部の振込処理に失敗しました: ${errors.join(' / ')}` }
-  }
-
-  revalidatePath('/admin/payments')
-  revalidatePath('/admin/orders')
-  revalidatePath('/admin')
-
+  if (errors.length) return { error: `一部の支払登録に失敗しました: ${errors.join(' / ')}` }
   return { success: true }
 }
 
-// 現金の全額支払いのみ。価格や残額を変更せず、既存の振込済記録の支払方法訂正にも使う。
-export async function recordCashPayment(orderId: string, paymentDate: string, expectedUpdatedAt: string) {
+export async function getOrderPayments(orderId: string) {
+  const { user, error } = await requireRole(['admin', 'manager', 'staff'])
+  if (error || !user) return { error: error ?? '認証が必要です' }
+  const db = await createClient()
+  const result = await db.from('order_payments').select('id,method,amount,paid_on,created_at,voided_at,void_reason')
+    .eq('tenant_id', user.tenant_id).eq('order_id', orderId).order('created_at', { ascending: true })
+  if (result.error) return { error: '支払履歴を取得できませんでした' }
+  return { data: result.data }
+}
+
+export async function recordPayment(orderId: string, method: 'cash' | 'bank_transfer', amount: number, paymentDate: string, expectedUpdatedAt: string, requestId: string, requireInspection = false) {
   const { user, error: authError } = await requireRole(['admin', 'manager'])
   if (authError || !user) return { error: authError ?? '認証が必要です' }
-  if (!validPaymentDate(paymentDate)) return { error: '本日以前の正しい支払日を入力してください' }
+  if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2147483647 || !['cash', 'bank_transfer'].includes(method) || !validPaymentDate(paymentDate) || !/^[0-9a-f-]{36}$/i.test(requestId)) return { error: '金額・支払方法・日付を確認してください' }
   const db = await createClient()
-  const { data: order, error } = await db.from('orders')
-    .select('id,status,updated_at,kyc_request_id,identity_verified_at')
-    .eq('id', orderId).eq('tenant_id', user.tenant_id).single()
-  if (error || !order) return { error: '注文が見つかりません' }
-  if (!['検品完了', '振込済'].includes(order.status)) return { error: '検品完了または支払済の注文のみ登録できます' }
-  if (order.updated_at !== expectedUpdatedAt) return { error: '注文が更新されました。画面を再読み込みして確認してください' }
-  if (order.kyc_request_id && !order.identity_verified_at) return { error: '本人確認の承認が必要です' }
-  const { data: updated, error: updateError } = await db.from('orders').update({
-    status: '振込済', payment_method: 'cash', payment_date: paymentDate,
-    paid_at: `${paymentDate}T00:00:00+09:00`,
-  }).eq('id', orderId).eq('tenant_id', user.tenant_id)
-    .eq('updated_at', expectedUpdatedAt).eq('status', order.status).select('id')
-  if (updateError) return { error: '現金支払いを保存できませんでした。本人確認と権限を確認してください' }
-  if (!updated?.length) return { error: '注文が更新されました。再読み込みしてください' }
+  if (requireInspection) {
+    const { data: order } = await db.from('orders').select('status').eq('tenant_id', user.tenant_id).eq('id', orderId).single()
+    if (!order || order.status !== '検品完了') return { error: '検品完了の注文のみ振込登録できます。再読み込みしてください' }
+  }
+  const result = await db.rpc('record_order_payment', {
+    p_tenant: user.tenant_id, p_order: orderId, p_method: method, p_amount: amount,
+    p_paid_on: paymentDate, p_request: requestId, p_expected_updated_at: expectedUpdatedAt, p_require_full: requireInspection,
+  })
+  if (result.error) return { error: result.error.code === 'P0001' ? result.error.message : '支払いを登録できませんでした。再読み込みして履歴を確認してください' }
+  for (const path of ['/admin', '/admin/orders', `/admin/orders/${orderId}`, '/admin/payments', '/admin/payment-verification']) revalidatePath(path)
+  return { success: true }
+}
+
+export async function voidPayment(orderId: string, paymentId: string, reason: string, expectedUpdatedAt: string) {
+  const { user, error } = await requireRole(['admin'])
+  if (error || !user) return { error: error ?? '認証が必要です' }
+  const db = await createClient()
+  const result = await db.rpc('void_order_payment', { p_tenant: user.tenant_id, p_order: orderId, p_payment: paymentId, p_reason: reason, p_expected_updated_at: expectedUpdatedAt })
+  if (result.error) return { error: result.error.code === 'P0001' ? result.error.message : '取消できませんでした。再読み込みしてください' }
   for (const path of ['/admin', '/admin/orders', `/admin/orders/${orderId}`, '/admin/payments', '/admin/payment-verification']) revalidatePath(path)
   return { success: true }
 }
