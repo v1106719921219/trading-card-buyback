@@ -106,7 +106,7 @@ export async function updateMarketPrices(): Promise<{ updated: number; errors: s
   return { updated, errors }
 }
 
-// PSA10シングルは2万円未満93%、2万円以上90%に自動追従（2026-10-02）。
+// PSA10シングルは2万円未満90%、2万円以上87%に自動追従（2026-10-08）。
 // 相場4万円以上は買取対象外（受付停止・価格据え置き）。
 // 対象はPSA10サブカテゴリで既に価格が付いている（公開運用中の）商品のみ。
 // BOX等の他カテゴリや、価格0円の旧ラインナップには触らない。

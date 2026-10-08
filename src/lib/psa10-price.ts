@@ -6,9 +6,9 @@ export function isPsa10BoostProduct(id?: string): boolean {
   return !!id && BOOST_PRODUCT_IDS.has(id)
 }
 
-// PSA10買取率（2026-10-03）：相場2万円未満93%、2万円以上90%。
+// PSA10買取率（2026-10-08）：相場2万円未満90%、2万円以上87%。
 // 4万円以上の除外・出品数・鮮度の条件は呼び出し側で判定する。
 export function calculatePsa10BuybackPrice(marketPrice: number, productId?: string): number {
-  const percent = isPsa10BoostProduct(productId) ? 95 : marketPrice >= 20000 ? 90 : 93
+  const percent = isPsa10BoostProduct(productId) ? 95 : marketPrice >= 20000 ? 87 : 90
   return Math.floor(marketPrice * percent / 10000) * 100
 }
