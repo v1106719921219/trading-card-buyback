@@ -176,9 +176,14 @@ export default function OrderDetailPage() {
       if (currentOffice) setOffice(currentOffice as Office)
     }
 
-    const kycResult = await getOrderKycInfo(orderId)
-    if (kycResult.data) setKycInfo(kycResult.data as OrderKycInfo)
     setLoading(false)
+    // 書類画像の署名URL取得を待たずに注文・紙の承認欄を表示する。
+    try {
+      const kycResult = await getOrderKycInfo(orderId)
+      setKycInfo(kycResult.data ? kycResult.data as OrderKycInfo : null)
+    } catch {
+      setKycInfo(null)
+    }
   }
 
   useEffect(() => {
