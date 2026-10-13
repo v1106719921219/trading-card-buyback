@@ -5,6 +5,7 @@ import type { KycAuditLog } from '@/types/kyc'
 
 const ACTION_LABELS: Record<string, string> = {
   request_created: '申請作成',
+  cross_office_approval_reused: '他拠点の承認済み本人確認を引継ぎ',
   image_uploaded: '画像アップロード',
   request_submitted: '審査提出',
   request_approved: '承認',

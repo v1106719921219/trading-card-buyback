@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:backup": "bash scripts/backup.sh",
-    "test:security": "node scripts/tests/security-critical.cjs && node scripts/tests/security-workflows.cjs && node scripts/tests/security-workflows-db.cjs"
+    "test:security": "node scripts/tests/security-critical.cjs && node scripts/tests/security-workflows.cjs && node scripts/tests/security-workflows-db.cjs && node scripts/tests/shared-kyc.cjs && node scripts/tests/shared-kyc-actions.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

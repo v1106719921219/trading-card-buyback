@@ -1,5 +1,7 @@
 'use server'
 
+import { findApprovedKyc, recordSharedApproval } from '@/lib/kyc/shared-approval'
+
 import { isIndividual30thPikachu } from '@/lib/30th-pikachu'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
@@ -133,21 +135,15 @@ export async function createOrder(input: CreateOrderInput) {
   }
 
   if (lineUserId) {
-    // 同じLINE本人の承認済みeKYCを探す（過去に承認された本人確認を再利用）
-    const { data: approvedKyc } = await supabase
-      .from('kyc_requests')
-      .select('id, customer_name, id_document_type')
-      .eq('tenant_id', tenantId)
-      .eq('line_user_id', lineUserId)
-      .eq('status', 'approved')
-      .order('reviewed_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (approvedKyc && normalize(approvedKyc.customer_name) === normalize(customer.customer_name)) {
-      kycRequestId = approvedKyc.id
-      identityVerifiedAt = new Date().toISOString()
-      identityMethod = DOC_LABELS[approvedKyc.id_document_type] ?? '本人確認済み'
+    try {
+      const approved = await findApprovedKyc(supabase, tenantId, lineUserId, customer.customer_name)
+      if (approved) {
+        kycRequestId = await recordSharedApproval(supabase, tenantId, lineUserId, approved)
+        identityVerifiedAt = new Date().toISOString()
+        identityMethod = DOC_LABELS[approved.id_document_type] ?? '本人確認済み'
+      }
+    } catch {
+      return { error: '本人確認済み情報の照合に失敗しました。時間をおいて再度お試しください。' }
     }
   }
 
@@ -169,13 +165,13 @@ export async function createOrder(input: CreateOrderInput) {
       if (kyc_request_id) {
         const { data: submitted } = await supabase
           .from('kyc_requests')
-          .select('id, status, id_document_type, customer_name, line_user_id')
+          .select('id, status, id_document_type, customer_name, line_user_id, ocr_result')
           .eq('tenant_id', tenantId)
           .eq('id', kyc_request_id)
           .maybeSingle()
         // 撮影後に氏名を変更した等の食い違いを防ぐため、氏名一致も確認する
         if (
-          submitted &&
+          submitted && !submitted.ocr_result?.shared_approval &&
           ((lineUserId && submitted.line_user_id === lineUserId) || await hasKycAccess(tenantId, submitted.id)) &&
           ['processing', 'approved'].includes(submitted.status) &&
           normalize(submitted.customer_name) === normalize(customer.customer_name)
@@ -190,6 +186,7 @@ export async function createOrder(input: CreateOrderInput) {
           .eq('tenant_id', tenantId)
           .eq('line_user_id', lineUserId)
           .in('status', ['processing', 'approved'])
+          .is('ocr_result->shared_approval', null)
           .order('created_at', { ascending: false })
           .limit(10)
         const m = (subs ?? []).find(

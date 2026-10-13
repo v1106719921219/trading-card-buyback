@@ -41,6 +41,8 @@ export default function KycDetailPage() {
     }
   } | null)?.ai ?? null
 
+  const sharedApproval = kycRequest?.ocr_result?.shared_approval as { source: string; request_id: string; checked_at: string } | undefined
+
   async function fetchData() {
     setLoading(true)
     const [reqResult, logsResult] = await Promise.all([
@@ -146,7 +148,7 @@ export default function KycDetailPage() {
                   <dt className="text-muted-foreground">レビュー担当</dt>
                   <dd className="font-medium">
                     {kycRequest.reviewer?.display_name ??
-                      (kycRequest.status === 'approved' ? 'AI自動承認' : '-')}
+                      (sharedApproval ? '他拠点の承認済み本人確認を引継ぎ' : kycRequest.status === 'approved' ? 'AI自動承認' : '-')}
                   </dd>
                 </div>
               </>
@@ -168,6 +170,14 @@ export default function KycDetailPage() {
           </dl>
         </CardContent>
       </Card>
+
+      {sharedApproval && (
+        <Card><CardContent className="pt-6 text-sm">
+          <p>{sharedApproval.source === 'tokyo' ? '東京・山口' : '千葉'}で承認済みの本人確認を引き継いでいます。書類画像は承認元で保管しています。</p>
+          <p>承認元の本人確認ID：{sharedApproval.request_id}</p>
+          <p>照合日時：{new Date(sharedApproval.checked_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}</p>
+        </CardContent></Card>
+      )}
 
       {/* AI自動チェック結果 */}
       {aiReview && (

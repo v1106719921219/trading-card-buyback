@@ -1,6 +1,7 @@
 'use server'
 
 import { limitPublicRequest, consumeLimit } from '@/lib/shared-rate-limit'
+import { findApprovedKyc } from '@/lib/kyc/shared-approval'
 import { grantKycAccess, hasKycAccess } from '@/lib/kyc/access'
 import { hasOrderAccess, assertOrderAccessConfigured } from '@/lib/order-access'
 import { revalidatePath } from 'next/cache'
@@ -523,7 +524,7 @@ export async function reviewKycRequest(input: KycReviewInput) {
 }
 
 /**
- * 申込フォーム用: このメール＋氏名の本人確認状況を返す
+ * 申込フォーム用: 検証済みLINEアカウント＋氏名の本人確認状況を返す
  * verified = 承認済み（自動スキップ可） / submitted = 提出済み（審査中） / none = 未提出
  */
 export async function checkKycForApply(
@@ -540,6 +541,7 @@ export async function checkKycForApply(
 
     const tenantId = await requireTenantId()
     const supabase = createAdminClient()
+    if (await findApprovedKyc(supabase, tenantId, lineUserId, name)) return 'verified'
     const normalize = (s: string | null | undefined) => (s ?? '').replace(/[\s　]/g, '')
 
     const { data } = await supabase
@@ -547,12 +549,11 @@ export async function checkKycForApply(
       .select('status, customer_name')
       .eq('tenant_id', tenantId)
       .eq('line_user_id', lineUserId)
-      .in('status', ['approved', 'processing'])
+      .eq('status', 'processing')
       .order('created_at', { ascending: false })
       .limit(10)
 
     const matched = (data ?? []).filter((k) => normalize(k.customer_name) === normalize(name))
-    if (matched.some((k) => k.status === 'approved')) return 'verified'
     if (matched.some((k) => k.status === 'processing')) return 'submitted'
     return 'none'
   } catch {
@@ -610,7 +611,7 @@ export async function getOrderKycInfo(orderId: string) {
     rejection_reason: string | null
     reviewed_at: string | null
     reviewed_by: string | null
-    ocr_result: { ai?: AiKycReview } | null
+    ocr_result: { ai?: AiKycReview; shared_approval?: unknown } | null
   } | null = null
 
   const kycSelect =
@@ -677,7 +678,7 @@ export async function getOrderKycInfo(orderId: string) {
         : null,
       rejectionReason: kyc?.rejection_reason ?? null,
       aiReview: kyc?.ocr_result?.ai ?? null,
-      autoApproved: kyc?.status === 'approved' && !kyc?.reviewed_by,
+      autoApproved: kyc?.status === 'approved' && !kyc?.reviewed_by && !kyc?.ocr_result?.shared_approval,
       images,
     },
   }
