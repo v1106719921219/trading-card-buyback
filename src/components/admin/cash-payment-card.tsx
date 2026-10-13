@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog'
+import { getOrderPaperKyc } from '@/actions/paper-kyc'
 import { getOrderPayments, recordPayment, voidPayment } from '@/actions/payments'
 import { jstToday, paymentStatusLabel, paymentMethodLabel, paymentTotal, paidAmount, remainingPayment } from '@/lib/payment-display'
 import type { Order, OrderPayment, UserRole } from '@/types/database'
@@ -15,6 +16,8 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
   const [date, setDate] = useState(jstToday())
   const [method, setMethod] = useState<'cash' | 'bank_transfer'>('cash')
   const [amount, setAmount] = useState('')
+  const [bankOnly, setBankOnly] = useState(false)
+  const effectiveMethod = bankOnly ? 'bank_transfer' : method
   const [saving, setSaving] = useState(false)
   const [history, setHistory] = useState<OrderPayment[]>([])
   const [historyError, setHistoryError] = useState(false)
@@ -27,9 +30,11 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
   const valid = /^\d+$/.test(amount) && Number.isSafeInteger(numericAmount) && numericAmount > 0 && numericAmount <= remaining && !!date
   useEffect(() => {
     let active = true
-    getOrderPayments(order.id).then(r => {
+    setHistoryLoading(true)
+    Promise.all([getOrderPayments(order.id), getOrderPaperKyc(order.id)]).then(([r, paper]) => {
       if (!active) return
-      setHistoryError(!!r.error)
+      setHistoryError(!!r.error || !!paper.error)
+      setBankOnly(!!paper.data?.some(p => !p.revoked_at))
       if (r.data) setHistory(r.data as OrderPayment[])
     }).catch(() => { if (active) setHistoryError(true) }).finally(() => { if (active) setHistoryLoading(false) })
     return () => { active = false }
@@ -37,10 +42,10 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
   async function save() {
     if (saving || !valid) return
     setSaving(true)
-    const fingerprint = JSON.stringify([order.id, method, numericAmount, date, order.updated_at])
+    const fingerprint = JSON.stringify([order.id, effectiveMethod, numericAmount, date, order.updated_at])
     if (request.current?.fingerprint !== fingerprint) request.current = { fingerprint, id: crypto.randomUUID() }
     try {
-      const result = await recordPayment(order.id, method, numericAmount, date, order.updated_at, request.current.id)
+      const result = await recordPayment(order.id, effectiveMethod, numericAmount, date, order.updated_at, request.current.id)
       if (result.error) toast.error(result.error)
       else { toast.success('支払いを記録しました'); setAmount(''); onSaved() }
     } catch { toast.error('結果を確認できませんでした。再読み込みして支払履歴を確認してください') }
@@ -50,6 +55,7 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
     <CardHeader><CardTitle>支払状況</CardTitle></CardHeader>
     <CardContent className="space-y-4">
       {kycWaiting && <p className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">本人確認待ちの仮受付です。承認完了まで、一部払いを含む振込・現金払いは登録できません。</p>}
+      {bankOnly && <p className="rounded border border-amber-300 bg-amber-50 p-3 text-sm">紙の本人確認承認済みです。確認した本人名義口座への銀行振込に限ります（現金不可）。</p>}
       <p className="font-semibold">{paidAmount(order) > 0 ? paymentStatusLabel(order) : '未払い'}</p>
       <dl className="grid grid-cols-2 gap-2 text-sm">
         <dt>買取合計</dt><dd className="text-right">{paymentTotal(order).toLocaleString()}円</dd>
@@ -67,7 +73,7 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
       {canRecord && <div className="space-y-3 border-t pt-3">
         <p className="text-sm font-semibold">支払いを追加</p>
         <label className="block text-sm" htmlFor="payment-method">支払方法</label>
-        <select id="payment-method" className="w-full rounded-md border bg-white p-2" value={method} onChange={e => setMethod(e.target.value as 'cash' | 'bank_transfer')} disabled={saving}><option value="cash">現金手渡し</option><option value="bank_transfer">銀行振込</option></select>
+        <select id="payment-method" className="w-full rounded-md border bg-white p-2" value={effectiveMethod} onChange={e => setMethod(e.target.value as 'cash' | 'bank_transfer')} disabled={saving}>{!bankOnly && <option value="cash">現金手渡し</option>}<option value="bank_transfer">銀行振込</option></select>
         <label className="block text-sm" htmlFor="payment-date">支払日</label>
         <Input id="payment-date" type="date" max={jstToday()} value={date} onChange={e => setDate(e.target.value)} disabled={saving} />
         <label className="block text-sm" htmlFor="payment-amount">今回支払った金額（円）</label>
@@ -76,7 +82,7 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
         {numericAmount > remaining && <p className="text-sm text-red-600">残額を超えています。</p>}
         <p className="text-xs text-muted-foreground">実際に渡した金額を記録してください。送金を実行する機能ではありません。</p>
         <AlertDialog><AlertDialogTrigger asChild><Button className="w-full bg-emerald-700 hover:bg-emerald-800" disabled={saving || !valid || historyLoading || historyError}>支払いを記録</Button></AlertDialogTrigger>
-          <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>支払いを記録しますか？</AlertDialogTitle><AlertDialogDescription>{order.order_number}：{date}に{paymentMethodLabel(method)}で{numericAmount.toLocaleString()}円を支払った記録を追加します。登録後の残額は{Math.max(0, remaining - numericAmount).toLocaleString()}円です。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>戻る</AlertDialogCancel><AlertDialogAction disabled={saving} onClick={save}>記録する</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+          <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>支払いを記録しますか？</AlertDialogTitle><AlertDialogDescription>{order.order_number}：{date}に{paymentMethodLabel(effectiveMethod)}で{numericAmount.toLocaleString()}円を支払った記録を追加します。登録後の残額は{Math.max(0, remaining - numericAmount).toLocaleString()}円です。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>戻る</AlertDialogCancel><AlertDialogAction disabled={saving} onClick={save}>記録する</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
         </AlertDialog>
       </div>}
     </CardContent>

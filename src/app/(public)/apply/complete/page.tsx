@@ -499,6 +499,7 @@ function CompleteContent() {
               <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-left text-sm">
                 <p className="font-bold">本人確認待ちで仮受付しました</p>
                 <p className="mt-2">商品・申込内容は保存されています。本人確認の承認が完了するまで、振込・現金でのお支払いはできません。撮影できない場合は、受付番号を添えて公式LINEへご相談ください。</p>
+                <p className="mt-2 text-sm">撮影が難しく紙の書類で確認をご希望の場合は、公式LINEでご相談ください。書類が届いただけでは支払いは進みません。担当者の確認・承認が必要です。</p>
                 <Button asChild className="mt-3"><Link href={`/kyc?order=${encodeURIComponent(orderNumber ?? '')}`}>本人確認を再開する</Link></Button>
               </div>
             )}

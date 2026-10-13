@@ -42,6 +42,7 @@ import { ArrowLeft, ClipboardCheck, Clock, MapPin, Truck, ShieldCheck, ExternalL
 import { addTrackingNumber, deleteOrder, updateOrderItemQuantities, updateBuybackType, updateOrderOffice, addOrderItem, approveOrder } from '@/actions/orders'
 import { getOrderKycInfo } from '@/actions/kyc'
 import { downloadInspectionPdf } from '@/actions/payments'
+import { PaperKycPanel } from '@/components/admin/paper-kyc-panel'
 import { CashPaymentCard } from '@/components/admin/cash-payment-card'
 import { createClient } from '@/lib/supabase/client'
 import { normalizeTrackingNumber, trackingBadgeClass } from '@/lib/yamato-status'
@@ -175,14 +176,13 @@ export default function OrderDetailPage() {
       if (currentOffice) setOffice(currentOffice as Office)
     }
 
+    const kycResult = await getOrderKycInfo(orderId)
+    if (kycResult.data) setKycInfo(kycResult.data as OrderKycInfo)
     setLoading(false)
   }
 
   useEffect(() => {
     fetchOrder()
-    getOrderKycInfo(orderId).then((result) => {
-      if ('data' in result && result.data) setKycInfo(result.data as OrderKycInfo)
-    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId])
 
@@ -1160,6 +1160,7 @@ export default function OrderDetailPage() {
                 <p className="text-xs text-destructive">否認理由: {kycInfo.rejectionReason}</p>
               )}
 
+              <PaperKycPanel order={order} role={userRole} onSaved={fetchOrder} />
               {kycInfo?.kycId ? (
                 <Link href={`/admin/kyc/${kycInfo.kycId}`} className="inline-block">
                   <Button variant="outline" size="sm">
@@ -1167,11 +1168,9 @@ export default function OrderDetailPage() {
                     本人確認の詳細を開く
                   </Button>
                 </Link>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  書類のアップロードはまだありません
-                </p>
-              )}
+              ) : !order.identity_verified_at ? (
+                <p className="text-xs text-muted-foreground">書類のアップロードはまだありません</p>
+              ) : null}
             </CardContent>
           </Card>
 

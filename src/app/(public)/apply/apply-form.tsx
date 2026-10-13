@@ -1366,7 +1366,7 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
                     ) : (
                       <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
                         <p className="text-sm text-amber-800">
-                          本人確認書類を撮影してください。撮影できない場合は、下の「本人確認待ち」で仮受付できます。書類の同梱は不要です。
+                          本人確認書類を撮影してください。撮影できない場合は、下の「本人確認待ち」で仮受付できます。紙の書類で確認をご希望の場合は、必要書類を公式LINEでご確認ください。
                         </p>
                         <Button type="button" onClick={() => setShowKycDialog(true)} className="w-full">
                           本人確認書類を撮影する

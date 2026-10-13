@@ -606,6 +606,14 @@ export async function getOrderKycInfo(orderId: string) {
 
   if (!order) return { error: '注文が見つかりません' }
 
+  const { data: paper } = await supabase.from('order_paper_kyc').select('id')
+    .eq('tenant_id', user.tenant_id).eq('order_id', orderId).is('revoked_at', null).maybeSingle()
+  if (paper) return { data: {
+    identityMethod: '紙確認済み（住民票・本人名義振込限定）', identityVerifiedAt: order.identity_verified_at,
+    kycId: null, kycStatus: null, documentLabel: '住民票の写し', rejectionReason: null,
+    aiReview: null, autoApproved: false, images: [],
+  } }
+
   let kyc: {
     id: string
     status: string
