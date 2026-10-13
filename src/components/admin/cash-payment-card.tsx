@@ -21,7 +21,8 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
   const [historyLoading, setHistoryLoading] = useState(true)
   const request = useRef<{ fingerprint: string; id: string } | null>(null)
   const paid = ['振込済', '振込確認済'].includes(order.status)
-  const canRecord = ['admin', 'manager'].includes(role || '') && ['申込', '発送済', '検品完了'].includes(order.status) && remaining > 0
+  const kycWaiting = !!order.kyc_deferred && !order.identity_verified_at
+  const canRecord = !kycWaiting && ['admin', 'manager'].includes(role || '') && ['申込', '発送済', '検品完了'].includes(order.status) && remaining > 0
   const numericAmount = Number(amount)
   const valid = /^\d+$/.test(amount) && Number.isSafeInteger(numericAmount) && numericAmount > 0 && numericAmount <= remaining && !!date
   useEffect(() => {
@@ -48,6 +49,7 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
   return <Card className={paidAmount(order) > 0 ? 'border-emerald-400 bg-emerald-50' : ''}>
     <CardHeader><CardTitle>支払状況</CardTitle></CardHeader>
     <CardContent className="space-y-4">
+      {kycWaiting && <p className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">本人確認待ちの仮受付です。承認完了まで、一部払いを含む振込・現金払いは登録できません。</p>}
       <p className="font-semibold">{paidAmount(order) > 0 ? paymentStatusLabel(order) : '未払い'}</p>
       <dl className="grid grid-cols-2 gap-2 text-sm">
         <dt>買取合計</dt><dd className="text-right">{paymentTotal(order).toLocaleString()}円</dd>

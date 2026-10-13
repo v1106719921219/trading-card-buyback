@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { initLiff } from '@/lib/liff-client'
 import { KycStart } from '@/components/public/kyc/KycStart'
 import { IdTypeSelect } from '@/components/public/kyc/IdTypeSelect'
 import { CameraCapture, type CaptureMeta } from '@/components/public/kyc/CameraCapture'
@@ -85,7 +86,7 @@ export function KycFlow({
       customer_name: customerName,
       id_document_type: type,
       order_number: orderNumber,
-      line_id_token: lineIdToken || null,
+      line_id_token: lineIdToken ?? (await initLiff()).idToken ?? null,
       consented_at: consentedAt,
     })
 

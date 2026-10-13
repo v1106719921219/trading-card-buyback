@@ -41,7 +41,7 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY profiles_select ON profiles FOR SELECT TO authenticated USING(id=auth.uid());
 CREATE POLICY profiles_update_admin ON profiles FOR UPDATE TO authenticated USING(get_user_role(auth.uid())='admin') WITH CHECK(get_user_role(auth.uid())='admin');
 `);
-for(const f of ['20260913000002_security_workflow_guards.sql','20260913000003_shared_security_controls.sql','20260913000004_staff_access_revocation.sql','20261006000001_cash_payment_method.sql','20261006000002_partial_payments.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
+for(const f of ['20260913000002_security_workflow_guards.sql','20260913000003_shared_security_controls.sql','20260913000004_staff_access_revocation.sql','20261006000001_cash_payment_method.sql','20261006000002_partial_payments.sql','20261013000001_deferred_kyc.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
 await test('anonymous direct order creation rejected',async()=>{await session('anon');await fails('INSERT INTO orders(id,tenant_id,status) VALUES(gen_random_uuid(),$1,$2)',[A,'申込'])});
 await test('staff bank/identity/payment changes rejected, ordinary notes allowed',async()=>{await session('authenticated',staff);for(const set of ["bank_account_number='9999999'","identity_verified_at=now()","status='振込済'","paid_at=now()"]){await fails(`UPDATE orders SET ${set} WHERE id=$1`,[order])}await db.query('UPDATE orders SET notes=$1 WHERE id=$2',['fixture',order]);assert.equal((await db.query('SELECT notes FROM orders WHERE id=$1',[order])).rows[0].notes,'fixture')});
 await test('cross-tenant items rejected despite permissive legacy policy',async()=>{await session('authenticated',staff);await fails('INSERT INTO order_items(order_id,tenant_id,product_id,unit_price,quantity) VALUES($1,$2,$3,80,1)',[order,B,product]);await db.query('INSERT INTO order_items(order_id,tenant_id,product_id,unit_price,quantity) VALUES($1,$2,$3,80,1)',[order,A,product]);await db.query('DELETE FROM order_items WHERE unit_price=80')});
@@ -93,5 +93,28 @@ await test('void preserves history, is admin only, restores remainder and reject
  const history=await db.query('SELECT * FROM order_payments WHERE order_id=$1',[order]);assert.equal(history.rows.length,2);assert.ok(history.rows.every(p=>p.voided_at && p.void_reason));
 });
 await test('disabled staff loses database access with an existing session',async()=>{await session('service_role');await db.query('UPDATE profiles SET is_active=false WHERE id=$1',[staff]);await session('authenticated',staff);assert.equal((await db.query('SELECT * FROM orders')).rows.length,0);await fails('INSERT INTO order_items(order_id,tenant_id,product_id,quantity,unit_price) VALUES($1,$2,$3,1,80)',[order,A,product]);});
+await test('deferred KYC blocks cash/bank partial payments and status bypass until approved',async()=>{
+ await session('service_role');
+ const d='11112222-1111-4111-8111-111111111111';
+ await db.query("INSERT INTO orders(id,tenant_id,status,total_amount,kyc_deferred) VALUES($1,$2,'申込',1000,true)",[d,A]);
+ await fails('UPDATE orders SET kyc_deferred=false WHERE id=$1',[d]);
+ await fails("UPDATE orders SET status='振込済',paid_at=now() WHERE id=$1",[d]);
+ await fails("UPDATE orders SET identity_verified_at=now(),status='振込済' WHERE id=$1",[d]);
+ const payDeferred=async(method)=>{
+  const stamp=(await db.query('SELECT updated_at FROM orders WHERE id=$1',[d])).rows[0].updated_at;
+  return db.query('SELECT record_order_payment($1,$2,$3,$4,$5,$6,$7)',[A,d,method,100,'2026-10-01',require('node:crypto').randomUUID(),stamp]);
+ };
+ await session('authenticated',admin,'aal2');
+ for(const method of ['cash','bank_transfer'])await assert.rejects(()=>payDeferred(method));
+ await session('service_role');
+ await fails("INSERT INTO order_payments(id,tenant_id,order_id,method,amount,paid_on,prior_status) VALUES(gen_random_uuid(),$1,$2,'cash',100,'2026-10-01','申込')",[A,d]);
+ await db.query("UPDATE kyc_requests SET status='processing' WHERE id=$1",[kyc]);
+ await db.query('UPDATE orders SET kyc_request_id=$1,identity_verified_at=now() WHERE id=$2',[kyc,d]);
+ await session('authenticated',admin,'aal2');await assert.rejects(()=>payDeferred('cash'));
+ await session('service_role');await db.query("UPDATE kyc_requests SET status='approved' WHERE id=$1",[kyc]);
+ await session('authenticated',admin,'aal2');await payDeferred('cash');await payDeferred('bank_transfer');
+ const actual=(await db.query('SELECT paid_amount,kyc_deferred FROM orders WHERE id=$1',[d])).rows[0];
+ assert.equal(Number(actual.paid_amount),200);assert.equal(actual.kyc_deferred,true);
+});
 console.log(`${count} DB tests passed against isolated PostgreSQL; no production connections.`);await db.close();
 })().catch(async e=>{console.error(e.message);if(db)await db.close();process.exitCode=1});

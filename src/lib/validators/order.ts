@@ -52,6 +52,7 @@ export const createOrderSchema = z.object({
   line_id_token: z.string().max(4000).optional(),
   // 申込直前に撮影したeKYCのリクエストID（フォームから直接受け取り、メール照合を廃止）
   kyc_request_id: z.string().uuid().optional(),
+  defer_kyc: z.boolean().optional(),
 })
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>

@@ -601,6 +601,7 @@ export default function OrdersPage() {
                           <Badge className={STATUS_COLORS[order.status as OrderStatus]}>
                             {paymentStatusLabel(order)}
                           </Badge>
+                          {order.kyc_deferred && !order.identity_verified_at && <Badge className="bg-amber-100 text-amber-900">本人確認待ち（仮受付）</Badge>}
                           {order.inspection_status && (
                             <Badge className={INSPECTION_STATUS_COLORS[order.inspection_status as InspectionStatus]}>
                               {order.inspection_status}

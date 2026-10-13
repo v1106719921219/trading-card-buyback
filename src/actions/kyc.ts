@@ -60,11 +60,15 @@ export async function createKycRequest(input: KycSubmitInput) {
     if (!await hasOrderAccess(tenantId, order_number, line_id_token ?? undefined)) return { error: '注文の本人確認が必要です' }
     const { data: order } = await supabase
       .from('orders')
-      .select('id')
+      .select('id, customer_name, line_user_id')
       .eq('tenant_id', tenantId)
       .eq('order_number', order_number)
       .maybeSingle()
-    orderId = order?.id ?? null
+    if (!order || (order.customer_name ?? '').replace(/[\s　]/g, '') !== customer_name.replace(/[\s　]/g, '')) return { error: '申込時と同じ氏名を入力してください' }
+    if (lineUserId && order.line_user_id && lineUserId !== order.line_user_id) return { error: '申込時と同じLINEアカウントをご利用ください' }
+    // An order capability proves ownership even if LIFF cannot initialise on resume.
+    lineUserId = order.line_user_id ?? lineUserId
+    orderId = order.id
   }
 
   // Never delete a previous request or its audit log based on an email address.
@@ -233,6 +237,7 @@ async function runAiReviewAndApply(kycRequestId: string, tenantId: string) {
       .from('orders')
       .update({
         kyc_request_id: kycRequestId,
+        customer_identity_method: ID_DOCUMENT_TYPE_LABELS[kyc.id_document_type as keyof typeof ID_DOCUMENT_TYPE_LABELS],
         identity_verified_at: new Date().toISOString(),
       })
       .eq('id', updated[0].order_id)
@@ -452,7 +457,7 @@ export async function reviewKycRequest(input: KycReviewInput) {
   // 現在のステータス確認
   const { data: current, error: fetchError } = await supabase
     .from('kyc_requests')
-    .select('id, status, tenant_id, order_id')
+    .select('id, status, tenant_id, order_id, id_document_type')
     .eq('id', kyc_request_id)
     .eq('tenant_id', user.tenant_id)
     .single()
@@ -496,6 +501,7 @@ export async function reviewKycRequest(input: KycReviewInput) {
       .from('orders')
       .update({
         kyc_request_id,
+        customer_identity_method: ID_DOCUMENT_TYPE_LABELS[current.id_document_type as keyof typeof ID_DOCUMENT_TYPE_LABELS],
         identity_verified_at: new Date().toISOString(),
       })
       .eq('id', current.order_id)

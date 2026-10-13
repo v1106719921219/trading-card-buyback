@@ -107,6 +107,7 @@ export interface Order {
   inspected_by: string | null
   inspected_by_name: string | null
   kyc_request_id: string | null
+  kyc_deferred?: boolean
   identity_verified_at: string | null
   shipped_date: string | null
   tracking_number: string | null

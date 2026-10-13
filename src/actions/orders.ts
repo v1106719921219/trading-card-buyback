@@ -46,7 +46,7 @@ export async function createOrder(input: CreateOrderInput) {
 
   try {
 
-  const { customer, office_id, shipped_date, buyback_type, line_user_token, line_id_token, kyc_request_id } = parsed.data
+  const { customer, office_id, shipped_date, buyback_type, line_user_token, line_id_token, kyc_request_id, defer_kyc } = parsed.data
 
   const { items, priceDate: price_date } = verifyOrderQuote(tenantId, parsed.data.quote_token, parsed.data.items)
   const { data: validOffice } = await supabase.from('offices').select('id').eq('id', office_id).eq('tenant_id', tenantId).eq('is_active', true).maybeSingle()
@@ -143,12 +143,13 @@ export async function createOrder(input: CreateOrderInput) {
         identityMethod = DOC_LABELS[approved.id_document_type] ?? '本人確認済み'
       }
     } catch {
-      return { error: '本人確認済み情報の照合に失敗しました。時間をおいて再度お試しください。' }
+      if (!defer_kyc) return { error: '本人確認済み情報の照合に失敗しました。時間をおいて再度お試しください。' }
     }
   }
 
   // 展開フラグON時: 本人確認はeKYC必須。申込直前に撮影したeKYC（kyc_request_id）を紐付ける
   // （自動パス済みの場合はkycRequestIdが入っているのでスキップ）
+  let deferredKyc = false
   let pendingKycId: string | null = null
   if (!kycRequestId) {
     const { data: rolloutSetting } = await supabase
@@ -158,7 +159,7 @@ export async function createOrder(input: CreateOrderInput) {
       .eq('key', 'ekyc_rollout_enabled')
       .maybeSingle()
 
-    if (rolloutSetting?.value === 'true') {
+    if (rolloutSetting?.value === 'true' || defer_kyc) {
       // 撮影済みeKYCを探す。①フォームから直接渡されたID ②同じLINE本人(line_user_id)＋氏名一致
       // 状態は processing（審査待ち）／approved（承認済み）のいずれも「撮影完了」として受け付ける
       let matched: { id: string; status: string; docType?: string } | null = null
@@ -194,19 +195,24 @@ export async function createOrder(input: CreateOrderInput) {
         )
         if (m) matched = { id: m.id, status: m.status, docType: m.id_document_type }
       }
-      if (!matched) {
+      if (!matched && !defer_kyc) {
         return {
           error: '本人確認書類の撮影が完了していません。確認画面の「本人確認」から撮影を完了してください',
         }
       }
-      pendingKycId = matched.id
-      // 撮影で選んだ書類種別を本人確認方法として記録
-      if (matched.docType && DOC_LABELS[matched.docType]) {
-        identityMethod = DOC_LABELS[matched.docType]
-      }
-      // 既に承認済みなら本人確認済み日時も記録
-      if (matched.status === 'approved') {
-        identityVerifiedAt = new Date().toISOString()
+      if (!matched) {
+        deferredKyc = true
+        identityMethod = '本人確認待ち'
+      } else {
+        pendingKycId = matched.id
+        // 撮影で選んだ書類種別を本人確認方法として記録
+        if (matched.docType && DOC_LABELS[matched.docType]) {
+          identityMethod = DOC_LABELS[matched.docType]
+        }
+        // 既に承認済みなら本人確認済み日時も記録
+        if (matched.status === 'approved') {
+          identityVerifiedAt = new Date().toISOString()
+        }
       }
     }
   }
@@ -231,6 +237,7 @@ export async function createOrder(input: CreateOrderInput) {
       customer_not_invoice_issuer: customer.customer_not_invoice_issuer,
       invoice_issuer_number: customer.invoice_issuer_number || null,
       customer_identity_method: identityMethod,
+      kyc_deferred: deferredKyc,
       // eKYC未導入のDB（千葉）にはカラムが無いため、eKYCが関与する場合のみ含める
       ...(kycRequestId || pendingKycId
         ? {
@@ -532,7 +539,7 @@ export async function getMyOrdersByIdToken(idToken: string) {
   if (!userId) return []
 
   const cols =
-    'order_number, status, total_amount, inspected_total_amount, inspection_discount, tracking_number, office_id, created_at, paid_at, payment_method, payment_date, paid_amount, order_items(product_name, quantity, unit_price)'
+    'order_number, status, total_amount, inspected_total_amount, inspection_discount, tracking_number, office_id, created_at, paid_at, payment_method, payment_date, paid_amount, kyc_deferred, identity_verified_at, order_items(product_name, quantity, unit_price)'
   const fetchFrom = async (
     client: ReturnType<typeof createAdminClient>,
     db: 'tokyo' | 'chiba'
@@ -551,7 +558,8 @@ export async function getMyOrdersByIdToken(idToken: string) {
   }
 
   // 東京DB＋千葉DBを横断して本人の注文をまとめる（LINE本人IDは同一プロバイダーで共通）
-  const results = [...(await fetchFrom(createAdminClient(), 'tokyo'))]
+  const primaryDb = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('fqbtulaerxrnekbkjlhu') ? 'chiba' : 'tokyo'
+  const results = [...(await fetchFrom(createAdminClient(), primaryDb))]
   const chiba = createChibaAdminClient()
   if (chiba) results.push(...(await fetchFrom(chiba, 'chiba')))
   results.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
@@ -666,7 +674,7 @@ export async function getOrderByOrderNumber(orderNumber: string, idToken?: strin
 
   const { data, error } = await supabase
     .from('orders')
-    .select('id, order_number, status, tracking_number, office_id, customer_identity_method')
+    .select('id, order_number, status, tracking_number, office_id, customer_identity_method, kyc_deferred, identity_verified_at')
     .eq('order_number', orderNumber)
     .eq('tenant_id', tenantId)  // テナント境界を強制
     .single()

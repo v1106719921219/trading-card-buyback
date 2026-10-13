@@ -46,6 +46,7 @@ function CompleteContent() {
   const [error, setError] = useState('')
   const [orderStatus, setOrderStatus] = useState<string | null>(null)
   const [existingTrackingNumber, setExistingTrackingNumber] = useState<string | null>(null)
+  const [kycWaiting, setKycWaiting] = useState(false)
   const [identityMethod, setIdentityMethod] = useState<string | null>(null)
   const [ekycRollout, setEkycRollout] = useState(false)
 
@@ -84,6 +85,7 @@ function CompleteContent() {
           setOrderStatus(order.status)
           setExistingTrackingNumber(order.tracking_number)
           setIdentityMethod(order.customer_identity_method ?? null)
+          setKycWaiting(!!order.kyc_deferred && !order.identity_verified_at)
           if (!officeId && order.office_id) {
             fetch(`/api/offices/${order.office_id}`)
               .then((r) => r.json())
@@ -307,7 +309,7 @@ function CompleteContent() {
                   <CheckCircle className="h-16 w-16 text-green-500" />
                 </div>
                 <CardTitle className="text-2xl">
-                  {submitted ? '追跡番号を登録しました' : '申込が完了しました'}
+                  {submitted ? '追跡番号を登録しました' : kycWaiting ? '本人確認待ちで仮受付しました' : '申込が完了しました'}
                 </CardTitle>
               </>
             )}
@@ -493,13 +495,20 @@ function CompleteContent() {
               </div>
             )}
 
+            {kycWaiting && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-left text-sm">
+                <p className="font-bold">本人確認待ちで仮受付しました</p>
+                <p className="mt-2">商品・申込内容は保存されています。本人確認の承認が完了するまで、振込・現金でのお支払いはできません。撮影できない場合は、受付番号を添えて公式LINEへご相談ください。</p>
+                <Button asChild className="mt-3"><Link href={`/kyc?order=${encodeURIComponent(orderNumber ?? '')}`}>本人確認を再開する</Link></Button>
+              </div>
+            )}
             {!submitted && (
               <>
                 <p className="text-sm text-muted-foreground">
                   商品を下記住所までお送りください。到着後、検品を行い、検品・お振込みの進捗は公式LINEの「査定状況」からご確認いただけます。
                 </p>
 
-                {identityMethod && (
+                {identityMethod && !kycWaiting && (
                   <div className="bg-green-50 border border-green-200 p-4 rounded-md text-sm text-left">
                     <p className="font-medium text-green-800 mb-1">本人確認について</p>
                     <p className="text-green-700">

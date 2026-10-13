@@ -483,6 +483,7 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
 
   // 本人確認方法はフォームでは選ばせず、撮影(eKYC)の中で選ぶ。展開フラグONなら常にeKYC必須
   const needsKyc = ekycRollout
+  const [deferKyc, setDeferKyc] = useState(false)
   const kycDone = kycStatus === 'verified' || kycStatus === 'submitted'
 
   useEffect(() => {
@@ -552,6 +553,7 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
         line_user_token: lineUserToken || undefined,
         line_id_token: liff?.inLiff ? liff.idToken || undefined : undefined,
         kyc_request_id: kycRequestId || undefined,
+        defer_kyc: deferKyc && !kycDone,
       })
 
       setLoading(false)
@@ -1364,12 +1366,18 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
                     ) : (
                       <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
                         <p className="text-sm text-amber-800">
-                          申込の確定前に、本人確認書類の撮影が必要です。撮影の中で書類の種類を選べます。書類の同梱は不要です。
+                          本人確認書類を撮影してください。撮影できない場合は、下の「本人確認待ち」で仮受付できます。書類の同梱は不要です。
                         </p>
                         <Button type="button" onClick={() => setShowKycDialog(true)} className="w-full">
                           本人確認書類を撮影する
                         </Button>
                       </div>
+                    )}
+                    {!kycDone && (
+                      <label className="mt-3 flex items-start gap-2 rounded-md border border-amber-300 p-3 text-sm">
+                        <input type="checkbox" checked={deferKyc} onChange={e => setDeferKyc(e.target.checked)} className="mt-1" />
+                        <span>撮影できないため「本人確認待ち」で仮受付する。商品・申込内容は保存されます。本人確認の承認が完了するまで、振込・現金でのお支払いはできません。</span>
+                      </label>
                     )}
                   </div>
                 </>
@@ -1409,7 +1417,7 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
           ) : (
             <Button
               onClick={handleSubmit}
-              disabled={loading || (needsKyc && !kycDone)}
+              disabled={loading || (needsKyc && !kycDone && !deferKyc)}
               size="lg"
               className="text-base px-8"
             >
@@ -1418,6 +1426,8 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   送信中...
                 </>
+              ) : deferKyc && !kycDone ? (
+                '本人確認待ちで仮受付する'
               ) : needsKyc && !kycDone ? (
                 '本人確認の撮影後に確定できます'
               ) : (
@@ -1453,6 +1463,9 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
               }}
             />
           )}
+          <Button type="button" variant="outline" onClick={() => { setShowKycDialog(false); setDeferKyc(true) }}>
+            撮影できないため仮受付に切り替える
+          </Button>
         </DialogContent>
       </Dialog>
 

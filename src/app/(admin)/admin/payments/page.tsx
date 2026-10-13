@@ -87,7 +87,7 @@ export default function PaymentsPage() {
     const sorted = sortByOrderNumber(data || [])
     setOrders(sorted)
     // DBに保存されたチェック状態を復元
-    const checked = sorted.filter((o) => o.payment_checked).map((o) => o.id)
+    const checked = sorted.filter((o) => o.payment_checked && (!o.kyc_deferred || o.identity_verified_at)).map((o) => o.id)
     setSelectedIds(new Set(checked))
     setLoading(false)
     checkRepeatTransfers(sorted)
@@ -185,6 +185,7 @@ export default function PaymentsPage() {
   }, [])
 
   async function toggleSelect(id: string) {
+    if (orders.some(o => o.id === id && o.kyc_deferred && !o.identity_verified_at)) return
     const next = new Set(selectedIds)
     const newChecked = !next.has(id)
     if (newChecked) next.add(id)
@@ -243,7 +244,8 @@ export default function PaymentsPage() {
 
   async function toggleAll() {
     const allSelected = selectedIds.size === orders.length
-    const ids = orders.map((o) => o.id)
+    const ids = orders.filter(o => !o.kyc_deferred || o.identity_verified_at).map((o) => o.id)
+    if (!ids.length) return
 
     if (allSelected) {
       setSelectedIds(new Set())
@@ -413,12 +415,14 @@ export default function PaymentsPage() {
                     <TableRow key={order.id}>
                       <TableCell>
                         <Checkbox
+                          disabled={!!order.kyc_deferred && !order.identity_verified_at}
                           checked={selectedIds.has(order.id)}
                           onCheckedChange={() => toggleSelect(order.id)}
                         />
                       </TableCell>
                       <TableCell className="font-mono text-sm">
                         {order.order_number.replace(/^BB-\d{8}-/, 'BB-')}
+                        {order.kyc_deferred && !order.identity_verified_at && <Badge className="ml-2 bg-amber-100 text-amber-900">本人確認待ち・支払不可</Badge>}
                       </TableCell>
                       <TableCell>
                         <span className="flex items-center gap-1.5">

@@ -1108,6 +1108,7 @@ export default function OrderDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
+              {order.kyc_deferred && !order.identity_verified_at && <p className="rounded border border-amber-300 bg-amber-50 p-3">本人確認待ち（仮受付）。商品・申込内容は保存済みです。承認完了まで支払いできません。</p>}
               <div className="flex flex-wrap items-center gap-1.5">
                 <span>{kycInfo?.identityMethod ?? order.customer_identity_method ?? '未選択'}</span>
                 {kycInfo?.identityVerifiedAt ? (

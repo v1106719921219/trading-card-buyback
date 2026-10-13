@@ -42,6 +42,8 @@ interface MyOrderItem {
 }
 
 interface MyOrder {
+  kyc_deferred?: boolean
+  identity_verified_at?: string | null
   order_number: string
   status: string
   paid_amount?: number
@@ -255,6 +257,13 @@ export default function MyOrdersPage() {
                       </span>
                     </div>
 
+                    {o.kyc_deferred && !o.identity_verified_at && (
+                      <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm">
+                        <p className="font-semibold">本人確認待ち（仮受付）</p>
+                        <p>申込内容は保存済みです。本人確認の承認完了までお支払いできません。</p>
+                        <Link className="mt-2 inline-block text-orange-700 underline" href={`${o._db === 'chiba' ? 'https://chiba.kaitorisquare.com' : 'https://kaitorisquare.com'}/apply/complete?order_number=${encodeURIComponent(o.order_number)}`}>受付内容・本人確認の再開</Link>
+                      </div>
+                    )}
                     {/* 進捗バー */}
                     {s.step > 0 && (
                       <div className="flex items-center gap-1 pt-1">
