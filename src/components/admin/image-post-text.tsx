@@ -9,10 +9,11 @@ import { Textarea } from '@/components/ui/textarea'
 
 type PostProduct = { id: string; name: string; price: number; price_no_shrink?: number | null }
 
-export function ImagePostText({ products, heading, label = 'この画像の投稿文', includeNoShrink = false }: {
+export function ImagePostText({ products, heading, label = 'この画像の投稿文', description = 'この画像の商品・順番・価格に連動します。', includeNoShrink = false }: {
   products: PostProduct[]
   heading: string
   label?: string
+  description?: string
   includeNoShrink?: boolean
 }) {
   const [header, setHeader] = useState(heading)
@@ -27,7 +28,7 @@ export function ImagePostText({ products, heading, label = 'この画像の投�
     }
   }
   return <Card>
-    <CardHeader><div className="flex items-center justify-between gap-2"><CardTitle className="text-base">{label}</CardTitle><Button variant="outline" size="sm" onClick={copy} disabled={!products.length} className="gap-2"><Copy className="h-4 w-4" />投稿文をコピー</Button></div><p className="text-sm text-muted-foreground">この画像の商品・順番・価格に連動します。</p></CardHeader>
+    <CardHeader><div className="flex items-center justify-between gap-2"><CardTitle className="text-base">{label}</CardTitle><Button variant="outline" size="sm" onClick={copy} disabled={!products.length} className="gap-2"><Copy className="h-4 w-4" />投稿文をコピー</Button></div><p className="text-sm text-muted-foreground">{description}</p></CardHeader>
     <CardContent className="space-y-3">
       <label className="block text-sm">冒頭<Textarea aria-label={`${label}の冒頭`} value={header} onChange={e => setHeader(e.target.value)} rows={2} /></label>
       <label className="block text-sm">末尾・申込案内<Textarea aria-label={`${label}の末尾`} value={footer} onChange={e => setFooter(e.target.value)} rows={4} /></label>

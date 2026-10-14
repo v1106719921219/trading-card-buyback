@@ -276,6 +276,7 @@ export default function MarketingImagePage() {
 
         {/* 右カラム: プレビュー */}
         <div className="space-y-4">
+          <ImagePostText products={selectedProducts} heading="🔥🔥10BOX以上の買取依頼で着払OK🔥🔥" label="全画像まとめて投稿文" description="選択した全商品の順番・価格に連動します。複数の画像を添付する投稿にも、この投稿文をお使いください。" includeNoShrink />
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               プレビュー（1920×1080）{totalPages > 1 && `— ${totalPages}枚に分割`}
@@ -292,7 +293,6 @@ export default function MarketingImagePage() {
               <PriceImageCanvas ref={previewRef1} products={page1Products} pageLabel={totalPages > 1 ? '①' : undefined} />
             </div>
           </div>
-              <ImagePostText products={page1Products} heading="🔥🔥10BOX以上の買取依頼で着払OK🔥🔥" label="画像1の投稿文" includeNoShrink />
 
           {page2Products.length > 0 && (
             <>
@@ -302,7 +302,6 @@ export default function MarketingImagePage() {
                   <PriceImageCanvas ref={previewRef2} products={page2Products} pageLabel="②" />
                 </div>
               </div>
-              <ImagePostText products={page2Products} heading="🔥🔥10BOX以上の買取依頼で着払OK🔥🔥" label="画像2の投稿文" includeNoShrink />
             </>
           )}
 
@@ -314,7 +313,6 @@ export default function MarketingImagePage() {
                   <PriceImageCanvas ref={previewRef3} products={page3Products} pageLabel="③" />
                 </div>
               </div>
-              <ImagePostText products={page3Products} heading="🔥🔥10BOX以上の買取依頼で着払OK🔥🔥" label="画像3の投稿文" includeNoShrink />
             </>
           )}
         </div>
