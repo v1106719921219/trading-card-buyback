@@ -5,8 +5,10 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { getOrderPaperKyc } from '@/actions/paper-kyc'
-import { getOrderPayments, recordPayment, voidPayment } from '@/actions/payments'
+import { getOrderPayments, getPaymentSignatureUrl, recordCashPaymentWithSignature, recordPayment, voidPayment } from '@/actions/payments'
+import { SignaturePad } from '@/components/admin/signature-pad'
 import { jstToday, paymentStatusLabel, paymentMethodLabel, paymentTotal, paidAmount, remainingPayment } from '@/lib/payment-display'
 import type { Order, OrderPayment, UserRole } from '@/types/database'
 import { toast } from 'sonner'
@@ -23,6 +25,8 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
   const [historyError, setHistoryError] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(true)
   const request = useRef<{ fingerprint: string; id: string } | null>(null)
+  const [sigOpen, setSigOpen] = useState(false)
+  const [signature, setSignature] = useState<string | null>(null)
   const paid = ['振込済', '振込確認済'].includes(order.status)
   const kycWaiting = !!order.kyc_deferred && !order.identity_verified_at
   const canRecord = !kycWaiting && ['admin', 'manager'].includes(role || '') && ['申込', '発送済', '検品完了'].includes(order.status) && remaining > 0
@@ -41,13 +45,16 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
   }, [order.id, order.updated_at])
   async function save() {
     if (saving || !valid) return
+    if (effectiveMethod === 'cash' && !signature) { toast.error('受領サインが必要です'); return }
     setSaving(true)
     const fingerprint = JSON.stringify([order.id, effectiveMethod, numericAmount, date, order.updated_at])
     if (request.current?.fingerprint !== fingerprint) request.current = { fingerprint, id: crypto.randomUUID() }
     try {
-      const result = await recordPayment(order.id, effectiveMethod, numericAmount, date, order.updated_at, request.current.id)
+      const result = effectiveMethod === 'cash'
+        ? await recordCashPaymentWithSignature(order.id, numericAmount, date, order.updated_at, request.current.id, signature!)
+        : await recordPayment(order.id, effectiveMethod, numericAmount, date, order.updated_at, request.current.id)
       if (result.error) toast.error(result.error)
-      else { toast.success('支払いを記録しました'); setAmount(''); onSaved() }
+      else { toast.success('支払いを記録しました'); setAmount(''); setSignature(null); setSigOpen(false); onSaved() }
     } catch { toast.error('結果を確認できませんでした。再読み込みして支払履歴を確認してください') }
     finally { setSaving(false) }
   }
@@ -67,6 +74,7 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
         <p className="text-sm font-semibold">支払履歴</p>
         {historyLoading ? <p className="text-sm">読み込み中...</p> : historyError ? <p className="text-sm text-red-600">履歴を取得できません。再読み込みしてください。</p> : history.length === 0 ? <p className="text-sm text-muted-foreground">{paid ? '従来の全額支払い記録です。' : '支払記録はありません。'}</p> : history.map(p => <div key={p.id} className={`rounded border bg-white p-2 text-sm ${p.voided_at ? 'text-muted-foreground' : ''}`}>
           <p className={p.voided_at ? 'line-through' : ''}>{p.paid_on}　{paymentMethodLabel(p.method)}　{Number(p.amount).toLocaleString()}円</p>
+          {p.signature_path && <ViewSignature orderId={order.id} paymentId={p.id} />}
           {p.voided_at ? <p>取消済：{p.void_reason}</p> : role === 'admin' && order.status !== '振込確認済' && <CancelPayment order={order} payment={p} onSaved={onSaved} />}
         </div>)}
       </div>
@@ -81,12 +89,47 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
         <Button variant="outline" size="sm" disabled={saving} onClick={() => setAmount(String(remaining))}>残額すべて（{remaining.toLocaleString()}円）を入力</Button>
         {numericAmount > remaining && <p className="text-sm text-red-600">残額を超えています。</p>}
         <p className="text-xs text-muted-foreground">実際に渡した金額を記録してください。送金を実行する機能ではありません。</p>
-        <AlertDialog><AlertDialogTrigger asChild><Button className="w-full bg-emerald-700 hover:bg-emerald-800" disabled={saving || !valid || historyLoading || historyError}>支払いを記録</Button></AlertDialogTrigger>
+        {effectiveMethod === 'cash' ? <>
+          <Button className="w-full bg-emerald-700 hover:bg-emerald-800" disabled={saving || !valid || historyLoading || historyError} onClick={() => { setSignature(null); setSigOpen(true) }}>受領サインをもらって記録</Button>
+          <Dialog open={sigOpen} onOpenChange={o => { if (!saving) { setSigOpen(o); if (!o) setSignature(null) } }}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader><DialogTitle>現金受領書</DialogTitle></DialogHeader>
+              <div className="space-y-3">
+                <div className="rounded-md border bg-gray-50 p-3 text-sm leading-6">
+                  <p>注文番号：{order.order_number}</p>
+                  <p>お名前：{order.customer_name} 様</p>
+                  <p>受領日：{date}</p>
+                  <p className="text-lg font-bold">受領金額：{numericAmount.toLocaleString()}円</p>
+                  <p className="mt-1">私は、上記金額を現金にて確かに受領いたしました。</p>
+                </div>
+                <p className="text-sm font-semibold">お客様ご署名</p>
+                <SignaturePad onChange={setSignature} disabled={saving} />
+                <Button className="w-full bg-emerald-700 hover:bg-emerald-800" disabled={saving || !signature} onClick={save}>{saving ? '登録中...' : '署名を保存して支払いを記録'}</Button>
+                <p className="text-xs text-muted-foreground">署名がないと現金支払いは記録できません。署名画像は注文の支払履歴に保存されます。</p>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </> : <AlertDialog><AlertDialogTrigger asChild><Button className="w-full bg-emerald-700 hover:bg-emerald-800" disabled={saving || !valid || historyLoading || historyError}>支払いを記録</Button></AlertDialogTrigger>
           <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>支払いを記録しますか？</AlertDialogTitle><AlertDialogDescription>{order.order_number}：{date}に{paymentMethodLabel(effectiveMethod)}で{numericAmount.toLocaleString()}円を支払った記録を追加します。登録後の残額は{Math.max(0, remaining - numericAmount).toLocaleString()}円です。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>戻る</AlertDialogCancel><AlertDialogAction disabled={saving} onClick={save}>記録する</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-        </AlertDialog>
+        </AlertDialog>}
       </div>}
     </CardContent>
   </Card>
+}
+
+function ViewSignature({ orderId, paymentId }: { orderId: string; paymentId: string }) {
+  const [loading, setLoading] = useState(false)
+  async function open() {
+    if (loading) return
+    setLoading(true)
+    try {
+      const result = await getPaymentSignatureUrl(orderId, paymentId)
+      if (result.error || !result.url) toast.error(result.error || '署名を表示できませんでした')
+      else window.open(result.url, '_blank', 'noopener')
+    } catch { toast.error('署名を表示できませんでした') }
+    finally { setLoading(false) }
+  }
+  return <Button variant="ghost" size="sm" onClick={open} disabled={loading}>{loading ? '取得中...' : '受領サインを表示'}</Button>
 }
 
 function CancelPayment({ order, payment, onSaved }: { order: Order; payment: OrderPayment; onSaved: () => void }) {

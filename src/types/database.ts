@@ -225,4 +225,5 @@ export interface OrderPayment {
   created_at: string
   voided_at: string | null
   void_reason: string | null
+  signature_path: string | null
 }

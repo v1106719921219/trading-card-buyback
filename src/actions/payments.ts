@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole } from '@/lib/security'
 import { generateInspectionPdf } from '@/lib/pdf'
 import { jstToday, validPaymentDate } from '@/lib/payment-display'
@@ -67,10 +68,48 @@ export async function getOrderPayments(orderId: string) {
   const { user, error } = await requireRole(['admin', 'manager', 'staff'])
   if (error || !user) return { error: error ?? '認証が必要です' }
   const db = await createClient()
-  const result = await db.from('order_payments').select('id,method,amount,paid_on,created_at,voided_at,void_reason')
+  const result = await db.from('order_payments').select('id,method,amount,paid_on,created_at,voided_at,void_reason,signature_path')
     .eq('tenant_id', user.tenant_id).eq('order_id', orderId).order('created_at', { ascending: true })
   if (result.error) return { error: '支払履歴を取得できませんでした' }
   return { data: result.data }
+}
+
+// 現金手渡しは受領サイン必須。署名画像を保存してから支払RPCを呼び、支払記録に紐付ける。
+export async function recordCashPaymentWithSignature(orderId: string, amount: number, paymentDate: string, expectedUpdatedAt: string, requestId: string, signatureDataUrl: string): Promise<{ error?: string; success?: boolean }> {
+  const { user, error: authError } = await requireRole(['admin', 'manager'])
+  if (authError || !user) return { error: authError ?? '認証が必要です' }
+  const prefix = 'data:image/png;base64,'
+  if (typeof signatureDataUrl !== 'string' || !signatureDataUrl.startsWith(prefix)) return { error: '受領サインが必要です' }
+  const base64 = signatureDataUrl.slice(prefix.length)
+  if (base64.length < 500 || base64.length > 700_000 || !/^[A-Za-z0-9+/=]+$/.test(base64)) return { error: '署名画像を読み取れませんでした。書き直してください' }
+  if (!/^[0-9a-f-]{36}$/i.test(requestId)) return { error: '不正なリクエストです' }
+  const bytes = Buffer.from(base64, 'base64')
+  const admin = createAdminClient()
+  const path = `${user.tenant_id}/${orderId}/${requestId}.png`
+  const upload = await admin.storage.from('cash-receipts').upload(path, bytes, { contentType: 'image/png', upsert: true })
+  if (upload.error) return { error: '署名の保存に失敗しました。通信環境を確認して再度お試しください' }
+  const result = await recordPayment(orderId, 'cash', amount, paymentDate, expectedUpdatedAt, requestId)
+  if (result.error) {
+    await admin.storage.from('cash-receipts').remove([path]).catch(() => {})
+    return result
+  }
+  const link = await admin.from('order_payments').update({ signature_path: path }).eq('id', requestId).eq('tenant_id', user.tenant_id)
+  if (link.error) return { error: '支払いは記録しましたが、署名の紐付けに失敗しました。この画面を再読み込みして管理者に連絡してください' }
+  return { success: true }
+}
+
+// 受領サイン画像の閲覧用署名URL（10分有効）
+export async function getPaymentSignatureUrl(orderId: string, paymentId: string) {
+  const { user, error } = await requireRole(['admin', 'manager', 'staff'])
+  if (error || !user) return { error: error ?? '認証が必要です' }
+  const db = await createClient()
+  const payment = await db.from('order_payments').select('signature_path')
+    .eq('tenant_id', user.tenant_id).eq('order_id', orderId).eq('id', paymentId).single()
+  if (payment.error || !payment.data?.signature_path) return { error: '署名が見つかりません' }
+  const admin = createAdminClient()
+  const signed = await admin.storage.from('cash-receipts').createSignedUrl(payment.data.signature_path, 600)
+  if (signed.error || !signed.data?.signedUrl) return { error: '署名URLを発行できませんでした' }
+  return { url: signed.data.signedUrl }
 }
 
 export async function recordPayment(orderId: string, method: 'cash' | 'bank_transfer', amount: number, paymentDate: string, expectedUpdatedAt: string, requestId: string, requireInspection = false) {
