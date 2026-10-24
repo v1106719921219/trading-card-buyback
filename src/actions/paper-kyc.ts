@@ -10,7 +10,7 @@ import { sanitizeImage } from '@/lib/safe-image'
 import { createSignedUrl, uploadPaperKycImage } from '@/lib/kyc/storage'
 
 const approvalSchema = z.object({
-  orderId: z.uuid(), expectedUpdatedAt: z.string().min(1),
+  orderId: z.uuid(), expectedUpdatedAt: z.string().min(1), documentType: z.enum(PAPER_DOCUMENT_TYPES),
   receivedOn: z.string().refine(validPaymentDate), storageReference: z.string().trim().min(1).max(300),
   documentReceived: z.literal(true), identityMatched: z.literal(true), bankMatched: z.literal(true),
 })
@@ -21,21 +21,22 @@ export async function getOrderPaperKyc(orderId: string) {
   if (!z.uuid().safeParse(orderId).success) return { error: '注文を確認してください' }
   const db = await createClient()
   const result = await db.from('order_paper_kyc')
-    .select('id,received_on,storage_reference,verified_by,verified_at,revoked_at,revoke_reason')
+    .select('id,document_type,received_on,storage_reference,verified_by,verified_at,revoked_at,revoke_reason')
     .eq('tenant_id', user.tenant_id).eq('order_id', orderId).order('verified_at', { ascending: false })
   if (result.error) return { error: '紙の本人確認履歴を取得できませんでした' }
   return { data: result.data }
 }
 
+// スタッフも承認できる（eKYCの承認と同じ）。DB側でも役割と二段階認証を再確認する
 export async function approveOrderPaperKyc(input: unknown) {
-  const { user, error } = await requireRole(['admin', 'manager'])
+  const { user, error } = await requireRole(['admin', 'manager', 'staff'])
   if (error || !user) return { error: error ?? '認証が必要です' }
   const parsed = approvalSchema.safeParse(input)
-  if (!parsed.success) return { error: '受領日・保管場所・3つの確認項目を入力してください' }
+  if (!parsed.success) return { error: '書類の種類・受領日・保管場所・3つの確認項目を入力してください' }
   const v = parsed.data
   const db = await createClient()
   const result = await db.rpc('approve_order_paper_kyc', {
-    p_tenant: user.tenant_id, p_order: v.orderId, p_received_on: v.receivedOn,
+    p_tenant: user.tenant_id, p_order: v.orderId, p_document_type: v.documentType, p_received_on: v.receivedOn,
     p_storage_reference: v.storageReference, p_document_received: v.documentReceived,
     p_identity_matched: v.identityMatched, p_bank_matched: v.bankMatched,
     p_expected_updated_at: v.expectedUpdatedAt,
@@ -61,7 +62,7 @@ export async function revokeOrderPaperKyc(orderId: string, reason: string, expec
 // 承認とは独立に、受領したスタッフが注文に紐づけて保存する。承認の可否・条件は変えない。
 // ============================================================================
 
-import { PAPER_DOC_LABELS, type PaperDocLabel } from '@/lib/kyc/paper-docs'
+import { PAPER_DOC_LABELS, PAPER_DOCUMENT_TYPES, type PaperDocLabel } from '@/lib/kyc/paper-docs'
 const MAX_DOC_BYTES = 10 * 1024 * 1024
 const MAX_DOCS_PER_ORDER = 8
 const PAID_STATUSES = ['振込済', '振込確認済']

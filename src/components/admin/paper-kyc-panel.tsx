@@ -6,12 +6,12 @@ import { Input } from '@/components/ui/input'
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog'
 import { Loader2, Trash2, Upload } from 'lucide-react'
 import { approveOrderPaperKyc, getOrderPaperKyc, revokeOrderPaperKyc, getPaperKycDocuments, uploadPaperKycDocument, deletePaperKycDocument, type PaperKycDocument } from '@/actions/paper-kyc'
-import { PAPER_DOC_LABELS, PAPER_DOC_LABEL_TEXT, type PaperDocLabel } from '@/lib/kyc/paper-docs'
+import { PAPER_DOC_LABELS, PAPER_DOC_LABEL_TEXT, PAPER_DOCUMENT_TYPES, PAPER_DOCUMENT_TYPE_TEXT, isPaperCopy, type PaperDocLabel, type PaperDocumentType } from '@/lib/kyc/paper-docs'
 import { jstToday } from '@/lib/payment-display'
 import type { Order, UserRole } from '@/types/database'
 import { toast } from 'sonner'
 
-type PaperRecord = { id: string; received_on: string; storage_reference: string; verified_by: string; verified_at: string; revoked_at: string | null; revoke_reason: string | null }
+type PaperRecord = { id: string; document_type: PaperDocumentType; received_on: string; storage_reference: string; verified_by: string; verified_at: string; revoked_at: string | null; revoke_reason: string | null }
 
 // スマホ写真（数MB）をそのまま送らず、長辺2000pxのJPEGに縮小してからアップロードする。
 // <img>経由でcanvasに描くので、iPhoneのHEIC等もブラウザが表示できる形式ならJPEGに変換できる
@@ -46,6 +46,7 @@ export function PaperKycPanel({ order, role, onSaved }: { order: Order; role: Us
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [open, setOpen] = useState(false)
+  const [docType, setDocType] = useState<PaperDocumentType>('residence_certificate')
   const [date, setDate] = useState(jstToday())
   const [storage, setStorage] = useState('')
   const [checks, setChecks] = useState([false, false, false])
@@ -86,8 +87,11 @@ export function PaperKycPanel({ order, role, onSaved }: { order: Order; role: Us
   const approved = records.find(r => !r.revoked_at)
   const paid = ['振込済', '振込確認済'].includes(order.status)
   const canUpload = !!role && !paid
-  const canApprove = ['admin', 'manager'].includes(role ?? '') && !order.identity_verified_at && !approved && !loading && !error &&
+  // スタッフも承認できる（eKYCの承認と同じ）。DB側でも役割と二段階認証を再確認する
+  const canApprove = ['admin', 'manager', 'staff'].includes(role ?? '') && !order.identity_verified_at && !approved && !loading && !error &&
     ['申込', '承認待ち', '発送済', '検品完了'].includes(order.status) && Number(order.paid_amount ?? 0) === 0
+  // コピーの場合は、受領した書類の画像が保存されていないと承認できない
+  const needsImage = isPaperCopy(docType) && docs.length === 0
 
   async function upload() {
     if (!docFile || uploading) return
@@ -132,9 +136,9 @@ export function PaperKycPanel({ order, role, onSaved }: { order: Order; role: Us
     if (saving) return
     setSaving(true)
     try {
-      const r = await approveOrderPaperKyc({ orderId: order.id, expectedUpdatedAt: order.updated_at, receivedOn: date, storageReference: storage, documentReceived: checks[0], identityMatched: checks[1], bankMatched: checks[2] })
+      const r = await approveOrderPaperKyc({ orderId: order.id, expectedUpdatedAt: order.updated_at, documentType: docType, receivedOn: date, storageReference: storage, documentReceived: checks[0], identityMatched: checks[1], bankMatched: checks[2] })
       if (r.error) toast.error(r.error)
-      else { toast.success('紙の本人確認を承認しました（本人名義口座への振込限定）'); setOpen(false); setChecks([false, false, false]); onSaved() }
+      else { toast.success('紙の本人確認を承認し、本人確認済みにしました（本人名義口座への振込限定）'); setOpen(false); setChecks([false, false, false]); onSaved() }
     } catch { toast.error('結果を確認できませんでした。再読み込みして承認履歴を確認してください') }
     finally { setSaving(false) }
   }
@@ -199,7 +203,7 @@ export function PaperKycPanel({ order, role, onSaved }: { order: Order; role: Us
 
     {approved && <div className="rounded border border-green-300 bg-green-50 p-3 space-y-1">
       <p className="font-semibold">紙確認済み・本人名義口座への振込限定</p>
-      <p>書類：自治体発行の住民票の写し</p><p>受領日：{approved.received_on}</p>
+      <p>書類：{PAPER_DOCUMENT_TYPE_TEXT[approved.document_type] ?? approved.document_type}</p><p>受領日：{approved.received_on}</p>
       <p>保管場所：{approved.storage_reference}</p>
       <p>承認日時：{new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', dateStyle: 'short', timeStyle: 'short' }).format(new Date(approved.verified_at))}</p>
       <p className="break-all text-xs">確認者ID：{approved.verified_by}</p>
@@ -213,17 +217,29 @@ export function PaperKycPanel({ order, role, onSaved }: { order: Order; role: Us
       </AlertDialog>}
     </div>}
     {canApprove && <>
-      <p className="text-xs text-muted-foreground">eKYCの撮影ができず、住民票を同梱したお客様向けです。免許証のコピーだけでは承認しないでください。</p>
-      <Button variant="outline" onClick={() => setOpen(!open)}>{open ? '入力を閉じる' : '紙の本人確認を承認する'}</Button>
+      <p className="text-xs text-muted-foreground">eKYCの撮影ができず、書類を同梱したお客様向けです。免許証などのコピーの場合は、先に上の「受領した書類の画像」へ保存してから承認してください。</p>
+      <Button variant="outline" onClick={() => setOpen(!open)}>{open ? '入力を閉じる' : '紙で本人確認済みにする'}</Button>
       {open && <div className="space-y-3 rounded border bg-amber-50 p-3">
         <p>対象：{order.order_number} ／ {order.customer_name}</p>
         <p>照合する口座名義：{order.bank_account_holder || '未登録'}</p>
-        <label className="block">住民票の受領日<Input type="date" value={date} max={jstToday()} onChange={e => setDate(e.target.value)} disabled={saving} /></label>
+        <label className="block">届いた書類の種類
+          <select aria-label="届いた書類の種類" value={docType} onChange={e => setDocType(e.target.value as PaperDocumentType)} disabled={saving} className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm">
+            {PAPER_DOCUMENT_TYPES.map(t => <option key={t} value={t}>{PAPER_DOCUMENT_TYPE_TEXT[t]}</option>)}
+          </select>
+        </label>
+        {needsImage && <p className="text-xs text-destructive">コピーの場合は、先に上の「受領した書類の画像」へ画像を保存してください。</p>}
+        <label className="block">書類の受領日<Input type="date" value={date} max={jstToday()} onChange={e => setDate(e.target.value)} disabled={saving} /></label>
         <label className="block">書類の保管場所・管理番号<Input value={storage} maxLength={300} onChange={e => setStorage(e.target.value)} placeholder="例：東京・本人確認保管庫／注文番号" disabled={saving} /></label>
-        {['自治体が交付した住民票の写しを受領した（自分で複写したコピーではない）', '申込者の氏名・住所・生年月日を照合し、職業の申告も確認した', '住民票の本人と振込先の口座名義を照合し、本人名義口座への振込で支払うことを確認した'].map((label, i) => <label key={label} className="flex items-start gap-2"><input type="checkbox" checked={checks[i]} onChange={e => setChecks(c => c.map((v, j) => j === i ? e.target.checked : v))} disabled={saving} className="mt-1" /><span>{label}</span></label>)}
-        <p className="text-xs">マイナンバーの提出は求めません。書類は所定の保管場所で管理してください。</p>
-        <AlertDialog><AlertDialogTrigger asChild><Button disabled={saving || !checks.every(Boolean) || !date || !storage.trim()}>照合済みとして承認</Button></AlertDialogTrigger>
-          <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>紙の本人確認を承認しますか？</AlertDialogTitle><AlertDialogDescription>{order.order_number} ／ {order.customer_name} の書類・本人名義口座を確認した記録を残し、銀行振込の支払登録を可能にします。現金払いはできません。送金は実行されません。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>戻る</AlertDialogCancel><AlertDialogAction disabled={saving} onClick={save}>承認する</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        {[
+          isPaperCopy(docType)
+            ? `お客様から${PAPER_DOCUMENT_TYPE_TEXT[docType]}を受領し、その画像を上の欄に保存した`
+            : '自治体が交付した住民票の写しを受領した（自分で複写したコピーではない）',
+          '申込者の氏名・住所・生年月日を照合し、職業の申告も確認した',
+          '書類の本人と振込先の口座名義を照合し、本人名義口座への振込で支払うことを確認した',
+        ].map((label, i) => <label key={label} className="flex items-start gap-2"><input type="checkbox" checked={checks[i]} onChange={e => setChecks(c => c.map((v, j) => j === i ? e.target.checked : v))} disabled={saving} className="mt-1" /><span>{label}</span></label>)}
+        <p className="text-xs">マイナンバーの提出は求めません（マイナンバーカードは表面のみ）。書類は所定の保管場所で管理してください。</p>
+        <AlertDialog><AlertDialogTrigger asChild><Button disabled={saving || needsImage || !checks.every(Boolean) || !date || !storage.trim()}>照合済みとして本人確認済みにする</Button></AlertDialogTrigger>
+          <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>紙の本人確認を承認しますか？</AlertDialogTitle><AlertDialogDescription>{order.order_number} ／ {order.customer_name} の{PAPER_DOCUMENT_TYPE_TEXT[docType]}・本人名義口座を確認した記録を残し、本人確認済みにして銀行振込の支払登録を可能にします。現金払いはできません。送金は実行されません。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>戻る</AlertDialogCancel><AlertDialogAction disabled={saving} onClick={save}>承認する</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
         </AlertDialog>
       </div>}
     </>}

@@ -15,6 +15,7 @@ import { writeKycAuditLog } from '@/lib/kyc/audit'
 import { createSignedUrl } from '@/lib/kyc/storage'
 import { runAiKycReview, type AiKycReview } from '@/lib/kyc/ai-review'
 import { ID_DOCUMENT_TYPE_LABELS } from '@/types/kyc'
+import { PAPER_DOCUMENT_SHORT_TEXT, PAPER_DOCUMENT_TYPE_TEXT, type PaperDocumentType } from '@/lib/kyc/paper-docs'
 import type { KycSubmitInput, KycReviewInput } from '@/lib/validators/kyc'
 import type { KycRequest, KycRequestWithOrder, KycStatus } from '@/types/kyc'
 
@@ -606,13 +607,16 @@ export async function getOrderKycInfo(orderId: string) {
 
   if (!order) return { error: '注文が見つかりません' }
 
-  const { data: paper } = await supabase.from('order_paper_kyc').select('id')
+  const { data: paper } = await supabase.from('order_paper_kyc').select('id, document_type')
     .eq('tenant_id', user.tenant_id).eq('order_id', orderId).is('revoked_at', null).maybeSingle()
-  if (paper) return { data: {
-    identityMethod: '紙確認済み（住民票・本人名義振込限定）', identityVerifiedAt: order.identity_verified_at,
-    kycId: null, kycStatus: null, documentLabel: '住民票の写し', rejectionReason: null,
-    aiReview: null, autoApproved: false, images: [],
-  } }
+  if (paper) {
+    const paperType = paper.document_type as PaperDocumentType
+    return { data: {
+      identityMethod: `紙確認済み（${PAPER_DOCUMENT_SHORT_TEXT[paperType] ?? paperType}・本人名義振込限定）`, identityVerifiedAt: order.identity_verified_at,
+      kycId: null, kycStatus: null, documentLabel: PAPER_DOCUMENT_TYPE_TEXT[paperType] ?? paperType, rejectionReason: null,
+      aiReview: null, autoApproved: false, images: [],
+    } }
+  }
 
   let kyc: {
     id: string

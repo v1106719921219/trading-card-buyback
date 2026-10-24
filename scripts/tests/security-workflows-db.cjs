@@ -41,7 +41,7 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY profiles_select ON profiles FOR SELECT TO authenticated USING(id=auth.uid());
 CREATE POLICY profiles_update_admin ON profiles FOR UPDATE TO authenticated USING(get_user_role(auth.uid())='admin') WITH CHECK(get_user_role(auth.uid())='admin');
 `);
-for(const f of ['20260913000002_security_workflow_guards.sql','20260913000003_shared_security_controls.sql','20260913000004_staff_access_revocation.sql','20261006000001_cash_payment_method.sql','20261006000002_partial_payments.sql','20261013000001_deferred_kyc.sql','20261013000002_paper_kyc.sql','20261024000001_paper_kyc_documents.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
+for(const f of ['20260913000002_security_workflow_guards.sql','20260913000003_shared_security_controls.sql','20260913000004_staff_access_revocation.sql','20261006000001_cash_payment_method.sql','20261006000002_partial_payments.sql','20261013000001_deferred_kyc.sql','20261013000002_paper_kyc.sql','20261024000001_paper_kyc_documents.sql','20261024000002_paper_kyc_document_types.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
 await test('paper KYC document rows readable only by own-tenant staff or MFA admins; browser roles cannot write',async()=>{
  await session('service_role');await db.query("INSERT INTO order_paper_kyc_documents(tenant_id,order_id,label,storage_path,uploaded_by) VALUES($1,$2,'front','fixture/paper/front.jpg',$3)",[A,order,staff]);
  await session('authenticated',staff);assert.equal((await db.query('SELECT id FROM order_paper_kyc_documents')).rows.length,1);
@@ -126,15 +126,15 @@ await test('deferred KYC blocks cash/bank partial payments and status bypass unt
 });
 const paperOrder='abcdef00-0000-4000-8000-000000000001';
 const paperSnapshot=async()=> (await db.query('SELECT * FROM orders WHERE id=$1',[paperOrder])).rows[0];
-const approvePaper=(tenant,stamp,check=true,date='2026-10-01',storage='Fixture cabinet')=>db.query('SELECT approve_order_paper_kyc($1,$2,$3,$4,$5,$6,$7,$8)',[tenant,paperOrder,date,storage,check,true,true,stamp]);
+const approvePaper=(tenant,stamp,check=true,date='2026-10-01',storage='Fixture cabinet',type='residence_certificate',orderId=paperOrder)=>db.query('SELECT approve_order_paper_kyc($1,$2,$3,$4,$5,$6,$7,$8,$9)',[tenant,orderId,type,date,storage,check,true,true,stamp]);
 const payPaper=async(method,amount=100)=>db.query('SELECT record_order_payment($1,$2,$3,$4,$5,$6,$7)',[A,paperOrder,method,amount,'2026-10-01',require('node:crypto').randomUUID(),(await paperSnapshot()).updated_at]);
-await test('paper approval requires MFA admin/manager, tenant ownership, receipt and matching checks',async()=>{
+await test('paper approval requires staff or MFA admin/manager, tenant ownership, receipt and matching checks',async()=>{
  await session('service_role');
  await db.query("INSERT INTO orders(id,tenant_id,status,total_amount,kyc_deferred,customer_name,customer_birth_date,customer_occupation,customer_prefecture,customer_address,bank_name,bank_branch,bank_account_type,bank_account_number,bank_account_holder) VALUES($1,$2,'検品完了',1000,true,'Fixture','1990-01-01','Fixture job','Tokyo','Fixture address','Fixture bank','Fixture branch','普通','0000000','FIXTURE')",[paperOrder,A]);
  const stamp=(await paperSnapshot()).updated_at;
  await assert.rejects(()=>approvePaper(A,stamp));
  await session('anon');await assert.rejects(()=>approvePaper(A,stamp));
- await session('authenticated',staff);await assert.rejects(()=>approvePaper(A,stamp));
+ await session('authenticated',staff);await assert.rejects(()=>approvePaper(A,stamp,true,'2026-10-01','Fixture cabinet','driving_license'));await assert.rejects(()=>approvePaper(A,stamp,true,'2026-10-01','Fixture cabinet','bogus'));
  await session('authenticated',admin);await assert.rejects(()=>approvePaper(A,stamp));
  await session('authenticated',manager,'aal2');await assert.rejects(()=>approvePaper(B,stamp));
  await assert.rejects(()=>approvePaper(A,stamp,false));await assert.rejects(()=>approvePaper(A,stamp,true,'2099-01-01'));await assert.rejects(()=>approvePaper(A,stamp,true,'2026-10-01',''));
@@ -167,6 +167,23 @@ await test('paper revocation is admin-only, requires clearing paid records and p
  assert.equal((await db.query("SELECT count(*)::int n FROM security_audit_events WHERE record_id=$1 AND action IN ('paper_kyc_approved','paper_kyc_revoked')",[paperOrder])).rows[0].n,3);
  await session('service_role');await db.query('UPDATE profiles SET tenant_id=$1 WHERE id=$2',[B,manager]);
  await session('authenticated',manager,'aal2');assert.equal((await db.query('SELECT * FROM order_paper_kyc')).rows.length,0);
+});
+await test('staff approves a licence copy only after an image is stored; order becomes verified and bank-only',async()=>{
+ const copyOrder='abcdef00-0000-4000-8000-000000000002', activeStaff='77777777-7777-4777-8777-777777777777'; // 既定の staff は先のテストで停止済み
+ const snap=async()=> (await db.query('SELECT * FROM orders WHERE id=$1',[copyOrder])).rows[0];
+ await session('service_role');await db.query('INSERT INTO profiles(id,tenant_id,role) VALUES($1,$2,$3)',[activeStaff,A,'staff']);
+ await db.query("INSERT INTO orders(id,tenant_id,status,total_amount,kyc_deferred,customer_name,customer_birth_date,customer_occupation,customer_prefecture,customer_address,bank_name,bank_branch,bank_account_type,bank_account_number,bank_account_holder) VALUES($1,$2,'検品完了',1000,true,'Fixture','1990-01-01','Fixture job','Tokyo','Fixture address','Fixture bank','Fixture branch','普通','0000000','FIXTURE')",[copyOrder,A]);
+ await session('authenticated',activeStaff);
+ await assert.rejects(async()=>approvePaper(A,(await snap()).updated_at,true,'2026-10-01','Fixture cabinet','driving_license',copyOrder));
+ await session('service_role');await db.query("INSERT INTO order_paper_kyc_documents(tenant_id,order_id,label,storage_path,uploaded_by) VALUES($1,$2,'front','fixture/paper/copy-front.jpg',$3)",[A,copyOrder,activeStaff]);
+ await session('authenticated',activeStaff);
+ await fails('UPDATE orders SET identity_verified_at=now() WHERE id=$1',[copyOrder]);
+ await approvePaper(A,(await snap()).updated_at,true,'2026-10-01','Fixture cabinet','driving_license',copyOrder);
+ const o=await snap();assert.ok(o.identity_verified_at);assert.equal(o.customer_identity_method,'紙確認済み（運転免許証コピー・本人名義振込限定）');
+ assert.equal((await db.query('SELECT document_type FROM order_paper_kyc WHERE order_id=$1 AND revoked_at IS NULL',[copyOrder])).rows[0].document_type,'driving_license');
+ await fails('UPDATE orders SET identity_verified_at=NULL WHERE id=$1',[copyOrder]);
+ await assert.rejects(async()=>db.query('SELECT record_order_payment($1,$2,$3,$4,$5,$6,$7)',[A,copyOrder,'cash',100,'2026-10-01',require('node:crypto').randomUUID(),(await snap()).updated_at]));
+ await session('service_role');assert.equal((await db.query("SELECT (details->>'document_type') t,(details->>'image_count')::int n FROM security_audit_events WHERE record_id=$1 AND action='paper_kyc_approved'",[copyOrder])).rows[0].t,'driving_license');
 });
 console.log(`${count} DB tests passed against isolated PostgreSQL; no production connections.`);await db.close();
 })().catch(async e=>{console.error(e.message);if(db)await db.close();process.exitCode=1});
