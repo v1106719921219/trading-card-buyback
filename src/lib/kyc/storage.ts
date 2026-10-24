@@ -72,3 +72,28 @@ export async function deleteKycImages(
     await supabase.storage.from(BUCKET).remove(paths)
   }
 }
+
+/**
+ * 紙で受領した本人確認書類のスキャン/写真をStorageに保存（管理画面からスタッフが登録）
+ * パスは <tenant>/paper/<order>/ 配下。先頭がテナントIDなので既存のStorage RLS（テナント境界）がそのまま効く
+ */
+export async function uploadPaperKycImage(
+  tenantId: string,
+  orderId: string,
+  label: 'front' | 'back' | 'other',
+  file: Buffer
+): Promise<{ path: string; error: string | null }> {
+  const supabase = createAdminClient()
+  const path = `${tenantId}/paper/${orderId}/${label}-${randomUUID()}.jpg`
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, file, { contentType: 'image/jpeg', upsert: false })
+
+  if (error) {
+    console.error('[KYC Storage] Paper upload error:', error)
+    return { path: '', error: 'ファイルのアップロードに失敗しました' }
+  }
+
+  return { path, error: null }
+}

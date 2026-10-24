@@ -11,7 +11,10 @@ if (publicKey) {
 }
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  experimental: {
+    // 紙の本人確認書類の画像をサーバーアクションで受け取るため（既定は1MB）
+    serverActions: { bodySizeLimit: "12mb" },
+  },
 };
 
 export default withSentryConfig(nextConfig, {

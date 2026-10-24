@@ -41,7 +41,15 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY profiles_select ON profiles FOR SELECT TO authenticated USING(id=auth.uid());
 CREATE POLICY profiles_update_admin ON profiles FOR UPDATE TO authenticated USING(get_user_role(auth.uid())='admin') WITH CHECK(get_user_role(auth.uid())='admin');
 `);
-for(const f of ['20260913000002_security_workflow_guards.sql','20260913000003_shared_security_controls.sql','20260913000004_staff_access_revocation.sql','20261006000001_cash_payment_method.sql','20261006000002_partial_payments.sql','20261013000001_deferred_kyc.sql','20261013000002_paper_kyc.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
+for(const f of ['20260913000002_security_workflow_guards.sql','20260913000003_shared_security_controls.sql','20260913000004_staff_access_revocation.sql','20261006000001_cash_payment_method.sql','20261006000002_partial_payments.sql','20261013000001_deferred_kyc.sql','20261013000002_paper_kyc.sql','20261024000001_paper_kyc_documents.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
+await test('paper KYC document rows readable only by own-tenant staff or MFA admins; browser roles cannot write',async()=>{
+ await session('service_role');await db.query("INSERT INTO order_paper_kyc_documents(tenant_id,order_id,label,storage_path,uploaded_by) VALUES($1,$2,'front','fixture/paper/front.jpg',$3)",[A,order,staff]);
+ await session('authenticated',staff);assert.equal((await db.query('SELECT id FROM order_paper_kyc_documents')).rows.length,1);
+ await fails("INSERT INTO order_paper_kyc_documents(tenant_id,order_id,label,storage_path,uploaded_by) VALUES($1,$2,'back','fixture/paper/back.jpg',$3)",[A,order,staff]);await fails('DELETE FROM order_paper_kyc_documents');
+ await session('authenticated',admin);assert.equal((await db.query('SELECT id FROM order_paper_kyc_documents')).rows.length,0);
+ await session('authenticated',admin,'aal2');assert.equal((await db.query('SELECT id FROM order_paper_kyc_documents')).rows.length,1);
+ await session('service_role');await db.query('DELETE FROM order_paper_kyc_documents');
+});
 await test('anonymous direct order creation rejected',async()=>{await session('anon');await fails('INSERT INTO orders(id,tenant_id,status) VALUES(gen_random_uuid(),$1,$2)',[A,'申込'])});
 await test('staff bank/identity/payment changes rejected, ordinary notes allowed',async()=>{await session('authenticated',staff);for(const set of ["bank_account_number='9999999'","identity_verified_at=now()","status='振込済'","paid_at=now()"]){await fails(`UPDATE orders SET ${set} WHERE id=$1`,[order])}await db.query('UPDATE orders SET notes=$1 WHERE id=$2',['fixture',order]);assert.equal((await db.query('SELECT notes FROM orders WHERE id=$1',[order])).rows[0].notes,'fixture')});
 await test('cross-tenant items rejected despite permissive legacy policy',async()=>{await session('authenticated',staff);await fails('INSERT INTO order_items(order_id,tenant_id,product_id,unit_price,quantity) VALUES($1,$2,$3,80,1)',[order,B,product]);await db.query('INSERT INTO order_items(order_id,tenant_id,product_id,unit_price,quantity) VALUES($1,$2,$3,80,1)',[order,A,product]);await db.query('DELETE FROM order_items WHERE unit_price=80')});
