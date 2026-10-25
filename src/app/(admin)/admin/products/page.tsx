@@ -1552,7 +1552,8 @@ async function syncToChiba() {
                         onBlur={() => saveInlineUrl(product.id)}
                       />
                     ) : (
-                      <span className="inline-flex items-center justify-end gap-1.5">
+                      <span className="inline-flex flex-col items-end gap-0.5">
+                        <span className="inline-flex items-center justify-end gap-1.5">
                         <span
                           className="cursor-pointer hover:text-primary text-sm"
                           title={product.market_price != null
@@ -1581,6 +1582,14 @@ async function syncToChiba() {
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
                           </a>
+                        )}
+                        </span>
+                        {product.market_price != null && (
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                            更新 {product.market_price_updated_at
+                              ? new Date(product.market_price_updated_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                              : '-'}
+                          </span>
                         )}
                       </span>
                     )}
