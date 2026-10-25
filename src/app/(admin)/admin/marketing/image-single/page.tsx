@@ -26,7 +26,7 @@ type ProductWithRelations = Product & {
 }
 
 export default function SinglePromoImagePage() {
-  const [group, setGroup] = useState('all')
+  const [group, setGroup] = useState('promo-bulk')
   useEffect(() => { if (new URLSearchParams(window.location.search).get('group') === 'bulk') setGroup('bulk') }, [])
   const [singles, setSingles] = useState<ProductWithRelations[]>([])
   const [promos, setPromos] = useState<ProductWithRelations[]>([])
@@ -165,7 +165,7 @@ export default function SinglePromoImagePage() {
     }
   }
 
-  const groupSingles = singles.filter(p => group === 'all' || (group === 'bulk' ? isBulkSingle(p) : !isBulkSingle(p)))
+  const groupSingles = singles.filter(p => group === 'all' || (group === 'bulk' || group === 'promo-bulk' ? isBulkSingle(p) : !isBulkSingle(p)))
   const selectedSingles = groupSingles.filter((p) => p.price > 0 && selectedSingleIds.has(p.id))
   const selectedPromos = group === 'bulk' ? [] : promos.filter((p) => p.price > 0 && selectedPromoIds.has(p.id))
   const totalSelected = selectedSingles.length + selectedPromos.length
@@ -173,8 +173,8 @@ export default function SinglePromoImagePage() {
   return (
     <div>
       <AdminHeader
-        title="シングル・プロモ価格画像・投稿文生成"
-        description="X投稿用のシングル＆プロモ買取価格画像を自動生成します（1920×1080）"
+        title="シングル・プロモ・最低保証 画像・投稿文生成"
+        description="選んだシングル・プロモ・最低保証をまとめて買取画像にします（1920×1080）"
       />
 
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -193,7 +193,7 @@ export default function SinglePromoImagePage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {([['all', 'すべて'], ['bulk', 'まとめ買取・最低保証'], ['individual', '個別カード・プロモ']] as const).map(([value, label]) => <Button key={value} variant={group === value ? 'default' : 'outline'} onClick={() => setGroup(value)}>{label}</Button>)}
+            {([['promo-bulk', 'プロモ＋最低保証'], ['all', 'すべて'], ['bulk', 'まとめ買取・最低保証'], ['individual', '個別カード・プロモ']] as const).map(([value, label]) => <Button key={value} variant={group === value ? 'default' : 'outline'} onClick={() => setGroup(value)}>{label}</Button>)}
             <Button variant="outline" asChild><a href="/admin/products">商品管理で価格・画像を編集</a></Button>
           </div>
           <p className="text-sm text-muted-foreground">商品管理の価格・画像を使用します。変更後は更新ボタンで読み直してください。0円の商品は画像・投稿文に掲載されません。</p>
@@ -201,7 +201,7 @@ export default function SinglePromoImagePage() {
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <CardTitle className="text-base">シングルカード</CardTitle>
+                <CardTitle className="text-base">{group === 'bulk' || group === 'promo-bulk' ? 'まとめ買取・最低保証' : 'シングルカード'}</CardTitle>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">{selectedSingles.length} 件</span>
                   <Button variant="ghost" size="icon" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
@@ -239,7 +239,7 @@ export default function SinglePromoImagePage() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-base">プロモカード</CardTitle>
-                <span className="text-sm text-muted-foreground">{selectedPromoIds.size} 件</span>
+                <span className="text-sm text-muted-foreground">{selectedPromos.length} 件</span>
               </div>
             </CardHeader>
             <CardContent>
@@ -247,7 +247,7 @@ export default function SinglePromoImagePage() {
                 <div className="space-y-1.5 max-h-[30vh] overflow-y-auto pr-1">
                   {promos.map((product) => (
                     <div key={product.id} className="flex items-center gap-3 rounded-md border px-3 py-2 hover:bg-muted transition-colors">
-                      <Checkbox checked={selectedPromoIds.has(product.id)} onCheckedChange={() => togglePromo(product.id)} />
+                      <Checkbox disabled={product.price <= 0} checked={product.price > 0 && selectedPromoIds.has(product.id)} onCheckedChange={() => togglePromo(product.id)} />
                       {product.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded shrink-0" />
@@ -284,7 +284,7 @@ export default function SinglePromoImagePage() {
               <SinglePromoCanvas ref={previewRef} singles={selectedSingles} promos={selectedPromos} highPriceIds={highPriceIds} />
             </div>
           </div>
-          <ImagePostText products={[...selectedSingles, ...selectedPromos]} heading="🃏ポケモンカード シングル＆プロモ 高価買取中🃏" />
+          <ImagePostText products={[...selectedSingles, ...selectedPromos]} heading={group === 'promo-bulk' ? '🃏ポケモンカード プロモ・最低保証 買取強化中🃏' : '🃏ポケモンカード シングル＆プロモ 高価買取中🃏'} />
         </div>
       </div>
     </div>
@@ -297,50 +297,30 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
   promos: ProductWithRelations[]
   highPriceIds: Set<string>
 }>(({ singles, promos, highPriceIds }, ref) => {
-  const today = new Date()
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
-  const updatedAt = fmt(today)
-
+  const updatedAt = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')
+  const products = [...singles, ...promos]
   const W = 1920
   const H = 1080
   const padX = 20
   const gap = 4
-
-  // Header ends around y=310
   const gridTop = 310
   const footerH = 36
-  const sectionGap = 40
-
-  const totalGridH = H - gridTop - footerH
   const gridW = W - padX * 2
-
-  // Singles: 8 columns, 1 row — fixed height
-  const singleCols = 8
-  const singleRows = Math.max(1, Math.ceil(singles.length / singleCols))
-  const singleCellH = Math.floor((totalGridH - sectionGap) / (singleRows + Math.ceil(promos.length / 7) + 0.5))
-  const singleH = singleCellH * singleRows + gap * (singleRows - 1)
-  const singleCellW = Math.floor((gridW - gap * (singleCols - 1)) / singleCols)
-  const singlePriceH = 38
-  const singleImgH = singleCellH - singlePriceH
-  const singleNameFontSize = 11
-  const singlePriceFontSize = 28
-
-  // Promos: 7 columns — remaining space
-  const promoCols = 7
-  const promoTop = gridTop + singleH + sectionGap
-  const promoH = H - promoTop - footerH
-  const promoRows = Math.max(1, Math.ceil(promos.length / promoCols))
-  const promoCellW = Math.floor((gridW - gap * (promoCols - 1)) / promoCols)
-  const promoCellH = Math.floor((promoH - gap * (promoRows - 1)) / promoRows)
-  const promoPriceH = 38
-  const promoImgH = promoCellH - promoPriceH
-  const promoNameFontSize = 11
-  const promoPriceFontSize = 28
+  const rows = Math.max(1, Math.ceil(products.length / 8))
+  const cols = Math.max(1, Math.ceil(products.length / rows))
+  const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
+  const cellH = Math.floor((H - gridTop - footerH - gap * (rows - 1)) / rows)
+  const priceH = Math.min(48, Math.max(30, Math.floor(cellH * 0.15)))
+  const imgH = cellH - priceH
+  const nameFontSize = 11
+  const priceFontSize = Math.min(36, priceH - 6)
+  const hasBulk = singles.some(isBulkSingle)
+  const label = hasBulk && promos.length ? 'プロモカード・最低保証' : hasBulk ? 'まとめ買取・最低保証' : singles.length && promos.length ? 'シングルカード・プロモ' : promos.length ? 'プロモカード' : 'シングルカード'
 
   return (
     <div
       ref={ref}
+      data-testid="single-promo-canvas"
       style={{
         width: W, height: H,
         position: 'relative',
@@ -358,31 +338,28 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
         crossOrigin="anonymous"
       />
 
-      {/* Section label: シングルカード */}
-      <div style={{
+      {products.length > 0 && <div style={{
         position: 'absolute', left: padX, top: gridTop - 28, zIndex: 3,
         background: '#dc2626', color: '#fff', padding: '2px 14px',
         fontSize: 14, fontWeight: 900, letterSpacing: '0.1em',
         borderRadius: 3, border: '2px solid #111', boxShadow: '2px 2px 0 #111',
-      }}>
-        シングルカード <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em' }}>SINGLE CARDS</span>
-      </div>
+      }}>{label}</div>}
 
       {/* Singles */}
-      {singles.map((product, i) => {
-        const col = i % singleCols
-        const row = Math.floor(i / singleCols)
-        const x = padX + col * (singleCellW + gap)
-        const y = gridTop + row * (singleCellH + gap)
+      {products.map((product, i) => {
+        const col = i % cols
+        const row = Math.floor(i / cols)
+        const x = padX + col * (cellW + gap)
+        const y = gridTop + row * (cellH + gap)
         const isHigh = highPriceIds.has(product.id)
         return (
-          <div key={product.id} style={{
-            position: 'absolute', left: x, top: y, width: singleCellW, height: singleCellH,
+          <div key={product.id} data-product-id={product.id} style={{
+            position: 'absolute', left: x, top: y, width: cellW, height: cellH,
             background: '#fff', border: '1.5px solid #111', borderRadius: 3,
             overflow: 'hidden', boxShadow: '1px 1px 0 #111', zIndex: 2,
             boxSizing: 'border-box',
           }}>
-            <div style={{ position: 'relative', width: '100%', height: singleImgH }}>
+            <div style={{ position: 'relative', width: '100%', height: imgH }}>
               {product.image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={product.image_url} alt={product.name} crossOrigin="anonymous"
@@ -394,7 +371,7 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
               <div style={{
                 position: 'absolute', bottom: 0, left: 0, right: 0,
                 background: 'rgba(0,0,0,0.6)', padding: '2px 3px',
-                fontSize: singleNameFontSize, fontWeight: 900, color: '#fff', textAlign: 'center',
+                fontSize: nameFontSize, fontWeight: 900, color: '#fff', textAlign: 'center',
                 lineHeight: 1.2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
               }}>
                 {product.name}
@@ -413,72 +390,9 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
             </div>
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: '#111', height: singlePriceH, borderRadius: '0 0 2px 2px',
+              background: '#111', height: priceH, borderRadius: '0 0 2px 2px',
             }}>
-              <span style={{ color: '#FCD34D', fontSize: singlePriceFontSize, fontWeight: 900, lineHeight: 1 }}>
-                ¥{product.price.toLocaleString('ja-JP')}
-              </span>
-            </div>
-          </div>
-        )
-      })}
-
-      {/* Section label: プロモカード */}
-      <div style={{
-        position: 'absolute', left: padX, top: promoTop - 28, zIndex: 3,
-        background: '#dc2626', color: '#fff', padding: '2px 14px',
-        fontSize: 14, fontWeight: 900, letterSpacing: '0.1em',
-        borderRadius: 3, border: '2px solid #111', boxShadow: '2px 2px 0 #111',
-      }}>
-        プロモカード <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em' }}>PROMO CARDS</span>
-      </div>
-
-      {/* Promos */}
-      {promos.map((product, i) => {
-        const col = i % promoCols
-        const row = Math.floor(i / promoCols)
-        const x = padX + col * (promoCellW + gap)
-        const y = promoTop + row * (promoCellH + gap)
-        const isHigh = highPriceIds.has(product.id)
-        return (
-          <div key={product.id} style={{
-            position: 'absolute', left: x, top: y, width: promoCellW, height: promoCellH,
-            background: '#fff', border: '1.5px solid #111', borderRadius: 3,
-            overflow: 'hidden', boxShadow: '1px 1px 0 #111', zIndex: 2,
-            boxSizing: 'border-box',
-          }}>
-            <div style={{ position: 'relative', width: '100%', height: promoImgH }}>
-              {product.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={product.image_url} alt={product.name} crossOrigin="anonymous"
-                  style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              ) : (
-                <div style={{ width: '100%', height: '100%', background: 'rgba(0,0,0,0.04)' }} />
-              )}
-              <div style={{
-                position: 'absolute', bottom: 0, left: 0, right: 0,
-                background: 'rgba(0,0,0,0.6)', padding: '2px 3px',
-                fontSize: promoNameFontSize, fontWeight: 900, color: '#fff', textAlign: 'center',
-                lineHeight: 1.2, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-              }}>
-                {product.name}
-              </div>
-              {isHigh && (
-                <div style={{
-                  position: 'absolute', top: 4, right: 4, width: 44, height: 44,
-                  borderRadius: '50%', background: '#dc2626', border: '3px solid #fff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  zIndex: 3, boxShadow: '1px 1px 4px rgba(0,0,0,0.3)',
-                }}>
-                  <span style={{ color: '#fff', fontSize: 10, fontWeight: 900, lineHeight: 1.1, textAlign: 'center' }}>高額<br />買取</span>
-                </div>
-              )}
-            </div>
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: '#111', height: promoPriceH, borderRadius: '0 0 2px 2px',
-            }}>
-              <span style={{ color: '#FCD34D', fontSize: promoPriceFontSize, fontWeight: 900, lineHeight: 1 }}>
+              <span style={{ color: '#FCD34D', fontSize: priceFontSize, fontWeight: 900, lineHeight: 1 }}>
                 ¥{product.price.toLocaleString('ja-JP')}
               </span>
             </div>
