@@ -1,5 +1,7 @@
 'use client'
 
+import { BULK_SINGLE_IDS, isBulkSingle } from '@/lib/single-product-groups'
+
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
 import { ImagePostText } from '@/components/admin/image-post-text'
@@ -24,6 +26,8 @@ type ProductWithRelations = Product & {
 }
 
 export default function SinglePromoImagePage() {
+  const [group, setGroup] = useState('all')
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('group') === 'bulk') setGroup('bulk') }, [])
   const [singles, setSingles] = useState<ProductWithRelations[]>([])
   const [promos, setPromos] = useState<ProductWithRelations[]>([])
   const [selectedSingleIds, setSelectedSingleIds] = useState<Set<string>>(new Set())
@@ -51,7 +55,7 @@ export default function SinglePromoImagePage() {
         .select('*, category:categories(*), subcategory:subcategories(*)')
         .eq('is_active', true)
         .eq('category_id', CATEGORY_ID)
-        .eq('subcategory_id', SINGLE_SUBCATEGORY_ID)
+        .or(`subcategory_id.eq.${SINGLE_SUBCATEGORY_ID},id.in.(${BULK_SINGLE_IDS.join(',')})`)
         .order('sort_order'),
       supabase
         .from('products')
@@ -150,7 +154,7 @@ export default function SinglePromoImagePage() {
 
       const a = document.createElement('a')
       a.href = dataUrl
-      a.download = `シングルプロモ買取価格表_${new Date().toLocaleDateString('ja-JP').replace(/\//g, '')}.png`
+      a.download = `シングルプロモ買取価格表_${new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }).replace(/\//g, '')}.png`
       a.click()
       toast.success('画像をダウンロードしました')
     } catch (e) {
@@ -161,8 +165,9 @@ export default function SinglePromoImagePage() {
     }
   }
 
-  const selectedSingles = singles.filter((p) => selectedSingleIds.has(p.id))
-  const selectedPromos = promos.filter((p) => selectedPromoIds.has(p.id))
+  const groupSingles = singles.filter(p => group === 'all' || (group === 'bulk' ? isBulkSingle(p) : !isBulkSingle(p)))
+  const selectedSingles = groupSingles.filter((p) => p.price > 0 && selectedSingleIds.has(p.id))
+  const selectedPromos = group === 'bulk' ? [] : promos.filter((p) => p.price > 0 && selectedPromoIds.has(p.id))
   const totalSelected = selectedSingles.length + selectedPromos.length
 
   return (
@@ -187,13 +192,18 @@ export default function SinglePromoImagePage() {
             </div>
           </div>
 
+          <div className="flex flex-wrap gap-2">
+            {([['all', 'すべて'], ['bulk', 'まとめ買取・最低保証'], ['individual', '個別カード・プロモ']] as const).map(([value, label]) => <Button key={value} variant={group === value ? 'default' : 'outline'} onClick={() => setGroup(value)}>{label}</Button>)}
+            <Button variant="outline" asChild><a href="/admin/products">商品管理で価格・画像を編集</a></Button>
+          </div>
+          <p className="text-sm text-muted-foreground">商品管理の価格・画像を使用します。変更後は更新ボタンで読み直してください。0円の商品は画像・投稿文に掲載されません。</p>
           {/* シングルカード選択 */}
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-base">シングルカード</CardTitle>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">{selectedSingleIds.size} 件</span>
+                  <span className="text-sm text-muted-foreground">{selectedSingles.length} 件</span>
                   <Button variant="ghost" size="icon" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
                 </div>
               </div>
@@ -201,9 +211,9 @@ export default function SinglePromoImagePage() {
             <CardContent>
               {loading ? <p className="text-sm text-muted-foreground">読み込み中...</p> : (
                 <div className="space-y-1.5 max-h-[30vh] overflow-y-auto pr-1">
-                  {singles.map((product) => (
+                  {groupSingles.map((product) => (
                     <div key={product.id} className="flex items-center gap-3 rounded-md border px-3 py-2 hover:bg-muted transition-colors">
-                      <Checkbox checked={selectedSingleIds.has(product.id)} onCheckedChange={() => toggleSingle(product.id)} />
+                      <Checkbox disabled={product.price <= 0} checked={product.price > 0 && selectedSingleIds.has(product.id)} onCheckedChange={() => toggleSingle(product.id)} />
                       {product.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded shrink-0" />
@@ -225,7 +235,7 @@ export default function SinglePromoImagePage() {
           </Card>
 
           {/* プロモカード選択 */}
-          <Card>
+          {group !== 'bulk' && <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <CardTitle className="text-base">プロモカード</CardTitle>
@@ -256,7 +266,7 @@ export default function SinglePromoImagePage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </Card>}
 
         </div>
 
@@ -307,7 +317,7 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
 
   // Singles: 8 columns, 1 row — fixed height
   const singleCols = 8
-  const singleRows = Math.ceil(singles.length / singleCols)
+  const singleRows = Math.max(1, Math.ceil(singles.length / singleCols))
   const singleCellH = Math.floor((totalGridH - sectionGap) / (singleRows + Math.ceil(promos.length / 7) + 0.5))
   const singleH = singleCellH * singleRows + gap * (singleRows - 1)
   const singleCellW = Math.floor((gridW - gap * (singleCols - 1)) / singleCols)
@@ -320,7 +330,7 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
   const promoCols = 7
   const promoTop = gridTop + singleH + sectionGap
   const promoH = H - promoTop - footerH
-  const promoRows = Math.ceil(promos.length / promoCols)
+  const promoRows = Math.max(1, Math.ceil(promos.length / promoCols))
   const promoCellW = Math.floor((gridW - gap * (promoCols - 1)) / promoCols)
   const promoCellH = Math.floor((promoH - gap * (promoRows - 1)) / promoRows)
   const promoPriceH = 38

@@ -1,5 +1,7 @@
 'use client'
 
+import { MEGA_SERIES, singleSeriesCode } from '@/lib/single-series'
+import { isBulkSingle, isIndividualSingle } from '@/lib/single-product-groups'
 import { calculatePsa10BuybackPrice, isPsa10BoostProduct } from '@/lib/psa10-price'
 
 import { createContext, useContext, useEffect, useRef, useState, useMemo } from 'react'
@@ -123,9 +125,11 @@ export default function ProductsPage() {
   const [visibleCount, setVisibleCount] = useState(100)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
+  const [singleScope, setSingleScope] = useState('all')
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterSubcategory, setFilterSubcategory] = useState<string>('all')
   const [search, setSearch] = useState('')
+  const [filterSeries, setFilterSeries] = useState('all')
   const [priceBasis, setPriceBasis] = useState('buyback')
   const [minPrice, setMinPrice] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
@@ -293,21 +297,31 @@ export default function ProductsPage() {
     return parentA - parentB || a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'ja')
   })
 
+  const seriesOptions = useMemo(() => {
+    const names = new Map<string, string>(MEGA_SERIES.map(s => [s.code, s.name]))
+    const codes = new Set(products.filter(isIndividualSingle).map(singleSeriesCode))
+    return [...codes].sort((a, b) => {
+      const ai = MEGA_SERIES.findIndex(s => s.code === a)
+      const bi = MEGA_SERIES.findIndex(s => s.code === b)
+      return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a.localeCompare(b, 'ja', { numeric: true })
+    }).map(code => ({ code, label: code === 'OTHER' ? 'シリーズ未設定' : names.has(code) ? `${names.get(code)}（${code}）` : code }))
+  }, [products])
+
   const filteredProducts = useMemo(() => products.filter((p) => {
     const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory
     const matchesSubcategory = filterSubcategory === 'all' || p.subcategory_id === filterSubcategory
-    const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.model_number && p.model_number.toLowerCase().includes(search.toLowerCase()))
+    const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.model_number && p.model_number.toLowerCase().includes(search.toLowerCase())) || (p.set_number && p.set_number.toLowerCase().includes(search.toLowerCase()))
     const amount = priceBasis === 'market' ? p.market_price : p.price
     const hasPriceFilter = minPrice !== '' || maxPrice !== ''
     const matchesPrice = !hasPriceFilter || (amount != null && amount > 0 &&
       (minPrice === '' || amount >= Number(minPrice)) &&
       (maxPrice === '' || amount <= Number(maxPrice)))
-    return matchesCategory && matchesSubcategory && matchesSearch && matchesPrice
-  }), [products, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
+    return (filterSeries === 'all' || (isIndividualSingle(p) && singleSeriesCode(p) === filterSeries)) && (singleScope === 'all' || (singleScope === 'bulk' ? isBulkSingle(p) : isIndividualSingle(p))) && matchesCategory && matchesSubcategory && matchesSearch && matchesPrice
+  }), [products, filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
 
   useEffect(() => {
     setVisibleCount(100)
-  }, [filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
+  }, [filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
 
   const visibleProducts = useMemo(() => filteredProducts.slice(0, visibleCount), [filteredProducts, visibleCount])
 
@@ -1289,7 +1303,7 @@ async function syncToChiba() {
         <div className="relative flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="商品名で検索..."
+            placeholder="商品名・カード型番・セット型番で検索..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -1308,6 +1322,25 @@ async function syncToChiba() {
             ))}
           </SelectContent>
         </Select>
+          <Select value={singleScope} onValueChange={(value) => { setSingleScope(value); setFilterSeries('all'); setFilterCategory('all'); setFilterSubcategory('all') }}>
+            <SelectTrigger aria-label="シングルの区分" className="w-[210px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">すべての商品</SelectItem>
+              <SelectItem value="bulk">まとめ買取・最低保証</SelectItem>
+              <SelectItem value="individual">個別シングルカード</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterSeries} onValueChange={(value) => {
+            setFilterSeries(value)
+            if (value !== 'all') { setSingleScope('individual'); setFilterCategory('all'); setFilterSubcategory('all') }
+          }}>
+            <SelectTrigger aria-label="シングルのシリーズ" className="w-full sm:w-80"><SelectValue placeholder="全シリーズ（シングル）" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全シリーズ（シングル）</SelectItem>
+              {seriesOptions.map(s => <SelectItem key={s.code} value={s.code}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" asChild><a href="/admin/marketing/image-single?group=bulk">まとめ買取の画像・投稿文</a></Button>
         {filteredSubcategories.length > 0 && (
           <Select value={filterSubcategory} onValueChange={setFilterSubcategory}>
             <SelectTrigger aria-label="サブカテゴリ" className="w-full sm:w-80">

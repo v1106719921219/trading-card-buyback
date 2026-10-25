@@ -1,5 +1,7 @@
 'use client'
 
+import { isBulkSingle } from '@/lib/single-product-groups'
+
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import React from 'react'
 import { CardImage } from '@/components/admin/card-image'
@@ -112,7 +114,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
       return
     }
 
-    const s = ((productsResult.data || []) as ProductWithRelations[]).filter(p => isMultiple || is30th || singleSeriesCode(p) === code)
+    const s = ((productsResult.data || []) as ProductWithRelations[]).filter(p => !isBulkSingle(p) && (isMultiple || is30th || singleSeriesCode(p) === code))
     setProducts(s)
     setHeader(DEFAULT_HEADER)
     setFooter(DEFAULT_FOOTER)
