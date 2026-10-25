@@ -36,6 +36,8 @@ export async function createOrder(input: CreateOrderInput) {
     return { error: `テナント情報の取得に失敗しました: ${e instanceof Error ? e.message : '不明'}` }
   }
 
+  // 照会や入力補助のServer Actionを数えず、実際の申込確定だけに短期制限を適用する。
+  if (!await limitPublicRequest('order-submit', 5, 600)) return { error: '申込の送信回数が多すぎます。10分ほど待ってからお試しください' }
   if (!await limitPublicRequest('order-create', 30, 3600)) return { error: '申込回数が多すぎます。しばらくしてからお試しください' }
 
   // Fail before writing an order if the signing secret is missing.

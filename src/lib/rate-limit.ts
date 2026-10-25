@@ -81,8 +81,6 @@ export function rateLimit(key: string, config: RateLimitConfig): RateLimitResult
 export const RATE_LIMITS = {
   /** ログイン: 10回/15分/IP */
   login: { limit: 10, windowMs: 15 * 60 * 1000 } satisfies RateLimitConfig,
-  /** 申込フォーム: 5回/10分/IP */
-  applyForm: { limit: 5, windowMs: 10 * 60 * 1000 } satisfies RateLimitConfig,
   /** 一般API: 100回/1分/IP */
   api: { limit: 100, windowMs: 60 * 1000 } satisfies RateLimitConfig,
   /** KYCアップロード: 20回/10分/IP */

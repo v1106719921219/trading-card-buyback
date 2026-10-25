@@ -30,12 +30,13 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // 申込フォームへのスパム対策
+  // /apply のPOSTには本人確認照会・入力補助・完了画面の操作も含まれる。
+  // ここでは短時間の大量通信だけを制限し、申込確定の5回/10分はcreateOrder内で数える。
   if (pathname.startsWith('/apply') && request.method === 'POST') {
-    const result = rateLimit(`apply:${ip}`, RATE_LIMITS.applyForm)
+    const result = rateLimit(`apply-transport:${ip}`, RATE_LIMITS.api)
     if (!result.success) {
       return new NextResponse(
-        JSON.stringify({ error: '申込が多すぎます。しばらくしてからお試しください' }),
+        JSON.stringify({ error: '通信回数が多すぎます。1分ほど待ってからお試しください' }),
         {
           status: 429,
           headers: {
