@@ -1,6 +1,8 @@
+import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import { isBulkSingle } from './single-product-groups'
 import { singleSeriesCode } from './single-series'
+import { createAdminClient } from './supabase/admin'
 
 export const singleSubcategories = ['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9', 'ca8f802a-52f1-495a-ab49-158063b00d64']
 export type SingleProduct = { id: string; name: string; set_number: string | null; model_number: string | null; subcategory_id: string | null; price: number; updated_at: string; is_active: boolean }
@@ -55,4 +57,52 @@ export async function fetchRushSeries(code: string): Promise<RushQuote[]> {
     all.push(...found.buyingPrices.filter(q => q.pack_code?.toUpperCase() === code))
   }
   return [...new Map(all.map(q => [String(q.id), q])).values()]
+}
+
+export const rushRowSchema = z.object({ id: z.string(), name: z.string(), code: z.string(), current: z.number(), proposed: z.number().nullable(), quote: z.number().nullable(), sourceUpdated: z.string().nullable(), sourceUrl: z.string(), expected: z.string(), reason: z.string() })
+export const dailySnapshotSchema = z.object({ id: z.string(), computedAt: z.string(), percent: z.number(), rows: z.array(rushRowSchema) })
+export type DailySnapshot = z.infer<typeof dailySnapshotSchema>
+export function dailySnapshotKey(tenantId: string) { return `cardrush_single_preview:${tenantId}:cron` }
+
+/**
+ * 毎日cronで通常シングル（30th含む）全件のカードラッシュ候補を計算して保存する。
+ * 買取価格(price)はここでは一切書き換えない。管理画面で確認し「反映」を押した時のみ更新される。
+ */
+export async function computeAndSaveDailySinglesSnapshot(tenantId: string, percent = 100): Promise<{ changes: number; errors: string[] }> {
+  const supabase = createAdminClient()
+  const products: SingleProduct[] = []
+  for (let from = 0; ; from += 500) {
+    const { data, error } = await supabase.from('products')
+      .select('id, name, set_number, model_number, subcategory_id, price, updated_at, is_active')
+      .eq('tenant_id', tenantId).in('subcategory_id', singleSubcategories)
+      .order('id').range(from, from + 499)
+    if (error) return { changes: 0, errors: [error.message] }
+    products.push(...(data ?? []))
+    if (!data || data.length < 500) break
+  }
+
+  const eligible = products.filter(isEligibleSingle)
+  const codes = [...new Set(eligible.map(singleSeriesCode).filter((c) => c !== 'OTHER'))]
+  const quotes = new Map<string, RushQuote[]>()
+  const errors: string[] = []
+  let next = 0
+  await Promise.all(Array.from({ length: 3 }, async () => {
+    while (next < codes.length) {
+      const code = codes[next++]
+      try { quotes.set(code, await fetchRushSeries(code)) }
+      catch { errors.push(`${code}: 掲載元の取得失敗・形式変更のため保留`) }
+    }
+  }))
+  const rows = products.map((p) => matchRush(p, quotes.get(singleSeriesCode(p)) || [], percent))
+  const snapshot: DailySnapshot = { id: randomUUID(), computedAt: new Date().toISOString(), percent, rows }
+
+  const key = dailySnapshotKey(tenantId)
+  const { data: existing, error: readError } = await supabase.from('app_settings').select('key').eq('tenant_id', tenantId).eq('key', key).maybeSingle()
+  if (readError) return { changes: 0, errors: [...errors, readError.message] }
+  const value = JSON.stringify(snapshot)
+  const write = existing
+    ? await supabase.from('app_settings').update({ value }).eq('key', key).eq('tenant_id', tenantId)
+    : await supabase.from('app_settings').insert({ key, value, tenant_id: tenantId, description: '通常シングル・カードラッシュ自動計算（毎日cron・要確認反映）' })
+  if (write.error) errors.push(write.error.message)
+  return { changes: rows.filter((r) => r.proposed !== null && r.proposed !== r.current).length, errors }
 }

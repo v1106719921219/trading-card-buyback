@@ -10,13 +10,13 @@ const date = (v: string | null) => v ? new Date(v).toLocaleString('ja-JP', { tim
 export function CardrushSingleUpdate({ ids, onApplied }: { ids: string[]; onApplied: () => void }) {
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [percent, setPercent] = useState('100')
   const [preview, setPreview] = useState<Preview | null>(null), [message, setMessage] = useState('')
-  async function run(action: 'preview' | 'apply') {
+  async function run(action: 'preview' | 'cron_preview' | 'apply') {
     setBusy(true); setMessage('')
     try {
-      const res = await fetch('/api/admin/cardrush-singles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(action === 'preview' ? { action, ids, percent: Number(percent) } : { action, snapshotId: preview?.id }) })
+      const res = await fetch('/api/admin/cardrush-singles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(action === 'preview' ? { action, ids, percent: Number(percent) } : action === 'cron_preview' ? { action, ids } : { action, snapshotId: preview?.id }) })
       const result = await res.json()
       if (!res.ok) throw Error(result.error || '相場処理に失敗しました')
-      if (action === 'preview') { setPreview(result); setMessage('取得結果を保存しました。下の更新額を確認してから反映してください。') }
+      if (action === 'preview' || action === 'cron_preview') { setPreview(result); setPercent(String(result.percent)); setMessage(action === 'cron_preview' ? '本日の自動計算結果を読み込みました。下の更新額を確認してから反映してください。' : '取得結果を保存しました。下の更新額を確認してから反映してください。') }
       else { setPreview(null); onApplied(); setMessage(`${result.changed}商品を更新しました。${result.errors.length ? '\n'+result.errors.join('\n') : ''}`); toast.success(`${result.changed}商品の買取価格を更新しました`) }
     } catch (e) { setMessage(e instanceof Error ? e.message : '処理に失敗しました') }
     finally { setBusy(false) }
@@ -31,7 +31,9 @@ export function CardrushSingleUpdate({ ids, onApplied }: { ids: string[]; onAppl
         <div className="flex items-center gap-3 flex-wrap">
           <label htmlFor="rush-percent">今回の買取率</label><Input id="rush-percent" className="w-24" type="number" min="1" max="100" value={percent} disabled={busy} onChange={e => { setPercent(e.target.value); setPreview(null) }} /><span>％（100％＝掲載買取額と同額、1円未満切り捨て）</span>
           <Button disabled={busy || !ids.length || ids.length > 600 || !Number.isInteger(Number(percent)) || Number(percent) < 1 || Number(percent) > 100} onClick={() => run('preview')}>{busy ? '処理中…' : '最新相場を取得'}</Button>
+          <Button variant="outline" disabled={busy || !ids.length || ids.length > 600} onClick={() => run('cron_preview')}>本日の自動計算結果を使う</Button>
         </div>
+        <p className="text-xs text-muted-foreground">「本日の自動計算結果を使う」は毎日11時JSTのcronが計算済みの候補を読み込みます（買取率は自動計算時の設定に従います）。いずれの方法でも反映には必ずこの下の確認・ボタン操作が必要です。</p>
         {ids.length > 600 && <p>シリーズを選んで600商品以内に絞り込んでください。</p>}
         {message && <p role="status" className="whitespace-pre-line rounded bg-muted p-3 text-sm">{message}</p>}
         {preview && <>
