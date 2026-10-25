@@ -1,5 +1,6 @@
 'use client'
 
+import { CardrushSingleUpdate } from '@/components/admin/cardrush-single-update'
 import { MEGA_SERIES, singleSeriesCode } from '@/lib/single-series'
 import { isBulkSingle, isIndividualSingle } from '@/lib/single-product-groups'
 import { calculatePsa10BuybackPrice, isPsa10BoostProduct } from '@/lib/psa10-price'
@@ -1027,6 +1028,7 @@ async function syncToChiba() {
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshingMarket ? 'animate-spin' : ''}`} />
               {refreshingMarket ? '相場取得中...' : '相場を更新'}
             </Button>
+            <CardrushSingleUpdate ids={filteredProducts.filter(isIndividualSingle).map(p => p.id)} onApplied={fetchData} />
             <Button variant="outline" onClick={handleCsvExport}>
               <Download className="mr-2 h-4 w-4" />
               CSVエクスポート

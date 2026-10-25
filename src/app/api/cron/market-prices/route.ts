@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { updateMarketPrices, repricePsa10Products, reprice30thProducts } from '@/lib/market-price'
+import { updateMarketPrices, repricePsa10Products } from '@/lib/market-price'
 
 export const maxDuration = 300
 
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const result = await updateMarketPrices()
   // PSA10シングルは取得した最新相場の2万円未満90%・2万円以上87%に買取価格を自動追従させる
   const reprice = await repricePsa10Products()
-  // 30thシングルは相場と同額（100円切り捨て）に自動追従（ミラーピカチュウ30種は除外）
-  const reprice30th = await reprice30thProducts()
-  return NextResponse.json({ success: true, ...result, reprice, reprice30th })
+  // 通常シングル（30th含む）はカードラッシュの確認済み買取額を維持する。
+  // スニダン出品相場で買取価格を上書きせず、商品管理の確認・反映で更新する。
+  return NextResponse.json({ success: true, ...result, reprice })
 }
