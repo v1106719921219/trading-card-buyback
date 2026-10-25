@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { updateMarketPrices, repricePsa10Products } from '@/lib/market-price'
+import { updateCardrushPromoPrices } from '@/lib/cardrush-price'
 
 export const maxDuration = 300
 
@@ -22,5 +23,6 @@ export async function POST() {
 
   const result = await updateMarketPrices()
   const holds = await repricePsa10Products({ holdOnly: true })
-  return NextResponse.json({ success: true, ...result, holds })
+  const cardrush = await updateCardrushPromoPrices()
+  return NextResponse.json({ success: true, ...result, holds, cardrush })
 }

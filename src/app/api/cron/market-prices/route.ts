@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { updateMarketPrices, repricePsa10Products } from '@/lib/market-price'
+import { updateCardrushPromoPrices } from '@/lib/cardrush-price'
 
 export const maxDuration = 300
 
@@ -15,5 +16,7 @@ export async function GET(request: Request) {
   const reprice = await repricePsa10Products()
   // 通常シングル（30th含む）はカードラッシュの確認済み買取額を維持する。
   // スニダン出品相場で買取価格を上書きせず、商品管理の確認・反映で更新する。
-  return NextResponse.json({ success: true, ...result, reprice })
+  // ポケモンカード・プロモカードはカードラッシュの買取価格一覧から相場のみ取得（買取価格への自動反映はしない）
+  const cardrush = await updateCardrushPromoPrices()
+  return NextResponse.json({ success: true, ...result, reprice, cardrush })
 }
