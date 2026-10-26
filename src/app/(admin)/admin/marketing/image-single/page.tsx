@@ -1,6 +1,8 @@
 'use client'
 
 import { BULK_SINGLE_IDS, isBulkSingle } from '@/lib/single-product-groups'
+import { CardImage } from '@/components/admin/card-image'
+import { promoImageFrame } from '@/lib/promo-image-framing'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
@@ -361,9 +363,9 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
           }}>
             <div style={{ position: 'relative', width: '100%', height: imgH }}>
               {product.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={product.image_url} alt={product.name} crossOrigin="anonymous"
-                  style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                <div style={{ width: '100%', height: 'calc(100% - 18px)', padding: 4, boxSizing: 'border-box', background: '#fff' }}>
+                  <CardImage src={product.image_url} alt={product.name} frame={promoImageFrame(product)} />
+                </div>
               ) : (
                 <div style={{ width: '100%', height: '100%', background: 'rgba(0,0,0,0.04)' }} />
               )}

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cardImageBounds } from '@/lib/card-image-bounds'
 
 /** Fit the card itself, rather than the source image's surrounding blank space. */
-export function CardImage({ src, alt }: { src: string; alt: string }) {
+export function CardImage({ src, alt, frame }: { src: string; alt: string; frame?: { left: number; top: number; width: number; height: number } }) {
   const container = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [bounds, setBounds] = useState<{ src: string; left: number; top: number; width: number; height: number; naturalWidth: number; naturalHeight: number } | null>(null)
@@ -21,6 +21,10 @@ export function CardImage({ src, alt }: { src: string; alt: string }) {
     <img src={src} alt={alt} crossOrigin="anonymous" onLoad={event => {
       const img = event.currentTarget
       try {
+        if (frame) {
+          setBounds({ src, left: frame.left * img.naturalWidth, top: frame.top * img.naturalHeight, width: frame.width * img.naturalWidth, height: frame.height * img.naturalHeight, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight })
+          return
+        }
         const canvas = document.createElement('canvas')
         canvas.width = img.naturalWidth; canvas.height = img.naturalHeight
         const ctx = canvas.getContext('2d', { willReadFrequently: true })
