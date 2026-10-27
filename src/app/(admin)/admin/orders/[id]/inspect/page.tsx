@@ -38,6 +38,7 @@ import { notifyDiscordInspectionIssue } from '@/lib/discord'
 import { getInspectorOptions } from '@/actions/inspection'
 import { notifyReductionLine } from '@/actions/orders'
 import type { Order, OrderItem, InspectionStatus } from '@/types/database'
+import { getPsaInspectionState } from '@/lib/psa-inspection-state'
 import { INSPECTION_STATUSES } from '@/lib/constants'
 
 interface InspectItem {
@@ -52,6 +53,8 @@ interface InspectItem {
   _isNew: boolean
   _isCustom: boolean
   /** お客様が申込後に追加した明細（申込時の明細と区別する） */
+  _certs?: string
+  _psa?: boolean
   _addedAt?: string | null
 }
 
@@ -80,7 +83,7 @@ export default function InspectPage() {
   async function fetchOrder() {
     const orderResult = await supabase
       .from('orders')
-      .select('*, order_items(*), office:offices(name)')
+      .select('*, order_items(*, products(subcategories(name))), office:offices(name)')
       .eq('id', orderId)
       .single()
 
@@ -105,6 +108,8 @@ export default function InspectPage() {
     setInspectorName(orderData.inspected_by_name ?? '')
     setItems(
       ((orderResult.data as Order).order_items || []).map((item) => ({
+        _certs: (item.psa_cert_numbers ?? []).join("\n"),
+        _psa: item.products?.subcategories?.name === "PSA10" || /PSA/i.test(item.product_name),
         id: item.id,
         product_id: item.product_id,
         product_name: item.product_name,
@@ -211,6 +216,7 @@ export default function InspectPage() {
   // 既存商品（_isNew=false）が全て入力済みかどうか
   const allInspected = items.filter((i) => !i._isNew).every((i) => i._inspected !== null)
 
+  const psaState = getPsaInspectionState(items)
   const inspectedTotal = inspectedSubtotal - discount
   const difference = inspectedTotal - originalTotal
 
@@ -229,6 +235,16 @@ export default function InspectPage() {
       }
     }
 
+    const allCerts = items.flatMap(i => (i._certs ?? '').split(/\s+/).filter(Boolean))
+    if (allCerts.some(c => !/^\d{7,12}$/.test(c)) || new Set(allCerts).size !== allCerts.length) {
+      toast.error('PSA鑑定番号は7〜12桁の数字で入力してください。同じ番号は登録できません')
+      return false
+    }
+    for (const item of items) {
+      if ((item._certs ?? '').trim().split(/\s+/).filter(Boolean).length > Math.max(0, (item._inspected ?? 0) - item._returned)) {
+        toast.error('鑑定番号の数が買取枚数を超えています'); return false
+      }
+    }
     setSaving(true)
 
     // Update existing items
@@ -240,6 +256,7 @@ export default function InspectPage() {
           inspected_quantity: item._inspected ?? 0,
           unit_price: item._inspected_price,
           returned_quantity: item._returned,
+          psa_cert_numbers: (item._certs ?? "").split(/\s+/).filter(Boolean),
         })
         .eq('id', item.id)
 
@@ -261,6 +278,7 @@ export default function InspectPage() {
         quantity: 0,
         inspected_quantity: item._inspected,
         returned_quantity: item._returned,
+        psa_cert_numbers: (item._certs ?? "").split(/\s+/).filter(Boolean),
         tenant_id: order?.tenant_id,
       }))
 
@@ -324,6 +342,9 @@ export default function InspectPage() {
       return
     }
 
+    if (!psaState.complete) {
+      toast.error('PSAの買取枚数分の鑑定番号を読み取ってください'); return
+    }
     const saved = await handleSave()
     if (saved === false) return
 
@@ -382,6 +403,7 @@ export default function InspectPage() {
           const subtotal = item._inspected_price * ((item._inspected ?? 0) - item._returned)
           const isMismatch = !item._isNew && item._inspected !== null && item._inspected !== item.quantity
           const isUnfilled = !item._isNew && item._inspected === null
+          const certState = psaState.items[index]
           return (
             <Card key={item.id} className={isMismatch ? 'border-red-400' : isUnfilled ? 'border-amber-400' : ''}>
               <CardContent className="pt-5 pb-4 space-y-4">
@@ -548,6 +570,20 @@ export default function InspectPage() {
                     />
                   </div>
                 </div>
+                {(certState.required || !!item._certs) && (
+                  <div className={`mt-3 rounded-lg border p-3 ${certState.complete ? 'border-green-200 bg-green-50' : 'border-amber-400 bg-amber-50'}`}>
+                    <Label htmlFor={`psa-certs-${item.id}`} className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                      PSA鑑定番号
+                      {certState.expected > 0 && <Badge variant="destructive">検品完了時に必須</Badge>}
+                      <span>{certState.count} / {certState.expected}枚 入力済み</span>
+                    </Label>
+                    <p id={`psa-help-${item.id}`} className="my-2 text-sm">
+                      {certState.complete ? '必要な鑑定番号を入力済みです。' : certState.message}
+                      {' '}ケースのラベルにある7〜12桁の鑑定番号を、1行に1枚ずつ入力するかバーコードで読み取ってください。
+                    </p>
+                    <Textarea id={`psa-certs-${item.id}`} aria-label={`${item.product_name}のPSA鑑定番号`} aria-required={certState.expected > 0} aria-invalid={!certState.complete} aria-describedby={`psa-help-${item.id}`} placeholder="例：12345678（1行に1枚）" lang="en" autoComplete="off" value={item._certs ?? ''} onChange={e => setItems(old => old.map(i => i.id === item.id ? {...i, _certs:e.target.value} : i))} />
+                  </div>
+                )}
               </CardContent>
             </Card>
           )
@@ -649,6 +685,13 @@ export default function InspectPage() {
         </Card>
       </div>
 
+      {!psaState.complete && (
+        <div role="alert" className="rounded-lg border border-amber-400 bg-amber-50 p-4 text-sm text-amber-950">
+          <p className="font-semibold">PSA鑑定番号の入力が必要です</p>
+          {psaState.items.filter(i => !i.complete).map(i => <p key={i.id}>{i.name}：{i.message}</p>)}
+          <p className="mt-2">対象商品の「PSA鑑定番号」を入力してください。未入力のまま一時保存できますが、検品完了はできません。</p>
+        </div>
+      )}
       {/* Actions */}
       <div className="bg-background border-t py-4 -mx-4 px-4 md:-mx-8 md:px-8 flex flex-wrap items-center justify-end gap-3">
         {!allInspected && (
@@ -679,7 +722,7 @@ export default function InspectPage() {
         </Button>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button size="lg" disabled={!allInspected || (!isChiba && !inspectorName)}>検品完了にする</Button>
+            <Button size="lg" disabled={saving || !allInspected || !psaState.complete || (!isChiba && !inspectorName)}>検品完了にする</Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>

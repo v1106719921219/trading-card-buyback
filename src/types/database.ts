@@ -152,6 +152,8 @@ export interface Order {
 }
 
 export interface OrderItem {
+  psa_cert_numbers?: string[]
+  products?: { subcategories?: { name: string } | null } | null
   id: string
   order_id: string
   product_id: string | null
