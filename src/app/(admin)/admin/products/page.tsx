@@ -28,6 +28,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { createBackdatedPriceLink } from '@/actions/price-lock-link'
+import { applyFormLiffUrl } from '@/lib/liff-url'
 import {
   Select,
   SelectContent,
@@ -378,7 +379,8 @@ async function syncToChiba() {
         toast.error('リンクを発行できませんでした')
         return
       }
-      const url = `${window.location.origin}/apply?pl=${encodeURIComponent(res.token)}`
+      // LINE で送ったとき LIFF で開くようにし、承認済みの本人確認を引き継げるようにする
+      const url = applyFormLiffUrl(`pl=${encodeURIComponent(res.token)}`, window.location.origin)
       const atStr = new Date(res.at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
       const expStr = new Date(res.expiresAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
       try {
@@ -397,7 +399,7 @@ async function syncToChiba() {
 
   async function copyPriceLockLink() {
     const now = new Date()
-    const url = `${window.location.origin}/apply?price_at=${encodeURIComponent(now.toISOString())}`
+    const url = applyFormLiffUrl(`price_at=${encodeURIComponent(now.toISOString())}`, window.location.origin)
     const expires = new Date(now.getTime() + 60 * 60 * 1000)
     const expiresStr = expires.toLocaleTimeString('ja-JP', {
       timeZone: 'Asia/Tokyo',
@@ -1680,6 +1682,7 @@ async function syncToChiba() {
             <DialogTitle>過去価格リンクを発行</DialogTitle>
             <DialogDescription>
               指定した日時点の買取価格で申し込めるリンクを作ります。お客様が申込を忘れて価格が変わってしまった場合に使います。
+              リンクは LINE のトークで送ってください。LINE から開くと、以前に本人確認済みのお客様は撮影なしで申込できます。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
