@@ -117,7 +117,7 @@ export default async function ApplyPage({
   ])
 
   const categories = (catResult.data ?? []) as Category[]
-  let products = [...(prodResult.data ?? [])].sort((a: any, b: any) => {
+  let products = ([...(prodResult.data ?? [])] as (Product & { category: Category; subcategory: Subcategory | null })[]).sort((a, b) => {
     const catA = a.category?.sort_order ?? 0
     const catB = b.category?.sort_order ?? 0
     if (catA !== catB) return catA - catB
@@ -251,7 +251,7 @@ export default async function ApplyPage({
 
   const form = (
     <ApplyForm
-      quoteToken={createOrderQuote(tenantId, products, priceDate)}
+      quoteToken={createOrderQuote(tenantId, products, priceDate, priceLockedAt)}
       initialCategories={categories}
       initialProducts={products}
       initialSubcategories={subcategories}

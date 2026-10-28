@@ -50,11 +50,15 @@ export async function createOrder(input: CreateOrderInput) {
 
   const { customer, office_id, shipped_date, buyback_type, line_user_token, line_id_token, kyc_request_id, defer_kyc } = parsed.data
 
-  const { items, priceDate: price_date } = verifyOrderQuote(tenantId, parsed.data.quote_token, parsed.data.items)
+  const { items, priceDate: price_date, priceLockedAt } = verifyOrderQuote(tenantId, parsed.data.quote_token, parsed.data.items)
   const { data: validOffice } = await supabase.from('offices').select('id').eq('id', office_id).eq('tenant_id', tenantId).eq('is_active', true).maybeSingle()
   if (!validOffice) return { error: '発送先の事務所を確認してください' }
   const ids = [...new Set(items.map(i => i.product_id))]
-  const { data: available } = await supabase.from('products').select('id, name, subcategory_id').eq('tenant_id', tenantId).eq('is_active', true).eq('show_in_price_list', true).in('id', ids)
+  // Only the server-signed quote created from a valid backdated link can preserve
+  // historical availability. Normal forms must still pass today's visibility gate.
+  let availabilityQuery = supabase.from('products').select('id, name, subcategory_id').eq('tenant_id', tenantId).eq('is_active', true).in('id', ids)
+  if (!priceLockedAt) availabilityQuery = availabilityQuery.eq('show_in_price_list', true)
+  const { data: available } = await availabilityQuery
   if (!available || available.length !== ids.length || available.some(isIndividual30thPikachu)) return { error: '受付停止中の商品が含まれています。申込内容をご確認ください' }
 
   // PSA10シングルはお一人様1枚まで（申込1件で自動締切とセットの運用）

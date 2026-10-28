@@ -2,9 +2,9 @@ import 'server-only'
 import { signPayload, readPayload } from '@/lib/signed-payload'
 import type { OrderItemInput } from '@/lib/validators/order'
 
-type Quote = { tenantId: string; priceDate: string | null; products: { id: string; name: string; price: number }[] }
-export function createOrderQuote(tenantId: string, products: Quote['products'], priceDate: string | null) {
-  return signPayload('order-quote', { tenantId, products: products.map(p => ({ id: p.id, name: p.name, price: p.price })), priceDate }, 4 * 3600)
+type Quote = { priceLockedAt?: string | null; tenantId: string; priceDate: string | null; products: { id: string; name: string; price: number }[] }
+export function createOrderQuote(tenantId: string, products: Quote['products'], priceDate: string | null, priceLockedAt: string | null = null) {
+  return signPayload('order-quote', { tenantId, products: products.map(p => ({ id: p.id, name: p.name, price: p.price })), priceDate, priceLockedAt }, 4 * 3600)
 }
 export function verifyOrderQuote(tenantId: string, token: string, items: OrderItemInput[]) {
   const quote = readPayload<Quote>(token, 'order-quote')
@@ -19,5 +19,5 @@ export function verifyOrderQuote(tenantId: string, token: string, items: OrderIt
     quantities.set(item.product_id, total)
     return { ...item, product_name: product.name, unit_price: product.price }
   })
-  return { items: verified, priceDate: quote.priceDate }
+  return { items: verified, priceDate: quote.priceDate, priceLockedAt: quote.priceLockedAt ?? null }
 }
