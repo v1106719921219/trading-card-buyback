@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { fetchAllUuidRows } from '@/lib/fetch-all-rows'
 
 export default function SinglesPage() {
-  const [multiple, setMultiple] = useState(false)
+  const [multiple, setMultiple] = useState(true)
   const [code, setCode] = useState('M6A')
   const [series, setSeries] = useState<SingleSeriesOption[]>(() => singleSeriesOptions(MEGA_SERIES.map(s => s.code)))
   useEffect(() => {
