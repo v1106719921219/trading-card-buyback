@@ -130,16 +130,22 @@ export default function InspectPage() {
   async function loadProducts() {
     if (products.length > 0 || productsLoading) return
     setProductsLoading(true)
-    const activeProducts = await fetchAllActiveProducts<
-      ProductOption & { sort_order: number; category: { sort_order: number } | null }
-    >(supabase, `${PRODUCT_OPTION_COLUMNS}, sort_order, category:categories(sort_order)`)
-    setProducts([...activeProducts].sort((a, b) => {
-      const catA = a.category?.sort_order ?? 0
-      const catB = b.category?.sort_order ?? 0
-      if (catA !== catB) return catA - catB
-      return (a.sort_order ?? 0) - (b.sort_order ?? 0)
-    }))
-    setProductsLoading(false)
+    try {
+      const activeProducts = await fetchAllActiveProducts<
+        ProductOption & { sort_order: number; category: { sort_order: number } | null }
+      >(supabase, `${PRODUCT_OPTION_COLUMNS}, sort_order, category:categories(sort_order)`)
+      setProducts([...activeProducts].sort((a, b) => {
+        const catA = a.category?.sort_order ?? 0
+        const catB = b.category?.sort_order ?? 0
+        if (catA !== catB) return catA - catB
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      }))
+    } catch (e) {
+      // 失敗を握りつぶすと「読み込み中」のまま候補が出ない。開き直せば再読み込みできる
+      toast.error(e instanceof Error ? e.message : '商品を読み込めませんでした')
+    } finally {
+      setProductsLoading(false)
+    }
   }
 
   useEffect(() => {

@@ -345,8 +345,14 @@ export default function OrderDetailPage() {
   async function loadProducts() {
     if (products.length > 0 || productsLoading) return
     setProductsLoading(true)
-    setProducts(await fetchAllActiveProducts<ProductOption>(supabase, PRODUCT_OPTION_COLUMNS))
-    setProductsLoading(false)
+    try {
+      setProducts(await fetchAllActiveProducts<ProductOption>(supabase, PRODUCT_OPTION_COLUMNS))
+    } catch (e) {
+      // 失敗を握りつぶすと「読み込み中」のまま候補が出ない。開き直せば再読み込みできる
+      toast.error(e instanceof Error ? e.message : '商品を読み込めませんでした')
+    } finally {
+      setProductsLoading(false)
+    }
   }
 
   // 入力中は空欄も許容し（1を消して打ち直せるように）、追加時に1以上の整数かを確認する
