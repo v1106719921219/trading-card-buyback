@@ -81,7 +81,7 @@ export async function computeAndSaveDailySinglesSnapshot(tenantId: string, perce
     if (!data || data.length < 500) break
   }
 
-  const eligible = products.filter(isEligibleSingle)
+  const eligible = products.filter(p=>p.price>0 && isEligibleSingle(p))
   const codes = [...new Set(eligible.map(singleSeriesCode).filter((c) => c !== 'OTHER'))]
   const quotes = new Map<string, RushQuote[]>()
   const errors: string[] = []

@@ -1,6 +1,15 @@
+import catalog from '@/data/single-series-catalog.json'
 export function singleSeriesCode(p: { set_number: string | null; name: string }): string {
-  const raw = p.set_number?.trim() || p.name.match(/\[([^\]]+)/)?.[1] || ''
-  return raw.split(/\s/)[0].toUpperCase() || 'OTHER'
+  const raw=p.set_number?.trim()||''
+  const coded=raw.match(/^([A-Za-z][A-Za-z0-9+_-]*)(?:\s|$)/)?.[1]
+  if(coded)return coded.toUpperCase()
+  for(const match of p.name.matchAll(/\[([^\]]+)\]/g)){
+    const code=match[1].match(/^([A-Za-z][A-Za-z0-9+_-]*)(?:\s|$)/)?.[1]
+    if(code)return code.toUpperCase()
+    const reverse=match[1].match(/^\d+[\s/]+([A-Za-z]+-[A-Za-z]+)$/)?.[1]
+    if(reverse)return reverse.toUpperCase()
+  }
+  return 'OTHER'
 }
 export const MEGA_SERIES = [
   { code: 'M6A', name: '30th CELEBRATION' },
@@ -13,3 +22,10 @@ export const MEGA_SERIES = [
   { code: 'M1S', name: 'メガシンフォニア' },
   { code: 'M1L', name: 'メガブレイブ' },
 ]
+
+export function singleSeriesName(code:string):string {
+ return MEGA_SERIES.find(s=>s.code===code)?.name||(catalog as Record<string,string>)[code]||(code==='OTHER'?'シリーズ未設定':code)
+}
+export function singleSeriesOptions(codes:Iterable<string>){
+ return [...new Set(codes)].sort((a,b)=>{const ai=MEGA_SERIES.findIndex(s=>s.code===a),bi=MEGA_SERIES.findIndex(s=>s.code===b);return (ai<0?999:ai)-(bi<0?999:bi)||singleSeriesName(a).localeCompare(singleSeriesName(b),'ja',{numeric:true})}).map(code=>({code,name:singleSeriesName(code),label:code==='OTHER'?'シリーズ未設定':`${singleSeriesName(code)}（${code.startsWith('LEGACY-')?'型番未設定':code}）`}))
+}

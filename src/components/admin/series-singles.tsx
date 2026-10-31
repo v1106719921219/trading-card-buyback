@@ -1,4 +1,5 @@
 'use client'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 import { isBulkSingle } from '@/lib/single-product-groups'
 
@@ -98,13 +99,13 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
   const fetchData = useCallback(async () => {
     setLoading(true)
     const [productsResult, settingResult] = await Promise.all([
-      supabase
+      fetchAllRows((from,to)=>supabase
         .from('products')
-        .select('*, category:categories(*), subcategory:subcategories(*)')
+        .select('*, category:categories(*), subcategory:subcategories(*)',{count:'exact'})
         .eq('is_active', true)
         .eq('category_id', CATEGORY_ID)
         .in('subcategory_id', isMultiple ? [SUBCATEGORY_ID, '19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9'] : is30th ? [SUBCATEGORY_ID] : ['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9'])
-        .order('sort_order'),
+        .order('sort_order').order('id').range(from,to)),
       supabase.from('app_settings').select('value').eq('key', SETTING_KEY).maybeSingle(),
     ])
 

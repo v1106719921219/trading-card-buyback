@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react'
 import SeriesSingles from '@/components/admin/series-singles'
 import { createClient } from '@/lib/supabase/client'
-import { MEGA_SERIES, singleSeriesCode } from '@/lib/single-series'
+import { MEGA_SERIES, singleSeriesCode, singleSeriesOptions } from '@/lib/single-series'
 import { toast } from 'sonner'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 export default function SinglesPage() {
   const [multiple, setMultiple] = useState(false)
@@ -13,17 +14,10 @@ export default function SinglesPage() {
     let active = true
     async function load() {
       const s = createClient()
-      const { data, error } = await s.from('products').select('name,set_number,subcategory_id').eq('is_active', true).eq('category_id', 'db02ec12-d529-453c-a749-53da99e05533').in('subcategory_id', ['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9', '7fc8c032-c373-438a-bc14-6a9e8c113767'])
+      const { data, error } = await fetchAllRows((from,to)=>s.from('products').select('name,set_number,subcategory_id',{count:'exact'}).eq('is_active', true).eq('category_id', 'db02ec12-d529-453c-a749-53da99e05533').in('subcategory_id', ['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9', 'ca8f802a-52f1-495a-ab49-158063b00d64']).order('id').range(from,to))
       if (!active) return
       if (error) { toast.error('シリーズ一覧を取得できませんでした'); return }
-      const names = new Map(MEGA_SERIES.map(s => [s.code, s.name]))
-      const codes = new Set(MEGA_SERIES.map(s => s.code))
-      for (const p of data || []) {
-        const c = singleSeriesCode(p)
-        if (p.subcategory_id === '19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9') codes.add(c)
-        else if (c !== 'OTHER' && !names.has(c)) names.set(c, p.name)
-      }
-      setSeries([...codes].map(code => ({ code, name: names.get(code) || (code === 'OTHER' ? 'その他・まとめ買取' : code) })))
+      setSeries(singleSeriesOptions([...MEGA_SERIES.map(s=>s.code),...(data??[]).map(singleSeriesCode)]))
     }
     load()
     return () => { active = false }

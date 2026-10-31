@@ -1,4 +1,5 @@
 'use client'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { AdminHeader } from '@/components/admin/header'
@@ -93,15 +94,15 @@ export default function PriceHistoryPage() {
     setLoading(true)
     try {
       const [historyRes, productsRes, categoriesRes, subcategoriesRes] = await Promise.all([
-        supabase
+        fetchAllRows((from,to)=>supabase
           .from('product_price_history')
-          .select('*, product:products(id, name, category_id, subcategory_id, category:categories(*), subcategory:subcategories(*))')
-          .order('changed_at', { ascending: false }),
-        supabase
+          .select('*, product:products(id, name, category_id, subcategory_id, category:categories(*), subcategory:subcategories(*))',{count:'exact'})
+          .order('changed_at', { ascending: false }).order('id').range(from,to)),
+        fetchAllRows((from,to)=>supabase
           .from('products')
-          .select('*, category:categories(*), subcategory:subcategories(*)')
+          .select('*, category:categories(*), subcategory:subcategories(*)',{count:'exact'})
           .eq('is_active', true)
-          .order('sort_order'),
+          .order('sort_order').order('id').range(from,to)),
         supabase
           .from('categories')
           .select('*')

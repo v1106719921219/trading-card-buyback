@@ -1,7 +1,8 @@
 'use client'
+import { fetchAllRows } from '@/lib/fetch-all-rows'
 
 import { CardrushSingleUpdate } from '@/components/admin/cardrush-single-update'
-import { MEGA_SERIES, singleSeriesCode } from '@/lib/single-series'
+import { singleSeriesOptions, singleSeriesCode } from '@/lib/single-series'
 import { isBulkSingle, isIndividualSingle } from '@/lib/single-product-groups'
 import { calculatePsa10BuybackPrice, isPsa10BoostProduct } from '@/lib/psa10-price'
 
@@ -203,29 +204,7 @@ export default function ProductsPage() {
     const generation = ++fetchGeneration.current
     const scrollY = window.scrollY
     const [productsResult, categoriesResult, subcategoriesResult] = await Promise.all([
-      (async () => {
-        const allProducts: (Product & { category: Category; subcategory: Subcategory | null })[] = []
-        const pageSize = 500
-        let total: number | null = null
-        while (true) {
-          const { data, error, count } = await supabase.from('products')
-            .select('*, category:categories(*), subcategory:subcategories(*)', { count: 'exact' })
-            .order('sort_order').order('created_at', { ascending: false }).order('id')
-            .range(allProducts.length, allProducts.length + pageSize - 1)
-          if (error) return { data: null, error }
-          if (total !== null && total !== count) {
-            return { data: null, error: new Error('商品件数が変わりました。再読み込みしてください。') }
-          }
-          total = count
-          allProducts.push(...(data ?? []))
-          if (total !== null && allProducts.length >= total) break
-          if (!data?.length) return { data: null, error: new Error('商品を全件取得できませんでした。') }
-        }
-        if (new Set(allProducts.map(p => p.id)).size !== allProducts.length) {
-          return { data: null, error: new Error('商品一覧が更新されました。再読み込みしてください。') }
-        }
-        return { data: allProducts, error: null }
-      })(),
+      fetchAllRows((from,to)=>supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)',{count:'exact'}).order('sort_order').order('created_at',{ascending:false}).order('id').range(from,to)),
       supabase.from('categories').select('*').order('sort_order'),
       supabase.from('subcategories').select('*').order('sort_order'),
     ])
@@ -253,7 +232,7 @@ export default function ProductsPage() {
     requestAnimationFrame(() => window.scrollTo(0, scrollY))
 
     // 相場の追加情報は一覧の初期表示を待たせない。
-    if (productsResult.data) void loadSingleABQuotes(productsResult.data.map(p => p.id), generation)
+    if (productsResult.data) void loadSingleABQuotes(productsResult.data.filter(p=>p.snkrdunk_url).map(p => p.id), generation)
   }
 
   async function loadSingleABQuotes(ids: string[], generation: number) {
@@ -300,13 +279,7 @@ export default function ProductsPage() {
   })
 
   const seriesOptions = useMemo(() => {
-    const names = new Map<string, string>(MEGA_SERIES.map(s => [s.code, s.name]))
-    const codes = new Set(products.filter(isIndividualSingle).map(singleSeriesCode))
-    return [...codes].sort((a, b) => {
-      const ai = MEGA_SERIES.findIndex(s => s.code === a)
-      const bi = MEGA_SERIES.findIndex(s => s.code === b)
-      return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi) || a.localeCompare(b, 'ja', { numeric: true })
-    }).map(code => ({ code, label: code === 'OTHER' ? 'シリーズ未設定' : names.has(code) ? `${names.get(code)}（${code}）` : code }))
+    return singleSeriesOptions(products.filter(isIndividualSingle).map(singleSeriesCode))
   }, [products])
 
   const filteredProducts = useMemo(() => products.filter((p) => {
