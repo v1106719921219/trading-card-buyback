@@ -5,7 +5,7 @@ import SeriesSingles from '@/components/admin/series-singles'
 import { createClient } from '@/lib/supabase/client'
 import { MEGA_SERIES, singleSeriesCode, singleSeriesOptions, type SingleSeriesOption } from '@/lib/single-series'
 import { toast } from 'sonner'
-import { fetchAllById } from '@/lib/fetch-all-rows'
+import { fetchAllUuidRows } from '@/lib/fetch-all-rows'
 
 export default function SinglesPage() {
   const [multiple, setMultiple] = useState(false)
@@ -15,7 +15,7 @@ export default function SinglesPage() {
     let active = true
     async function load() {
       const s = createClient()
-      const { data, error } = await fetchAllById((after,size)=>{let q=s.from('products').select('id,name,set_number,subcategory_id').eq('is_active',true).eq('category_id','db02ec12-d529-453c-a749-53da99e05533').in('subcategory_id',['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9','ca8f802a-52f1-495a-ab49-158063b00d64']).order('id').limit(size);if(after)q=q.gt('id',after);return q})
+      const { data, error } = await fetchAllUuidRows((after,size,lower,upper)=>{let q=s.from('products').select('id,name,set_number,subcategory_id').eq('is_active',true).eq('category_id','db02ec12-d529-453c-a749-53da99e05533').in('subcategory_id',['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9','ca8f802a-52f1-495a-ab49-158063b00d64']).order('id').limit(size);q=q.gte('id',lower);if(upper)q=q.lt('id',upper);if(after)q=q.gt('id',after);return q}, { shouldContinue: () => active })
       if (!active) return
       if (error) { toast.error('シリーズ一覧を取得できませんでした'); return }
       setSeries(singleSeriesOptions([...MEGA_SERIES.map(s=>s.code),...(data??[]).map(singleSeriesCode)]))

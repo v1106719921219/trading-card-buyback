@@ -3,7 +3,7 @@ import { MarketUpdateStamp } from '@/components/admin/market-update-stamp'
 import { publicationProducts, publicationSelection, isPriceListPublished } from '@/lib/series-publication'
 import { Switch } from '@/components/ui/switch'
 import { singleSeriesAliases } from '@/lib/single-series'
-import { fetchAllById } from '@/lib/fetch-all-rows'
+import { fetchAllUuidRows } from '@/lib/fetch-all-rows'
 
 import { isBulkSingle } from '@/lib/single-product-groups'
 
@@ -81,6 +81,9 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
   const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [publishedOnly, setPublishedOnly] = useState(false)
+  const publicationChoice = useRef<boolean | null>(null)
+  const loadGeneration = useRef(0)
+  const [loadedCount, setLoadedCount] = useState(0)
   const [highPriceIds, setHighPriceIds] = useState<Set<string>>(new Set())
   const [header, setHeader] = useState(DEFAULT_HEADER)
   const [footer, setFooter] = useState(DEFAULT_FOOTER)
@@ -102,17 +105,22 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
   }, [])
 
   const fetchData = useCallback(async (restoreDefaults = true) => {
+    const generation = ++loadGeneration.current
     setLoading(true)
+    setLoadedCount(0)
     const [productsResult, settingResult] = await Promise.all([
-      fetchAllById((after,size)=>{
-        let q=supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('is_active',true).eq('category_id',CATEGORY_ID).in('subcategory_id',isMultiple?[SUBCATEGORY_ID,'19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9']:is30th?[SUBCATEGORY_ID]:['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9']).order('id').limit(size)
+      fetchAllUuidRows((after,size,lower,upper)=>{
+        let q=supabase.from('products').select('*').eq('is_active',true).eq('category_id',CATEGORY_ID).in('subcategory_id',isMultiple?[SUBCATEGORY_ID,'19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9']:is30th?[SUBCATEGORY_ID]:['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9']).order('id').limit(size)
         if(!isMultiple&&!is30th)q=q.or(singleSeriesAliases(code).flatMap(c=>[`set_number.ilike.${c}`,`set_number.ilike.${c} *`]).join(','))
+        q=q.gte('id',lower)
+        if(upper)q=q.lt('id',upper)
         if(after)q=q.gt('id',after)
         return q
-      }),
+      }, { onProgress: count => { if (loadGeneration.current === generation) setLoadedCount(count) }, shouldContinue: () => loadGeneration.current === generation }),
       supabase.from('app_settings').select('value').eq('key', SETTING_KEY).maybeSingle(),
     ])
 
+    if (loadGeneration.current !== generation) return
     if (productsResult.error) {
       toast.error('商品の取得に失敗しました')
       setLoading(false)
@@ -122,14 +130,14 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
     const s = ((productsResult.data || []) as ProductWithRelations[]).sort((a,b)=>(a.sort_order??0)-(b.sort_order??0)).filter(p => !isBulkSingle(p) && (isMultiple || is30th || singleSeriesCode(p) === code))
     setProducts(s)
     if (!restoreDefaults) { setLoading(false); return }
-    setPublishedOnly(false)
+    setPublishedOnly(publicationChoice.current ?? false)
     setHeader(DEFAULT_HEADER)
     setFooter(DEFAULT_FOOTER)
 
     if (settingResult.data?.value) {
       try {
         const saved: { singles: string[]; header?: string; footer?: string; series?: string[]; sort?: 'price' | 'series'; publishedOnly?: boolean } = JSON.parse(settingResult.data.value)
-        setPublishedOnly(saved.publishedOnly === true)
+        setPublishedOnly(publicationChoice.current ?? (saved.publishedOnly === true))
         if (isMultiple) {
           setActiveSeries(Array.isArray(saved.series) ? saved.series.filter(c => typeof c === 'string') : [])
           setSortMode(saved.sort === 'series' ? 'series' : 'price')
@@ -151,9 +159,9 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
     setLoading(false)
   }, [supabase, code, is30th, isMultiple, SETTING_KEY, DEFAULT_HEADER])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { const generationRef = loadGeneration; void fetchData(); return () => { generationRef.current++ } }, [fetchData])
 
-  const seriesProducts = useMemo(() => products.filter(p => !isMultiple || activeSeries.includes(p.subcategory_id === SUBCATEGORY_ID ? 'M6A' : singleSeriesCode(p))), [products, isMultiple, activeSeries])
+  const seriesProducts = useMemo(() => products.filter(p => !isMultiple || (publishedOnly && activeSeries.length === 0) || activeSeries.includes(p.subcategory_id === SUBCATEGORY_ID ? 'M6A' : singleSeriesCode(p))), [products, isMultiple, activeSeries, publishedOnly])
   const visibleProducts = useMemo(() => publicationProducts(seriesProducts, publishedOnly), [seriesProducts, publishedOnly])
   const effectiveSelectedIds = useMemo(() => publicationSelection(visibleProducts, selectedIds, publishedOnly), [visibleProducts, selectedIds, publishedOnly])
   const publishedCount = seriesProducts.filter(isPriceListPublished).length
@@ -378,12 +386,13 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
       </div>}
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border p-4">
         <label className="flex items-center gap-2 text-sm font-medium">
-          <Switch aria-label="価格表の表示オンと連動" checked={publishedOnly} disabled={loading} onCheckedChange={setPublishedOnly} />
+          <Switch aria-label="価格表の表示オンと連動" checked={publishedOnly} onCheckedChange={value => { publicationChoice.current = value; setPublishedOnly(value) }} />
           価格表の表示オンと連動
         </label>
-        <span className="text-xs text-muted-foreground">{publishedOnly ? '表示オン・価格設定済みの商品だけを画像と投稿文に自動反映します。' : 'オフの場合は、下の商品を手動で選択できます。'}{!loading && ('（対象 ' + publishedCount + '件）')}</span>
+        <span className="text-xs text-muted-foreground">{publishedOnly ? '表示オン・価格設定済みの商品だけを画像と投稿文に自動反映します。' : 'オフの場合は、下の商品を手動で選択できます。'}{!loading && ('（対象 ' + publishedCount + '件）')}{isMultiple && publishedOnly && activeSeries.length === 0 && 'シリーズ未選択のため全シリーズが対象です。'}</span>
         <Button variant="outline" size="sm" disabled={loading} onClick={() => fetchData(false)} className="gap-1"><RefreshCw className="size-3.5" />表示設定を再読み込み</Button>
       </div>
+      {loading && <p role="status" className="mt-4 text-sm text-muted-foreground">商品を読み込み中（{loadedCount.toLocaleString()}件取得済み）。連動スイッチは先に選択できます。読み込み完了後に画像・投稿文へ反映します。</p>}
       {!loading && <p className="mt-4 text-sm text-muted-foreground">登録 {visibleProducts.length}件 ／ 価格設定済み {visibleProducts.filter(p => p.price > 0).length}件 ／ 画像あり {visibleProducts.filter(p => p.image_url).length}件。価格・受付の変更と相場更新は商品管理から行えます。通常シングルの参考相場は状態Aの最安出品価格です。通常シングルは価格設定後に画像へ掲載できます。</p>}
       {!loading && visibleProducts.length === 0 && <p className="mt-4 rounded border p-4">{isMultiple && activeSeries.length === 0 ? 'シリーズを選択すると商品が表示されます。' : publishedOnly ? '価格表で表示オンの商品がありません。商品管理の価格表スイッチを確認してください。' : 'このシリーズの商品はまだ登録されていません。'}</p>}
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
