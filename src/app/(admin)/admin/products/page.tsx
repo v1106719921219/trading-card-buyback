@@ -1,5 +1,8 @@
 'use client'
 
+import { CardrushMarketCell, useCardrushMarket } from '@/components/admin/cardrush-market'
+import { changePriceListVisibility, type VisibilityRow } from '@/lib/price-list-visibility'
+import { currentCardrushAmount } from '@/lib/cardrush-freshness'
 import { SingleSeriesPicker } from '@/components/admin/single-series-picker'
 import { fetchAllById } from '@/lib/fetch-all-rows'
 
@@ -164,6 +167,9 @@ export default function ProductsPage() {
   // Bulk price list toggle
   const [bulkAction, setBulkAction] = useState<'show' | 'hide' | null>(null)
   const [bulkUpdating, setBulkUpdating] = useState(false)
+  const visibilityLocks = useRef(new Set<string>())
+  const visibilityOverrides = useRef(new Map<string, VisibilityRow>())
+  const [visibilitySaving, setVisibilitySaving] = useState<Set<string>>(new Set())
 
   // CSV import
   const [csvDialogOpen, setCsvDialogOpen] = useState(false)
@@ -226,7 +232,12 @@ export default function ProductsPage() {
         if (subA !== subB) return subA - subB
         return (a.sort_order ?? 0) - (b.sort_order ?? 0)
       })
-      setProducts(sorted as never[])
+      setProducts(sorted.map(p => {
+        const local = visibilityOverrides.current.get(p.id)
+        return local && (visibilityLocks.current.has(p.id) || local.updated_at >= p.updated_at)
+          ? { ...p, show_in_price_list: local.show_in_price_list, auto_closed_at: local.auto_closed_at, updated_at: local.updated_at }
+          : p
+      }) as never[])
     }
     if (categoriesResult.data) setCategories(categoriesResult.data)
     if (subcategoriesResult.data) setSubcategories(subcategoriesResult.data)
@@ -288,7 +299,7 @@ export default function ProductsPage() {
     const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory
     const matchesSubcategory = filterSubcategory === 'all' || p.subcategory_id === filterSubcategory
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.model_number && p.model_number.toLowerCase().includes(search.toLowerCase())) || (p.set_number && p.set_number.toLowerCase().includes(search.toLowerCase()))
-    const amount = priceBasis === 'market' ? p.market_price : p.price
+    const amount = priceBasis === 'market' ? (isIndividualSingle(p) ? null : p.market_price) : p.price
     const hasPriceFilter = minPrice !== '' || maxPrice !== ''
     const matchesPrice = !hasPriceFilter || (amount != null && amount > 0 &&
       (minPrice === '' || amount >= Number(minPrice)) &&
@@ -301,6 +312,8 @@ export default function ProductsPage() {
   }, [filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
 
   const visibleProducts = useMemo(() => filteredProducts.slice(0, visibleCount), [filteredProducts, visibleCount])
+
+  const rushMarket = useCardrushMarket(visibleProducts.filter(isIndividualSingle).map(p => p.id))
 
   const bulkShowTargets = filteredProducts.filter((p) => p.is_active && p.price > 0 && !p.auto_closed_at)
   const bulkTargetCount = bulkAction === 'show' ? bulkShowTargets.length : filteredProducts.length
@@ -390,7 +403,7 @@ async function syncToChiba() {
   }
 
   function handleCsvExport() {
-    const headers = ['カテゴリ', 'サブカテゴリ', '商品名', 'カード型番', 'セット型番', '買取価格', '画像URL', '価格表', '相場(スニダン)', '出品数', '相場更新日']
+    const headers = ['カテゴリ', 'サブカテゴリ', '商品名', 'カード型番', 'セット型番', '買取価格', '画像URL', '価格表', '相場', '出品数', '掲載元の更新日', '相場の参照先', '取得状況']
     const rows = filteredProducts.map((p) => [
       p.category?.name ?? '',
       p.subcategory?.name ?? '',
@@ -400,9 +413,11 @@ async function syncToChiba() {
       String(p.price),
       p.image_url ?? '',
       p.show_in_price_list ? '表示' : '非表示',
-      p.market_price != null ? String(p.market_price) : '',
-      p.market_listing_count != null ? String(p.market_listing_count) : '',
-      p.market_price_updated_at ? new Date(p.market_price_updated_at).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '',
+      isIndividualSingle(p) ? String(currentCardrushAmount(rushMarket.quotes[p.id]) ?? '') : p.market_price != null ? String(p.market_price) : '',
+      !isIndividualSingle(p) && p.market_listing_count != null ? String(p.market_listing_count) : '',
+      (isIndividualSingle(p) ? rushMarket.quotes[p.id]?.sourceUpdated : p.market_price_updated_at) ?? '',
+      isIndividualSingle(p) ? 'カードラッシュ買取' : 'スニダン',
+      isIndividualSingle(p) ? currentCardrushAmount(rushMarket.quotes[p.id]) !== null ? '本日更新' : rushMarket.quotes[p.id]?.reason || '本日未取得' : '',
     ])
 
     const escapeField = (v: string) => {
@@ -457,6 +472,7 @@ async function syncToChiba() {
   }
 
   async function refreshMarketPrices() {
+    rushMarket.refresh()
     setRefreshingMarket(true)
     try {
       const res = await fetch('/api/admin/market-prices', { method: 'POST' })
@@ -863,23 +879,31 @@ async function syncToChiba() {
     }
   }
 
-  async function togglePriceList(product: Product) {
-    const newValue = !product.show_in_price_list
-    // 表示に戻す操作は自動締切の解除を兼ねる
-    const { error } = await supabase
-      .from('products')
-      .update(newValue ? { show_in_price_list: true, auto_closed_at: null } : { show_in_price_list: false })
-      .eq('id', product.id)
+  function patchVisibility(row: VisibilityRow) {
+    visibilityOverrides.current.set(row.id, row)
+    setProducts(old => old.map(p => p.id === row.id ? { ...p, show_in_price_list: row.show_in_price_list, auto_closed_at: row.auto_closed_at, updated_at: row.updated_at } : p))
+  }
 
-    if (error) {
-      toast.error(`価格表の表示設定に失敗しました: ${error.message}`)
-      return
-    }
-    toast.success(`${product.name}を価格表${newValue ? '表示' : '非表示'}にしました`)
-    fetchData()
+  async function togglePriceList(product: Product, newValue: boolean) {
+    if (bulkUpdating || !tenantId || visibilityLocks.current.has(product.id)) return
+    try {
+      const save = changePriceListVisibility(product, newValue, visibilityLocks.current, patchVisibility, async () => {
+        const { data, error } = await supabase.from('products')
+          .update(newValue ? { show_in_price_list: true, auto_closed_at: null } : { show_in_price_list: false })
+          .eq('tenant_id', tenantId).eq('id', product.id).eq('show_in_price_list', product.show_in_price_list)
+          .select('id,show_in_price_list,auto_closed_at,updated_at').single()
+        if (error || !data) throw Error(error?.message || '保存結果を確認できませんでした')
+        return data
+      })
+      setVisibilitySaving(new Set(visibilityLocks.current))
+      if (await save) toast.success(`価格表を${newValue ? '表示' : '非表示'}にしました`)
+    } catch (e) {
+      toast.error(`表示設定を保存できませんでした。元に戻しました：${e instanceof Error ? e.message : '通信を確認してください'}`)
+    } finally { setVisibilitySaving(new Set(visibilityLocks.current)) }
   }
 
   async function handleBulkTogglePriceList(show: boolean) {
+    if (visibilityLocks.current.size || bulkUpdating) return
     // 表示にする場合、0円の商品と自動締切中（申込済み・相場確認待ち）の商品は除外する
     const targets = show
       ? bulkShowTargets
@@ -895,14 +919,16 @@ async function syncToChiba() {
         const batchIds = ids.slice(offset, offset + 100)
         let query = supabase.from('products').update({ show_in_price_list: show }).in('id', batchIds)
         if (show) query = query.is('auto_closed_at', null).gt('price', 0).eq('is_active', true)
-        const { data: updated, error } = await query.select('id')
+        const { data: updated, error } = await query.select('id,show_in_price_list,auto_closed_at,updated_at')
         if (error) throw error
+        for (const row of updated ?? []) visibilityOverrides.current.set(row.id, row)
+        const rows = new Map((updated ?? []).map(row => [row.id, row]))
+        setProducts(old => old.map(p => rows.has(p.id) ? { ...p, ...rows.get(p.id)! } : p))
         updatedCount += updated?.length ?? 0
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : (error as { message?: string }).message || '不明なエラー'
       toast.error(`${updatedCount}件更新済み。残りの一括更新に失敗しました: ${message}`)
-      fetchData()
       return
     } finally {
       setBulkUpdating(false)
@@ -911,7 +937,6 @@ async function syncToChiba() {
     const skipped = show ? filteredProducts.length - updatedCount : 0
     const msg = `${updatedCount}件を価格表${show ? '表示' : '非表示'}にしました`
     toast.success(skipped > 0 ? `${msg}（0円・受付停止中の${skipped}件は非表示のまま）` : msg)
-    fetchData()
   }
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -1005,7 +1030,8 @@ async function syncToChiba() {
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshingMarket ? 'animate-spin' : ''}`} />
               {refreshingMarket ? '相場取得中...' : '相場を更新'}
             </Button>
-            <CardrushSingleUpdate ids={filteredProducts.filter(isIndividualSingle).map(p => p.id)} onApplied={fetchData} />
+            <Button variant="outline" disabled={rushMarket.busy || !visibleProducts.some(isIndividualSingle)} onClick={rushMarket.refresh}>{rushMarket.busy ? 'カードラッシュ取得中…' : 'カードラッシュ相場を再取得'}</Button>
+            <CardrushSingleUpdate ids={filteredProducts.filter(isIndividualSingle).map(p => p.id)} onApplied={() => { rushMarket.refresh(); void fetchData() }} />
             <Button variant="outline" onClick={handleCsvExport}>
               <Download className="mr-2 h-4 w-4" />
               CSVエクスポート
@@ -1335,7 +1361,7 @@ async function syncToChiba() {
           <SelectTrigger aria-label="価格の基準" className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="buyback">買取価格で絞る</SelectItem>
-            <SelectItem value="market">スニダン相場で絞る</SelectItem>
+            <SelectItem value="market">スニダン相場で絞る（BOX・PSA等）</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex flex-wrap items-center gap-2">
@@ -1354,19 +1380,19 @@ async function syncToChiba() {
             variant="outline"
             size="sm"
             onClick={() => setBulkAction('show')}
-            disabled={bulkShowTargets.length === 0}
+            disabled={bulkUpdating || visibilitySaving.size > 0 || bulkShowTargets.length === 0}
           >
             <Eye className="mr-1 h-4 w-4" />
-            一括：表示
+            まとめて表示
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setBulkAction('hide')}
-            disabled={filteredProducts.length === 0}
+            disabled={bulkUpdating || visibilitySaving.size > 0 || filteredProducts.length === 0}
           >
             <EyeOff className="mr-1 h-4 w-4" />
-            一括：非表示
+            まとめて非表示
           </Button>
         </div>
         <AlertDialog open={bulkAction !== null} onOpenChange={(open) => { if (!open) setBulkAction(null) }}>
@@ -1406,7 +1432,7 @@ async function syncToChiba() {
               <TableHead className="hidden sm:table-cell">カテゴリ</TableHead>
               <TableHead className="hidden lg:table-cell">サブカテゴリ</TableHead>
               <TableHead className="text-right">買取価格</TableHead>
-              <TableHead className="text-right hidden md:table-cell">相場(スニダン)</TableHead>
+              <TableHead className="text-right hidden md:table-cell">相場<br /><span className="text-xs font-normal">シングル：カードラッシュ／BOX・PSA等：スニダン</span></TableHead>
               <TableHead className="w-20">価格表</TableHead>
               <TableHead className="w-20 sm:w-32 text-right">操作</TableHead>
             </TableRow>
@@ -1497,7 +1523,9 @@ async function syncToChiba() {
                     )}
                   </TableCell>
                   <TableCell className="text-right hidden md:table-cell">
-                    {singleABQuotes[product.id] ? (
+                    {isIndividualSingle(product) ? (
+                      <CardrushMarketCell row={rushMarket.quotes[product.id]} busy={rushMarket.busy} error={rushMarket.error} refresh={rushMarket.refresh} />
+                    ) : singleABQuotes[product.id] ? (
                       <div className="inline-flex flex-col items-end gap-0.5 whitespace-nowrap text-sm">
                         <span>状態A：{singleABQuotes[product.id].quote.A.price.toLocaleString()}円</span>
                         <span>状態B：{singleABQuotes[product.id].quote.B.price.toLocaleString()}円</span>
@@ -1568,15 +1596,20 @@ async function syncToChiba() {
                   <TableCell>
                     {(() => {
                       const status = psa10VisibilityStatus(product)
-                      const label = product.show_in_price_list ? '表示' : status?.label ?? (product.auto_closed_at ? '締切' : '非表示')
+                      const saving = visibilitySaving.has(product.id)
                       return <div className="min-w-28">
-                        <Badge
-                          variant={product.show_in_price_list ? 'default' : status ? 'outline' : product.auto_closed_at ? 'destructive' : 'secondary'}
-                          className={`cursor-pointer whitespace-nowrap ${status?.label === '対象外' ? 'border-slate-300 text-slate-600 bg-slate-50' : status ? 'border-amber-300 text-amber-800 bg-amber-50' : ''}`}
-                          title={status?.reason ?? (!product.show_in_price_list && product.auto_closed_at ? `受付締切 (${new Date(product.auto_closed_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })})\nクリックで再開` : undefined)}
-                          onClick={() => togglePriceList(product)}
-                        >{label}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            aria-label={`${product.name}を価格表に表示`}
+                            checked={product.show_in_price_list}
+                            disabled={saving || bulkUpdating}
+                            title={status?.reason ?? (!product.show_in_price_list && product.auto_closed_at ? 'オンにすると受付を再開します' : '価格表の表示を切り替え')}
+                            onCheckedChange={show => togglePriceList(product, show)}
+                          />
+                          <span aria-live="polite" className={`whitespace-nowrap text-xs ${product.show_in_price_list ? 'font-medium text-orange-600' : 'text-muted-foreground'}`}>{saving ? '保存中…' : product.show_in_price_list ? '表示中' : '非表示'}</span>
+                        </div>
                         {status && <div className="mt-1 max-w-44 text-xs text-muted-foreground">{status.reason}</div>}
+                        {!product.show_in_price_list && product.auto_closed_at && !status && <div className="mt-1 text-xs text-muted-foreground">受付締切・オンで再開</div>}
                       </div>
                     })()}
                   </TableCell>

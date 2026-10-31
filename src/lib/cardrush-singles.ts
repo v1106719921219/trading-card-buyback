@@ -1,3 +1,4 @@
+import { sourceIsFresh } from './cardrush-freshness'
 import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import { isBulkSingle } from './single-product-groups'
@@ -11,10 +12,7 @@ export type RushQuote = z.infer<typeof rushQuoteSchema>
 export type RushRow = { id: string; name: string; code: string; current: number; proposed: number | null; quote: number | null; sourceUpdated: string | null; sourceUrl: string; expected: string; reason: string }
 export function isEligibleSingle(p: SingleProduct) { return p.is_active && singleSubcategories.includes(p.subcategory_id || '') && !isBulkSingle(p) && !/PSA|鑑定|未開封|ミラー|セット|1ED|プロモ|仕様/i.test(p.name) }
 const norm = (s: string) => s.normalize('NFKC').replace(/\s|LV\.\d+|LV\.X|\(上\)|\(下\)/gi, '').toLowerCase()
-export function sourceIsFresh(date: string, now = Date.now()) {
-  const t = Date.parse(date), day = (v: number) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(v)
-  return Number.isFinite(t) && t <= now && now - t < 86400000 && day(t) === day(now)
-}
+export { sourceIsFresh } from './cardrush-freshness'
 export function matchRush(p: SingleProduct, quotes: RushQuote[], percent: number, now = Date.now()): RushRow {
   const code = singleSeriesCode(p)
   const row: RushRow = { id: p.id, name: p.name, code, current: p.price, proposed: null, quote: null, sourceUpdated: null, sourceUrl: `https://cardrush.media/pokemon/buying_prices?pack_code=${encodeURIComponent(code)}`, expected: p.updated_at, reason: '' }
