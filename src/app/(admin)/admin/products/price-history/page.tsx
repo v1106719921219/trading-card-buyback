@@ -1,5 +1,5 @@
 'use client'
-import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { fetchAllById } from '@/lib/fetch-all-rows'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { AdminHeader } from '@/components/admin/header'
@@ -94,15 +94,8 @@ export default function PriceHistoryPage() {
     setLoading(true)
     try {
       const [historyRes, productsRes, categoriesRes, subcategoriesRes] = await Promise.all([
-        fetchAllRows((from,to)=>supabase
-          .from('product_price_history')
-          .select('*, product:products(id, name, category_id, subcategory_id, category:categories(*), subcategory:subcategories(*))',{count:'exact'})
-          .order('changed_at', { ascending: false }).order('id').range(from,to)),
-        fetchAllRows((from,to)=>supabase
-          .from('products')
-          .select('*, category:categories(*), subcategory:subcategories(*)',{count:'exact'})
-          .eq('is_active', true)
-          .order('sort_order').order('id').range(from,to)),
+        fetchAllById((after,size)=>{let q=supabase.from('product_price_history').select('*, product:products(id, name, category_id, subcategory_id, category:categories(*), subcategory:subcategories(*))').order('id').limit(size);if(after)q=q.gt('id',after);return q}),
+        fetchAllById((after,size)=>{let q=supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('is_active',true).order('id').limit(size);if(after)q=q.gt('id',after);return q}),
         supabase
           .from('categories')
           .select('*')
@@ -118,7 +111,7 @@ export default function PriceHistoryPage() {
       if (categoriesRes.error) throw categoriesRes.error
       if (subcategoriesRes.error) throw subcategoriesRes.error
 
-      setHistory(historyRes.data as unknown as HistoryWithRelations[])
+      setHistory((historyRes.data as unknown as HistoryWithRelations[]).sort((a,b)=>b.changed_at.localeCompare(a.changed_at)))
       setProducts(productsRes.data as unknown as ProductWithRelations[])
       setCategories(categoriesRes.data)
       setSubcategories(subcategoriesRes.data)

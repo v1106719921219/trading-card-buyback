@@ -1,5 +1,5 @@
 'use client'
-import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { fetchAllById } from '@/lib/fetch-all-rows'
 
 import { CardrushSingleUpdate } from '@/components/admin/cardrush-single-update'
 import { singleSeriesOptions, singleSeriesCode } from '@/lib/single-series'
@@ -204,7 +204,7 @@ export default function ProductsPage() {
     const generation = ++fetchGeneration.current
     const scrollY = window.scrollY
     const [productsResult, categoriesResult, subcategoriesResult] = await Promise.all([
-      fetchAllRows((from,to)=>supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)',{count:'exact'}).order('sort_order').order('created_at',{ascending:false}).order('id').range(from,to)),
+      fetchAllById((after,size)=>{let q=supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').order('id').limit(size);if(after)q=q.gt('id',after);return q}),
       supabase.from('categories').select('*').order('sort_order'),
       supabase.from('subcategories').select('*').order('sort_order'),
     ])

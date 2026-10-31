@@ -1,8 +1,9 @@
 const ts=require('typescript'),fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 function load(file,requires={}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{exports,require:n=>requires[n]||require(n),Map,Set,Promise,Error,Intl});return exports;}
 (async()=>{
- const {fetchAllRows}=load('src/lib/fetch-all-rows.ts');const rows=Array.from({length:33551},(_,id)=>({id}));let requests=0;
+ const {fetchAllRows,fetchAllById}=load('src/lib/fetch-all-rows.ts');const rows=Array.from({length:33551},(_,id)=>({id}));let requests=0;
  const res=await fetchAllRows(async(a,b)=>{requests++;return{data:rows.slice(a,b+1),error:null,count:rows.length}});assert.equal(res.data.length,33551);assert.equal(new Set(res.data.map(r=>r.id)).size,33551);assert.equal(requests,68);
+ const keyed=rows.map(r=>({id:String(r.id).padStart(8,'0')}));const keyResult=await fetchAllById(async(after,size)=>({data:keyed.filter(r=>!after||r.id>after).slice(0,size),error:null}));assert.equal(keyResult.data.length,keyed.length);assert.equal(keyResult.data.at(-1).id,keyed.at(-1).id);const duplicateKey=await fetchAllById(async()=>({data:[{id:'b'},{id:'a'}],error:null}));assert.ok(duplicateKey.error);
  const truncated=await fetchAllRows(async(a,b)=>({data:rows.slice(a,Math.min(a+300,b+1)),error:null,count:rows.length}));assert.ok(truncated.error);
  const changed=await fetchAllRows(async(a,b)=>({data:rows.slice(a,b+1),error:null,count:a?rows.length+1:rows.length}));assert.ok(changed.error);
  const catalog=JSON.parse(fs.readFileSync('src/data/single-series-catalog.json'));const {singleSeriesCode,singleSeriesName,singleSeriesOptions}=load('src/lib/single-series.ts',{'@/data/single-series-catalog.json':catalog});

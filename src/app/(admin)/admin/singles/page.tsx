@@ -4,7 +4,7 @@ import SeriesSingles from '@/components/admin/series-singles'
 import { createClient } from '@/lib/supabase/client'
 import { MEGA_SERIES, singleSeriesCode, singleSeriesOptions } from '@/lib/single-series'
 import { toast } from 'sonner'
-import { fetchAllRows } from '@/lib/fetch-all-rows'
+import { fetchAllById } from '@/lib/fetch-all-rows'
 
 export default function SinglesPage() {
   const [multiple, setMultiple] = useState(false)
@@ -14,7 +14,7 @@ export default function SinglesPage() {
     let active = true
     async function load() {
       const s = createClient()
-      const { data, error } = await fetchAllRows((from,to)=>s.from('products').select('name,set_number,subcategory_id',{count:'exact'}).eq('is_active', true).eq('category_id', 'db02ec12-d529-453c-a749-53da99e05533').in('subcategory_id', ['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9', 'ca8f802a-52f1-495a-ab49-158063b00d64']).order('id').range(from,to))
+      const { data, error } = await fetchAllById((after,size)=>{let q=s.from('products').select('id,name,set_number,subcategory_id').eq('is_active',true).eq('category_id','db02ec12-d529-453c-a749-53da99e05533').in('subcategory_id',['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9','ca8f802a-52f1-495a-ab49-158063b00d64']).order('id').limit(size);if(after)q=q.gt('id',after);return q})
       if (!active) return
       if (error) { toast.error('シリーズ一覧を取得できませんでした'); return }
       setSeries(singleSeriesOptions([...MEGA_SERIES.map(s=>s.code),...(data??[]).map(singleSeriesCode)]))
