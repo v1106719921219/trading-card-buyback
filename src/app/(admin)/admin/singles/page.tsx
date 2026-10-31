@@ -1,15 +1,16 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { SingleSeriesPicker } from '@/components/admin/single-series-picker'
 import SeriesSingles from '@/components/admin/series-singles'
 import { createClient } from '@/lib/supabase/client'
-import { MEGA_SERIES, singleSeriesCode, singleSeriesOptions } from '@/lib/single-series'
+import { MEGA_SERIES, singleSeriesCode, singleSeriesOptions, type SingleSeriesOption } from '@/lib/single-series'
 import { toast } from 'sonner'
 import { fetchAllById } from '@/lib/fetch-all-rows'
 
 export default function SinglesPage() {
   const [multiple, setMultiple] = useState(false)
   const [code, setCode] = useState('M6A')
-  const [series, setSeries] = useState(MEGA_SERIES)
+  const [series, setSeries] = useState<SingleSeriesOption[]>(() => singleSeriesOptions(MEGA_SERIES.map(s => s.code)))
   useEffect(() => {
     let active = true
     async function load() {
@@ -28,9 +29,7 @@ export default function SinglesPage() {
       <button type="button" aria-pressed={multiple} className={`rounded-md border px-4 py-2 ${multiple ? 'bg-orange-500 text-white' : ''}`} onClick={() => setMultiple(true)}>複数シリーズ</button>
     </div>
     {!multiple && <label className="mb-6 flex items-center gap-3 font-medium">シリーズ
-      <select aria-label="シリーズ" className="rounded-md border bg-background px-3 py-2" value={code} onChange={e => setCode(e.target.value)}>
-        {series.map(s => <option key={s.code} value={s.code}>{s.code.startsWith('LEGACY-')?`${s.name}（型番未設定）`:`${s.name}（${s.code}）`}</option>)}
-      </select>
+      <SingleSeriesPicker options={series} value={code} onChange={setCode} label="シリーズ" className="w-full max-w-xl" />
     </label>}
     {multiple ? <SeriesSingles key="MULTI" code="MULTI" name="ポケモン合同" seriesOptions={series} /> : <SeriesSingles key={code} code={code} name={series.find(s => s.code === code)?.name || code} /> }
   </>

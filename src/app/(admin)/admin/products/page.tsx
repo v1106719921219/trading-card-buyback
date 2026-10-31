@@ -1,4 +1,6 @@
 'use client'
+
+import { SingleSeriesPicker } from '@/components/admin/single-series-picker'
 import { fetchAllById } from '@/lib/fetch-all-rows'
 
 import { CardrushSingleUpdate } from '@/components/admin/cardrush-single-update'
@@ -1307,16 +1309,10 @@ async function syncToChiba() {
               <SelectItem value="individual">個別シングルカード</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={filterSeries} onValueChange={(value) => {
+          <SingleSeriesPicker options={seriesOptions} value={filterSeries} allowAll label="シングルのシリーズ" onChange={(value) => {
             setFilterSeries(value)
             if (value !== 'all') { setSingleScope('individual'); setFilterCategory('all'); setFilterSubcategory('all') }
-          }}>
-            <SelectTrigger aria-label="シングルのシリーズ" className="w-full sm:w-80"><SelectValue placeholder="全シリーズ（シングル）" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全シリーズ（シングル）</SelectItem>
-              {seriesOptions.map(s => <SelectItem key={s.code} value={s.code}>{s.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          }} />
           <Button variant="outline" asChild><a href="/admin/marketing/image-single?group=bulk">まとめ買取の画像・投稿文</a></Button>
         {filteredSubcategories.length > 0 && (
           <Select value={filterSubcategory} onValueChange={setFilterSubcategory}>

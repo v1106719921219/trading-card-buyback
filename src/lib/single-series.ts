@@ -1,4 +1,5 @@
 import catalog from '@/data/single-series-catalog.json'
+import releaseDates from '@/data/single-series-release-dates.json'
 const namesByCode=catalog as Record<string,string>
 const aliases=new Map<string,string>()
 for(const [code,name] of Object.entries(namesByCode)){
@@ -39,6 +40,21 @@ export const MEGA_SERIES = [
 export function singleSeriesName(code:string):string {
  return MEGA_SERIES.find(s=>s.code===code)?.name||(catalog as Record<string,string>)[code]||(code==='OTHER'?'シリーズ未設定':code)
 }
-export function singleSeriesOptions(codes:Iterable<string>){
- return [...new Set([...codes].map(canonicalSingleSeriesCode))].sort((a,b)=>{const ai=MEGA_SERIES.findIndex(s=>s.code===a),bi=MEGA_SERIES.findIndex(s=>s.code===b);return (ai<0?999:ai)-(bi<0?999:bi)||singleSeriesName(a).localeCompare(singleSeriesName(b),'ja',{numeric:true})}).map(code=>({code,name:singleSeriesName(code),label:code==='OTHER'?'シリーズ未設定':`${singleSeriesName(code)}（${code.startsWith('LEGACY-')?'型番未設定':code}）`}))
+export type SingleSeriesOption={code:string;name:string;label:string;releaseDate:string|null}
+export function singleSeriesReleaseDate(code:string):string|null {
+ return (releaseDates as Record<string,string>)[canonicalSingleSeriesCode(code)]||null
+}
+export function compareSingleSeries(a:string,b:string):number {
+ const ad=singleSeriesReleaseDate(a),bd=singleSeriesReleaseDate(b)
+ if(ad!==bd){if(!ad)return 1;if(!bd)return -1;return bd.localeCompare(ad)}
+ const ai=MEGA_SERIES.findIndex(s=>s.code===a),bi=MEGA_SERIES.findIndex(s=>s.code===b)
+ return (ai<0?999:ai)-(bi<0?999:bi)||singleSeriesName(a).localeCompare(singleSeriesName(b),'ja',{numeric:true})||a.localeCompare(b)
+}
+export function singleSeriesOptions(codes:Iterable<string>):SingleSeriesOption[]{
+ return [...new Set([...codes].map(canonicalSingleSeriesCode))].sort(compareSingleSeries).map(code=>({code,name:singleSeriesName(code),label:code==='OTHER'?'シリーズ未設定':`${singleSeriesName(code)}（${code.startsWith('LEGACY-')?'型番未設定':code}）`,releaseDate:singleSeriesReleaseDate(code)}))
+}
+const normalizeSeriesSearch=(s:string)=>s.normalize('NFKC').toLowerCase()
+export function filterSingleSeriesOptions(options:SingleSeriesOption[],query:string):SingleSeriesOption[]{
+ const terms=normalizeSeriesSearch(query).trim().split(/\s+/).filter(Boolean)
+ return options.filter(s=>{const text=normalizeSeriesSearch(`${s.name} ${s.label} ${singleSeriesAliases(s.code).join(' ')} ${s.releaseDate??''}`);return terms.every(term=>text.includes(term))})
 }
