@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { sourceIsFresh, currentCardrushAmount, type CardrushMarketQuote } from '@/lib/cardrush-freshness'
+import { MarketUpdateStamp } from '@/components/admin/market-update-stamp'
 import { Button } from '@/components/ui/button'
 
 export function useCardrushMarket(ids: string[]) {
@@ -38,7 +39,8 @@ export function CardrushMarketCell({ row, busy, error, refresh }: { row?: Cardru
   return <div className="inline-flex flex-col items-end gap-0.5 text-sm">
     {amount !== null ? <a className="underline whitespace-nowrap" href={row!.sourceUrl} target="_blank" rel="noopener noreferrer">{amount.toLocaleString()}円</a> : <span className="text-xs text-muted-foreground">{busy ? '取得中…' : error ? '取得失敗' : row && !sourceIsFresh(row.checkedAt) ? '本日未取得' : row?.reason || '未取得'}</span>}
     <span className="text-[10px] text-muted-foreground">カードラッシュ</span>
-    {row?.sourceUpdated && <span className="text-[10px] text-muted-foreground whitespace-nowrap">掲載更新 {date(row.sourceUpdated)} JST</span>}
+    {row && <MarketUpdateStamp date={row.sourceUpdated} />}
+    {row?.checkedAt && <span className="text-[10px] text-muted-foreground whitespace-nowrap">取得 {date(row.checkedAt)} JST</span>}
     {!busy && (error || row?.reason.includes('取得失敗')) && <Button variant="link" className="h-auto p-0 text-xs" onClick={refresh}>再取得</Button>}
   </div>
 }

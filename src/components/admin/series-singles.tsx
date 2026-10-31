@@ -1,4 +1,5 @@
 'use client'
+import { MarketUpdateStamp } from '@/components/admin/market-update-stamp'
 import { publicationProducts, publicationSelection, isPriceListPublished } from '@/lib/series-publication'
 import { Switch } from '@/components/ui/switch'
 import { singleSeriesAliases } from '@/lib/single-series'
@@ -431,7 +432,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
                           )}
                           <span className="flex-1 text-sm truncate">{product.name}</span>
                           {product.market_price != null && (
-                            <span title={product.market_price_updated_at ? `取得: ${new Date(product.market_price_updated_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}` : '取得日時不明'} className="shrink-0 text-xs text-muted-foreground tabular-nums">{is30th ? '相場' : '参考相場'} {product.market_price.toLocaleString('ja-JP')}円</span>
+                            <span className="inline-flex shrink-0 flex-col items-end gap-1 text-xs text-muted-foreground tabular-nums"><span>{is30th ? '相場' : '参考相場'} {product.market_price.toLocaleString('ja-JP')}円</span><MarketUpdateStamp date={product.market_price_updated_at} kind="checked" /></span>
                           )}
                           <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">{product.price > 0 ? `${product.price.toLocaleString('ja-JP')}円` : '価格未設定'}</Badge>
                           <button

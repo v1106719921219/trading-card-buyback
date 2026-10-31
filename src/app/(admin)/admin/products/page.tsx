@@ -1,5 +1,6 @@
 'use client'
 
+import { MarketUpdateStamp } from '@/components/admin/market-update-stamp'
 import { CardrushMarketCell, useCardrushMarket } from '@/components/admin/cardrush-market'
 import { changePriceListVisibility, type VisibilityRow } from '@/lib/price-list-visibility'
 import { sortProductsByPrice, type ProductPriceOrder } from '@/lib/product-price-order'
@@ -1557,11 +1558,7 @@ async function syncToChiba() {
                       <div className="inline-flex flex-col items-end gap-0.5 whitespace-nowrap text-sm">
                         <span>状態A：{singleABQuotes[product.id].quote.A.price.toLocaleString()}円</span>
                         <span>状態B：{singleABQuotes[product.id].quote.B.price.toLocaleString()}円</span>
-                        <span className="text-[10px] text-muted-foreground">
-                          取得 {new Date(singleABQuotes[product.id].quote.checked_at).toLocaleString('ja-JP', {
-                            timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
-                          })} JST
-                        </span>
+                        <MarketUpdateStamp date={singleABQuotes[product.id].quote.checked_at} kind="checked" />
                       </div>
                     ) : editingUrlId === product.id ? (
                       <Input
@@ -1611,13 +1608,7 @@ async function syncToChiba() {
                           </a>
                         )}
                         </span>
-                        {product.market_price != null && (
-                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                            スニダン {product.market_price_updated_at
-                              ? new Date(product.market_price_updated_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                              : '-'}
-                          </span>
-                        )}
+                        {product.market_price != null && <><span className="text-[10px] text-muted-foreground">スニダン</span><MarketUpdateStamp date={product.market_price_updated_at} kind="checked" /></>}
                       </span>
                     )}
                   </TableCell>
