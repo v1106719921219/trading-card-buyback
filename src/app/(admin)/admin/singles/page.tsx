@@ -29,7 +29,7 @@ export default function SinglesPage() {
     </div>
     {!multiple && <label className="mb-6 flex items-center gap-3 font-medium">シリーズ
       <select aria-label="シリーズ" className="rounded-md border bg-background px-3 py-2" value={code} onChange={e => setCode(e.target.value)}>
-        {series.map(s => <option key={s.code} value={s.code}>{s.name}（{s.code}）</option>)}
+        {series.map(s => <option key={s.code} value={s.code}>{s.code.startsWith('LEGACY-')?`${s.name}（型番未設定）`:`${s.name}（${s.code}）`}</option>)}
       </select>
     </label>}
     {multiple ? <SeriesSingles key="MULTI" code="MULTI" name="ポケモン合同" seriesOptions={series} /> : <SeriesSingles key={code} code={code} name={series.find(s => s.code === code)?.name || code} /> }

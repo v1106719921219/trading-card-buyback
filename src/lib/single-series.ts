@@ -1,13 +1,23 @@
 import catalog from '@/data/single-series-catalog.json'
+const namesByCode=catalog as Record<string,string>
+const aliases=new Map<string,string>()
+for(const [code,name] of Object.entries(namesByCode)){
+ if(!code.startsWith('LEGACY-')&&!(code.length===1&&!['A','B','E','M'].includes(code)))continue
+ const known=Object.keys(namesByCode).filter(c=>!c.startsWith('LEGACY-')&&c.length>1&&namesByCode[c]===name)
+ if(known.length===1)aliases.set(code,known[0])
+}
+export const canonicalSingleSeriesCode=(code:string)=>aliases.get(code)||code
+export const singleSeriesAliases=(code:string)=>[code,...[...aliases].filter(([,target])=>target===code).map(([alias])=>alias)]
+
 export function singleSeriesCode(p: { set_number: string | null; name: string }): string {
   const raw=p.set_number?.trim()||''
   const coded=raw.match(/^([A-Za-z][A-Za-z0-9+_-]*)(?:\s|$)/)?.[1]
-  if(coded)return coded.toUpperCase()
+  if(coded)return canonicalSingleSeriesCode(coded.toUpperCase())
   for(const match of p.name.matchAll(/\[([^\]]+)\]/g)){
     const code=match[1].match(/^([A-Za-z][A-Za-z0-9+_-]*)(?:\s|$)/)?.[1]
-    if(code)return code.toUpperCase()
+    if(code)return canonicalSingleSeriesCode(code.toUpperCase())
     const reverse=match[1].match(/^\d+[\s/]+([A-Za-z]+-[A-Za-z]+)$/)?.[1]
-    if(reverse)return reverse.toUpperCase()
+    if(reverse)return canonicalSingleSeriesCode(reverse.toUpperCase())
   }
   return 'OTHER'
 }
@@ -27,5 +37,5 @@ export function singleSeriesName(code:string):string {
  return MEGA_SERIES.find(s=>s.code===code)?.name||(catalog as Record<string,string>)[code]||(code==='OTHER'?'シリーズ未設定':code)
 }
 export function singleSeriesOptions(codes:Iterable<string>){
- return [...new Set(codes)].sort((a,b)=>{const ai=MEGA_SERIES.findIndex(s=>s.code===a),bi=MEGA_SERIES.findIndex(s=>s.code===b);return (ai<0?999:ai)-(bi<0?999:bi)||singleSeriesName(a).localeCompare(singleSeriesName(b),'ja',{numeric:true})}).map(code=>({code,name:singleSeriesName(code),label:code==='OTHER'?'シリーズ未設定':`${singleSeriesName(code)}（${code.startsWith('LEGACY-')?'型番未設定':code}）`}))
+ return [...new Set([...codes].map(canonicalSingleSeriesCode))].sort((a,b)=>{const ai=MEGA_SERIES.findIndex(s=>s.code===a),bi=MEGA_SERIES.findIndex(s=>s.code===b);return (ai<0?999:ai)-(bi<0?999:bi)||singleSeriesName(a).localeCompare(singleSeriesName(b),'ja',{numeric:true})}).map(code=>({code,name:singleSeriesName(code),label:code==='OTHER'?'シリーズ未設定':`${singleSeriesName(code)}（${code.startsWith('LEGACY-')?'型番未設定':code}）`}))
 }

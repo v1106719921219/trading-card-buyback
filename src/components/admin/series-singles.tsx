@@ -1,4 +1,5 @@
 'use client'
+import { singleSeriesAliases } from '@/lib/single-series'
 import { fetchAllById } from '@/lib/fetch-all-rows'
 
 import { isBulkSingle } from '@/lib/single-product-groups'
@@ -101,7 +102,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
     const [productsResult, settingResult] = await Promise.all([
       fetchAllById((after,size)=>{
         let q=supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('is_active',true).eq('category_id',CATEGORY_ID).in('subcategory_id',isMultiple?[SUBCATEGORY_ID,'19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9']:is30th?[SUBCATEGORY_ID]:['19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9']).order('id').limit(size)
-        if(!isMultiple&&!is30th)q=q.ilike('set_number',`${code}%`)
+        if(!isMultiple&&!is30th)q=q.or(singleSeriesAliases(code).flatMap(c=>[`set_number.ilike.${c}`,`set_number.ilike.${c} *`]).join(','))
         if(after)q=q.gt('id',after)
         return q
       }),
