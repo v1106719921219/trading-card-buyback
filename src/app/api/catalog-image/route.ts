@@ -5,7 +5,7 @@ export async function GET(request:NextRequest){
  const raw=request.nextUrl.searchParams.get('url')||''
  let url:URL
  try{url=new URL(raw)}catch{return new NextResponse('Invalid image',{status:400})}
- if(url.protocol!=='https:'||url.hostname!=='cdn.snkrdunk.com'||url.port||url.username||url.password||!url.pathname.startsWith('/upload_bg_removed/')||!/\.(webp|png|jpe?g)$/i.test(url.pathname)||[...url.searchParams.keys()].some(k=>k!=='size')||raw.length>1500)return new NextResponse('Invalid image',{status:400})
+ if(url.protocol!=='https:'||!((url.hostname==='cdn.snkrdunk.com'&&url.pathname.startsWith('/upload_bg_removed/'))||(url.hostname==='www.30th.pokemon-card.com'&&url.pathname.startsWith('/images/m6a/cards/')))||url.port||url.username||url.password||!/\.(webp|png|jpe?g)$/i.test(url.pathname)||[...url.searchParams.keys()].some(k=>k!=='size')||raw.length>1500)return new NextResponse('Invalid image',{status:400})
  try{
   const response=await fetch(url,{redirect:'error',next:{revalidate:86400},signal:AbortSignal.timeout(20000)})
   const type=response.headers.get('content-type')?.split(';')[0]||''
