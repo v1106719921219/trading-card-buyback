@@ -9,10 +9,13 @@ for(const [code,name] of Object.entries(namesByCode)){
 export const canonicalSingleSeriesCode=(code:string)=>aliases.get(code)||code
 export const singleSeriesAliases=(code:string)=>[code,...[...aliases].filter(([,target])=>target===code).map(([alias])=>alias)]
 
+const descriptions=[...new Set(Object.values(namesByCode))].sort((a,b)=>b.length-a.length).map(name=>{const codes=Object.keys(namesByCode).filter(c=>namesByCode[c]===name);return{name,code:codes.find(c=>c.startsWith('LEGACY-'))||codes[0]}})
 export function singleSeriesCode(p: { set_number: string | null; name: string }): string {
   const raw=p.set_number?.trim()||''
   const coded=raw.match(/^([A-Za-z][A-Za-z0-9+_-]*)(?:\s|$)/)?.[1]
   if(coded)return canonicalSingleSeriesCode(coded.toUpperCase())
+  const described=descriptions.find(s=>p.name.includes(s.name))
+  if(described)return canonicalSingleSeriesCode(described.code)
   for(const match of p.name.matchAll(/\[([^\]]+)\]/g)){
     const code=match[1].match(/^([A-Za-z][A-Za-z0-9+_-]*)(?:\s|$)/)?.[1]
     if(code)return canonicalSingleSeriesCode(code.toUpperCase())
