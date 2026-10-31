@@ -7,7 +7,7 @@ import { sortProductsByPrice, type ProductPriceOrder } from '@/lib/product-price
 import { SINGLE_CARD_RARITIES, UNKNOWN_RARITY, singleCardRarity } from '@/lib/single-card-rarity'
 import { currentCardrushAmount } from '@/lib/cardrush-freshness'
 import { SingleSeriesPicker } from '@/components/admin/single-series-picker'
-import { fetchAllById } from '@/lib/fetch-all-rows'
+import { fetchAllUuidRows } from '@/lib/fetch-all-rows'
 
 import { CardrushSingleUpdate } from '@/components/admin/cardrush-single-update'
 import { singleSeriesOptions, singleSeriesCode } from '@/lib/single-series'
@@ -132,6 +132,10 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
   const [loading, setLoading] = useState(true)
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [catalogLoadError, setCatalogLoadError] = useState('')
+  const [loadedCount, setLoadedCount] = useState(0)
+  const catalogReady = !catalogLoading && !catalogLoadError
   const fetchGeneration = useRef(0)
   const [visibleCount, setVisibleCount] = useState(100)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -215,42 +219,72 @@ export default function ProductsPage() {
 
   async function fetchData() {
     const generation = ++fetchGeneration.current
+    const current = () => generation === fetchGeneration.current
     const scrollY = window.scrollY
-    const [productsResult, categoriesResult, subcategoriesResult] = await Promise.all([
-      fetchAllById((after,size)=>{let q=supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').order('id').limit(size);if(after)q=q.gt('id',after);return q}),
-      supabase.from('categories').select('*').order('sort_order'),
-      supabase.from('subcategories').select('*').order('sort_order'),
-    ])
-
-    if (generation !== fetchGeneration.current) return
-
-    if (productsResult.error) toast.error('商品一覧の取得に失敗しました。再読み込みしてください。')
-    if (productsResult.data) {
-      // カテゴリ → サブカテゴリ → 商品の並び順。サブカテゴリ単位で必ずまとまる
-      // （サブカテゴリなしはそのカテゴリの先頭に表示）
-      const sorted = [...productsResult.data].sort((a, b) => {
-        const catA = a.category?.sort_order ?? 0
-        const catB = b.category?.sort_order ?? 0
-        if (catA !== catB) return catA - catB
-        const subA = a.subcategory?.sort_order ?? -1
-        const subB = b.subcategory?.sort_order ?? -1
-        if (subA !== subB) return subA - subB
-        return (a.sort_order ?? 0) - (b.sort_order ?? 0)
-      })
-      setProducts(sorted.map(p => {
+    setCatalogLoading(true)
+    setCatalogLoadError('')
+    setLoadedCount(0)
+    try {
+      const [categoriesResult, subcategoriesResult] = await Promise.all([
+        supabase.from('categories').select('*').order('sort_order'),
+        supabase.from('subcategories').select('*').order('sort_order'),
+      ])
+      if (!current()) return
+      if (categoriesResult.error || subcategoriesResult.error) throw Error('カテゴリを読み込めませんでした。再試行してください。')
+      const cats = categoriesResult.data ?? [], subs = subcategoriesResult.data ?? []
+      setCategories(cats)
+      setSubcategories(subs)
+      const catMap = new Map(cats.map(c => [c.id, c])), subMap = new Map(subs.map(s => [s.id, s]))
+      const displayRows = (rows: Product[]) => rows.map(p => {
         const local = visibilityOverrides.current.get(p.id)
-        return local && (visibilityLocks.current.has(p.id) || local.updated_at >= p.updated_at)
-          ? { ...p, show_in_price_list: local.show_in_price_list, auto_closed_at: local.auto_closed_at, updated_at: local.updated_at }
-          : p
-      }) as never[])
-    }
-    if (categoriesResult.data) setCategories(categoriesResult.data)
-    if (subcategoriesResult.data) setSubcategories(subcategoriesResult.data)
-    setLoading(false)
-    requestAnimationFrame(() => window.scrollTo(0, scrollY))
+        return {
+          ...p,
+          ...(local && (visibilityLocks.current.has(p.id) || local.updated_at >= p.updated_at) ? { show_in_price_list: local.show_in_price_list, auto_closed_at: local.auto_closed_at, updated_at: local.updated_at } : {}),
+          category: catMap.get(p.category_id) ?? null,
+          subcategory: subMap.get(p.subcategory_id ?? '') ?? null,
+        }
+      }).sort((a,b) => (a.category?.sort_order ?? 0)-(b.category?.sort_order ?? 0) || (a.subcategory?.sort_order ?? -1)-(b.subcategory?.sort_order ?? -1) || (a.sort_order ?? 0)-(b.sort_order ?? 0))
 
-    // 相場の追加情報は一覧の初期表示を待たせない。
-    if (productsResult.data) void loadSingleABQuotes(productsResult.data.filter(p=>p.snkrdunk_url).map(p => p.id), generation)
+      let warmed = products.length > 0
+      // 先頭カテゴリを先に表示。全件の取得はこの後に行い、件数確定前の一括操作は無効にする。
+      if (products.length === 0 && cats[0]) {
+        const firstSub = subs.find(s => s.category_id === cats[0].id)
+        let query = supabase.from('products').select('*').eq('category_id', cats[0].id).order('sort_order').order('id').limit(100)
+        if (firstSub) query = query.eq('subcategory_id', firstSub.id)
+        const abort = new AbortController()
+        const timer = setTimeout(() => abort.abort(), 1500)
+        try {
+          const warm = await query.abortSignal(abort.signal)
+          if (!current()) return
+          if (warm.data?.length) {
+            warmed = true
+            setProducts(displayRows(warm.data) as never[])
+            setLoading(false)
+            setLoadedCount(warm.data.length)
+          }
+        } catch { /* 先行取得が遅い場合も全件取得を続ける。 */ }
+        finally { clearTimeout(timer) }
+      }
+      const productsResult = await fetchAllUuidRows((after,size,lower,upper) => {
+        let q = supabase.from('products').select('*').order('id').limit(size).gte('id',lower)
+        if (upper) q = q.lt('id',upper)
+        if (after) q = q.gt('id',after)
+        return q
+      }, { shouldContinue: current, onProgress: read => { if (current()) setLoadedCount(read) }, onBatch: rows => { if (current() && !warmed) { warmed = true; setProducts(displayRows(rows) as never[]); setLoading(false) } } })
+      if (!current()) return
+      if (productsResult.error || !productsResult.data) throw Error('商品一覧を最後まで読み込めませんでした。再試行してください。')
+      setProducts(displayRows(productsResult.data) as never[])
+      requestAnimationFrame(() => window.scrollTo(0,scrollY))
+      void loadSingleABQuotes(productsResult.data.filter(p=>p.snkrdunk_url).map(p=>p.id),generation)
+    } catch (e) {
+      if (current()) {
+        const message = e instanceof Error ? e.message : '商品を読み込めませんでした'
+        setCatalogLoadError(message)
+        toast.error(message)
+      }
+    } finally {
+      if (current()) { setLoading(false); setCatalogLoading(false) }
+    }
   }
 
   async function loadSingleABQuotes(ids: string[], generation: number) {
@@ -324,7 +358,7 @@ export default function ProductsPage() {
 
   const visibleProducts = useMemo(() => filteredProducts.slice(0, visibleCount), [filteredProducts, visibleCount])
 
-  const rushMarket = useCardrushMarket(visibleProducts.filter(isIndividualSingle).map(p => p.id))
+  const rushMarket = useCardrushMarket(catalogReady ? visibleProducts.filter(isIndividualSingle).map(p => p.id) : [])
 
   const bulkShowTargets = filteredProducts.filter((p) => p.is_active && p.price > 0 && !p.auto_closed_at)
   const bulkTargetCount = bulkAction === 'show' ? bulkShowTargets.length : filteredProducts.length
@@ -414,6 +448,7 @@ async function syncToChiba() {
   }
 
   function handleCsvExport() {
+    if (!catalogReady) { toast.info('全件の読み込み完了後に出力できます'); return }
     const headers = ['カテゴリ', 'サブカテゴリ', '商品名', 'カード型番', 'セット型番', '買取価格', '画像URL', '価格表', '相場', '出品数', '掲載元の更新日', '相場の参照先', '取得状況']
     const rows = filteredProducts.map((p) => [
       p.category?.name ?? '',
@@ -653,6 +688,7 @@ async function syncToChiba() {
   }
 
   function parseCsv() {
+    if (!catalogReady) { toast.info('全件の読み込み完了後に利用できます'); return }
     let lines = csvText.trim().split('\n').filter((l) => l.trim())
     const results: typeof csvPreview = []
 
@@ -762,6 +798,7 @@ async function syncToChiba() {
   }
 
   async function handleCsvImport() {
+    if (!catalogReady) return
     const validItems = csvPreview.filter((item) => !item.error)
     if (validItems.length === 0) {
       toast.error('インポートできる商品がありません')
@@ -914,7 +951,7 @@ async function syncToChiba() {
   }
 
   async function handleBulkTogglePriceList(show: boolean) {
-    if (visibilityLocks.current.size || bulkUpdating) return
+    if (!catalogReady || visibilityLocks.current.size || bulkUpdating) return
     // 表示にする場合、0円の商品と自動締切中（申込済み・相場確認待ち）の商品は除外する
     const targets = show
       ? bulkShowTargets
@@ -951,7 +988,7 @@ async function syncToChiba() {
   }
 
   async function handleDragEnd(event: DragEndEvent) {
-    if (priceOrder !== 'default') return
+    if (!catalogReady || priceOrder !== 'default') return
     const { active, over } = event
     if (!over || active.id === over.id) return
 
@@ -1042,15 +1079,15 @@ async function syncToChiba() {
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshingMarket ? 'animate-spin' : ''}`} />
               {refreshingMarket ? '相場取得中...' : '相場を更新'}
             </Button>
-            <Button variant="outline" disabled={rushMarket.busy || !visibleProducts.some(isIndividualSingle)} onClick={rushMarket.refresh}>{rushMarket.busy ? 'カードラッシュ取得中…' : 'カードラッシュ相場を再取得'}</Button>
-            <CardrushSingleUpdate ids={filteredProducts.filter(isIndividualSingle).map(p => p.id)} onApplied={() => { rushMarket.refresh(); void fetchData() }} />
-            <Button variant="outline" onClick={handleCsvExport}>
+            <Button variant="outline" disabled={!catalogReady || rushMarket.busy || !visibleProducts.some(isIndividualSingle)} onClick={rushMarket.refresh}>{rushMarket.busy ? 'カードラッシュ取得中…' : 'カードラッシュ相場を再取得'}</Button>
+            <CardrushSingleUpdate disabled={!catalogReady} ids={filteredProducts.filter(isIndividualSingle).map(p => p.id)} onApplied={() => { rushMarket.refresh(); void fetchData() }} />
+            <Button variant="outline" onClick={handleCsvExport} disabled={!catalogReady}>
               <Download className="mr-2 h-4 w-4" />
               CSVエクスポート
             </Button>
             <Dialog open={csvDialogOpen} onOpenChange={(open) => { setCsvDialogOpen(open); if (!open) { setCsvText(''); setCsvPreview([]) } }}>
               <DialogTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" disabled={!catalogReady}>
                   <Upload className="mr-2 h-4 w-4" />
                   CSVインポート
                 </Button>
@@ -1073,7 +1110,7 @@ async function syncToChiba() {
                       rows={6}
                     />
                   </div>
-                  <Button variant="outline" onClick={parseCsv} disabled={!csvText.trim()}>
+                  <Button variant="outline" onClick={parseCsv} disabled={!catalogReady || !csvText.trim()}>
                     プレビュー
                   </Button>
 
@@ -1315,6 +1352,8 @@ async function syncToChiba() {
         />
       </div>
 
+      {catalogLoading && <div role="status" aria-live="polite" className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">商品を順次読み込み中（{loadedCount.toLocaleString()}件取得済み）。一括変更・CSV出力は全件そろってから利用できます。</div>}
+      {catalogLoadError && <div role="alert" className="flex items-center gap-3 rounded-lg border border-amber-300 p-4 text-sm">{catalogLoadError}<Button variant="outline" size="sm" onClick={() => fetchData()}>再試行</Button></div>}
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         <div className="relative min-w-64 flex-1 sm:max-w-sm">
@@ -1401,7 +1440,7 @@ async function syncToChiba() {
           <Button variant="ghost" size="sm" onClick={() => { setMinPrice(''); setMaxPrice('') }}>価格条件を解除</Button>
         </div>
         <p className="text-sm text-muted-foreground w-full">
-          絞り込み {filteredProducts.length}件 ／ 一括表示対象 {bulkShowTargets.length}件
+          {!catalogReady && '読み込み済みの商品から ' }絞り込み {filteredProducts.length}件 ／ 一括表示対象 {bulkShowTargets.length}件
           （0円・受付停止中は表示対象外。価格帯指定時は価格未取得・0円も除外）
         </p>
         <div className="flex gap-2 sm:ml-auto">
@@ -1409,7 +1448,7 @@ async function syncToChiba() {
             variant="outline"
             size="sm"
             onClick={() => setBulkAction('show')}
-            disabled={bulkUpdating || visibilitySaving.size > 0 || bulkShowTargets.length === 0}
+            disabled={!catalogReady || bulkUpdating || visibilitySaving.size > 0 || bulkShowTargets.length === 0}
           >
             <Eye className="mr-1 h-4 w-4" />
             まとめて表示
@@ -1418,7 +1457,7 @@ async function syncToChiba() {
             variant="outline"
             size="sm"
             onClick={() => setBulkAction('hide')}
-            disabled={bulkUpdating || visibilitySaving.size > 0 || filteredProducts.length === 0}
+            disabled={!catalogReady || bulkUpdating || visibilitySaving.size > 0 || filteredProducts.length === 0}
           >
             <EyeOff className="mr-1 h-4 w-4" />
             まとめて非表示
@@ -1439,7 +1478,7 @@ async function syncToChiba() {
               <AlertDialogCancel disabled={bulkUpdating}>キャンセル</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => handleBulkTogglePriceList(bulkAction === 'show')}
-                disabled={bulkUpdating}
+                disabled={!catalogReady || bulkUpdating}
               >
                 {bulkUpdating ? '更新中...' : `${bulkTargetCount}件を${bulkAction === 'show' ? '表示' : '非表示'}にする`}
               </AlertDialogAction>
@@ -1477,12 +1516,12 @@ async function syncToChiba() {
             ) : filteredProducts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
-                  商品がありません
+                  {catalogLoading ? '該当商品を読み込み中…' : catalogLoadError ? '商品一覧の読み込みを完了できませんでした' : '商品がありません'}
                 </TableCell>
               </TableRow>
             ) : (
               visibleProducts.map((product) => (
-                <SortableRow key={product.id} id={product.id} disabled={priceOrder !== 'default'}>
+                <SortableRow key={product.id} id={product.id} disabled={!catalogReady || priceOrder !== 'default'}>
                   <TableCell className="hidden md:table-cell">
                     <DragHandle />
                   </TableCell>
@@ -1675,7 +1714,7 @@ async function syncToChiba() {
       {!loading && filteredProducts.length > 0 && (
         <div className="flex items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            {filteredProducts.length}件中 {visibleProducts.length}件表示（検索・一括操作は全該当商品が対象）
+            {filteredProducts.length}件中 {visibleProducts.length}件表示（{catalogReady ? '検索・一括操作は全該当商品が対象' : '全件読み込み中・件数はまだ確定していません'}）
           </p>
           {visibleProducts.length < filteredProducts.length && (
             <Button variant="outline" onClick={() => setVisibleCount(count => count + 100)}>

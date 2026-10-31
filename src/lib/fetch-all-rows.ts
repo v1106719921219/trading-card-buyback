@@ -19,3 +19,32 @@ export async function fetchAllById<T extends {id:string}>(page:(after:string|nul
   after=next[next.length-1].id
  }
 }
+
+/** Four disjoint UUID ranges keep indexed keyset scans bounded and avoid offset/count queries. */
+export async function fetchAllUuidRows<T extends {id:string}>(
+ page:(after:string|null,size:number,lower:string,upper:string|null)=>PromiseLike<{data:T[]|null;error:unknown}>,
+ options:{size?:number;onProgress?:(read:number)=>void;onBatch?:(rows:T[])=>void;shouldContinue?:()=>boolean}={},
+):Promise<{data:T[]|null;error:unknown}>{
+ const bounds=['00000000-0000-0000-0000-000000000000','40000000-0000-0000-0000-000000000000','80000000-0000-0000-0000-000000000000','c0000000-0000-0000-0000-000000000000']
+ let read=0
+ const results=await Promise.all(bounds.map((lower,index)=>{
+  const upper=bounds[index+1]??null
+  return fetchAllById<T>(async(after,size)=>{
+   if(options.shouldContinue&&!options.shouldContinue())return{data:null,error:new Error('読み込みを中断しました')}
+   const result=await page(after,size,lower,upper)
+   if(result.error)return result
+   if(result.data?.some(r=>r.id<lower||upper!==null&&r.id>=upper))return{data:null,error:new Error('商品取得範囲が一致しません')}
+   const rows=result.data??[]
+   if(rows.some((r,i)=>!r.id||(i?r.id<=rows[i-1].id:after!==null&&r.id<=after)))return{data:null,error:new Error('商品一覧が変更されました。再読み込みしてください')}
+   read+=rows.length
+   if(rows.length)options.onBatch?.(rows)
+   options.onProgress?.(read)
+   return result
+  },options.size??500)
+ }))
+ const failed=results.find(r=>r.error)
+ if(failed)return{data:null,error:failed.error}
+ const data=results.flatMap(r=>r.data??[])
+ if(new Set(data.map(r=>r.id)).size!==data.length)return{data:null,error:new Error('商品一覧に重複があります。再読み込みしてください')}
+ return{data,error:null}
+}

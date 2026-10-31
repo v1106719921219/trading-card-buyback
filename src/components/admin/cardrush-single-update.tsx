@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import type { RushRow } from '@/lib/cardrush-singles'
 type Preview = { id: string; percent: number; expires: number; rows: RushRow[] }
 const date = (v: string | null) => v ? new Date(v).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '—'
-export function CardrushSingleUpdate({ ids, onApplied }: { ids: string[]; onApplied: () => void }) {
+export function CardrushSingleUpdate({ ids, onApplied, disabled = false }: { ids: string[]; onApplied: () => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [percent, setPercent] = useState('100')
   const [preview, setPreview] = useState<Preview | null>(null), [message, setMessage] = useState('')
   async function run(action: 'preview' | 'cron_preview' | 'apply') {
@@ -23,7 +23,7 @@ export function CardrushSingleUpdate({ ids, onApplied }: { ids: string[]; onAppl
   }
   const changes = preview?.rows.filter(r => r.proposed !== null && r.proposed !== r.current).length || 0
   return <>
-    <Button variant="outline" onClick={() => { setOpen(true); setPreview(null); setMessage('') }}>シングル相場・価格更新</Button>
+    <Button variant="outline" disabled={disabled} onClick={() => { setOpen(true); setPreview(null); setMessage('') }}>シングル相場・価格更新</Button>
     <Dialog open={open} onOpenChange={v => { if (!busy) setOpen(v) }}>
       <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>カードラッシュ基準のシングル価格更新</DialogTitle><DialogDescription>商品管理で絞り込んだ通常シングル {ids.length} 商品が対象です。PSA鑑定品・まとめ買取は別管理です。</DialogDescription></DialogHeader>
