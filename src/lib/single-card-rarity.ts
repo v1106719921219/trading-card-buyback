@@ -1,8 +1,11 @@
-export const SINGLE_CARD_RARITIES = ['MUR','BWR','UR','FUR','SAR','SR','HR','SSR','MA','AR','CSR','CHR','RRR','RR','TR','ACE','S','R','U','C','P'] as const
+export const SINGLE_CARD_RARITIES = ['MUR','BWR','UR','FUR','SAR','SA','SR','HR','SSR','MA','AR','CSR','CHR','RRR','RR','TR','ACE','S','R','U','C','P'] as const
 export const UNKNOWN_RARITY = 'UNKNOWN'
 /** 商品名に明記されたレアリティだけを読む。型番やVSTAR内のAR等は推測しない。 */
 export function singleCardRarity(name: string): string {
-  const clean = name.normalize('NFKC').replace(/\[[^\]]*\]/g, ' ').replace(/PSA\s*\d+/gi, ' ').replace(/\([^)]*\)/g, ' ').trim()
+  const normalized = name.normalize('NFKC').replace(/\[[^\]]*\]/g, ' ').replace(/PSA\s*\d+/gi, ' ')
+  // SAはSR/HR等に併記されるため先に判定。SARやPSAの文字列は拾わない。
+  if (/(?:^|[\s:;/()-])SA(?=[\s:;/()-]|$)/i.test(normalized)) return 'SA'
+  const clean = normalized.replace(/\([^)]*\)/g, ' ').trim()
   return clean.match(/(?:^|\s)(MUR|BWR|FUR|SAR|CSR|CHR|SSR|RRR|ACE|UR|SR|HR|MA|AR|RR|TR|S|R|U|C|P)(?=\s|$)/i)?.[1].toUpperCase() ?? UNKNOWN_RARITY
 }
 export function rarityRank(name: string): number {
