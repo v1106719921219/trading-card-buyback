@@ -2,6 +2,8 @@
 
 import { CardrushMarketCell, useCardrushMarket } from '@/components/admin/cardrush-market'
 import { changePriceListVisibility, type VisibilityRow } from '@/lib/price-list-visibility'
+import { sortProductsByPrice, type ProductPriceOrder } from '@/lib/product-price-order'
+import { SINGLE_CARD_RARITIES, UNKNOWN_RARITY, singleCardRarity } from '@/lib/single-card-rarity'
 import { currentCardrushAmount } from '@/lib/cardrush-freshness'
 import { SingleSeriesPicker } from '@/components/admin/single-series-picker'
 import { fetchAllById } from '@/lib/fetch-all-rows'
@@ -96,8 +98,8 @@ function psa10VisibilityStatus(product: Product & { subcategory: Subcategory | n
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const DragHandleContext = createContext<{ attributes: Record<string, any>; listeners: Record<string, any> | undefined }>({ attributes: {}, listeners: undefined })
 
-function SortableRow({ id, children }: { id: string; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+function SortableRow({ id, children, disabled = false }: { id: string; children: React.ReactNode; disabled?: boolean }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -138,7 +140,9 @@ export default function ProductsPage() {
   const [filterSubcategory, setFilterSubcategory] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [filterSeries, setFilterSeries] = useState('all')
+  const [filterRarity, setFilterRarity] = useState('all')
   const [priceBasis, setPriceBasis] = useState('buyback')
+  const [priceOrder, setPriceOrder] = useState<ProductPriceOrder>('default')
   const [minPrice, setMinPrice] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
 
@@ -295,7 +299,13 @@ export default function ProductsPage() {
     return singleSeriesOptions(products.filter(isIndividualSingle).map(singleSeriesCode))
   }, [products])
 
-  const filteredProducts = useMemo(() => products.filter((p) => {
+  const rarityById = useMemo(() => new Map(products.filter(isIndividualSingle).map(p => [p.id, singleCardRarity(p.name)])), [products])
+  const rarityOptions = useMemo(() => {
+    const found = new Set(rarityById.values())
+    return [...SINGLE_CARD_RARITIES, UNKNOWN_RARITY].filter(r => found.has(r))
+  }, [rarityById])
+
+  const filteredProducts = useMemo(() => sortProductsByPrice(products.filter((p) => {
     const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory
     const matchesSubcategory = filterSubcategory === 'all' || p.subcategory_id === filterSubcategory
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.model_number && p.model_number.toLowerCase().includes(search.toLowerCase())) || (p.set_number && p.set_number.toLowerCase().includes(search.toLowerCase()))
@@ -304,12 +314,12 @@ export default function ProductsPage() {
     const matchesPrice = !hasPriceFilter || (amount != null && amount > 0 &&
       (minPrice === '' || amount >= Number(minPrice)) &&
       (maxPrice === '' || amount <= Number(maxPrice)))
-    return (filterSeries === 'all' || (isIndividualSingle(p) && singleSeriesCode(p) === filterSeries)) && (singleScope === 'all' || (singleScope === 'bulk' ? isBulkSingle(p) : isIndividualSingle(p))) && matchesCategory && matchesSubcategory && matchesSearch && matchesPrice
-  }), [products, filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
+    return (filterRarity === 'all' || rarityById.get(p.id) === filterRarity) && (filterSeries === 'all' || (isIndividualSingle(p) && singleSeriesCode(p) === filterSeries)) && (singleScope === 'all' || (singleScope === 'bulk' ? isBulkSingle(p) : isIndividualSingle(p))) && matchesCategory && matchesSubcategory && matchesSearch && matchesPrice
+  }), priceOrder), [products, priceOrder, filterRarity, rarityById, filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
 
   useEffect(() => {
     setVisibleCount(100)
-  }, [filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
+  }, [filterRarity, filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice, priceOrder])
 
   const visibleProducts = useMemo(() => filteredProducts.slice(0, visibleCount), [filteredProducts, visibleCount])
 
@@ -940,6 +950,7 @@ async function syncToChiba() {
   }
 
   async function handleDragEnd(event: DragEndEvent) {
+    if (priceOrder !== 'default') return
     const { active, over } = event
     if (!over || active.id === over.id) return
 
@@ -1305,7 +1316,7 @@ async function syncToChiba() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-        <div className="relative flex-1 sm:max-w-sm">
+        <div className="relative min-w-64 flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="商品名・カード型番・セット型番で検索..."
@@ -1357,6 +1368,23 @@ async function syncToChiba() {
             </SelectContent>
           </Select>
         )}
+        <Select value={filterRarity} onValueChange={value => { setFilterRarity(value); if (value !== 'all') { setSingleScope('individual'); setFilterCategory('all'); setFilterSubcategory('all') } }}>
+          <SelectTrigger aria-label="シングルのレアリティ" className="w-48"><SelectValue placeholder="全レアリティ" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全レアリティ</SelectItem>
+            {rarityOptions.map(rarity => <SelectItem key={rarity} value={rarity}>{rarity === UNKNOWN_RARITY ? 'レアリティ未設定' : rarity}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={priceOrder} onValueChange={value => setPriceOrder(value as ProductPriceOrder)}>
+          <SelectTrigger aria-label="商品の並び順" className="w-52"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="default">通常の並び順</SelectItem>
+            <SelectItem value="price_desc">買取価格：高い順</SelectItem>
+            <SelectItem value="price_asc">買取価格：安い順</SelectItem>
+            <SelectItem value="rarity">レアリティ順</SelectItem>
+          </SelectContent>
+        </Select>
+        {(priceOrder === 'price_asc' || priceOrder === 'price_desc') && <span className="text-xs text-muted-foreground">価格未設定は末尾</span>}
         <Select value={priceBasis} onValueChange={setPriceBasis}>
           <SelectTrigger aria-label="価格の基準" className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -1432,7 +1460,7 @@ async function syncToChiba() {
               <TableHead className="hidden sm:table-cell">カテゴリ</TableHead>
               <TableHead className="hidden lg:table-cell">サブカテゴリ</TableHead>
               <TableHead className="text-right">買取価格</TableHead>
-              <TableHead className="text-right hidden md:table-cell">相場<br /><span className="text-xs font-normal">シングル：カードラッシュ／BOX・PSA等：スニダン</span></TableHead>
+              <TableHead className="text-right hidden md:table-cell">相場</TableHead>
               <TableHead className="w-20">価格表</TableHead>
               <TableHead className="w-20 sm:w-32 text-right">操作</TableHead>
             </TableRow>
@@ -1453,7 +1481,7 @@ async function syncToChiba() {
               </TableRow>
             ) : (
               visibleProducts.map((product) => (
-                <SortableRow key={product.id} id={product.id}>
+                <SortableRow key={product.id} id={product.id} disabled={priceOrder !== 'default'}>
                   <TableCell className="hidden md:table-cell">
                     <DragHandle />
                   </TableCell>
@@ -1585,7 +1613,7 @@ async function syncToChiba() {
                         </span>
                         {product.market_price != null && (
                           <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                            更新 {product.market_price_updated_at
+                            スニダン {product.market_price_updated_at
                               ? new Date(product.market_price_updated_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
                               : '-'}
                           </span>

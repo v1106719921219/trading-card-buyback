@@ -20,13 +20,13 @@ export async function POST(req: NextRequest) {
     const { data: products, error } = await db.from('products').select('id,name,set_number,model_number,subcategory_id,price,updated_at,is_active').eq('tenant_id', tenant).in('subcategory_id', singleSubcategories).in('id', [...new Set(body.ids)]).limit(100)
     if (error) throw Error('対象商品を取得できませんでした')
     const codes = [...new Set((products ?? []).filter(isEligibleSingle).map(singleSeriesCode).filter(c => /^[A-Z0-9+-]{1,16}$/.test(c) && c !== 'OTHER'))]
-    const keys = codes.map(c => `cardrush_market:${tenant}:${c}`)
+    const keys = codes.map(c => `cardrush_market:v2:${tenant}:${c}`)
     const { data: saved } = keys.length ? await db.from('app_settings').select('key,value').eq('tenant_id', tenant).in('key', keys) : { data: [] }
     const sources = new Map<string, z.infer<typeof cacheSchema>>(), failures = new Set<string>()
     let next = 0
     await Promise.all(Array.from({ length: 3 }, async () => {
       while (next < codes.length) {
-        const code = codes[next++], key = `cardrush_market:${tenant}:${code}`, prior = saved?.find(s => s.key === key)
+        const code = codes[next++], key = `cardrush_market:v2:${tenant}:${code}`, prior = saved?.find(s => s.key === key)
         try {
           if (prior && !body.refresh) {
             const cached = cacheSchema.safeParse(JSON.parse(prior.value))

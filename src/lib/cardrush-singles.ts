@@ -18,8 +18,8 @@ export function matchRush(p: SingleProduct, quotes: RushQuote[], percent: number
   const row: RushRow = { id: p.id, name: p.name, code, current: p.price, proposed: null, quote: null, sourceUpdated: null, sourceUrl: `https://cardrush.media/pokemon/buying_prices?pack_code=${encodeURIComponent(code)}`, expected: p.updated_at, reason: '' }
   if (!isEligibleSingle(p)) return { ...row, reason: 'まとめ商品・特殊仕様は手動確認' }
   let name = p.name.replace(/\s*\[[^\]]+\]\s*$/, '').replace(/\s*\(\d{3}\/103\)\s*$/, '')
-  const rarity = name.match(/\s(SAR|CSR|CHR|AR|SR|UR|MUR|BWR|HR|SSR|RRR|RR|MA|P|U|C)(?:\s+SA)?$/)?.[1] || '-'
-  name = name.replace(/\s(SAR|CSR|CHR|AR|SR|UR|MUR|BWR|HR|SSR|RRR|RR|MA|P|U|C)(?:\s+SA)?$/, '')
+  const rarity = name.match(/\s(SAR|CSR|CHR|AR|SR|UR|MUR|BWR|FUR|HR|SSR|RRR|RR|MA|P|U|C)(?:\s+SA)?$/)?.[1] || '-'
+  name = name.replace(/\s(SAR|CSR|CHR|AR|SR|UR|MUR|BWR|FUR|HR|SSR|RRR|RR|MA|P|U|C)(?:\s+SA)?$/, '')
   const model = p.model_number?.trim().replace(/^[A-Za-z0-9-]+\s+(\d+\/\d+)$/, '$1') || p.name.match(/\((\d{3}\/103)\)/)?.[1]
   if (!model || code === 'OTHER') return { ...row, reason: 'シリーズ・型番の確認が必要' }
   const exact = quotes.filter(q => q.pack_code?.toUpperCase() === code && q.model_number === model && q.rarity === rarity && norm(q.name) === norm(name) && !q.extra_difference && !q.is_unlimited)
@@ -48,7 +48,7 @@ export async function fetchRushSeries(code: string): Promise<RushQuote[]> {
       if (!m) throw Error('掲載元の形式を確認してください')
       const data = z.object({ buyingPrices: z.array(rushQuoteSchema), lastPage: z.number().int().min(0).max(20), query: z.object({ pack_code: z.string() }) }).parse(JSON.parse(m[1]).props.pageProps)
       if (data.query.pack_code !== c) throw Error('取得シリーズが一致しません')
-      if (data.buyingPrices.length) { variant = c; found = data; break }
+      if (data.buyingPrices.some(q => q.pack_code?.toUpperCase() === code)) { variant = c; found = data; break }
     }
     if (!found) break
     pages = found.lastPage
