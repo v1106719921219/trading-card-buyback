@@ -146,6 +146,7 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('')
   const [filterSeries, setFilterSeries] = useState('all')
   const [filterRarity, setFilterRarity] = useState('all')
+  const [filterVisibility, setFilterVisibility] = useState('all')
   const [priceBasis, setPriceBasis] = useState('buyback')
   const [priceOrder, setPriceOrder] = useState<ProductPriceOrder>('default')
   const [minPrice, setMinPrice] = useState('')
@@ -341,6 +342,7 @@ export default function ProductsPage() {
   }, [rarityById])
 
   const filteredProducts = useMemo(() => sortProductsByPrice(products.filter((p) => {
+    const matchesVisibility = filterVisibility === 'all' || (filterVisibility === 'shown' ? p.show_in_price_list : !p.show_in_price_list)
     const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory
     const matchesSubcategory = filterSubcategory === 'all' || p.subcategory_id === filterSubcategory
     const matchesSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.model_number && p.model_number.toLowerCase().includes(search.toLowerCase())) || (p.set_number && p.set_number.toLowerCase().includes(search.toLowerCase()))
@@ -349,12 +351,12 @@ export default function ProductsPage() {
     const matchesPrice = !hasPriceFilter || (amount != null && amount > 0 &&
       (minPrice === '' || amount >= Number(minPrice)) &&
       (maxPrice === '' || amount <= Number(maxPrice)))
-    return (filterRarity === 'all' || rarityById.get(p.id) === filterRarity) && (filterSeries === 'all' || (isIndividualSingle(p) && singleSeriesCode(p) === filterSeries)) && (singleScope === 'all' || (singleScope === 'bulk' ? isBulkSingle(p) : isIndividualSingle(p))) && matchesCategory && matchesSubcategory && matchesSearch && matchesPrice
-  }), priceOrder), [products, priceOrder, filterRarity, rarityById, filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
+    return matchesVisibility && (filterRarity === 'all' || rarityById.get(p.id) === filterRarity) && (filterSeries === 'all' || (isIndividualSingle(p) && singleSeriesCode(p) === filterSeries)) && (singleScope === 'all' || (singleScope === 'bulk' ? isBulkSingle(p) : isIndividualSingle(p))) && matchesCategory && matchesSubcategory && matchesSearch && matchesPrice
+  }), priceOrder), [products, priceOrder, filterVisibility, filterRarity, rarityById, filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
 
   useEffect(() => {
     setVisibleCount(100)
-  }, [filterRarity, filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice, priceOrder])
+  }, [filterVisibility, filterRarity, filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice, priceOrder])
 
   const visibleProducts = useMemo(() => filteredProducts.slice(0, visibleCount), [filteredProducts, visibleCount])
 
@@ -1415,6 +1417,14 @@ async function syncToChiba() {
             {rarityOptions.map(rarity => <SelectItem key={rarity} value={rarity}>{rarity === UNKNOWN_RARITY ? 'レアリティ未設定' : rarity}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterVisibility} onValueChange={setFilterVisibility}>
+          <SelectTrigger aria-label="価格表の表示状態" className="w-48"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">表示状態：すべて</SelectItem>
+            <SelectItem value="shown">表示中のみ</SelectItem>
+            <SelectItem value="hidden">非表示のみ</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={priceOrder} onValueChange={value => setPriceOrder(value as ProductPriceOrder)}>
           <SelectTrigger aria-label="商品の並び順" className="w-52"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -1436,7 +1446,6 @@ async function syncToChiba() {
           <Input aria-label="価格の下限" type="number" min="0" placeholder="下限（円）" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} className="w-32" />
           <span>〜</span>
           <Input aria-label="価格の上限" type="number" min="0" placeholder="上限（円）" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="w-32" />
-          <Button variant="outline" size="sm" onClick={() => { setMinPrice(''); setMaxPrice('20000') }}>2万円以下</Button>
           <Button variant="ghost" size="sm" onClick={() => { setMinPrice(''); setMaxPrice('') }}>価格条件を解除</Button>
         </div>
         <p className="text-sm text-muted-foreground w-full">
