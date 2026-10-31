@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   if (req.headers.get('origin') && req.headers.get('origin') !== req.nextUrl.origin) return NextResponse.json({ error: '送信元が一致しません' }, { status: 403 })
   try {
     const body = bodySchema.parse(await req.json())
-    const { data: saved, error: readError } = await db.from('app_settings').select('value').eq('tenant_id', tenant).eq('key', key).maybeSingle()
+    const { data: saved, error: readError } = await db.from('app_settings').select('value,updated_at').eq('tenant_id', tenant).eq('key', key).maybeSingle()
     if (readError) throw Error('取得記録を読み込めませんでした')
     if (body.action === 'preview') {
       const { data: products, error } = await db.from('products').select('id,name,set_number,model_number,subcategory_id,price,updated_at,is_active').eq('tenant_id', tenant).in('subcategory_id', singleSubcategories).in('id', [...new Set(body.ids)]).order('id').range(0,599)
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       const rows = products.map(p => { const code = singleSeriesCode(p); return failures.has(code) ? { ...matchRush(p, [], body.percent), reason: failures.get(code)! } : matchRush(p, quotes.get(code) || [], body.percent) })
       const snapshot: Snapshot = { id: randomUUID(), expires: Date.now() + 10 * 60000, rows, percent: body.percent, consumed: false }
       const value = JSON.stringify(snapshot)
-      const write = saved ? await db.from('app_settings').update({ value }).eq('key', key).eq('tenant_id', tenant) : await db.from('app_settings').insert({ key, value, tenant_id: tenant, description: '通常シングル・カードラッシュ取得記録' })
+      const write = saved ? await db.from('app_settings').update({ value, updated_at: new Date().toISOString() }).eq('key', key).eq('tenant_id', tenant) : await db.from('app_settings').insert({ key, value, tenant_id: tenant, description: '通常シングル・カードラッシュ取得記録' })
       if (write.error) throw Error('取得記録を保存できませんでした')
       return NextResponse.json(snapshot, { headers: { 'Cache-Control': 'no-store' } })
     }
@@ -49,15 +49,15 @@ export async function POST(req: NextRequest) {
       if (!rows.length) throw Error('対象商品が自動計算結果に含まれていません')
       const snapshot: Snapshot = { id: randomUUID(), expires: Date.now() + 10 * 60000, rows, percent: daily.percent, consumed: false }
       const value = JSON.stringify(snapshot)
-      const write = saved ? await db.from('app_settings').update({ value }).eq('key', key).eq('tenant_id', tenant) : await db.from('app_settings').insert({ key, value, tenant_id: tenant, description: '通常シングル・カードラッシュ取得記録' })
+      const write = saved ? await db.from('app_settings').update({ value, updated_at: new Date().toISOString() }).eq('key', key).eq('tenant_id', tenant) : await db.from('app_settings').insert({ key, value, tenant_id: tenant, description: '通常シングル・カードラッシュ取得記録' })
       if (write.error) throw Error('取得記録を保存できませんでした')
       return NextResponse.json(snapshot, { headers: { 'Cache-Control': 'no-store' } })
     }
     if (!saved) throw Error('先に相場を取得してください')
     const snapshot: Snapshot = JSON.parse(saved.value)
     if (snapshot.id !== body.snapshotId || snapshot.consumed || snapshot.expires < Date.now()) throw Error('取得結果が期限切れか使用済みです。再取得してください')
-    // Consume with compare-and-swap to prevent concurrent/repeated apply requests.
-    const claimed = await db.from('app_settings').update({ value: JSON.stringify({ ...snapshot, consumed: true }) }).eq('key', key).eq('tenant_id', tenant).eq('value', saved.value).select('key')
+    // 更新時刻で占有する。取得結果全体をURL条件に入れると多数商品でURI上限を超える。
+    const claimed = await db.from('app_settings').update({ value: JSON.stringify({ ...snapshot, consumed: true }), updated_at: new Date().toISOString() }).eq('key', key).eq('tenant_id', tenant).eq('updated_at', saved.updated_at).select('key')
     if (claimed.error || claimed.data?.length !== 1) throw Error('別の更新が進行しています。再取得してください')
     let changed = 0
     const errors: string[] = []
