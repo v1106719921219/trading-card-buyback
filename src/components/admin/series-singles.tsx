@@ -1,4 +1,6 @@
 'use client'
+import { publicationProducts, publicationSelection, isPriceListPublished } from '@/lib/series-publication'
+import { Switch } from '@/components/ui/switch'
 import { singleSeriesAliases } from '@/lib/single-series'
 import { fetchAllById } from '@/lib/fetch-all-rows'
 
@@ -77,6 +79,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
   const DEFAULT_HEADER = isMultiple ? '🃏ポケモンカード シングル買取強化中🃏' : `🃏${name} シングルカード 高価買取中🃏`
   const [products, setProducts] = useState<ProductWithRelations[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [publishedOnly, setPublishedOnly] = useState(false)
   const [highPriceIds, setHighPriceIds] = useState<Set<string>>(new Set())
   const [header, setHeader] = useState(DEFAULT_HEADER)
   const [footer, setFooter] = useState(DEFAULT_FOOTER)
@@ -97,7 +100,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
     return () => { document.head.removeChild(link) }
   }, [])
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (restoreDefaults = true) => {
     setLoading(true)
     const [productsResult, settingResult] = await Promise.all([
       fetchAllById((after,size)=>{
@@ -117,12 +120,15 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
 
     const s = ((productsResult.data || []) as ProductWithRelations[]).sort((a,b)=>(a.sort_order??0)-(b.sort_order??0)).filter(p => !isBulkSingle(p) && (isMultiple || is30th || singleSeriesCode(p) === code))
     setProducts(s)
+    if (!restoreDefaults) { setLoading(false); return }
+    setPublishedOnly(false)
     setHeader(DEFAULT_HEADER)
     setFooter(DEFAULT_FOOTER)
 
     if (settingResult.data?.value) {
       try {
-        const saved: { singles: string[]; header?: string; footer?: string; series?: string[]; sort?: 'price' | 'series' } = JSON.parse(settingResult.data.value)
+        const saved: { singles: string[]; header?: string; footer?: string; series?: string[]; sort?: 'price' | 'series'; publishedOnly?: boolean } = JSON.parse(settingResult.data.value)
+        setPublishedOnly(saved.publishedOnly === true)
         if (isMultiple) {
           setActiveSeries(Array.isArray(saved.series) ? saved.series.filter(c => typeof c === 'string') : [])
           setSortMode(saved.sort === 'series' ? 'series' : 'price')
@@ -146,7 +152,10 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const visibleProducts = useMemo(() => products.filter(p => !isMultiple || activeSeries.includes(p.subcategory_id === SUBCATEGORY_ID ? 'M6A' : singleSeriesCode(p))), [products, isMultiple, activeSeries])
+  const seriesProducts = useMemo(() => products.filter(p => !isMultiple || activeSeries.includes(p.subcategory_id === SUBCATEGORY_ID ? 'M6A' : singleSeriesCode(p))), [products, isMultiple, activeSeries])
+  const visibleProducts = useMemo(() => publicationProducts(seriesProducts, publishedOnly), [seriesProducts, publishedOnly])
+  const effectiveSelectedIds = useMemo(() => publicationSelection(visibleProducts, selectedIds, publishedOnly), [visibleProducts, selectedIds, publishedOnly])
+  const publishedCount = seriesProducts.filter(isPriceListPublished).length
   const compareProducts = useCallback((a: Product, b: Product) => {
     if (!isMultiple) return (b.market_price ?? -1) - (a.market_price ?? -1) || cardNum(a) - cardNum(b)
     const ac = a.subcategory_id === SUBCATEGORY_ID ? 'M6A' : singleSeriesCode(a)
@@ -174,13 +183,13 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
   [visibleProducts, is30th, compareProducts])
   // ミラーピカチュウはカード番号順、コンプセットは末尾
   const pikachus = useMemo(() =>
-    products
+    visibleProducts
       .filter((p) => is30th && cardNum(p) < HIGH_RARE_MIN_NUM)
       .sort((a, b) => {
         const compA = p2comp(a); const compB = p2comp(b)
         return compA - compB || cardNum(a) - cardNum(b)
       }),
-  [products, is30th])
+  [visibleProducts, is30th])
 
   function toggleProduct(id: string) {
     setSelectedIds((prev) => {
@@ -210,7 +219,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
 
   async function saveDefaults() {
     setSaving(true)
-    const value = JSON.stringify({ singles: Array.from(selectedIds), header, footer, ...(isMultiple ? { series: activeSeries, sort: sortMode } : {}) })
+    const value = JSON.stringify({ singles: Array.from(effectiveSelectedIds), publishedOnly, header, footer, ...(isMultiple ? { series: activeSeries, sort: sortMode } : {}) })
     const tenantId = 'aaaaaaaa-0000-0000-0000-000000000001'
     const { data: existing } = await supabase.from('app_settings').select('key').eq('key', SETTING_KEY).maybeSingle()
     let error
@@ -226,7 +235,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
 
   // 選択したミラーピカチュウも通常カードの続きにまとめてページ分割する。
   const pageJobs = useMemo<PageJob[]>(() => {
-    const selected = [...rares, ...pikachus].filter(p => selectedIds.has(p.id))
+    const selected = [...rares, ...pikachus].filter(p => effectiveSelectedIds.has(p.id))
     const pages = balancedPages(selected, pageSize)
     return pages.map((items, i) => ({
       key: `シングル-${i}`,
@@ -238,7 +247,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
       cols: is30th ? 8 : Math.min(8, items.length),
       products: items,
     }))
-  }, [rares, pikachus, selectedIds, pageSize, is30th])
+  }, [rares, pikachus, effectiveSelectedIds, pageSize, is30th])
 
   async function downloadPages(jobs: PageJob[]) {
     if (downloading || jobs.length === 0) return
@@ -321,7 +330,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
   // 価格先頭型: 「¥23,000 リザードン (137/103)」。高い順に並べる。
   // ミラーピカチュウが全て同額のときは30行並べず1行にまとめる
   const generatedMessage = [header, xUpdateDateLine(), '', ...postSections.flatMap(({ title, items }) => {
-    const selected = items.filter(p => selectedIds.has(p.id))
+    const selected = items.filter(p => effectiveSelectedIds.has(p.id))
     if (!selected.length) return []
     if (title === 'ミラーピカチュウ') {
       const mirrors = selected.filter(p => /^ピカチュウ \(0(1[7-9]|2\d|3\d|4[0-6])\/103\)/.test(p.name))
@@ -366,8 +375,16 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
           </select>
         </label>
       </div>}
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border p-4">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <Switch aria-label="価格表の表示オンと連動" checked={publishedOnly} disabled={loading} onCheckedChange={setPublishedOnly} />
+          価格表の表示オンと連動
+        </label>
+        <span className="text-xs text-muted-foreground">{publishedOnly ? '表示オン・価格設定済みの商品だけを画像と投稿文に自動反映します。' : 'オフの場合は、下の商品を手動で選択できます。'}{!loading && ('（対象 ' + publishedCount + '件）')}</span>
+        <Button variant="outline" size="sm" disabled={loading} onClick={() => fetchData(false)} className="gap-1"><RefreshCw className="size-3.5" />表示設定を再読み込み</Button>
+      </div>
       {!loading && <p className="mt-4 text-sm text-muted-foreground">登録 {visibleProducts.length}件 ／ 価格設定済み {visibleProducts.filter(p => p.price > 0).length}件 ／ 画像あり {visibleProducts.filter(p => p.image_url).length}件。価格・受付の変更と相場更新は商品管理から行えます。通常シングルの参考相場は状態Aの最安出品価格です。通常シングルは価格設定後に画像へ掲載できます。</p>}
-      {!loading && visibleProducts.length === 0 && <p className="mt-4 rounded border p-4">{isMultiple ? 'シリーズを選択すると商品が表示されます。' : 'このシリーズの商品はまだ登録されていません。'}</p>}
+      {!loading && visibleProducts.length === 0 && <p className="mt-4 rounded border p-4">{isMultiple && activeSeries.length === 0 ? 'シリーズを選択すると商品が表示されます。' : publishedOnly ? '価格表で表示オンの商品がありません。商品管理の価格表スイッチを確認してください。' : 'このシリーズの商品はまだ登録されていません。'}</p>}
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2 rounded-lg border bg-card px-4 py-3">
@@ -375,7 +392,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
               「デフォルトとして保存」で商品選択と投稿文の冒頭・末尾を保存できます
             </p>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">計 {visibleProducts.filter(p => selectedIds.has(p.id)).length} 件選択中</span>
+              <span className="text-sm text-muted-foreground">計 {visibleProducts.filter(p => effectiveSelectedIds.has(p.id)).length} 件選択中</span>
               <Button variant="outline" size="sm" onClick={saveDefaults} disabled={saving || loading} className="gap-1">
                 <Save className="h-3.5 w-3.5" />
                 デフォルトとして保存
@@ -384,7 +401,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
           </div>
 
           {sectionCards.filter(section => is30th || section.items.length > 0).map((section) => {
-            const selectedCount = section.items.filter((p) => selectedIds.has(p.id)).length
+            const selectedCount = section.items.filter((p) => effectiveSelectedIds.has(p.id)).length
             const allSelected = selectedCount > 0 && selectedCount === section.items.filter(p => is30th || p.price > 0).length
             return (
               <Card key={section.title}>
@@ -393,10 +410,10 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
                     <CardTitle className="text-base">{section.title}</CardTitle>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">{selectedCount} / {section.items.length} 件</span>
-                      <Button variant="outline" size="sm" onClick={() => toggleSection(section.items, !allSelected)}>
+                      <Button variant="outline" size="sm" disabled={publishedOnly || loading} onClick={() => toggleSection(section.items, !allSelected)}>
                         {allSelected ? '全解除' : '全選択'}
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={fetchData}><RefreshCw className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => fetchData(false)}><RefreshCw className="h-4 w-4" /></Button>
                     </div>
                   </div>
                 </CardHeader>
@@ -405,7 +422,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
                     <div className="space-y-1.5 max-h-[38vh] overflow-y-auto pr-1">
                       {section.items.map((product) => (
                         <div key={product.id} className="flex items-center gap-3 rounded-md border px-3 py-2 hover:bg-muted transition-colors">
-                          <Checkbox disabled={!is30th && product.price <= 0} checked={selectedIds.has(product.id)} onCheckedChange={() => toggleProduct(product.id)} />
+                          <Checkbox aria-label={product.name + 'を画像に含める'} disabled={publishedOnly || (!is30th && product.price <= 0)} checked={effectiveSelectedIds.has(product.id)} onCheckedChange={() => toggleProduct(product.id)} />
                           {product.image_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded shrink-0" />
@@ -450,7 +467,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
               </label>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm text-muted-foreground">{Array.from(generatedMessage).length}文字（投稿先の文字数制限を確認してください）</span>
-                <Button onClick={copyPost} disabled={loading || !visibleProducts.some(p => selectedIds.has(p.id))} className="gap-2"><Copy className="h-4 w-4" />投稿文をコピー</Button>
+                <Button onClick={copyPost} disabled={loading || !visibleProducts.some(p => effectiveSelectedIds.has(p.id))} className="gap-2"><Copy className="h-4 w-4" />投稿文をコピー</Button>
               </div>
               <Textarea aria-label="投稿文プレビュー" readOnly value={generatedMessage} rows={14} className="font-mono text-sm" />
             </CardContent>
