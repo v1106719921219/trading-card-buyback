@@ -11,3 +11,7 @@ assert.equal(h.matchRush(p,[q,{...q,id:2}],100,now).quote,null);assert.equal(h.m
 const api=fs.readFileSync('src/app/api/admin/cardrush-market/route.ts','utf8');assert.ok(api.includes("eq('tenant_id', tenant)"));assert.ok(!/from\('products'\)\.(update|insert|upsert|delete)/.test(api));
 console.log('PASS: 0-yen product quotes without repricing, same-day JST and midnight/future rules, ambiguous/PSA exclusion, tenant scoping and no product writes');
 const fur={...p,name:'ミュウex FUR (135/103)',set_number:'M6a',model_number:'M6a 135/103'};assert.equal(h.matchRush(fur,[{...q,name:'ミュウex',model_number:'135/103',pack_code:'M6a',rarity:'FUR',extra_difference:'30th'}],100,now).quote,25000);
+
+const saQuote={...q,name:'ミュウV',pack_code:'S8',model_number:'106/100',rarity:'SR',extra_difference:'SA',amount:13000};
+for(const name of ['ミュウV SR SA [S8 106/100]','ミュウV SR:SA [S8 106/100]','ミュウV SR: SA [S8 106/100]','ミュウV SR (SA) [S8 106/100]']){const saProduct={...p,name,price:22400,set_number:'S8',model_number:'106/100'};assert.equal(h.matchRush(saProduct,[saQuote],100,now).proposed,13000);assert.equal(h.matchRush(saProduct,[{...saQuote,extra_difference:''}],100,now).quote,null);assert.equal(h.matchRush(saProduct,[saQuote,{...saQuote,id:2}],100,now).quote,null);}
+assert.equal(h.matchRush({...p,name:'ミュウV SR [S8 106/100]',set_number:'S8',model_number:'106/100'},[saQuote],100,now).quote,null);console.log('PASS SA exact variant matching for spaced/colon/parenthesis forms, reject regular edition and ambiguous variants');
