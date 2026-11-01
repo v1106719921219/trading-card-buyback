@@ -82,6 +82,8 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [publishedOnly, setPublishedOnly] = useState(false)
   const publicationChoice = useRef<boolean | null>(null)
+  const [exclude30th, setExclude30th] = useState(false)
+  const exclusionChoice = useRef<boolean | null>(null)
   const loadGeneration = useRef(0)
   const [loadedCount, setLoadedCount] = useState(0)
   const [highPriceIds, setHighPriceIds] = useState<Set<string>>(new Set())
@@ -131,13 +133,15 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
     setProducts(s)
     if (!restoreDefaults) { setLoading(false); return }
     setPublishedOnly(publicationChoice.current ?? false)
+    setExclude30th(exclusionChoice.current ?? false)
     setHeader(DEFAULT_HEADER)
     setFooter(DEFAULT_FOOTER)
 
     if (settingResult.data?.value) {
       try {
-        const saved: { singles: string[]; header?: string; footer?: string; series?: string[]; sort?: 'price' | 'series'; publishedOnly?: boolean } = JSON.parse(settingResult.data.value)
+        const saved: { singles: string[]; header?: string; footer?: string; series?: string[]; sort?: 'price' | 'series'; publishedOnly?: boolean; exclude30th?: boolean } = JSON.parse(settingResult.data.value)
         setPublishedOnly(publicationChoice.current ?? (saved.publishedOnly === true))
+        setExclude30th(exclusionChoice.current ?? (saved.exclude30th === true))
         if (isMultiple) {
           setActiveSeries(Array.isArray(saved.series) ? saved.series.filter(c => typeof c === 'string') : [])
           setSortMode(saved.sort === 'series' ? 'series' : 'price')
@@ -161,7 +165,12 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
 
   useEffect(() => { const generationRef = loadGeneration; void fetchData(); return () => { generationRef.current++ } }, [fetchData])
 
-  const seriesProducts = useMemo(() => products.filter(p => !isMultiple || (publishedOnly && activeSeries.length === 0) || activeSeries.includes(p.subcategory_id === SUBCATEGORY_ID ? 'M6A' : singleSeriesCode(p))), [products, isMultiple, activeSeries, publishedOnly])
+  const seriesProducts = useMemo(() => products.filter(p => {
+    if (!isMultiple) return true
+    const seriesCode = p.subcategory_id === SUBCATEGORY_ID ? 'M6A' : singleSeriesCode(p)
+    if (exclude30th && seriesCode === 'M6A') return false
+    return (publishedOnly && activeSeries.length === 0) || activeSeries.includes(seriesCode)
+  }), [products, isMultiple, activeSeries, publishedOnly, exclude30th])
   const visibleProducts = useMemo(() => publicationProducts(seriesProducts, publishedOnly), [seriesProducts, publishedOnly])
   const effectiveSelectedIds = useMemo(() => publicationSelection(visibleProducts, selectedIds, publishedOnly), [visibleProducts, selectedIds, publishedOnly])
   const publishedCount = seriesProducts.filter(isPriceListPublished).length
@@ -228,7 +237,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
 
   async function saveDefaults() {
     setSaving(true)
-    const value = JSON.stringify({ singles: Array.from(effectiveSelectedIds), publishedOnly, header, footer, ...(isMultiple ? { series: activeSeries, sort: sortMode } : {}) })
+    const value = JSON.stringify({ singles: Array.from(effectiveSelectedIds), publishedOnly, header, footer, ...(isMultiple ? { series: activeSeries, sort: sortMode, exclude30th } : {}) })
     const tenantId = 'aaaaaaaa-0000-0000-0000-000000000001'
     const { data: existing } = await supabase.from('app_settings').select('key').eq('key', SETTING_KEY).maybeSingle()
     let error
@@ -373,9 +382,14 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
 
       {isMultiple && <div className="mt-4 rounded-lg border p-4 space-y-3">
         <p className="text-sm">一緒に載せるシリーズを選択してください。価格設定済みの商品が選択され、個別に外すこともできます。</p>
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <Switch aria-label="30th CELEBRATIONを除外" checked={exclude30th} onCheckedChange={value => { exclusionChoice.current = value; setExclude30th(value) }} />
+          30th CELEBRATIONを除外
+          <span className="text-xs font-normal text-muted-foreground">画像・投稿文から外します。デフォルトとして保存できます。</span>
+        </label>
         <div className="flex flex-wrap gap-3 max-h-44 overflow-y-auto">
           {seriesOptions.map(s => <label key={s.code} className="flex items-center gap-2 text-sm rounded border px-3 py-2">
-            <Checkbox aria-label={`${s.name}を含める`} disabled={loading} checked={activeSeries.includes(s.code)} onCheckedChange={() => toggleSeries(s.code)} />{s.name}
+            <Checkbox aria-label={`${s.name}を含める`} disabled={loading || (exclude30th && s.code === 'M6A')} checked={!(exclude30th && s.code === 'M6A') && activeSeries.includes(s.code)} onCheckedChange={() => toggleSeries(s.code)} />{s.name}
           </label>)}
         </div>
         <label className="flex items-center gap-2 text-sm">画像・投稿文の並び順
@@ -389,7 +403,7 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
           <Switch aria-label="価格表の表示オンと連動" checked={publishedOnly} onCheckedChange={value => { publicationChoice.current = value; setPublishedOnly(value) }} />
           価格表の表示オンと連動
         </label>
-        <span className="text-xs text-muted-foreground">{publishedOnly ? '表示オン・価格設定済みの商品だけを画像と投稿文に自動反映します。' : 'オフの場合は、下の商品を手動で選択できます。'}{!loading && ('（対象 ' + publishedCount + '件）')}{isMultiple && publishedOnly && activeSeries.length === 0 && 'シリーズ未選択のため全シリーズが対象です。'}</span>
+        <span className="text-xs text-muted-foreground">{publishedOnly ? '表示オン・価格設定済みの商品だけを画像と投稿文に自動反映します。' : 'オフの場合は、下の商品を手動で選択できます。'}{!loading && ('（対象 ' + publishedCount + '件）')}{isMultiple && publishedOnly && activeSeries.length === 0 && (exclude30th ? 'シリーズ未選択のため30th以外の全シリーズが対象です。' : 'シリーズ未選択のため全シリーズが対象です。')}</span>
         <Button variant="outline" size="sm" disabled={loading} onClick={() => fetchData(false)} className="gap-1"><RefreshCw className="size-3.5" />表示設定を再読み込み</Button>
       </div>
       {loading && <p role="status" className="mt-4 text-sm text-muted-foreground">商品を読み込み中（{loadedCount.toLocaleString()}件取得済み）。連動スイッチは先に選択できます。読み込み完了後に画像・投稿文へ反映します。</p>}
