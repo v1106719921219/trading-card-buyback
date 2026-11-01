@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cardImageBounds } from '@/lib/card-image-bounds'
 
 /** Fit the card itself, rather than the source image's surrounding blank space. */
-export function CardImage({ src, alt, frame }: { src: string; alt: string; frame?: { left: number; top: number; width: number; height: number } }) {
+export function CardImage({ src, alt, frame, onError, loading }: { src: string; alt: string; onError?: () => void; loading?: 'lazy' | 'eager'; frame?: { left: number; top: number; width: number; height: number } }) {
   const container = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [bounds, setBounds] = useState<{ src: string; left: number; top: number; width: number; height: number; naturalWidth: number; naturalHeight: number } | null>(null)
@@ -18,7 +18,7 @@ export function CardImage({ src, alt, frame }: { src: string; alt: string; frame
   const scale = b && size.width && size.height ? Math.min(size.width / b.width, size.height / b.height) : 0
   return <div ref={container} style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
     {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img src={src} alt={alt} crossOrigin="anonymous" onLoad={event => {
+    <img src={src} alt={alt} crossOrigin="anonymous" loading={loading} decoding="async" onError={onError} onLoad={event => {
       const img = event.currentTarget
       try {
         if (frame) {

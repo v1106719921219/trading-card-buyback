@@ -308,7 +308,8 @@ export default function SeriesSingles({ code, name, seriesOptions = [] }: { code
       // 元画像の読込完了を待つことで、捨て描画（2回生成）を不要にする。
       await Promise.all(nodes.flatMap(node => Array.from(node.querySelectorAll('img')).map(img => img.decode())))
       const { toBlob } = await import('html-to-image')
-      const options = { pixelRatio: 2, fontEmbedCSS }
+      // The proxy URL identifies each card in its query string; keep it in the export cache key.
+      const options = { pixelRatio: 2, fontEmbedCSS, includeQueryParams: true }
       const date = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }).replace(/\//g, '')
       for (let i = 0; i < jobs.length; i++) {
         const job = jobs[i]

@@ -120,7 +120,7 @@ export default function SpecialBoxImagePage() {
   async function downloadRef(ref: React.RefObject<HTMLDivElement | null>, filename: string) {
     if (!ref.current) return
     const { toPng } = await import('html-to-image')
-    const options = { quality: 1, pixelRatio: 2 }
+    const options = { includeQueryParams: true, quality: 1, pixelRatio: 2 }
     await toPng(ref.current, options)
     const dataUrl = await toPng(ref.current, options)
     const a = document.createElement('a')

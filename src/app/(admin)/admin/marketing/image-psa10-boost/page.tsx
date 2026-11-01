@@ -131,7 +131,7 @@ export default function PSA10BoostImagePage() {
       await document.fonts.ready
 
       const { toPng } = await import('html-to-image')
-      const options = { quality: 1, pixelRatio: 2 }
+      const options = { includeQueryParams: true, quality: 1, pixelRatio: 2 }
       await toPng(previewRef.current, options) // warm up
       const dataUrl = await toPng(previewRef.current, options)
 

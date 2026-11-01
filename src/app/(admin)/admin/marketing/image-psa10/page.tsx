@@ -213,9 +213,9 @@ export default function PSA10ImagePage() {
         // フォント埋め込みCSSの生成は重いので最初の1回だけ行い全ページで使い回す
         if (fontEmbedCSS === undefined) {
           fontEmbedCSS = await getFontEmbedCSS(node)
-          await toPng(node, { quality: 1, pixelRatio: 2, fontEmbedCSS }) // 初回のみウォームアップ
+          await toPng(node, { includeQueryParams: true, quality: 1, pixelRatio: 2, fontEmbedCSS }) // 初回のみウォームアップ
         }
-        const dataUrl = await toPng(node, { quality: 1, pixelRatio: 2, fontEmbedCSS })
+        const dataUrl = await toPng(node, { includeQueryParams: true, quality: 1, pixelRatio: 2, fontEmbedCSS })
         const page = pages[i]
         const suffix = page.pageNo > 0 ? `${page.pageNo}` : ''
         zip.file(`PSA10買取表_${page.group}${suffix}_${dateStr}.png`, dataUrl.split(',')[1], { base64: true })

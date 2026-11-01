@@ -150,7 +150,7 @@ export default function SinglePromoImagePage() {
       await document.fonts.ready
 
       const { toPng } = await import('html-to-image')
-      const options = { quality: 1, pixelRatio: 2 }
+      const options = { includeQueryParams: true, quality: 1, pixelRatio: 2 }
       await toPng(previewRef.current, options)
       const dataUrl = await toPng(previewRef.current, options)
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { CardImage } from '@/components/admin/card-image'
 import { publicSubcategories } from '@/lib/public-subcategories'
 import { useEffect, useState } from 'react'
 import { Input } from '@/components/ui/input'
@@ -171,17 +172,15 @@ export default function PricesPage() {
                           const { name, code } = splitProductCode(product)
                           const hasImage = !!product.image_url && !failedImages.has(product.id)
                           return (
-                            <div key={product.id} data-price-product={product.id} className="grid grid-cols-[56px_minmax(0,1fr)_auto] sm:grid-cols-[76px_minmax(0,1fr)_auto] items-center gap-2 sm:gap-4 py-3">
+                            <div key={product.id} data-price-product={product.id} className="grid grid-cols-[72px_minmax(0,1fr)_auto] sm:grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-2 sm:gap-4 py-3">
                               {hasImage ? (
                                 <button type="button" onClick={() => setPreview(product)} aria-label={`${product.name}の写真を拡大`}
-                                  className="relative h-[76px] w-14 sm:h-[100px] sm:w-[76px] rounded-md border border-border bg-white p-0.5 hover:border-[#FF6B00] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF6B00]">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={product.image_url!} alt={product.name} loading="lazy" decoding="async"
-                                    onError={() => markImageFailed(product.id)} className="h-full w-full object-contain" />
+                                  className="relative h-[100px] w-[72px] sm:h-[132px] sm:w-24 rounded-md border border-border bg-white p-0.5 hover:border-[#FF6B00] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF6B00]">
+                                  <CardImage src={product.image_url!} alt={product.name} loading="lazy" onError={() => markImageFailed(product.id)} />
                                   <ZoomIn aria-hidden="true" className="absolute bottom-0.5 right-0.5 size-4 rounded bg-white/90 p-0.5 text-muted-foreground" />
                                 </button>
                               ) : (
-                                <div className="flex h-[76px] w-14 sm:h-[100px] sm:w-[76px] flex-col items-center justify-center rounded-md bg-muted text-muted-foreground" aria-label="商品画像なし">
+                                <div className="flex h-[100px] w-[72px] sm:h-[132px] sm:w-24 flex-col items-center justify-center rounded-md bg-muted text-muted-foreground" aria-label="商品画像なし">
                                   <ImageIcon aria-hidden="true" className="size-5" />
                                   <span className="mt-1 text-[10px]">画像なし</span>
                                 </div>
