@@ -15,3 +15,13 @@ const fur={...p,name:'ミュウex FUR (135/103)',set_number:'M6a',model_number:'
 const saQuote={...q,name:'ミュウV',pack_code:'S8',model_number:'106/100',rarity:'SR',extra_difference:'SA',amount:13000};
 for(const name of ['ミュウV SR SA [S8 106/100]','ミュウV SR:SA [S8 106/100]','ミュウV SR: SA [S8 106/100]','ミュウV SR (SA) [S8 106/100]']){const saProduct={...p,name,price:22400,set_number:'S8',model_number:'106/100'};assert.equal(h.matchRush(saProduct,[saQuote],100,now).proposed,13000);assert.equal(h.matchRush(saProduct,[{...saQuote,extra_difference:''}],100,now).quote,null);assert.equal(h.matchRush(saProduct,[saQuote,{...saQuote,id:2}],100,now).quote,null);}
 assert.equal(h.matchRush({...p,name:'ミュウV SR [S8 106/100]',set_number:'S8',model_number:'106/100'},[saQuote],100,now).quote,null);console.log('PASS SA exact variant matching for spaced/colon/parenthesis forms, reject regular edition and ambiguous variants');
+// MF deck cards are printed without a rarity mark; Rush calls them SAR仕様/30th.
+for (const [name, model, amount] of [['ブラッキーex','044/040',11000],['エーフィex','043/040',4000]]) {
+  const product={...p,name:`${name} SAR (${model})`,set_number:'MF',model_number:`MF ${model}`,price:1000};
+  const quote={...q,name,model_number:model,pack_code:'MF',rarity:'-',extra_difference:'SAR仕様/30th',amount};
+  assert.equal(h.matchRush(product,[quote],100,now).proposed,amount);
+  for(const change of [{extra_difference:'RR仕様/30th'},{extra_difference:'SAR仕様/30th/ミラー'},{model_number:'014/040'},{pack_code:'M6a'},{is_unlimited:true}])assert.equal(h.matchRush(product,[{...quote,...change}],100,now).quote,null);
+  assert.equal(h.matchRush(product,[quote,{...quote,id:2}],100,now).quote,null);
+  assert.equal(h.matchRush({...product,name:product.name+' PSA10'},[quote],100,now).quote,null);
+}
+console.log('PASS MF 043/040 and 044/040 SAR specification identity; reject other variants and ambiguity');

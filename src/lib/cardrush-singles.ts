@@ -17,7 +17,7 @@ export function matchRush(p: SingleProduct, quotes: RushQuote[], percent: number
   const code = singleSeriesCode(p)
   const row: RushRow = { id: p.id, name: p.name, code, current: p.price, proposed: null, quote: null, sourceUpdated: null, sourceUrl: `https://cardrush.media/pokemon/buying_prices?pack_code=${encodeURIComponent(code)}`, expected: p.updated_at, reason: '' }
   if (!isEligibleSingle(p)) return { ...row, reason: 'まとめ商品・特殊仕様は手動確認' }
-  let name = p.name.normalize('NFKC').replace(/\s*\[[^\]]+\]\s*$/, '').replace(/\s*\(\d{3}\/103\)\s*$/, '').trim()
+  let name = p.name.normalize('NFKC').replace(/\s*\[[^\]]+\]\s*$/, '').replace(/\s*\(\d{3}\/(?:103|040)\)\s*$/, '').trim()
   name = name.replace(/\s*\(SA\)\s*$/i, ' SA')
   const specialArt = /(?:\s|:)SA$/i.test(name)
   if (specialArt) name = name.replace(/[\s:]+SA$/i, '').replace(/[\s:]+$/, '')
@@ -27,7 +27,11 @@ export function matchRush(p: SingleProduct, quotes: RushQuote[], percent: number
   if (!model || code === 'OTHER') return { ...row, reason: 'シリーズ・型番の確認が必要' }
   const exact = quotes.filter(q => q.pack_code?.toUpperCase() === code && q.model_number === model && q.rarity === rarity && norm(q.name) === norm(name) && (specialArt ? q.extra_difference === 'SA' : !q.extra_difference) && !q.is_unlimited)
   // 30th has a normal 30th/reprint annotation; match the unique named card, never a parallel variant.
-  const candidates = exact.length ? exact : code === 'M6A' && !specialArt ? quotes.filter(q => q.pack_code?.toUpperCase() === code && q.model_number === model && q.rarity === rarity && norm(q.name) === norm(name) && !q.is_unlimited) : []
+  const mfSar = code === 'MF' && rarity === 'SAR' && !specialArt &&
+    ((model === '043/040' && name === 'エーフィex') || (model === '044/040' && name === 'ブラッキーex'))
+  const candidates = exact.length ? exact : mfSar
+    ? quotes.filter(q => q.pack_code?.toUpperCase() === 'MF' && q.model_number === model && q.rarity === '-' && norm(q.name) === norm(name) && q.extra_difference === 'SAR仕様/30th' && !q.is_unlimited)
+    : code === 'M6A' && !specialArt ? quotes.filter(q => q.pack_code?.toUpperCase() === code && q.model_number === model && q.rarity === rarity && norm(q.name) === norm(name) && !q.is_unlimited) : []
   if (candidates.length !== 1) return { ...row, reason: '掲載なし・同一商品の特定不可' }
   const q = candidates[0]
   Object.assign(row, { quote: q.amount, sourceUpdated: q.updated_at, sourceUrl: `https://cardrush.media/pokemon/buying_prices?pack_code=${encodeURIComponent(q.pack_code || code)}&model_number=${encodeURIComponent(model)}` })
