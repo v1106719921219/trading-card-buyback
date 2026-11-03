@@ -1,5 +1,6 @@
 'use client'
 
+import { parseInlineProductPrice } from '@/lib/inline-product-price'
 import { MarketUpdateStamp } from '@/components/admin/market-update-stamp'
 import { CardrushMarketCell, useCardrushMarket } from '@/components/admin/cardrush-market'
 import { changePriceListVisibility, type VisibilityRow } from '@/lib/price-list-visibility'
@@ -168,6 +169,8 @@ export default function ProductsPage() {
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
   const [editingPriceValue, setEditingPriceValue] = useState('')
   const editingPriceRef = useRef('')
+  const priceSaveLock = useRef(false)
+  const [savingPrice, setSavingPrice] = useState(false)
 
   // Inline snkrdunk URL editing
   const [editingUrlId, setEditingUrlId] = useState<string | null>(null)
@@ -663,21 +666,32 @@ async function syncToChiba() {
   }
 
   async function saveInlinePrice(id: string) {
-    const priceNum = Number(editingPriceRef.current) || 0
-    const updateData: Record<string, unknown> = { price: priceNum }
-    if (priceNum === 0) updateData.show_in_price_list = false
-    const { error } = await supabase
-      .from('products')
-      .update(updateData)
-      .eq('id', id)
-
-    if (error) {
-      toast.error('価格の更新に失敗しました')
+    if (priceSaveLock.current) return
+    const priceNum = parseInlineProductPrice(editingPriceRef.current)
+    if (priceNum === null) { toast.error('0以上の金額を数字で入力してください'); return }
+    const original = products.find(p => p.id === id)
+    if (!original || !tenantId) { toast.error('商品情報を読み込み直してください'); return }
+    if (priceNum === original.price) { setEditingPriceId(null); toast.success('入力済みの金額です'); return }
+    priceSaveLock.current = true
+    setSavingPrice(true)
+    try {
+      const updateData: Record<string, unknown> = { price: priceNum }
+      if (priceNum === 0) updateData.show_in_price_list = false
+      const { data, error } = await supabase.from('products').update(updateData)
+        .eq('id', id).eq('tenant_id', tenantId).eq('price', original.price)
+        .select('id,price,show_in_price_list,updated_at').abortSignal(AbortSignal.timeout(15000)).maybeSingle()
+      if (error) throw new Error(error.message)
+      if (!data) throw new Error('別の操作で価格が変更されています。再読み込みしてください')
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, ...data } : p))
+      setEditingPriceId(null)
+      toast.success('価格を保存しました')
+    } catch (error) {
+      toast.error(error instanceof Error && !/abort|timeout/i.test(error.message) ? `保存できませんでした：${error.message}` : '保存結果を確認できませんでした。再読み込みして金額を確認してください')
       return
+    } finally {
+      priceSaveLock.current = false
+      setSavingPrice(false)
     }
-    toast.success('価格を更新しました')
-    setEditingPriceId(null)
-    fetchData()
 
     // 千葉への自動同期（東京のみ有効・バックグラウンド）
     fetch('/api/sync-prices-to-chiba', { method: 'POST' })
@@ -1575,16 +1589,20 @@ async function syncToChiba() {
                           type="text"
                           inputMode="numeric"
                           value={editingPriceValue}
-                          onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); editingPriceRef.current = v; setEditingPriceValue(v) }}
+                          onChange={(e) => { const v = e.target.value; editingPriceRef.current = v; setEditingPriceValue(v) }}
+                          aria-label={`${product.name}の買取価格`}
+                          disabled={savingPrice}
                           className="w-24 h-8 text-right"
                           onFocus={(e) => e.target.select()}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveInlinePrice(product.id)
-                            if (e.key === 'Escape') setEditingPriceId(null)
+                            if (e.nativeEvent.isComposing || e.keyCode === 229) return
+                            if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); void saveInlinePrice(product.id) }
+                            if (e.key === 'Escape' && !savingPrice) setEditingPriceId(null)
                           }}
                           autoFocus
                         />
                         <span className="text-sm">円</span>
+                        <Button type="button" size="sm" disabled={savingPrice} onClick={() => void saveInlinePrice(product.id)}>{savingPrice ? '保存中…' : '保存'}</Button>
                       </div>
                     ) : (
                       <span

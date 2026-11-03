@@ -1,0 +1,3 @@
+const fs=require('fs'),vm=require('vm'),ts=require('typescript'),assert=require('node:assert/strict'),exports_={};vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/inline-product-price.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:exports_});const parse=exports_.parseInlineProductPrice;
+for(const [input,result]of [['４００',400],['12,600',12600],['０',0],['',null],[' ',null],['abc',null],['-1',null],['1.5',null],['2147483648',null]])assert.equal(parse(input),result);
+console.log('PASS price input: full-width/grouped values, explicit zero, malformed and overflow rejected');
