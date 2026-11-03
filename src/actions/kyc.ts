@@ -2,7 +2,7 @@
 
 import { limitPublicRequest, consumeLimit } from '@/lib/shared-rate-limit'
 import { findApprovedKyc, getKycReverificationCutoff } from '@/lib/kyc/shared-approval'
-import { kycReverificationKey, approvalAfterCutoff } from '@/lib/kyc/reverification'
+import { kycReverificationKey, approvalAfterCutoff, kycReverificationLabels } from '@/lib/kyc/reverification'
 import { z } from 'zod'
 import { grantKycAccess, hasKycAccess } from '@/lib/kyc/access'
 import { hasOrderAccess, assertOrderAccessConfigured } from '@/lib/order-access'
@@ -377,7 +377,12 @@ export async function getKycRequests(options?: {
     order: byKycId.get(r.id) ?? (r.order_id ? byOrderId.get(r.order_id) : undefined) ?? null,
   }))
 
-  return { data: withOrder as KycRequestWithOrder[], count: totalCount }
+  try {
+    const labelled = await kycReverificationLabels(createAdminClient(), user.tenant_id, withOrder)
+    return { data: labelled as KycRequestWithOrder[], count: totalCount }
+  } catch {
+    return { error: '再登録状態を読み込めませんでした。再読み込みしてください。' }
+  }
 }
 
 /**

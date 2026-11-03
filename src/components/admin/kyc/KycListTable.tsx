@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Eye, Trash2, Check, RotateCcw } from 'lucide-react'
+import { Eye, Trash2, Check, RotateCcw, Copy } from 'lucide-react'
 import { deleteKycRequest, reviewKycRequest, requestKycReregistration } from '@/actions/kyc'
 import {
   KYC_STATUS_LABELS,
@@ -50,6 +50,12 @@ export function KycListTable({ requests, loading, deletable, reregistrable, onDe
       onDeleted?.()
     } catch { toast.error('設定結果を確認できませんでした。再読み込みしてください。') }
     finally { setReregisterSaving(false) }
+  }
+  async function copyRecaptureLink(req: KycRequestWithOrder) {
+    const url = new URL('/kyc', window.location.origin)
+    if (req.order) url.searchParams.set('order', req.order.order_number)
+    try { await navigator.clipboard.writeText(url.toString()); toast.success('再撮影リンクをコピーしました。同じLINEアカウントから開いてください。') }
+    catch { toast.error('リンクをコピーできませんでした') }
   }
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [approvingId, setApprovingId] = useState<string | null>(null)
@@ -140,8 +146,8 @@ export function KycListTable({ requests, loading, deletable, reregistrable, onDe
                   {ID_DOCUMENT_TYPE_LABELS[req.id_document_type]}
                 </TableCell>
                 <TableCell>
-                  <Badge className={KYC_STATUS_COLORS[req.status]}>
-                    {KYC_STATUS_LABELS[req.status]}
+                  <Badge className={req.reverification_required ? 'bg-orange-100 text-orange-800' : KYC_STATUS_COLORS[req.status]}>
+                    {req.reverification_required ? (req.reverification_completed ? '旧情報（再登録済み）' : '再登録待ち（旧承認は利用停止）') : KYC_STATUS_LABELS[req.status]}
                   </Badge>
                 </TableCell>
                 <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
@@ -167,7 +173,10 @@ export function KycListTable({ requests, loading, deletable, reregistrable, onDe
                         <Eye className="h-4 w-4" />
                       </Button>
                     </Link>
-                    {reregistrable && req.status === 'approved' && (
+                    {req.reverification_required && !req.reverification_completed && (
+                      <Button variant="outline" size="sm" onClick={() => copyRecaptureLink(req)}><Copy className="mr-1 h-4 w-4" />再撮影リンク</Button>
+                    )}
+                    {reregistrable && req.status === 'approved' && !req.reverification_required && (
                       <Button variant="outline" size="sm" onClick={() => { setReregisterReason('本人確認書類の記載変更'); setReregisterTarget(req) }}><RotateCcw className="mr-1 h-4 w-4" />再登録</Button>
                     )}
                     {deletable && (

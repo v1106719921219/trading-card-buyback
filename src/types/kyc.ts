@@ -7,6 +7,7 @@ export type IdDocumentType = 'driving_license' | 'my_number_card' | 'passport' |
 export interface KycRequest {
   id: string
   tenant_id: string
+  line_user_id?: string | null
   customer_email: string
   customer_name: string | null
   order_id: string | null
@@ -50,6 +51,8 @@ export interface KycAuditLog {
 // ラベル定数
 /** 一覧表示用: 紐付く注文（注文番号・詳細リンク）を付けたもの */
 export interface KycRequestWithOrder extends KycRequest {
+  reverification_required?: boolean
+  reverification_completed?: boolean
   order?: { id: string; order_number: string } | null
 }
 
