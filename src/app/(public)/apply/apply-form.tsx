@@ -470,7 +470,7 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
 
   // 申込前の本人確認（eKYC）: 本人確認は全てeKYCで撮影必須。承認済みの人は自動スキップ
   const [ekycRollout, setEkycRollout] = useState(false)
-  const [kycStatus, setKycStatus] = useState<'checking' | 'verified' | 'submitted' | 'none'>('none')
+  const [kycStatus, setKycStatus] = useState<'checking' | 'verified' | 'submitted' | 'recapture' | 'none'>('none')
   const [showKycDialog, setShowKycDialog] = useState(false)
   // eKYC撮影完了時にKycFlowから受け取るリクエストID（申込時にそのまま紐付ける）
   const [kycRequestId, setKycRequestId] = useState<string | null>(null)
@@ -486,33 +486,59 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
   const [deferKyc, setDeferKyc] = useState(false)
   const kycDone = kycStatus === 'verified' || kycStatus === 'submitted'
 
+  const recapturePromptedName = useRef<string | null>(null)
   useEffect(() => {
-    if (step !== 2 || !needsKyc) return
-    // 撮影/照合済みでも、その後step1で氏名を変えて戻ってきたら別名義の書類になるため無効化して再撮影へ
+    if (step !== 2 || !needsKyc || showKycDialog) return
     if (kycName && kycName !== customerName) {
       setKycStatus('none')
       setKycRequestId(null)
       setKycName(null)
+      recapturePromptedName.current = null
     }
-    // 確認画面に入ったタイミングで、このLINE本人が確認済み（スキップ可）かをチェック。
-    // 事前チェックが遅くても撮影に進めるよう、6秒でタイムアウトして'none'（撮影が必要）にフォールバック
-    if (customerName && liff?.idToken) {
-      setKycStatus('checking')
-      const nameAtCheck = customerName
-      Promise.race<'checking' | 'verified' | 'submitted' | 'none'>([
-        checkKycForApply(liff.idToken, nameAtCheck),
-        new Promise((resolve) => setTimeout(() => resolve('none'), 6000)),
-      ]).then((s) => {
-        setKycStatus(s)
-        if (s === 'verified' || s === 'submitted') setKycName(nameAtCheck)
-      }).catch(() => {
-        // 照会自体が失敗（通信エラー・デプロイ跨ぎの古いバンドル等）しても「照会中」で固まらせない。
-        // 撮影が必要な側に倒せば、承認済みの人でも撮影し直すだけで先に進める
-        setKycStatus('none')
-      })
+    if (!customerName || !liff?.idToken) return
+    // 撮影直後の提出済み状態を、画像処理中の照会で上書きしない。
+    if (kycRequestId && kycName === customerName) return
+    let cancelled = false
+    let checking = false
+    const token = liff.idToken
+    const nameAtCheck = customerName
+    async function refresh(initial = false) {
+      if (checking || document.visibilityState === 'hidden') return
+      checking = true
+      if (initial) setKycStatus('checking')
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      try {
+        const status = await Promise.race([
+          checkKycForApply(token, nameAtCheck),
+          new Promise<'none'>(resolve => { timeout = setTimeout(() => resolve('none'), 6000) }),
+        ])
+        if (cancelled) return
+        setKycStatus(status)
+        if (status === 'verified' || status === 'submitted') setKycName(nameAtCheck)
+        if (status === 'recapture') {
+          setKycRequestId(null)
+          setKycName(null)
+          if (recapturePromptedName.current !== nameAtCheck) {
+            recapturePromptedName.current = nameAtCheck
+            setShowKycDialog(true)
+          }
+        }
+      } catch { if (!cancelled) setKycStatus('none') }
+      finally { clearTimeout(timeout); checking = false }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, needsKyc, liff?.idToken, customerName])
+    void refresh(true)
+    // 管理者が再登録を指定したとき、開いたままの申込画面にも反映する。
+    const onVisible = () => { if (document.visibilityState !== 'hidden') void refresh() }
+    const interval = setInterval(() => { void refresh() }, 20000)
+    window.addEventListener('focus', onVisible)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      window.removeEventListener('focus', onVisible)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [step, needsKyc, liff?.idToken, customerName, showKycDialog, kycRequestId, kycName])
 
   async function handleSubmit() {
     if (submittingRef.current) return
@@ -1366,7 +1392,7 @@ export function ApplyForm({ quoteToken, initialCategories, initialProducts, init
                     ) : (
                       <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3">
                         <p className="text-sm text-amber-800">
-                          本人確認書類を撮影してください。撮影できない場合は、下の「本人確認待ち」で仮受付できます。紙の書類で確認をご希望の場合は、必要書類を公式LINEでご確認ください。
+                          {kycStatus === 'recapture' ? '本人確認書類の再登録が必要です。新しく撮影してください。' : '本人確認書類を撮影してください。'}撮影できない場合は、下の「本人確認待ち」で仮受付できます。紙の書類で確認をご希望の場合は、必要書類を公式LINEでご確認ください。
                         </p>
                         <Button type="button" onClick={() => setShowKycDialog(true)} className="w-full">
                           本人確認書類を撮影する

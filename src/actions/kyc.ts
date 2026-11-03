@@ -544,7 +544,7 @@ export async function reviewKycRequest(input: KycReviewInput) {
 export async function checkKycForApply(
   lineIdToken: string,
   name: string
-): Promise<'verified' | 'submitted' | 'none'> {
+): Promise<'verified' | 'submitted' | 'recapture' | 'none'> {
   try {
     if (!lineIdToken || !name) return 'none'
     // LINE本人（line_user_id）でのみ照合。LINE連携していない場合は毎回eKYC必須（'none'）
@@ -570,7 +570,7 @@ export async function checkKycForApply(
     const cutoff = await getKycReverificationCutoff(supabase, tenantId, lineUserId, name)
     const matched = (data ?? []).filter((k) => normalize(k.customer_name) === normalize(name) && approvalAfterCutoff(k.created_at, cutoff))
     if (matched.some((k) => k.status === 'processing')) return 'submitted'
-    return 'none'
+    return cutoff ? 'recapture' : 'none'
   } catch {
     return 'none'
   }

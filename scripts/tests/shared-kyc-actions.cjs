@@ -121,7 +121,7 @@ function load(file) {
   await orders.createOrder({...input,kyc_request_id:'old-request',defer_kyc:true});assert.equal(orderBody.identity_verified_at,undefined);assert.equal(orderBody.kyc_request_id,undefined);
   orderBody=null;submittedFixture.created_at='2026-10-03T00:00:00Z';
   await orders.createOrder({...input,kyc_request_id:'old-request'});assert.equal(orderBody.kyc_request_id,'old-request');assert(orderBody.identity_verified_at);
-  submittedFixture.status='processing';submittedFixture.created_at='2026-10-01T00:00:00Z';assert.equal(await kyc.checkKycForApply('fixture-token','テスト太郎'),'none');
+  submittedFixture.status='processing';submittedFixture.created_at='2026-10-01T00:00:00Z';assert.equal(await kyc.checkKycForApply('fixture-token','テスト太郎'),'recapture');submittedFixture.created_at='2026-10-03T00:00:00Z';assert.equal(await kyc.checkKycForApply('fixture-token','テスト太郎'),'submitted');
   console.log('PASS re-registration cutoff: stale explicit KYC IDs, fallback approvals and pending requests blocked; fresh capture accepted; deferred remains unpaid');
   console.log('PASS KYC resume: requires order ownership and matching name/LINE; links to existing order');
   console.log('PASS deferred KYC: explicit opt-in saves unverified application, including lookup outage');
