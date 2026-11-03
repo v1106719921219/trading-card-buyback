@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
 import { ImagePostText } from '@/components/admin/image-post-text'
+import { imagePublicationSelection } from '@/lib/image-publication'
+import { ImagePublicationControl } from '@/components/admin/image-publication-control'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,8 +26,10 @@ type ProductWithRelations = Product & {
 }
 
 export default function SpecialBoxImagePage() {
-  const [products, setProducts] = useState<ProductWithRelations[]>([])
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [allProducts, setProducts] = useState<ProductWithRelations[]>([])
+  const [manualSelectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [publishedOnly, setPublishedOnly] = useState(true)
+  const { products, selectedIds } = imagePublicationSelection(allProducts, manualSelectedIds, publishedOnly)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -94,6 +98,7 @@ export default function SpecialBoxImagePage() {
   useEffect(() => { fetchData() }, [fetchData])
 
   function toggleProduct(id: string) {
+    if (publishedOnly) return
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id); else next.add(id)
@@ -169,6 +174,8 @@ export default function SpecialBoxImagePage() {
         description="X投稿用のスペシャルボックス買取価格画像を自動生成します（1920×1080）"
       />
 
+      <ImagePublicationControl linked={publishedOnly} onChange={setPublishedOnly} count={products.length} loading={loading} refresh={() => void fetchData()} />
+
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="space-y-4">
           <Card>
@@ -199,7 +206,7 @@ export default function SpecialBoxImagePage() {
                       key={product.id}
                       className="flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
                     >
-                      <Checkbox checked={selectedIds.has(product.id)} onCheckedChange={() => toggleProduct(product.id)} />
+                      <Checkbox disabled={publishedOnly} checked={selectedIds.has(product.id)} onCheckedChange={() => toggleProduct(product.id)} />
                       {product.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded shrink-0" />

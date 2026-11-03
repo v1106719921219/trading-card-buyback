@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
+import { imagePublicationSelection } from '@/lib/image-publication'
+import { ImagePublicationControl } from '@/components/admin/image-publication-control'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -80,10 +82,12 @@ type PageDef = {
 const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩']
 
 export default function PSA10ImagePage() {
-  const [products, setProducts] = useState<ProductWithRelations[]>([])
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [allProducts, setProducts] = useState<ProductWithRelations[]>([])
+  const [manualSelectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [header, setHeader] = useState(DEFAULT_HEADER)
   const [footer, setFooter] = useState(DEFAULT_FOOTER)
+  const [publishedOnly, setPublishedOnly] = useState(true)
+  const { products, selectedIds } = imagePublicationSelection(allProducts, manualSelectedIds, publishedOnly)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -107,8 +111,6 @@ export default function PSA10ImagePage() {
         .eq('is_active', true)
         .eq('category_id', CATEGORY_ID)
         .eq('subcategory_id', PSA10_SUBCATEGORY_ID)
-        // 価格表に表示中の商品のみ掲載（非表示・締切・0円は除外）
-        .eq('show_in_price_list', true)
         .gt('price', 0)
         .order('price', { ascending: false }),
       supabase.from('app_settings').select('value').eq('key', SETTING_KEY).maybeSingle(),
@@ -157,6 +159,7 @@ export default function PSA10ImagePage() {
   }, [fetchData])
 
   function toggleProduct(id: string) {
+    if (publishedOnly) return
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -166,6 +169,7 @@ export default function PSA10ImagePage() {
   }
 
   function toggleGroup(group: string, ids: string[]) {
+    if (publishedOnly) return
     setSelectedIds((prev) => {
       const next = new Set(prev)
       const allSelected = ids.every((id) => next.has(id))
@@ -297,6 +301,8 @@ export default function PSA10ImagePage() {
         description="PSA10鑑定カードの買取価格画像をポケモン別に自動生成します（1920×1080 / 通常48商品・リザードン64商品まで）"
       />
 
+      <ImagePublicationControl linked={publishedOnly} onChange={setPublishedOnly} count={products.length} loading={loading} refresh={() => void fetchData()} />
+
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Left: product selection */}
         <div className="space-y-4">
@@ -336,7 +342,7 @@ export default function PSA10ImagePage() {
                       <div key={group}>
                         <div className="flex items-center gap-2 sticky top-0 bg-background py-1.5 z-10 border-b">
                           <Checkbox
-                            checked={selectedCount === groupIds.length}
+                            disabled={publishedOnly} checked={selectedCount === groupIds.length}
                             onCheckedChange={() => toggleGroup(group, groupIds)}
                           />
                           <span className="text-sm font-bold">{group}</span>
@@ -350,7 +356,7 @@ export default function PSA10ImagePage() {
                             className="flex items-center gap-3 rounded-md border px-3 py-2 mt-1.5 cursor-pointer hover:bg-muted transition-colors"
                           >
                             <Checkbox
-                              checked={selectedIds.has(product.id)}
+                              disabled={publishedOnly} checked={selectedIds.has(product.id)}
                               onCheckedChange={() => toggleProduct(product.id)}
                             />
                             {product.image_url ? (

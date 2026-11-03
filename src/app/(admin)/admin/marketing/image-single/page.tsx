@@ -7,6 +7,8 @@ import { promoImageFrame } from '@/lib/promo-image-framing'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
 import { ImagePostText } from '@/components/admin/image-post-text'
+import { imagePublicationSelection } from '@/lib/image-publication'
+import { ImagePublicationControl } from '@/components/admin/image-publication-control'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,11 +32,14 @@ type ProductWithRelations = Product & {
 export default function SinglePromoImagePage() {
   const [group, setGroup] = useState('promo-bulk')
   useEffect(() => { if (new URLSearchParams(window.location.search).get('group') === 'bulk') setGroup('bulk') }, [])
-  const [singles, setSingles] = useState<ProductWithRelations[]>([])
-  const [promos, setPromos] = useState<ProductWithRelations[]>([])
-  const [selectedSingleIds, setSelectedSingleIds] = useState<Set<string>>(new Set())
-  const [selectedPromoIds, setSelectedPromoIds] = useState<Set<string>>(new Set())
+  const [allSingles, setSingles] = useState<ProductWithRelations[]>([])
+  const [allPromos, setPromos] = useState<ProductWithRelations[]>([])
+  const [manualSingleIds, setSelectedSingleIds] = useState<Set<string>>(new Set())
+  const [manualPromoIds, setSelectedPromoIds] = useState<Set<string>>(new Set())
   const [highPriceIds, setHighPriceIds] = useState<Set<string>>(new Set())
+  const [publishedOnly, setPublishedOnly] = useState(true)
+  const { products: singles, selectedIds: selectedSingleIds } = imagePublicationSelection(allSingles, manualSingleIds, publishedOnly)
+  const { products: promos, selectedIds: selectedPromoIds } = imagePublicationSelection(allPromos, manualPromoIds, publishedOnly)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -100,6 +105,7 @@ export default function SinglePromoImagePage() {
   useEffect(() => { fetchData() }, [fetchData])
 
   function toggleSingle(id: string) {
+    if (publishedOnly) return
     setSelectedSingleIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id); else next.add(id)
@@ -116,6 +122,7 @@ export default function SinglePromoImagePage() {
   }
 
   function togglePromo(id: string) {
+    if (publishedOnly) return
     setSelectedPromoIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id); else next.add(id)
@@ -179,6 +186,8 @@ export default function SinglePromoImagePage() {
         description="選んだシングル・プロモ・最低保証をまとめて買取画像にします（1920×1080）"
       />
 
+      <ImagePublicationControl linked={publishedOnly} onChange={setPublishedOnly} count={totalSelected} loading={loading} refresh={() => void fetchData()} />
+
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2 rounded-lg border bg-card px-4 py-3">
@@ -215,7 +224,7 @@ export default function SinglePromoImagePage() {
                 <div className="space-y-1.5 max-h-[30vh] overflow-y-auto pr-1">
                   {groupSingles.map((product) => (
                     <div key={product.id} className="flex items-center gap-3 rounded-md border px-3 py-2 hover:bg-muted transition-colors">
-                      <Checkbox disabled={product.price <= 0} checked={product.price > 0 && selectedSingleIds.has(product.id)} onCheckedChange={() => toggleSingle(product.id)} />
+                      <Checkbox disabled={publishedOnly || product.price <= 0} checked={product.price > 0 && selectedSingleIds.has(product.id)} onCheckedChange={() => toggleSingle(product.id)} />
                       {product.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded shrink-0" />
@@ -249,7 +258,7 @@ export default function SinglePromoImagePage() {
                 <div className="space-y-1.5 max-h-[30vh] overflow-y-auto pr-1">
                   {promos.map((product) => (
                     <div key={product.id} className="flex items-center gap-3 rounded-md border px-3 py-2 hover:bg-muted transition-colors">
-                      <Checkbox disabled={product.price <= 0} checked={product.price > 0 && selectedPromoIds.has(product.id)} onCheckedChange={() => togglePromo(product.id)} />
+                      <Checkbox disabled={publishedOnly || product.price <= 0} checked={product.price > 0 && selectedPromoIds.has(product.id)} onCheckedChange={() => togglePromo(product.id)} />
                       {product.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={product.image_url} alt="" className="w-8 h-8 object-cover rounded shrink-0" />

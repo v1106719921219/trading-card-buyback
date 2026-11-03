@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
 import { ImagePostText } from '@/components/admin/image-post-text'
+import { imagePublicationSelection } from '@/lib/image-publication'
+import { ImagePublicationControl } from '@/components/admin/image-publication-control'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,8 +30,10 @@ type ProductWithTrend = ProductWithRelations & {
 }
 
 export default function MarketingImagePage() {
-  const [products, setProducts] = useState<ProductWithTrend[]>([])
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [allProducts, setProducts] = useState<ProductWithTrend[]>([])
+  const [manualSelectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [publishedOnly, setPublishedOnly] = useState(true)
+  const { products, selectedIds } = imagePublicationSelection(allProducts, manualSelectedIds, publishedOnly)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -59,7 +63,7 @@ export default function MarketingImagePage() {
         .order('sort_order'),
       supabase
         .from('products')
-        .select('name, price')
+        .select('name, price, show_in_price_list')
         .eq('is_active', true)
         .eq('category_id', 'db02ec12-d529-453c-a749-53da99e05533')
         .eq('subcategory_id', '9c1bdee7-e844-4be7-a298-de73d8af5670'),
@@ -90,7 +94,7 @@ export default function MarketingImagePage() {
     if (noShrinkResult.data) {
       for (const ns of noShrinkResult.data) {
         const baseName = ns.name.replace(/\s*シュリンク無し\s*$/, '').trim()
-        if (ns.price > 0) noShrinkPriceMap.set(baseName, ns.price)
+        if (ns.price > 0 && ns.show_in_price_list) noShrinkPriceMap.set(baseName, ns.price)
       }
     }
 
@@ -126,6 +130,7 @@ export default function MarketingImagePage() {
   }, [fetchData])
 
   function toggleProduct(id: string) {
+    if (publishedOnly) return
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -209,6 +214,8 @@ export default function MarketingImagePage() {
         description="X投稿用の買取価格画像を自動生成します（1920×1080）"
       />
 
+      <ImagePublicationControl linked={publishedOnly} onChange={setPublishedOnly} count={products.length} loading={loading} refresh={() => void fetchData()} />
+
       <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* 左カラム: 商品選択 */}
         <div className="space-y-4">
@@ -246,7 +253,7 @@ export default function MarketingImagePage() {
                       className="flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer hover:bg-muted transition-colors"
                     >
                       <Checkbox
-                        checked={selectedIds.has(product.id)}
+                        disabled={publishedOnly} checked={selectedIds.has(product.id)}
                         onCheckedChange={() => toggleProduct(product.id)}
                       />
                       {product.image_url ? (
