@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { AdminHeader } from '@/components/admin/header'
 import { KycListTable } from '@/components/admin/kyc/KycListTable'
-import { getKycRequests, getKycDeletable } from '@/actions/kyc'
+import { getKycRequests, getKycDeletable, getKycReregistrable } from '@/actions/kyc'
 import {
   Select,
   SelectContent,
@@ -28,13 +28,15 @@ export default function KycListPage() {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
+  const [reregistrable, setReregistrable] = useState(false)
   const [deletable, setDeletable] = useState(false)
 
   useEffect(() => {
     getKycDeletable().then(setDeletable)
+    getKycReregistrable().then(setReregistrable)
   }, [])
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true)
     const result = await getKycRequests({
       status: statusFilter !== 'all' ? (statusFilter as KycStatus) : undefined,
@@ -48,11 +50,11 @@ export default function KycListPage() {
       setTotal(result.count ?? 0)
     }
     setLoading(false)
-  }
+  }, [statusFilter, search, page])
 
   useEffect(() => {
-    fetchData()
-  }, [statusFilter, search, page])
+    void Promise.resolve().then(fetchData)
+  }, [fetchData])
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -98,7 +100,7 @@ export default function KycListPage() {
         </Select>
       </div>
 
-      <KycListTable requests={requests} loading={loading} deletable={deletable} onDeleted={fetchData} />
+      <KycListTable requests={requests} loading={loading} deletable={deletable} reregistrable={reregistrable} onDeleted={fetchData} />
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between">

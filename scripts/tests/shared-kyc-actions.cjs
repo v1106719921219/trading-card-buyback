@@ -6,13 +6,14 @@ const assert = require('node:assert/strict');
 // Execute the real public actions with synthetic DB/LINE boundaries. No network.
 let validToken = true, approved = true, lookupFails = false, orderBody = null;
 const calls = [];
+let submittedFixture = null;
 let resumeOrder = null, resumeAccess = false, kycBody = null;
 const db = { from(table) {
-  let body;
+  let body, asSingle=false;
   const q = {
     select() { return q; }, eq() { return q; }, in() { return q; },
     is() { return q; }, gte() { return q; }, order() { return q; },
-    limit() { return q; }, maybeSingle() { return q; }, single() { return q; },
+    limit() { return q; }, maybeSingle() { asSingle=true; return q; }, single() { asSingle=true; return q; },
     insert(value) { body = value; return q; },
     then(resolve) {
       if (table === 'orders' && body) {
@@ -24,14 +25,17 @@ const db = { from(table) {
       const data = table === 'offices' ? { id: 'office' }
         : table === 'products' ? [{ id: 'product', name: 'fixture' }]
         : table === 'app_settings' ? { value: 'true' }
-        : table === 'orders' ? resumeOrder : [];
+        : table === 'orders' ? resumeOrder : table === 'kyc_requests' && submittedFixture ? (asSingle ? submittedFixture : [submittedFixture]) : [];
       return Promise.resolve(resolve({ data, error: null }));
     },
   };
   return q;
 } };
 const deps = {
+  'zod': require('zod'),
+  '@/lib/kyc/reverification': { approvalAfterCutoff: (created, cutoff) => !cutoff || Date.parse(created) >= Date.parse(cutoff), kycReverificationKey: () => 'fixture-key' },
   '@/lib/kyc/shared-approval': {
+    getKycReverificationCutoff: async () => null,
     async findApprovedKyc(client, tenant, line, name) {
       calls.push({ tenant, line, name });
       assert.equal(client, db);
@@ -55,7 +59,7 @@ const deps = {
   '@/lib/order-quote': { verifyOrderQuote: () => ({ items: [{ product_id: 'product', unit_price: 100, quantity: 1 }], priceDate: null }) },
   '@/lib/30th-pikachu': { isIndividual30thPikachu: () => false },
 };
-for (const name of ['next/cache', 'next/server', '@/lib/supabase/server', '@/lib/security', '@/lib/constants', '@/lib/google-sheets', '@/actions/auth', '@/lib/validators/kyc', '@/lib/kyc/audit', '@/lib/kyc/storage', '@/lib/kyc/ai-review', '@/types/kyc']) deps[name] = {};
+for (const name of ['next/cache', 'next/server', '@/lib/supabase/server', '@/lib/security', '@/lib/constants', '@/lib/google-sheets', '@/actions/auth', '@/lib/validators/kyc', '@/lib/kyc/audit', '@/lib/kyc/storage', '@/lib/kyc/paper-docs', '@/lib/kyc/ai-review', '@/types/kyc']) deps[name] = {};
 deps['@/lib/validators/kyc'] = { kycSubmitSchema: { safeParse: data => ({ success: true, data }) } };
 deps['@/lib/tenant'].getTenant = async () => ({ ekyc_enabled: true });
 deps['@/lib/order-access'].hasOrderAccess = async () => resumeAccess;
@@ -110,6 +114,15 @@ function load(file) {
   validToken = false;
   assert.equal((await kyc.createKycRequest(resume)).success, true);
   assert.equal(kycBody.order_id, 'saved-order'); assert.equal(kycBody.line_user_id, 'original-line');
+  approved=false; validToken=true; lookupFails=false; orderBody=null; resumeOrder=null;
+  deps['@/lib/kyc/shared-approval'].getKycReverificationCutoff=async()=> '2026-10-02T00:00:00Z';
+  submittedFixture={id:'old-request',customer_name:'テスト太郎',line_user_id:'server-verified-line',status:'approved',created_at:'2026-10-01T00:00:00Z',ocr_result:null};
+  assert((await orders.createOrder({...input,kyc_request_id:'old-request'})).error);assert.equal(orderBody,null);
+  await orders.createOrder({...input,kyc_request_id:'old-request',defer_kyc:true});assert.equal(orderBody.identity_verified_at,undefined);assert.equal(orderBody.kyc_request_id,undefined);
+  orderBody=null;submittedFixture.created_at='2026-10-03T00:00:00Z';
+  await orders.createOrder({...input,kyc_request_id:'old-request'});assert.equal(orderBody.kyc_request_id,'old-request');assert(orderBody.identity_verified_at);
+  submittedFixture.status='processing';submittedFixture.created_at='2026-10-01T00:00:00Z';assert.equal(await kyc.checkKycForApply('fixture-token','テスト太郎'),'none');
+  console.log('PASS re-registration cutoff: stale explicit KYC IDs, fallback approvals and pending requests blocked; fresh capture accepted; deferred remains unpaid');
   console.log('PASS KYC resume: requires order ownership and matching name/LINE; links to existing order');
   console.log('PASS deferred KYC: explicit opt-in saves unverified application, including lookup outage');
   console.log('PASS shared KYC actions: verified LINE only, form and order integration, local receipt linkage, outage/no-approval blocks unverified order.');

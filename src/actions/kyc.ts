@@ -1,7 +1,9 @@
 'use server'
 
 import { limitPublicRequest, consumeLimit } from '@/lib/shared-rate-limit'
-import { findApprovedKyc } from '@/lib/kyc/shared-approval'
+import { findApprovedKyc, getKycReverificationCutoff } from '@/lib/kyc/shared-approval'
+import { kycReverificationKey, approvalAfterCutoff } from '@/lib/kyc/reverification'
+import { z } from 'zod'
 import { grantKycAccess, hasKycAccess } from '@/lib/kyc/access'
 import { hasOrderAccess, assertOrderAccessConfigured } from '@/lib/order-access'
 import { revalidatePath } from 'next/cache'
@@ -553,14 +555,15 @@ export async function checkKycForApply(
 
     const { data } = await supabase
       .from('kyc_requests')
-      .select('status, customer_name')
+      .select('status, customer_name, created_at')
       .eq('tenant_id', tenantId)
       .eq('line_user_id', lineUserId)
       .eq('status', 'processing')
       .order('created_at', { ascending: false })
       .limit(10)
 
-    const matched = (data ?? []).filter((k) => normalize(k.customer_name) === normalize(name))
+    const cutoff = await getKycReverificationCutoff(supabase, tenantId, lineUserId, name)
+    const matched = (data ?? []).filter((k) => normalize(k.customer_name) === normalize(name) && approvalAfterCutoff(k.created_at, cutoff))
     if (matched.some((k) => k.status === 'processing')) return 'submitted'
     return 'none'
   } catch {
@@ -785,5 +788,34 @@ export async function deleteKycRequest(id: string) {
   if (error) return { error: sanitizeError(error) }
 
   revalidatePath('/admin/kyc')
+  return { success: true }
+}
+
+/** Retain the original evidence and completed orders; require a fresh capture for future applications. */
+export async function getKycReregistrable(): Promise<boolean> {
+  const { user, error } = await requireRole(['admin', 'manager'])
+  return !!user && !error
+}
+export async function requestKycReregistration(id: string, reason: string) {
+  const { user, error: authError } = await requireRole(['admin', 'manager'])
+  if (authError || !user) return { error: authError ?? '認証が必要です' }
+  if (!z.uuid().safeParse(id).success || reason.trim().length < 2 || reason.length > 300) return { error: '申請と再登録理由を確認してください' }
+  const db = createAdminClient()
+  const { data: target, error } = await db.from('kyc_requests').select('id,customer_name,line_user_id,status').eq('id', id).eq('tenant_id', user.tenant_id).maybeSingle()
+  if (error || !target) return { error: '対象の本人確認が見つかりません' }
+  if (!target.line_user_id || !target.customer_name) return { error: 'LINE未連携の本人確認です。申込画面から新しく撮影してください。' }
+  if (target.status !== 'approved') return { error: '承認済みの本人確認を選択してください' }
+  const key = kycReverificationKey(target.line_user_id, target.customer_name)
+  const { data: existing, error: readError } = await db.from('app_settings').select('value').eq('tenant_id', user.tenant_id).eq('key', key).maybeSingle()
+  if (readError) return { error: '再登録状態を確認できませんでした' }
+  const requestedAt = new Date().toISOString()
+  const audit = await db.from('kyc_audit_logs').insert({ tenant_id: user.tenant_id, kyc_request_id: id, actor_id: user.id, action: 'reverification_requested', details: { reason: reason.trim(), requested_at: requestedAt } })
+  if (audit.error) return { error: '再登録の履歴を記録できませんでした' }
+  const result = existing
+    ? await db.from('app_settings').update({ value: requestedAt }).eq('tenant_id', user.tenant_id).eq('key', key).eq('value', existing.value).select('key')
+    : await db.from('app_settings').insert({ tenant_id: user.tenant_id, key, value: requestedAt, description: '本人確認の再撮影が必要になった日時（氏名・LINE情報は含まない）' }).select('key')
+  if (result.error || !result.data?.length) return { error: '再登録設定を保存できませんでした。再読み込みしてください。' }
+  revalidatePath('/admin/kyc')
+  revalidatePath(`/admin/kyc/${id}`)
   return { success: true }
 }

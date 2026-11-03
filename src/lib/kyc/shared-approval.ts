@@ -1,4 +1,5 @@
 import 'server-only'
+import { readReverificationCutoff, approvalAfterCutoff } from './reverification'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 // Only these two deployments/tenants share approvals. Never accept a source URL or tenant from a browser.
@@ -26,34 +27,50 @@ export function peerFor(tenant: string) {
   return { source, tenant: config.tenant, client }
 }
 
-async function lookup(client: SupabaseClient, tenant: string, lineUserId: string, name: string): Promise<Approval | null> {
+async function lookup(client: SupabaseClient, tenant: string, lineUserId: string, name: string, cutoff: string | null = null): Promise<Approval | null> {
   const { data, error } = await client.from('kyc_requests')
-    .select('id, customer_name, id_document_type, reviewed_at, expires_at')
+    .select('id, customer_name, id_document_type, reviewed_at, expires_at, created_at')
     .eq('tenant_id', tenant).eq('line_user_id', lineUserId).eq('status', 'approved')
     // Receipts must not become new sources (including after the original is revoked).
     .is('ocr_result->shared_approval', null)
     .order('reviewed_at', { ascending: false }).limit(100)
   if (error) throw new Error('本人確認の照合に失敗しました。時間をおいて再度お試しください。')
-  return (data ?? []).find(k => norm(k.customer_name) === norm(name)) ?? null
+  return (data ?? []).find(k => norm(k.customer_name) === norm(name) && approvalAfterCutoff(k.created_at, cutoff)) ?? null
 }
 
 // lineUserId must already have been verified by the server's LINE token verification.
 export async function findApprovedKyc(client: SupabaseClient, tenant: string, lineUserId: string, name: string): Promise<Approval | null> {
   if (!lineUserId || !norm(name)) return null
-  const local = await lookup(client, tenant, lineUserId, name)
-  if (local) return local
   const peer = peerFor(tenant)
+  const cutoff = await getKycReverificationCutoff(client, tenant, lineUserId, name)
+  const local = await lookup(client, tenant, lineUserId, name, cutoff)
+  if (local) return local
   if (!peer) return null
-  const approved = await lookup(peer.client, peer.tenant, lineUserId, name)
+  const approved = await lookup(peer.client, peer.tenant, lineUserId, name, cutoff)
   return approved ? { ...approved, source: peer.source } : null
 }
 
+export async function getKycReverificationCutoff(client: SupabaseClient, tenant: string, lineUserId: string, name: string) {
+  const peer = peerFor(tenant)
+  const dates = await Promise.all([
+    readReverificationCutoff(client, tenant, lineUserId, name),
+    peer ? readReverificationCutoff(peer.client, peer.tenant, lineUserId, name) : Promise.resolve(null),
+  ])
+  return dates.filter((date): date is string => !!date).sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null
+}
+
 export async function recordSharedApproval(client: SupabaseClient, tenant: string, lineUserId: string, approval: Approval): Promise<string> {
-  if (!approval.source) return approval.id
+  if (!approval.source) {
+    const cutoff = await getKycReverificationCutoff(client, tenant, lineUserId, approval.customer_name)
+    const fresh = await lookup(client, tenant, lineUserId, approval.customer_name, cutoff)
+    if (!fresh || fresh.id !== approval.id) throw new Error('本人確認の承認状態が変わりました。再度確認してください。')
+    return fresh.id
+  }
   const peer = peerFor(tenant)
   if (!peer || peer.source !== approval.source) throw new Error('本人確認の連携設定を確認してください。')
   // Recheck the source immediately before issuing a receipt. No image/OCR/address copying.
-  const fresh = await lookup(peer.client, peer.tenant, lineUserId, approval.customer_name)
+  const cutoff = await getKycReverificationCutoff(client, tenant, lineUserId, approval.customer_name)
+  const fresh = await lookup(peer.client, peer.tenant, lineUserId, approval.customer_name, cutoff)
   if (!fresh || fresh.id !== approval.id) throw new Error('本人確認の承認状態が変わりました。再度確認してください。')
   const proof = { version: 1, source: peer.source, tenant_id: peer.tenant, request_id: fresh.id, reviewed_at: fresh.reviewed_at, checked_at: new Date().toISOString() }
   const { data, error } = await client.from('kyc_requests').insert({

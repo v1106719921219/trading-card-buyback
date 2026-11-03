@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,8 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Eye, Trash2, Check } from 'lucide-react'
-import { deleteKycRequest, reviewKycRequest } from '@/actions/kyc'
+import { Eye, Trash2, Check, RotateCcw } from 'lucide-react'
+import { deleteKycRequest, reviewKycRequest, requestKycReregistration } from '@/actions/kyc'
 import {
   KYC_STATUS_LABELS,
   KYC_STATUS_COLORS,
@@ -28,11 +30,27 @@ interface KycListTableProps {
   requests: KycRequestWithOrder[]
   loading: boolean
   // 千葉店のみ削除ボタンを表示（東京＝実顧客ありでは表示しない）
+  reregistrable?: boolean
   deletable?: boolean
   onDeleted?: () => void
 }
 
-export function KycListTable({ requests, loading, deletable, onDeleted }: KycListTableProps) {
+export function KycListTable({ requests, loading, deletable, reregistrable, onDeleted }: KycListTableProps) {
+  const [reregisterTarget, setReregisterTarget] = useState<KycRequestWithOrder | null>(null)
+  const [reregisterReason, setReregisterReason] = useState('本人確認書類の記載変更')
+  const [reregisterSaving, setReregisterSaving] = useState(false)
+  async function reregister() {
+    if (!reregisterTarget || reregisterSaving) return
+    setReregisterSaving(true)
+    try {
+      const result = await requestKycReregistration(reregisterTarget.id, reregisterReason)
+      if (result.error) { toast.error(result.error); return }
+      toast.success('旧情報の自動利用を停止しました。同じLINEから新しく本人確認を撮影してください。')
+      setReregisterTarget(null)
+      onDeleted?.()
+    } catch { toast.error('設定結果を確認できませんでした。再読み込みしてください。') }
+    finally { setReregisterSaving(false) }
+  }
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [approvingId, setApprovingId] = useState<string | null>(null)
 
@@ -69,6 +87,13 @@ export function KycListTable({ requests, loading, deletable, onDeleted }: KycLis
 
   return (
     <div className="rounded-md border">
+      <Dialog open={!!reregisterTarget} onOpenChange={open => { if (!open && !reregisterSaving) setReregisterTarget(null) }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>本人確認を再登録する</DialogTitle><DialogDescription>{reregisterTarget?.customer_name}さんの旧情報の自動利用を停止します。画像・確認履歴・過去の注文は残します。東京・山口・千葉で同じLINEと氏名の古い承認を使えなくなり、新しく撮影・承認するまで次回申込みの本人確認は完了しません。</DialogDescription></DialogHeader>
+          <Textarea aria-label="再登録の理由" value={reregisterReason} onChange={e => setReregisterReason(e.target.value)} maxLength={300} disabled={reregisterSaving} />
+          <DialogFooter><Button variant="outline" disabled={reregisterSaving} onClick={() => setReregisterTarget(null)}>戻る</Button><Button disabled={reregisterSaving || reregisterReason.trim().length < 2} onClick={reregister}>{reregisterSaving ? '設定中…' : '旧情報の利用を停止して再登録する'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Table>
         <TableHeader>
           <TableRow>
@@ -142,6 +167,9 @@ export function KycListTable({ requests, loading, deletable, onDeleted }: KycLis
                         <Eye className="h-4 w-4" />
                       </Button>
                     </Link>
+                    {reregistrable && req.status === 'approved' && (
+                      <Button variant="outline" size="sm" onClick={() => { setReregisterReason('本人確認書類の記載変更'); setReregisterTarget(req) }}><RotateCcw className="mr-1 h-4 w-4" />再登録</Button>
+                    )}
                     {deletable && (
                       <Button
                         variant="ghost"

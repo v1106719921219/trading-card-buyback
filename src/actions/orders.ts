@@ -1,6 +1,7 @@
 'use server'
 
-import { findApprovedKyc, recordSharedApproval } from '@/lib/kyc/shared-approval'
+import { approvalAfterCutoff } from '@/lib/kyc/reverification'
+import { findApprovedKyc, recordSharedApproval, getKycReverificationCutoff } from '@/lib/kyc/shared-approval'
 
 import { isIndividual30thPikachu } from '@/lib/30th-pikachu'
 import { revalidatePath } from 'next/cache'
@@ -169,16 +170,26 @@ export async function createOrder(input: CreateOrderInput) {
       // 撮影済みeKYCを探す。①フォームから直接渡されたID ②同じLINE本人(line_user_id)＋氏名一致
       // 状態は processing（審査待ち）／approved（承認済み）のいずれも「撮影完了」として受け付ける
       let matched: { id: string; status: string; docType?: string } | null = null
-      if (kyc_request_id) {
+      let reverifyCutoff: string | null = null
+      let reverifyUnavailable = false
+      if (lineUserId) {
+        try { reverifyCutoff = await getKycReverificationCutoff(supabase, tenantId, lineUserId, customer.customer_name) }
+        catch { reverifyUnavailable = true }
+      }
+      if (kyc_request_id && !reverifyUnavailable) {
         const { data: submitted } = await supabase
           .from('kyc_requests')
-          .select('id, status, id_document_type, customer_name, line_user_id, ocr_result')
+          .select('id, status, id_document_type, customer_name, line_user_id, ocr_result, created_at')
           .eq('tenant_id', tenantId)
           .eq('id', kyc_request_id)
           .maybeSingle()
+        if (!lineUserId && submitted?.line_user_id && await hasKycAccess(tenantId, submitted.id)) {
+          try { reverifyCutoff = await getKycReverificationCutoff(supabase, tenantId, submitted.line_user_id, customer.customer_name) }
+          catch { reverifyUnavailable = true }
+        }
         // 撮影後に氏名を変更した等の食い違いを防ぐため、氏名一致も確認する
         if (
-          submitted && !submitted.ocr_result?.shared_approval &&
+          submitted && !reverifyUnavailable && approvalAfterCutoff(submitted.created_at, reverifyCutoff) && !submitted.ocr_result?.shared_approval &&
           ((lineUserId && submitted.line_user_id === lineUserId) || await hasKycAccess(tenantId, submitted.id)) &&
           ['processing', 'approved'].includes(submitted.status) &&
           normalize(submitted.customer_name) === normalize(customer.customer_name)
@@ -186,10 +197,10 @@ export async function createOrder(input: CreateOrderInput) {
           matched = { id: submitted.id, status: submitted.status, docType: submitted.id_document_type }
         }
       }
-      if (!matched && lineUserId) {
+      if (!matched && lineUserId && !reverifyUnavailable) {
         const { data: subs } = await supabase
           .from('kyc_requests')
-          .select('id, status, customer_name, id_document_type')
+          .select('id, status, customer_name, id_document_type, created_at')
           .eq('tenant_id', tenantId)
           .eq('line_user_id', lineUserId)
           .in('status', ['processing', 'approved'])
@@ -197,7 +208,7 @@ export async function createOrder(input: CreateOrderInput) {
           .order('created_at', { ascending: false })
           .limit(10)
         const m = (subs ?? []).find(
-          (k) => normalize(k.customer_name) === normalize(customer.customer_name)
+          (k) => normalize(k.customer_name) === normalize(customer.customer_name) && approvalAfterCutoff(k.created_at, reverifyCutoff)
         )
         if (m) matched = { id: m.id, status: m.status, docType: m.id_document_type }
       }
