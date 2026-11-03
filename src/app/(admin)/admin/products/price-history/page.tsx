@@ -1,7 +1,7 @@
 'use client'
-import { fetchAllById } from '@/lib/fetch-all-rows'
+import { fetchAllById, fetchAllUuidRows } from '@/lib/fetch-all-rows'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef, Fragment } from 'react'
 import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,23 +35,12 @@ import {
   ResponsiveContainer,
   LabelList,
 } from 'recharts'
-import type { Category, Subcategory, Product, ProductPriceHistory } from '@/types/database'
+import { jstDate, pricesAtJstDate } from '@/lib/price-history-view'
+import type { Category, Subcategory, Product } from '@/types/database'
 
-type HistoryWithRelations = ProductPriceHistory & {
-  product: {
-    id: string
-    name: string
-    category_id: string
-    subcategory_id: string | null
-    category: Category
-    subcategory: Subcategory | null
-  }
-}
-
-type ProductWithRelations = Product & {
-  category: Category
-  subcategory: Subcategory | null
-}
+type HistoryWithRelations = { id: string; product_id: string; old_price: number; new_price: number; changed_at: string }
+type CatalogProduct = Pick<Product, 'id' | 'name' | 'price' | 'category_id' | 'subcategory_id'>
+type ProductWithRelations = CatalogProduct & { category: Category; subcategory: Subcategory | null }
 
 type BuybackRecord = {
   product_name: string
@@ -69,60 +58,103 @@ type ChartRecord = {
 
 export default function PriceHistoryPage() {
   const [history, setHistory] = useState<HistoryWithRelations[]>([])
-  const [products, setProducts] = useState<ProductWithRelations[]>([])
+  const [products, setProducts] = useState<CatalogProduct[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
   const [selectedBuybackProduct, setSelectedBuybackProduct] = useState<string>('')
   const [buybackRecords, setBuybackRecords] = useState<BuybackRecord[]>([])
   const [buybackLoading, setBuybackLoading] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [catalogReady, setCatalogReady] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyReady, setHistoryReady] = useState(false)
+  const [historyError, setHistoryError] = useState('')
+  const [historyReload, setHistoryReload] = useState(0)
+  const [visibleCount, setVisibleCount] = useState(100)
+  const historyStarted = useRef(false)
+
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [filterSubcategory, setFilterSubcategory] = useState<string>('all')
   const [search, setSearch] = useState('')
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  })
-
-  const supabase = createClient()
+  const [selectedDate, setSelectedDate] = useState(() => jstDate())
+  const isToday = selectedDate === jstDate()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
-    fetchData()
-  }, [])
-
-  async function fetchData() {
-    setLoading(true)
-    try {
-      const [historyRes, productsRes, categoriesRes, subcategoriesRes] = await Promise.all([
-        fetchAllById((after,size)=>{let q=supabase.from('product_price_history').select('*, product:products(id, name, category_id, subcategory_id, category:categories(*), subcategory:subcategories(*))').order('id').limit(size);if(after)q=q.gt('id',after);return q}),
-        fetchAllById((after,size)=>{let q=supabase.from('products').select('*, category:categories(*), subcategory:subcategories(*)').eq('is_active',true).order('id').limit(size);if(after)q=q.gt('id',after);return q}),
-        supabase
-          .from('categories')
-          .select('*')
-          .order('sort_order'),
-        supabase
-          .from('subcategories')
-          .select('*')
-          .order('sort_order'),
-      ])
-
-      if (historyRes.error) throw historyRes.error
-      if (productsRes.error) throw productsRes.error
-      if (categoriesRes.error) throw categoriesRes.error
-      if (subcategoriesRes.error) throw subcategoriesRes.error
-
-      setHistory((historyRes.data as unknown as HistoryWithRelations[]).sort((a,b)=>b.changed_at.localeCompare(a.changed_at)))
-      setProducts(productsRes.data as unknown as ProductWithRelations[])
-      setCategories(categoriesRes.data)
-      setSubcategories(subcategoriesRes.data)
-    } catch (error) {
-      toast.error('データの取得に失敗しました')
-      console.error(error)
-    } finally {
-      setLoading(false)
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setLoadError('')
+      try {
+        const [cats, subs] = await Promise.all([
+          supabase.from('categories').select('*').order('sort_order'),
+          supabase.from('subcategories').select('*').order('sort_order'),
+        ])
+        if (cancelled) return
+        if (cats.error || subs.error) throw Error('カテゴリを読み込めませんでした')
+        setCategories(cats.data ?? [])
+        setSubcategories(subs.data ?? [])
+        const buffered: CatalogProduct[] = []
+        const result = await fetchAllUuidRows<CatalogProduct>((after, size, lower, upper) => {
+          let q = supabase.from('products').select('id,name,price,category_id,subcategory_id')
+            .eq('is_active', true).order('id').gte('id', lower).limit(size)
+          if (upper) q = q.lt('id', upper)
+          if (after) q = q.gt('id', after)
+          return q
+        }, { shouldContinue: () => !cancelled, onBatch: batch => {
+          if (cancelled) return
+          buffered.push(...batch)
+          setProducts([...buffered])
+          setLoading(false)
+        } })
+        if (cancelled) return
+        if (result.error || !result.data) throw Error('商品を最後まで読み込めませんでした。再読み込みしてください。')
+        setProducts(result.data)
+        setCatalogReady(true)
+      } catch (e) {
+        if (!cancelled) { setLoadError(e instanceof Error ? e.message : '読み込めませんでした'); toast.error('商品の取得に失敗しました') }
+      } finally { if (!cancelled) setLoading(false) }
     }
-  }
+    void load()
+    return () => { cancelled = true }
+  }, [supabase])
 
+  // 今日の価格には履歴は不要。過去の日付が選ばれたときだけ軽量な価格履歴を取得する。
+  const needsHistory = !isToday
+  useEffect(() => {
+    if (!needsHistory || historyReady || historyStarted.current) return
+    historyStarted.current = true
+    let cancelled = false
+    async function load() {
+      setHistoryLoading(true)
+      setHistoryError('')
+      try {
+        const result = await fetchAllById<HistoryWithRelations>((after, size) => {
+          let q = supabase.from('product_price_history').select('id,product_id,old_price,new_price,changed_at').order('id').limit(size)
+          if (after) q = q.gt('id', after)
+          return q
+        })
+        if (cancelled) return
+        if (result.error || !result.data) throw Error('過去価格を取得できませんでした')
+        setHistory(result.data)
+        setHistoryReady(true)
+      } catch {
+        if (!cancelled) { setHistoryError('過去価格を取得できませんでした。日付を選び直して再試行してください。'); historyStarted.current = false }
+      } finally { if (!cancelled) setHistoryLoading(false) }
+    }
+    void load()
+    return () => { cancelled = true; historyStarted.current = false }
+  }, [needsHistory, supabase, historyReload, historyReady])
+
+  const displayProducts = useMemo<ProductWithRelations[]>(() => {
+    const cats = new Map(categories.map(c => [c.id, c])), subs = new Map(subcategories.map(s => [s.id, s]))
+    return products.flatMap(p => {
+      const category = cats.get(p.category_id)
+      return category ? [{ ...p, category, subcategory: p.subcategory_id ? subs.get(p.subcategory_id) ?? null : null }] : []
+    })
+  }, [products, categories, subcategories])
+  const pricesReady = isToday || historyReady
   // 商品選択時にその商品の買取データを取得
   async function fetchBuybackData(productName: string) {
     setSelectedBuybackProduct(productName)
@@ -160,7 +192,7 @@ export default function PriceHistoryPage() {
           product_name: item.product_name,
           unit_price: item.unit_price,
           inspected_quantity: qty,
-          order_date: order.created_at.split('T')[0],
+          order_date: jstDate(new Date(order.created_at)),
           order_number: order.order_number,
         })
       }
@@ -182,67 +214,32 @@ export default function PriceHistoryPage() {
 
   // カテゴリ変更時にサブカテゴリをリセット
   function handleCategoryChange(value: string) {
+    setVisibleCount(100)
     setFilterCategory(value)
     setFilterSubcategory('all')
   }
 
-  // 選択日が今日かどうか
-  const isToday = useMemo(() => {
-    const now = new Date()
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-    return selectedDate === todayStr
-  }, [selectedDate])
+  const priceAtDate = useMemo(() => isToday || !historyReady ? null : pricesAtJstDate(products, history, selectedDate), [products, history, selectedDate, isToday, historyReady])
 
-  // 選択日時点の各商品の価格を計算
-  const priceAtDate = useMemo(() => {
-    if (isToday) return null
-
-    const targetEnd = new Date(selectedDate + 'T23:59:59')
-    const priceMap = new Map<string, number>()
-
-    for (const p of products) {
-      const productHistory = history
-        .filter((h) => h.product?.id === p.id)
-        .sort((a, b) => new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime())
-
-      if (productHistory.length === 0) {
-        priceMap.set(p.id, p.price)
-        continue
-      }
-
-      const beforeOrOn = productHistory.filter(
-        (h) => new Date(h.changed_at) <= targetEnd
-      )
-
-      if (beforeOrOn.length > 0) {
-        priceMap.set(p.id, beforeOrOn[beforeOrOn.length - 1].new_price)
-      } else {
-        priceMap.set(p.id, productHistory[0].old_price)
-      }
-    }
-
-    return priceMap
-  }, [products, history, selectedDate, isToday])
-
-  function getDisplayPrice(p: ProductWithRelations): number {
+  const getDisplayPrice = useCallback((p: ProductWithRelations): number => {
     if (isToday || !priceAtDate) return p.price
     return priceAtDate.get(p.id) ?? p.price
-  }
+  }, [isToday, priceAtDate])
 
   // フィルタ済み全商品
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
+    return displayProducts.filter((p) => {
       if (filterCategory !== 'all' && p.category_id !== filterCategory) return false
       if (filterSubcategory !== 'all' && p.subcategory_id !== filterSubcategory) return false
       if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
       return true
     })
-  }, [products, filterCategory, filterSubcategory, search])
+  }, [displayProducts, filterCategory, filterSubcategory, search])
 
   // カテゴリ別にグルーピング
   const groupedProducts = useMemo(() => {
     const groups = new Map<string, { category: Category; items: ProductWithRelations[] }>()
-    for (const p of filteredProducts) {
+    for (const p of filteredProducts.slice(0, visibleCount)) {
       const catId = p.category_id
       if (!groups.has(catId)) {
         groups.set(catId, { category: p.category, items: [] })
@@ -252,7 +249,7 @@ export default function PriceHistoryPage() {
     return Array.from(groups.values()).sort(
       (a, b) => (a.category.sort_order ?? 0) - (b.category.sort_order ?? 0)
     )
-  }, [filteredProducts])
+  }, [filteredProducts, visibleCount])
 
   function formatPrice(price: number) {
     return price.toLocaleString('ja-JP')
@@ -260,6 +257,7 @@ export default function PriceHistoryPage() {
 
   // CSVエクスポート（選択日時点の全商品価格）
   const handleCsvExport = useCallback(() => {
+    if (!catalogReady || !pricesReady) { toast.error('全件の読み込み完了後に出力できます'); return }
     if (filteredProducts.length === 0) {
       toast.error('エクスポートするデータがありません')
       return
@@ -286,29 +284,22 @@ export default function PriceHistoryPage() {
     link.download = `買取価格一覧_${fileDateStr}.csv`
     link.click()
     URL.revokeObjectURL(url)
-  }, [filteredProducts, selectedDate, priceAtDate, isToday])
+  }, [filteredProducts, selectedDate, getDisplayPrice, catalogReady, pricesReady])
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <AdminHeader title="買取価格一覧" description="全商品の買取価格を確認・エクスポートできます" />
-        <div className="flex items-center justify-center py-12">
-          <p className="text-muted-foreground">読み込み中...</p>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-6">
       <AdminHeader title="買取価格一覧" description="全商品の買取価格を確認・エクスポートできます" />
 
+      {loadError ? <p role="alert" className="text-red-600">{loadError}</p> : !catalogReady && <p role="status" className="text-sm text-muted-foreground">{loading ? '商品を読み込み中…' : `商品を順次読み込み中（${products.length.toLocaleString('ja-JP')}件取得済み）。検索結果は読み込み済みの商品が対象です。CSV出力は全件そろってから利用できます。`}</p>}
+      {historyLoading && !isToday && <p role="status" className="text-sm text-muted-foreground">選択した日付の価格を取得中…</p>}
+      {historyError && !isToday && <div role="alert" className="text-red-600">{historyError}<Button variant="outline" onClick={() => { historyStarted.current = false; setHistoryReload(n => n + 1) }}>再試行</Button></div>}
       {/* フィルタ */}
       <div className="flex flex-col sm:flex-row gap-3">
         <Input
           type="date"
           value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
+          onChange={(e) => { if (e.target.value) setSelectedDate(e.target.value) }}
           className="w-full sm:w-[180px]"
         />
 
@@ -324,7 +315,7 @@ export default function PriceHistoryPage() {
           </SelectContent>
         </Select>
 
-        <Select value={filterSubcategory} onValueChange={setFilterSubcategory}>
+        <Select value={filterSubcategory} onValueChange={v => { setVisibleCount(100); setFilterSubcategory(v) }}>
           <SelectTrigger className="w-full sm:w-[200px]">
             <SelectValue placeholder="サブカテゴリ" />
           </SelectTrigger>
@@ -341,7 +332,7 @@ export default function PriceHistoryPage() {
           <Input
             placeholder="商品名で検索..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setVisibleCount(100); setSearch(e.target.value) }}
             className="pl-9"
           />
         </div>
@@ -538,7 +529,7 @@ export default function PriceHistoryPage() {
               （{filteredProducts.length}商品）
             </span>
           </CardTitle>
-          <Button variant="outline" size="sm" onClick={handleCsvExport} disabled={filteredProducts.length === 0}>
+          <Button variant="outline" size="sm" onClick={handleCsvExport} disabled={!catalogReady || !pricesReady || filteredProducts.length === 0}>
             <Download className="mr-1 h-4 w-4" />
             CSVエクスポート
           </Button>
@@ -560,8 +551,8 @@ export default function PriceHistoryPage() {
                 </TableHeader>
                 <TableBody>
                   {groupedProducts.map((group) => (
-                    <>
-                      <TableRow key={`cat-${group.category.id}`}>
+                    <Fragment key={group.category.id}>
+                      <TableRow>
                         <TableCell colSpan={3} className="bg-muted/50 py-2 px-4 font-medium text-sm">
                           {group.category.name}
                           <span className="text-muted-foreground font-normal ml-2">
@@ -578,14 +569,18 @@ export default function PriceHistoryPage() {
                             )}
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-medium">
-                            ¥{formatPrice(getDisplayPrice(p))}
+                            {pricesReady ? `¥${formatPrice(getDisplayPrice(p))}` : historyError ? '取得失敗' : '取得中…'}
                           </TableCell>
                         </TableRow>
                       ))}
-                    </>
+                    </Fragment>
                   ))}
                 </TableBody>
               </Table>
+              <div className="flex items-center justify-between pt-4 text-sm text-muted-foreground">
+                <span>{filteredProducts.length.toLocaleString('ja-JP')}件中 {Math.min(visibleCount, filteredProducts.length).toLocaleString('ja-JP')}件表示</span>
+                {visibleCount < filteredProducts.length && <Button variant="outline" onClick={() => setVisibleCount(n => n + 100)}>次の100件を表示</Button>}
+              </div>
             </div>
           )}
         </CardContent>
