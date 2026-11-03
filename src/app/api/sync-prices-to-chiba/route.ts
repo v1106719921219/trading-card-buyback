@@ -3,6 +3,7 @@ import { getTenant } from '@/lib/tenant'
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@supabase/supabase-js'
+import { isIndependentChibaProduct } from '@/lib/chiba-price-sync'
 
 // PostgRESTは1件のSELECTで最大1000行しか返さない。
 // 東京の商品は1000件を超えるため、ページングで全件取得する（取りこぼすと千葉に商品が作られない）。
@@ -123,10 +124,12 @@ export async function POST(_request: Request) {
   }
 
   // 千葉の既存カテゴリ・サブカテゴリを取得
-  const [{ data: chibaCategories }, { data: chibaSubcategories }] = await Promise.all([
+  const [{ data: chibaCategories, error: categoryError }, { data: chibaSubcategories, error: subcategoryError }] = await Promise.all([
     chibaSupabase.from('categories').select('id, name').eq('tenant_id', chibaTenant.id),
     chibaSupabase.from('subcategories').select('id, name, category_id').eq('tenant_id', chibaTenant.id),
   ])
+
+  if (categoryError || subcategoryError) return NextResponse.json({ error: '千葉の分類確認に失敗しました。同期は実行していません' }, { status: 500 })
 
   const chibaCategoryMap = new Map<string, string>((chibaCategories ?? []).map((c) => [c.name, c.id]))
   const chibaSubcategoryMap = new Map<string, string>((chibaSubcategories ?? []).map((s) => [`${s.category_id}:${s.name}`, s.id]))
@@ -154,6 +157,7 @@ export async function POST(_request: Request) {
   const subNew: { name: string; category_id: string; sort_order: number; is_active: boolean; tenant_id: string }[] = []
 
   for (const sub of subcategories ?? []) {
+    if (isIndependentChibaProduct('', sub.name)) continue
     const tokyoCat = categories.find((c) => c.id === sub.category_id)
     if (!tokyoCat) continue
     const chibaCatId = chibaCategoryMap.get(tokyoCat.name)
@@ -178,12 +182,20 @@ export async function POST(_request: Request) {
     insertedSubs?.forEach((s) => chibaSubcategoryMap.set(`${s.category_id}:${s.name}`, s.id))
   }
 
-  // 千葉の既存商品を全削除（tenant_id一致 + NULL両方）
-  await Promise.all([
-    chibaSupabase.from('products').delete().eq('tenant_id', chibaTenant.id),
-  ])
+  // 千葉の独立管理商品を保護する。同名でも千葉側がシングル・PSAなら上書きしない。
+  let chibaProducts: { name: string; category_id: string; subcategory_id: string | null }[]
+  try {
+    chibaProducts = await fetchAllRows((from, to) => chibaSupabase.from('products')
+      .select('name, category_id, subcategory_id')
+      .eq('tenant_id', chibaTenant.id).order('id').range(from, to))
+  } catch {
+    return NextResponse.json({ error: '千葉の商品確認に失敗しました。同期は実行していません' }, { status: 500 })
+  }
+  const protectedKeys = new Set(chibaProducts.filter(p => isIndependentChibaProduct(
+    p.name, (chibaSubcategories ?? []).find(s => s.id === p.subcategory_id)?.name
+  )).map(p => `${p.category_id}:${p.name}`))
 
-  // 東京の商品を全件挿入
+  // シングル・PSAを除き、対象商品のみ更新・追加（千葉の商品は削除しない）
   const insertData = products.flatMap((product) => {
     const tokyoCat = categories.find((c) => c.id === product.category_id)
     if (!tokyoCat) return []
@@ -191,6 +203,7 @@ export async function POST(_request: Request) {
     if (!chibaCatId) return []
 
     const tokyoSub = (subcategories ?? []).find((s) => s.id === product.subcategory_id)
+    if (isIndependentChibaProduct(product.name, tokyoSub?.name) || protectedKeys.has(`${chibaCatId}:${product.name}`)) return []
     const chibaSubId = tokyoSub
       ? (chibaSubcategoryMap.get(`${chibaCatId}:${tokyoSub.name}`) ?? null)
       : null
@@ -224,13 +237,13 @@ export async function POST(_request: Request) {
   }
   const dedupedData = Array.from(deduped.values())
 
-  // ON CONFLICT DO NOTHING で競合しても失敗しない。
+  // 同じ商品はIDを保持して更新し、新しい商品のみ追加する。
   // 2000件超を1リクエストに詰めるとペイロードが大きくなるため分割して送る。
   const INSERT_BATCH = 500
   for (let offset = 0; offset < dedupedData.length; offset += INSERT_BATCH) {
     const { error: insertError } = await chibaSupabase
       .from('products')
-      .upsert(dedupedData.slice(offset, offset + INSERT_BATCH), { onConflict: 'category_id,name', ignoreDuplicates: true })
+      .upsert(dedupedData.slice(offset, offset + INSERT_BATCH), { onConflict: 'category_id,name', ignoreDuplicates: false })
 
     if (insertError) {
       return NextResponse.json({ error: `商品挿入失敗: ${insertError.message}` }, { status: 500 })

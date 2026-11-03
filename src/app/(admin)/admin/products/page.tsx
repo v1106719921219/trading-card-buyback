@@ -376,7 +376,7 @@ async function syncToChiba() {
       if (data.skipped) {
         // 千葉設定なし（千葉デプロイ自身）
       } else if (data.success) {
-        toast.success(`千葉に${data.syncCount}件同期しました`)
+        toast.success(`千葉に${data.syncCount}件同期しました（シングル・PSAは対象外）`)
       } else {
         toast.error(`千葉への同期に失敗しました: ${data.error ?? ''}`)
       }
@@ -1089,7 +1089,7 @@ async function syncToChiba() {
             </Button>
 <Button variant="outline" onClick={syncToChiba} disabled={syncing}>
               <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? '同期中...' : '千葉に同期'}
+              {syncing ? '同期中...' : '千葉に同期（シングル・PSA除く）'}
             </Button>
             <Button variant="outline" onClick={refreshMarketPrices} disabled={refreshingMarket}>
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshingMarket ? 'animate-spin' : ''}`} />
