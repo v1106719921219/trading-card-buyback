@@ -28,3 +28,19 @@ export function validPaymentDate(value: string) {
   const date = new Date(value + 'T00:00:00Z')
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value && value <= jstToday()
 }
+
+export function isCashPaymentOrder(order: { planned_payment_method?: string | null; payment_method?: string | null }) {
+  return order.planned_payment_method === 'cash' || order.payment_method === 'cash' || order.payment_method === 'mixed'
+}
+export function isBankTransferOrder(order: { planned_payment_method?: string | null; payment_method?: string | null }) {
+  return !isCashPaymentOrder(order)
+}
+
+export function transferCsv(rows: { order_number: string; customer_name: string; bank_name: string | null; bank_branch: string | null; bank_account_type: string | null; bank_account_number: string | null; bank_account_holder: string | null; amount: number }[]) {
+  const cell = (value: string | number | null) => {
+    let text = String(value ?? '')
+    if (/^[\s]*[=+@-]/.test(text)) text = "'" + text
+    return '"' + text.replaceAll('"', '""') + '"'
+  }
+  return '\uFEFF' + [['注文番号','お客様名','銀行名','支店','口座種別','口座番号','名義','振込額'], ...rows.map(r => [r.order_number,r.customer_name,r.bank_name,r.bank_branch,r.bank_account_type,r.bank_account_number,r.bank_account_holder,r.amount])].map(row => row.map(cell).join(',')).join('\r\n')
+}

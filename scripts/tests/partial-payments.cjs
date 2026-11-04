@@ -6,7 +6,7 @@ const db = { rpc: async (name, args) => { rpcCalls.push({ name, args }); return 
 const actions = load('src/actions/payments.ts', {
  'next/cache': { revalidatePath() {} }, '@/lib/supabase/server': { createClient: async () => db },
  '@/lib/security': { requireRole: async () => ({ user: authError ? null : { tenant_id: 'tenant-a' }, error: authError }) },
- '@/lib/pdf': {}, '@/lib/payment-display': display,
+ '@/lib/supabase/admin': {}, '@/lib/pdf': {}, '@/lib/payment-display': display,
 });
 (async () => {
  const order = { status: '検品完了', total_amount: 1696500, paid_amount: 1000000, payment_method: 'cash' };

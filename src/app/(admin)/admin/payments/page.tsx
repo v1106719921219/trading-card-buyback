@@ -35,8 +35,8 @@ import { Badge } from '@/components/ui/badge'
 import { CreditCard, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { bulkMarkAsPaid } from '@/actions/payments'
-import { remainingPayment, paidAmount } from '@/lib/payment-display'
+import { bulkMarkAsPaid, getTransferCsvRows } from '@/actions/payments'
+import { remainingPayment, paidAmount, isBankTransferOrder, paymentStatusLabel, transferCsv } from '@/lib/payment-display'
 import type { Order } from '@/types/database'
 
 // 同一人物判定用のキー（メール / 銀行口座）
@@ -55,6 +55,10 @@ interface RepeatWarning {
 }
 
 export default function PaymentsPage() {
+  const [cashOrders, setCashOrders] = useState<Order[]>([])
+  const [cashLoading, setCashLoading] = useState(true)
+  const [cashError, setCashError] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
   const [shippedOrders, setShippedOrders] = useState<Order[]>([])
   const [repeatWarnings, setRepeatWarnings] = useState<Map<string, RepeatWarning[]>>(new Map())
@@ -84,7 +88,7 @@ export default function PaymentsPage() {
       toast.error('データの取得に失敗しました')
       return
     }
-    const sorted = sortByOrderNumber(data || [])
+    const sorted = sortByOrderNumber((data || []).filter(isBankTransferOrder))
     setOrders(sorted)
     // DBに保存されたチェック状態を復元
     const checked = sorted.filter((o) => o.payment_checked && (!o.kyc_deferred || o.identity_verified_at)).map((o) => o.id)
@@ -175,17 +179,47 @@ export default function PaymentsPage() {
       toast.error('データの取得に失敗しました')
       return
     }
-    setShippedOrders(sortByOrderNumber(data || []))
+    setShippedOrders(sortByOrderNumber((data || []).filter(isBankTransferOrder)))
     setShippedLoading(false)
   }
 
+  async function fetchCashOrders() {
+    setCashLoading(true)
+    setCashError(false)
+    try {
+      const rows: Order[] = []
+      for (let from = 0; ; from += 500) {
+        const { data, error } = await supabase.from('orders').select('*')
+          .or('planned_payment_method.eq.cash,payment_method.in.(cash,mixed)').neq('status', 'キャンセル').order('id').range(from, from + 499)
+        if (error) throw error
+        rows.push(...(data || []))
+        if ((data?.length ?? 0) < 500) break
+      }
+      setCashOrders(sortByOrderNumber(rows))
+    } catch { setCashError(true) }
+    finally { setCashLoading(false) }
+  }
+
+  async function exportTransferCsv() {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const r = await getTransferCsvRows([...selectedIds])
+      if (r.error || !r.data) { toast.error(r.error || 'CSVを取得できませんでした'); return }
+      const url = URL.createObjectURL(new Blob([transferCsv(r.data)], { type: 'text/csv;charset=utf-8' }))
+      const a = document.createElement('a'); a.href = url; a.download = '振込対象.csv'; a.click(); URL.revokeObjectURL(url)
+    } catch { toast.error('CSVを取得できませんでした') }
+    finally { setExporting(false) }
+  }
+
   useEffect(() => {
+    fetchCashOrders()
     fetchOrders()
     fetchShippedOrders()
   }, [])
 
   async function toggleSelect(id: string) {
-    if (orders.some(o => o.id === id && o.kyc_deferred && !o.identity_verified_at)) return
+    if (!orders.some(o => o.id === id && isBankTransferOrder(o) && (!o.kyc_deferred || o.identity_verified_at))) return
     const next = new Set(selectedIds)
     const newChecked = !next.has(id)
     if (newChecked) next.add(id)
@@ -314,10 +348,24 @@ export default function PaymentsPage() {
           <TabsTrigger value="pending">
             振込待ち（{orders.length}）
           </TabsTrigger>
+          <TabsTrigger value="cash">現金支払（{cashOrders.length}）</TabsTrigger>
           <TabsTrigger value="upcoming">
             振込予定（{shippedOrders.length}）
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="cash" className="space-y-4">
+          <p className="rounded border border-orange-300 bg-orange-50 p-3 text-sm">現金予定・現金払いの注文です。振込一覧・CSV・一括振込から除外しています。受領サインや支払記録が未登録でも、銀行振込はできません。</p>
+          <div className="rounded border"><Table><TableHeader><TableRow>
+            <TableHead>注文番号</TableHead><TableHead>お客様名</TableHead><TableHead>状態</TableHead><TableHead className="text-right">買取合計</TableHead><TableHead className="text-right">記録済み支払額</TableHead><TableHead className="text-right">支払記録上の残額</TableHead><TableHead>操作</TableHead>
+          </TableRow></TableHeader><TableBody>
+            {cashLoading ? <TableRow><TableCell colSpan={7}>読み込み中...</TableCell></TableRow> : cashError ? <TableRow><TableCell colSpan={7}>現金支払を取得できません。<Button variant="outline" onClick={fetchCashOrders}>再読み込み</Button></TableCell></TableRow> : cashOrders.length === 0 ? <TableRow><TableCell colSpan={7}>現金の注文はありません</TableCell></TableRow> : cashOrders.map(o => <TableRow key={o.id}>
+              <TableCell>{o.order_number}</TableCell><TableCell>{o.customer_name}</TableCell><TableCell><Badge variant="outline">現金・振込対象外</Badge><p className="text-xs mt-1">{paymentStatusLabel(o)}</p></TableCell>
+              <TableCell className="text-right">{((o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount || 0)).toLocaleString()}円</TableCell><TableCell className="text-right">{paidAmount(o).toLocaleString()}円</TableCell><TableCell className="text-right">{remainingPayment(o).toLocaleString()}円</TableCell>
+              <TableCell><Link href={`/admin/orders/${o.id}`}><Button variant="outline" size="sm">支払記録・受領書</Button></Link></TableCell>
+            </TableRow>)}
+          </TableBody></Table></div>
+        </TabsContent>
 
         {/* 振込待ち（検品完了）タブ */}
         <TabsContent value="pending" className="space-y-6">
@@ -346,6 +394,7 @@ export default function PaymentsPage() {
           {/* Actions */}
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-4">
+              <Button variant="outline" disabled={exporting || processing || unverifiedSelected.length > 0} onClick={exportTransferCsv}>{exporting ? '取得中...' : '選択分の振込CSV'}</Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button disabled={processing || unverifiedSelected.length > 0}>

@@ -135,6 +135,8 @@ export interface Order {
   arrival_date: string | null
   price_date: string | null
   assigned_to: string | null
+  planned_payment_method?: 'bank_transfer' | 'cash'
+  planned_payment_note?: string | null
   payment_method?: 'bank_transfer' | 'cash' | 'mixed' | null
   paid_amount?: number
   bank_paid_amount?: number

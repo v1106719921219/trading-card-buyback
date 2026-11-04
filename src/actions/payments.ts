@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole } from '@/lib/security'
 import { generateInspectionPdf } from '@/lib/pdf'
-import { jstToday, validPaymentDate } from '@/lib/payment-display'
+import { jstToday, validPaymentDate, isBankTransferOrder, remainingPayment } from '@/lib/payment-display'
 
 export async function getPaymentQueue() {
   const { user, error: authError } = await requireRole(['admin', 'manager'])
@@ -18,7 +18,7 @@ export async function getPaymentQueue() {
     .order('updated_at', { ascending: true })
 
   if (error) throw new Error(error.message)
-  return data
+  return (data ?? []).filter(isBankTransferOrder)
 }
 
 // 一括振込も画面で確認した残額・更新日時を使う。再取得した別の金額で勝手に確定しない。
@@ -138,4 +138,29 @@ export async function voidPayment(orderId: string, paymentId: string, reason: st
   if (result.error) return { error: result.error.code === 'P0001' ? result.error.message : '取消できませんでした。再読み込みしてください' }
   for (const path of ['/admin', '/admin/orders', `/admin/orders/${orderId}`, '/admin/payments', '/admin/payment-verification']) revalidatePath(path)
   return { success: true }
+}
+
+export async function setPlannedPaymentMethod(orderId: string, method: 'cash' | 'bank_transfer', reason: string, expectedUpdatedAt: string) {
+  const { user, error } = await requireRole(['admin', 'manager'])
+  if (error || !user) return { error: error ?? '認証が必要です' }
+  if (!['cash', 'bank_transfer'].includes(method) || !reason.trim() || reason.length > 500) return { error: '支払予定と変更理由を確認してください' }
+  const db = await createClient()
+  const result = await db.from('orders').update({ planned_payment_method: method, planned_payment_note: reason.trim(), payment_checked: false })
+    .eq('tenant_id', user.tenant_id).eq('id', orderId).eq('updated_at', expectedUpdatedAt).select('id')
+  if (result.error) return { error: result.error.code === 'P0001' ? result.error.message : '支払予定を変更できませんでした' }
+  if (result.data?.length !== 1) return { error: '注文が更新されました。再読み込みしてください' }
+  revalidatePath('/admin/payments')
+  revalidatePath(`/admin/orders/${orderId}`)
+  return { success: true }
+}
+
+export async function getTransferCsvRows(requestedIds: string[]) {
+  const { user, error } = await requireRole(['admin', 'manager'])
+  if (error || !user) return { error: error ?? '認証が必要です' }
+  if (!Array.isArray(requestedIds) || requestedIds.length < 1 || requestedIds.length > 100 || new Set(requestedIds).size !== requestedIds.length) return { error: '1〜100件を選択してください' }
+  const db = await createClient()
+  const result = await db.from('orders').select('*').eq('tenant_id', user.tenant_id).eq('status', '検品完了').in('id', requestedIds)
+  if (result.error || result.data?.length !== requestedIds.length) return { error: '振込対象が変わりました。再読み込みしてください' }
+  if (result.data.some(o => !isBankTransferOrder(o) || remainingPayment(o) <= 0 || (o.kyc_deferred && !o.identity_verified_at) || !o.bank_verified)) return { error: '現金予定・本人確認待ち・口座未確認など、振込できない注文が含まれています' }
+  return { data: result.data.map(o => ({ order_number: o.order_number, customer_name: o.customer_name, bank_name: o.bank_name, bank_branch: o.bank_branch, bank_account_type: o.bank_account_type, bank_account_number: o.bank_account_number, bank_account_holder: o.bank_account_holder, amount: remainingPayment(o) })) }
 }

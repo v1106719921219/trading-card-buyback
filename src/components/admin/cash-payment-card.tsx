@@ -8,8 +8,9 @@ import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { getOrderPaperKyc } from '@/actions/paper-kyc'
 import { getOrderPayments, getPaymentSignatureUrl, recordCashPaymentWithSignature, recordPayment, voidPayment } from '@/actions/payments'
+import { PaymentRouteControl } from '@/components/admin/payment-route-control'
 import { SignaturePad } from '@/components/admin/signature-pad'
-import { jstToday, paymentStatusLabel, paymentMethodLabel, paymentTotal, paidAmount, remainingPayment } from '@/lib/payment-display'
+import { jstToday, paymentStatusLabel, paymentMethodLabel, paymentTotal, paidAmount, remainingPayment, isCashPaymentOrder } from '@/lib/payment-display'
 import type { Order, OrderPayment, UserRole } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -19,7 +20,8 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
   const [method, setMethod] = useState<'cash' | 'bank_transfer'>('cash')
   const [amount, setAmount] = useState('')
   const [bankOnly, setBankOnly] = useState(false)
-  const effectiveMethod = bankOnly ? 'bank_transfer' : method
+  const cashRoute = isCashPaymentOrder(order)
+  const effectiveMethod = cashRoute ? 'cash' : bankOnly ? 'bank_transfer' : method
   const [saving, setSaving] = useState(false)
   const [history, setHistory] = useState<OrderPayment[]>([])
   const [historyError, setHistoryError] = useState(false)
@@ -31,7 +33,7 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
   const kycWaiting = !!order.kyc_deferred && !order.identity_verified_at
   const canRecord = !kycWaiting && ['admin', 'manager'].includes(role || '') && ['申込', '発送済', '検品完了'].includes(order.status) && remaining > 0
   const numericAmount = Number(amount)
-  const valid = /^\d+$/.test(amount) && Number.isSafeInteger(numericAmount) && numericAmount > 0 && numericAmount <= remaining && !!date
+  const valid = !(cashRoute && bankOnly) && /^\d+$/.test(amount) && Number.isSafeInteger(numericAmount) && numericAmount > 0 && numericAmount <= remaining && !!date
   useEffect(() => {
     let active = true
     setHistoryLoading(true)
@@ -61,6 +63,8 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
   return <Card className={paidAmount(order) > 0 ? 'border-emerald-400 bg-emerald-50' : ''}>
     <CardHeader><CardTitle>支払状況</CardTitle></CardHeader>
     <CardContent className="space-y-4">
+      {!paid && order.status !== 'キャンセル' && ['admin', 'manager'].includes(role || '') && <PaymentRouteControl key={`${order.id}:${order.updated_at}`} order={order} onSaved={onSaved} />}
+      {cashRoute && <p className="rounded border border-orange-300 bg-orange-50 p-3 text-sm font-semibold">現金の注文です。振込一覧・振込CSV・一括振込の対象には入りません。</p>}
       {kycWaiting && <p className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">本人確認待ちの仮受付です。承認完了まで、一部払いを含む振込・現金払いは登録できません。</p>}
       {bankOnly && <p className="rounded border border-amber-300 bg-amber-50 p-3 text-sm">紙の本人確認承認済みです。確認した本人名義口座への銀行振込に限ります（現金不可）。</p>}
       <p className="font-semibold">{paidAmount(order) > 0 ? paymentStatusLabel(order) : '未払い'}</p>
@@ -81,7 +85,7 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
       {canRecord && <div className="space-y-3 border-t pt-3">
         <p className="text-sm font-semibold">支払いを追加</p>
         <label className="block text-sm" htmlFor="payment-method">支払方法</label>
-        <select id="payment-method" className="w-full rounded-md border bg-white p-2" value={effectiveMethod} onChange={e => setMethod(e.target.value as 'cash' | 'bank_transfer')} disabled={saving}>{!bankOnly && <option value="cash">現金手渡し</option>}<option value="bank_transfer">銀行振込</option></select>
+        <select id="payment-method" className="w-full rounded-md border bg-white p-2" value={effectiveMethod} onChange={e => setMethod(e.target.value as 'cash' | 'bank_transfer')} disabled={saving}>{(!bankOnly || cashRoute) && <option value="cash">現金手渡し</option>}{!cashRoute && <option value="bank_transfer">銀行振込</option>}</select>
         <label className="block text-sm" htmlFor="payment-date">支払日</label>
         <Input id="payment-date" type="date" max={jstToday()} value={date} onChange={e => setDate(e.target.value)} disabled={saving} />
         <label className="block text-sm" htmlFor="payment-amount">今回支払った金額（円）</label>
