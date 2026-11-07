@@ -36,7 +36,7 @@ import { CreditCard, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { bulkMarkAsPaid, getTransferCsvRows } from '@/actions/payments'
-import { remainingPayment, paidAmount, isBankTransferOrder, paymentStatusLabel, transferCsv } from '@/lib/payment-display'
+import { remainingPayment, paidAmount, isBankTransferOrder, isUndecidedPaymentOrder, paymentStatusLabel, plannedPaymentLabel, transferCsv } from '@/lib/payment-display'
 import type { Order } from '@/types/database'
 
 // 同一人物判定用のキー（メール / 銀行口座）
@@ -190,7 +190,7 @@ export default function PaymentsPage() {
       const rows: Order[] = []
       for (let from = 0; ; from += 500) {
         const { data, error } = await supabase.from('orders').select('*')
-          .or('planned_payment_method.eq.cash,payment_method.in.(cash,mixed)').neq('status', 'キャンセル').order('id').range(from, from + 499)
+          .or('planned_payment_method.in.(cash,undecided),payment_method.in.(cash,mixed)').neq('status', 'キャンセル').order('id').range(from, from + 499)
         if (error) throw error
         rows.push(...(data || []))
         if ((data?.length ?? 0) < 500) break
@@ -336,12 +336,21 @@ export default function PaymentsPage() {
     (sum, o) => sum + remainingPayment(o), 0
   )
 
+  const undecidedOrders = cashOrders.filter(o => isUndecidedPaymentOrder(o) && remainingPayment(o) > 0)
+
   return (
     <div className="space-y-6">
       <AdminHeader
         title="振込管理"
         description="振込処理と振込予定の確認"
       />
+
+      {undecidedOrders.length > 0 && <div className="rounded border border-red-400 bg-red-50 p-3 text-sm">
+        <p className="font-semibold text-red-800">残りの支払方法が未定の注文が {undecidedOrders.length} 件あります。決まるまで振込待ちには載りません。</p>
+        <ul className="mt-1 list-disc pl-5">
+          {undecidedOrders.map(o => <li key={o.id}><Link className="underline" href={`/admin/orders/${o.id}`}>{o.order_number} {o.customer_name}</Link>　残り {remainingPayment(o).toLocaleString()}円</li>)}
+        </ul>
+      </div>}
 
       <Tabs defaultValue="pending">
         <TabsList>
@@ -355,12 +364,12 @@ export default function PaymentsPage() {
         </TabsList>
 
         <TabsContent value="cash" className="space-y-4">
-          <p className="rounded border border-orange-300 bg-orange-50 p-3 text-sm">現金予定・現金払いの注文です。振込一覧・CSV・一括振込から除外しています。受領サインや支払記録が未登録でも、銀行振込はできません。</p>
+          <p className="rounded border border-orange-300 bg-orange-50 p-3 text-sm">現金が関わる注文です。支払予定が「現金」「未定」のものは振込一覧・CSV・一括振込から除外しています。支払予定が「銀行振込」のものは、現金で渡した分を差し引いた残額だけが振込待ちに載ります。</p>
           <div className="rounded border"><Table><TableHeader><TableRow>
             <TableHead>注文番号</TableHead><TableHead>お客様名</TableHead><TableHead>状態</TableHead><TableHead className="text-right">買取合計</TableHead><TableHead className="text-right">記録済み支払額</TableHead><TableHead className="text-right">支払記録上の残額</TableHead><TableHead>操作</TableHead>
           </TableRow></TableHeader><TableBody>
             {cashLoading ? <TableRow><TableCell colSpan={7}>読み込み中...</TableCell></TableRow> : cashError ? <TableRow><TableCell colSpan={7}>現金支払を取得できません。<Button variant="outline" onClick={fetchCashOrders}>再読み込み</Button></TableCell></TableRow> : cashOrders.length === 0 ? <TableRow><TableCell colSpan={7}>現金の注文はありません</TableCell></TableRow> : cashOrders.map(o => <TableRow key={o.id}>
-              <TableCell>{o.order_number}</TableCell><TableCell>{o.customer_name}</TableCell><TableCell><Badge variant="outline">現金・振込対象外</Badge><p className="text-xs mt-1">{paymentStatusLabel(o)}</p></TableCell>
+              <TableCell>{o.order_number}</TableCell><TableCell>{o.customer_name}</TableCell><TableCell><Badge variant="outline">{remainingPayment(o) > 0 ? plannedPaymentLabel(o.planned_payment_method) : '支払済'}</Badge><p className="text-xs mt-1">{paymentStatusLabel(o)}</p></TableCell>
               <TableCell className="text-right">{((o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount || 0)).toLocaleString()}円</TableCell><TableCell className="text-right">{paidAmount(o).toLocaleString()}円</TableCell><TableCell className="text-right">{remainingPayment(o).toLocaleString()}円</TableCell>
               <TableCell><Link href={`/admin/orders/${o.id}`}><Button variant="outline" size="sm">支払記録・受領書</Button></Link></TableCell>
             </TableRow>)}

@@ -10,8 +10,15 @@ import { getOrderPaperKyc } from '@/actions/paper-kyc'
 import { getOrderPayments, getPaymentSignatureUrl, recordCashPaymentWithSignature, recordPayment, voidPayment } from '@/actions/payments'
 import { PaymentRouteControl } from '@/components/admin/payment-route-control'
 import { SignaturePad } from '@/components/admin/signature-pad'
-import { jstToday, paymentStatusLabel, paymentMethodLabel, paymentTotal, paidAmount, remainingPayment, isCashPaymentOrder } from '@/lib/payment-display'
-import type { Order, OrderPayment, UserRole } from '@/types/database'
+import { jstToday, paymentStatusLabel, paymentMethodLabel, paymentTotal, paidAmount, remainingPayment, isCashPaymentOrder, isUndecidedPaymentOrder, plannedPaymentLabel } from '@/lib/payment-display'
+import type { Order, OrderPayment, PlannedPaymentMethod, UserRole } from '@/types/database'
+
+// 現金を一部だけ記録するときに選ぶ「残りの支払い」。初期値は置かず、必ず選ばせる（振込に載せる判断を意識的に行わせる）。
+const REMAINING_PLANS: { value: PlannedPaymentMethod; label: string; note: string }[] = [
+  { value: 'bank_transfer', label: '銀行振込で受け取る', note: '残額だけが振込待ちに載ります。現金で渡した分は差し引かれます。' },
+  { value: 'cash', label: '後日また現金で受け取る', note: '振込対象外のままです。' },
+  { value: 'undecided', label: '未定', note: '決まるまで振込対象外です。注文詳細の「支払予定」で後から決めます。' },
+]
 import { toast } from 'sonner'
 
 export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: UserRole | null; onSaved: () => void }) {
@@ -19,6 +26,7 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
   const [date, setDate] = useState(jstToday())
   const [method, setMethod] = useState<'cash' | 'bank_transfer'>('cash')
   const [amount, setAmount] = useState('')
+  const [plan, setPlan] = useState<PlannedPaymentMethod | null>(null)
   const [bankOnly, setBankOnly] = useState(false)
   const cashRoute = isCashPaymentOrder(order)
   const effectiveMethod = cashRoute ? 'cash' : bankOnly ? 'bank_transfer' : method
@@ -33,7 +41,8 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
   const kycWaiting = !!order.kyc_deferred && !order.identity_verified_at
   const canRecord = !kycWaiting && ['admin', 'manager'].includes(role || '') && ['申込', '発送済', '検品完了'].includes(order.status) && remaining > 0
   const numericAmount = Number(amount)
-  const valid = !(cashRoute && bankOnly) && /^\d+$/.test(amount) && Number.isSafeInteger(numericAmount) && numericAmount > 0 && numericAmount <= remaining && !!date
+  const partialCash = effectiveMethod === 'cash' && Number.isSafeInteger(numericAmount) && numericAmount > 0 && numericAmount < remaining
+  const valid = !(cashRoute && bankOnly) && /^\d+$/.test(amount) && Number.isSafeInteger(numericAmount) && numericAmount > 0 && numericAmount <= remaining && !!date && (!partialCash || plan !== null)
   useEffect(() => {
     let active = true
     setHistoryLoading(true)
@@ -53,10 +62,10 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
     if (request.current?.fingerprint !== fingerprint) request.current = { fingerprint, id: crypto.randomUUID() }
     try {
       const result = effectiveMethod === 'cash'
-        ? await recordCashPaymentWithSignature(order.id, numericAmount, date, order.updated_at, request.current.id, signature!)
+        ? await recordCashPaymentWithSignature(order.id, numericAmount, date, order.updated_at, request.current.id, signature!, partialCash ? plan : null)
         : await recordPayment(order.id, effectiveMethod, numericAmount, date, order.updated_at, request.current.id)
       if (result.error) toast.error(result.error)
-      else { toast.success('支払いを記録しました'); setAmount(''); setSignature(null); setSigOpen(false); onSaved() }
+      else { toast.success('支払いを記録しました'); setAmount(''); setPlan(null); setSignature(null); setSigOpen(false); onSaved() }
     } catch { toast.error('結果を確認できませんでした。再読み込みして支払履歴を確認してください') }
     finally { setSaving(false) }
   }
@@ -64,7 +73,7 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
     <CardHeader><CardTitle>支払状況</CardTitle></CardHeader>
     <CardContent className="space-y-4">
       {!paid && order.status !== 'キャンセル' && ['admin', 'manager'].includes(role || '') && <PaymentRouteControl key={`${order.id}:${order.updated_at}`} order={order} onSaved={onSaved} />}
-      {cashRoute && <p className="rounded border border-orange-300 bg-orange-50 p-3 text-sm font-semibold">現金の注文です。振込一覧・振込CSV・一括振込の対象には入りません。</p>}
+      {cashRoute && <p className="rounded border border-orange-300 bg-orange-50 p-3 text-sm font-semibold">支払予定が「{plannedPaymentLabel(order.planned_payment_method)}」の注文です。振込一覧・振込CSV・一括振込の対象には入りません。{isUndecidedPaymentOrder(order) ? '残りの受け取り方法が決まったら、上の支払予定で選んでください。' : '残りを振込にする場合は、上の支払予定を銀行振込にしてください。'}</p>}
       {kycWaiting && <p className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">本人確認待ちの仮受付です。承認完了まで、一部払いを含む振込・現金払いは登録できません。</p>}
       {bankOnly && <p className="rounded border border-amber-300 bg-amber-50 p-3 text-sm">紙の本人確認承認済みです。確認した本人名義口座への銀行振込に限ります（現金不可）。</p>}
       <p className="font-semibold">{paidAmount(order) > 0 ? paymentStatusLabel(order) : '未払い'}</p>
@@ -92,6 +101,14 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
         <Input id="payment-amount" inputMode="numeric" value={amount} onChange={e => setAmount(e.target.value)} placeholder="例：1000000" disabled={saving} />
         <Button variant="outline" size="sm" disabled={saving} onClick={() => setAmount(String(remaining))}>残額すべて（{remaining.toLocaleString()}円）を入力</Button>
         {numericAmount > remaining && <p className="text-sm text-red-600">残額を超えています。</p>}
+        {partialCash && <fieldset className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3">
+          <legend className="px-1 text-sm font-semibold">残り {(remaining - numericAmount).toLocaleString()}円の支払い（必須）</legend>
+          {REMAINING_PLANS.map(p => <label key={p.value} className="flex cursor-pointer items-start gap-2 text-sm">
+            <input type="radio" name="remaining-plan" className="mt-1" value={p.value} checked={plan === p.value} onChange={() => setPlan(p.value)} disabled={saving} />
+            <span><span className="font-medium">{p.label}</span><br /><span className="text-xs text-muted-foreground">{p.note}</span></span>
+          </label>)}
+          {plan === null && <p className="text-xs text-red-700">残りの支払い方法を選ぶまで記録できません。わからないときは「未定」を選んでください。</p>}
+        </fieldset>}
         <p className="text-xs text-muted-foreground">実際に渡した金額を記録してください。送金を実行する機能ではありません。</p>
         {effectiveMethod === 'cash' ? <>
           <Button className="w-full bg-emerald-700 hover:bg-emerald-800" disabled={saving || !valid || historyLoading || historyError} onClick={() => { setSignature(null); setSigOpen(true) }}>受領サインをもらって記録</Button>
@@ -104,6 +121,7 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
                   <p>お名前：{order.customer_name} 様</p>
                   <p>受領日：{date}</p>
                   <p className="text-lg font-bold">受領金額：{numericAmount.toLocaleString()}円</p>
+                  {partialCash && <p>残り {(remaining - numericAmount).toLocaleString()}円：{REMAINING_PLANS.find(p => p.value === plan)?.label ?? '未選択'}</p>}
                   <p className="mt-1">私は、上記金額を現金にて確かに受領いたしました。</p>
                 </div>
                 <p className="text-sm font-semibold">お客様ご署名</p>

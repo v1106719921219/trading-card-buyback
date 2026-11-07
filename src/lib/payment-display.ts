@@ -29,11 +29,22 @@ export function validPaymentDate(value: string) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value && value <= jstToday()
 }
 
-export function isCashPaymentOrder(order: { planned_payment_method?: string | null; payment_method?: string | null }) {
-  return order.planned_payment_method === 'cash' || order.payment_method === 'cash' || order.payment_method === 'mixed'
+// 振込の可否は支払予定だけで決める。現金の支払履歴があっても、支払予定が銀行振込なら残額（買取合計 − 支払済額）を振込対象にする。
+// 未定（undecided）は「残りをどう受け取るか決まっていない」状態で、決まるまで振込対象外。
+export function isCashPaymentOrder(order: { planned_payment_method?: string | null }) {
+  return order.planned_payment_method === 'cash' || order.planned_payment_method === 'undecided'
 }
-export function isBankTransferOrder(order: { planned_payment_method?: string | null; payment_method?: string | null }) {
+export function isUndecidedPaymentOrder(order: { planned_payment_method?: string | null }) {
+  return order.planned_payment_method === 'undecided'
+}
+export function isBankTransferOrder(order: { planned_payment_method?: string | null }) {
   return !isCashPaymentOrder(order)
+}
+export function plannedPaymentLabel(method: string | null | undefined) {
+  return method === 'cash' ? '現金手渡し（振込対象外）' : method === 'undecided' ? '未定（振込対象外・要決定）' : '銀行振込'
+}
+export function hasCashHistory(order: { payment_method?: string | null }) {
+  return order.payment_method === 'cash' || order.payment_method === 'mixed'
 }
 
 export function transferCsv(rows: { order_number: string; customer_name: string; bank_name: string | null; bank_branch: string | null; bank_account_type: string | null; bank_account_number: string | null; bank_account_holder: string | null; amount: number }[]) {

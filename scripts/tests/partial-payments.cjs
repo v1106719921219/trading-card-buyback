@@ -18,6 +18,9 @@ const actions = load('src/actions/payments.ts', {
  authError = 'denied'; assert((await actions.recordPayment(...args)).error); assert.equal(rpcCalls.length, 0); authError = null;
  for (const amount of [0, -1, 1.1, Number.NaN]) { const bad = [...args]; bad[2] = amount; assert((await actions.recordPayment(...bad)).error); }
  assert.equal(rpcCalls.length, 0); assert((await actions.recordPayment(...args)).success);
- assert.equal(rpcCalls[0].name, 'record_order_payment'); assert.equal(rpcCalls[0].args.p_tenant, 'tenant-a'); assert.equal(rpcCalls[0].args.p_amount, 1000000); assert.equal(rpcCalls[0].args.p_expected_updated_at, args[4]); assert.equal(rpcCalls[0].args.p_request, args[5]);
+ assert.equal(rpcCalls[0].name, 'record_order_payment'); assert.equal(rpcCalls[0].args.p_tenant, 'tenant-a'); assert.equal(rpcCalls[0].args.p_amount, 1000000); assert.equal(rpcCalls[0].args.p_expected_updated_at, args[4]); assert.equal(rpcCalls[0].args.p_request, args[5]); assert.equal(rpcCalls[0].args.p_remaining_plan, null);
+ assert((await actions.recordPayment(...args, false, 'undecided')).success); assert.equal(rpcCalls.at(-1).args.p_remaining_plan, 'undecided');
+ assert((await actions.recordPayment(...args, false, 'later')).error);
+ assert((await actions.recordPayment('order-a', 'bank_transfer', 100, '2026-10-05', args[4], args[5], false, 'cash')).success); assert.equal(rpcCalls.at(-1).args.p_remaining_plan, null, '振込の記録では残りの選択を送らない');
  console.log('PASS balance, legacy payment, mixed display, date validation, authorization, amount validation and transactional RPC arguments');
 })().catch(e=>{ console.error(e); process.exitCode=1; });
