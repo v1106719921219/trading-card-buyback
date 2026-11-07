@@ -46,6 +46,11 @@ export function plannedPaymentLabel(method: string | null | undefined) {
 export function hasCashHistory(order: { payment_method?: string | null }) {
   return order.payment_method === 'cash' || order.payment_method === 'mixed'
 }
+/** 銀行明細と照合する金額。振込の記録があればその合計（現金分を除く）、なければ従来どおり買取合計 */
+export function bankTransferAmount(order: PaymentOrder & { bank_paid_amount?: number | null }) {
+  const bank = Number(order.bank_paid_amount || 0)
+  return bank > 0 ? bank : paymentTotal(order)
+}
 
 export function transferCsv(rows: { order_number: string; customer_name: string; bank_name: string | null; bank_branch: string | null; bank_account_type: string | null; bank_account_number: string | null; bank_account_holder: string | null; amount: number }[]) {
   const cell = (value: string | number | null) => {

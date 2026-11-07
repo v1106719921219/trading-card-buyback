@@ -30,6 +30,7 @@ import { ShieldCheck, Eye, Landmark, RefreshCw } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Order } from '@/types/database'
+import { bankTransferAmount, paidAmount } from '@/lib/payment-display'
 import {
   getMfConnectionStatus,
   reconcileMfForOrders,
@@ -64,7 +65,8 @@ export default function PaymentVerificationPage() {
       .from('orders')
       .select('*')
       .eq('status', '振込済')
-      .or('payment_method.is.null,payment_method.eq.bank_transfer')
+      // 現金併用（mixed）も出す。金額は振込した分だけ。振込が 2 回以上の注文は支払履歴で個別に確認する
+      .or('payment_method.is.null,payment_method.in.(bank_transfer,mixed)')
       .lte('bank_payment_count', 1)
       .order('updated_at', { ascending: true })
 
@@ -157,8 +159,9 @@ export default function PaymentVerificationPage() {
     toast.success(newValue ? '適格事業者を解除しました' : '適格事業者に設定しました')
   }
 
+  // 照合する金額は振込した分だけ（現金で渡した分は含めない）
   function getAmount(order: Order): number {
-    return (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
+    return bankTransferAmount(order)
   }
 
   const totalAmount = orders
@@ -192,7 +195,7 @@ export default function PaymentVerificationPage() {
     <div className="space-y-6">
       <AdminHeader
         title="振込確認"
-        description="銀行振込の確認用です。現金・併用・分割支払いは注文詳細の支払履歴で確認し、各支払いを別途会計照合してください。"
+        description="銀行振込の確認用です。現金併用の注文は振込した分だけを照合します。全額現金の注文と、振込が 2 回以上に分かれた注文は注文詳細の支払履歴で確認してください。"
       />
 
       {/* MF照合（MF未設定の環境では非表示） */}
@@ -373,6 +376,7 @@ export default function PaymentVerificationPage() {
                   </TableCell>
                   <TableCell className="text-right font-medium">
                     {getAmount(order).toLocaleString()}円
+                    {order.payment_method === 'mixed' && <div className="text-xs font-normal text-muted-foreground">現金併用（現金 {(paidAmount(order) - getAmount(order)).toLocaleString()}円は別途受領済み）</div>}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {new Date(order.updated_at).toLocaleDateString('ja-JP')}
