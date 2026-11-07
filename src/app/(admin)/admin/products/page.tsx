@@ -194,6 +194,9 @@ export default function ProductsPage() {
   const [inlineUploadingId, setInlineUploadingId] = useState<string | null>(null)
   const inlineImageInputRef = useRef<HTMLInputElement>(null)
   const inlineUploadTargetId = useRef<string | null>(null)
+  const [imagePreview, setImagePreview] = useState<{ id: string; name: string; url: string } | null>(null)
+  const [failedPreviewUrl, setFailedPreviewUrl] = useState<string | null>(null)
+  const previewTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   // 千葉同期
   const [syncing, setSyncing] = useState(false)
@@ -542,10 +545,17 @@ async function syncToChiba() {
     }
   }
 
+  function startInlineImageUpload(productId: string) {
+    if (inlineUploadingId) return
+    inlineUploadTargetId.current = productId
+    inlineImageInputRef.current?.click()
+  }
+
   async function handleInlineImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     const productId = inlineUploadTargetId.current
-    if (!file || !productId || !tenantId) return
+    e.target.value = ''
+    if (!file || !productId || !tenantId || inlineUploadingId) return
     setInlineUploadingId(productId)
     const ext = file.name.split('.').pop()
     const path = `${tenantId}/${crypto.randomUUID()}.${ext}`
@@ -567,10 +577,9 @@ async function syncToChiba() {
       toast.error('画像の保存に失敗しました')
       return
     }
+    setImagePreview(current => current?.id === productId ? { ...current, url: data.publicUrl } : current)
     toast.success('画像をアップロードしました')
     fetchData()
-    // input をリセット
-    if (inlineImageInputRef.current) inlineImageInputRef.current.value = ''
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1551,12 +1560,19 @@ async function syncToChiba() {
                   <TableCell className="hidden sm:table-cell">
                     <button
                       type="button"
-                      className="cursor-pointer hover:opacity-70 transition-opacity"
-                      title="クリックして画像をアップロード"
-                      disabled={inlineUploadingId === product.id}
-                      onClick={() => {
-                        inlineUploadTargetId.current = product.id
-                        inlineImageInputRef.current?.click()
+                      className={product.image_url ? 'cursor-zoom-in hover:opacity-70 transition-opacity' : 'cursor-pointer hover:opacity-70 transition-opacity'}
+                      title={product.image_url ? '画像を拡大' : '画像をアップロード'}
+                      aria-label={`${product.name}の画像を${product.image_url ? '拡大' : 'アップロード'}`}
+                      aria-haspopup={product.image_url ? 'dialog' : undefined}
+                      disabled={inlineUploadingId === product.id || (!product.image_url && inlineUploadingId !== null)}
+                      onClick={(event) => {
+                        if (product.image_url) {
+                          previewTriggerRef.current = event.currentTarget
+                          setFailedPreviewUrl(null)
+                          setImagePreview({ id: product.id, name: product.name, url: product.image_url })
+                        } else {
+                          startInlineImageUpload(product.id)
+                        }
                       }}
                     >
                       {inlineUploadingId === product.id ? (
@@ -1751,7 +1767,7 @@ async function syncToChiba() {
         </div>
       )}
       <p className="text-sm text-muted-foreground">
-        {filteredProducts.length}件の商品（価格をクリックしてインライン編集・画像をクリックしてアップロード）
+        {filteredProducts.length}件の商品（価格をクリックして編集・画像をクリックして拡大）
       </p>
       {/* 隠しファイル入力（インライン画像アップロード用） */}
       <input
@@ -1761,6 +1777,50 @@ async function syncToChiba() {
         className="hidden"
         onChange={handleInlineImageUpload}
       />
+
+      <Dialog open={imagePreview !== null} onOpenChange={open => { if (!open) setImagePreview(null) }}>
+        <DialogContent
+          className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl"
+          onCloseAutoFocus={event => {
+            if (previewTriggerRef.current?.isConnected) {
+              event.preventDefault()
+              previewTriggerRef.current.focus()
+            }
+          }}
+        >
+          {imagePreview && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="pr-6 break-words">{imagePreview.name}</DialogTitle>
+                <DialogDescription>商品画像のプレビュー</DialogDescription>
+              </DialogHeader>
+              {failedPreviewUrl === imagePreview.url ? (
+                <p className="py-12 text-center text-sm text-muted-foreground">画像を読み込めませんでした</p>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={imagePreview.url}
+                  src={imagePreview.url}
+                  alt={imagePreview.name}
+                  onError={() => setFailedPreviewUrl(imagePreview.url)}
+                  className="mx-auto max-h-[65dvh] max-w-full object-contain"
+                />
+              )}
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={inlineUploadingId !== null}
+                  onClick={() => startInlineImageUpload(imagePreview.id)}
+                >
+                  <Upload className="h-4 w-4" />
+                  {inlineUploadingId === imagePreview.id ? 'アップロード中…' : '画像を差し替え'}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 過去日時の価格で申し込めるリンクを発行 */}
       <Dialog open={backdateOpen} onOpenChange={setBackdateOpen}>
