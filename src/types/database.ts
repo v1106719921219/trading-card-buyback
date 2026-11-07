@@ -143,11 +143,17 @@ export interface Order {
   bank_payment_count?: number
   payment_date?: string | null
   paid_at: string | null
+  /** online: 通販の申込（既定）。store: 店頭買取（POS） */
+  channel?: 'online' | 'store'
+  store_customer_id?: string | null
+  intake_count?: number | null
+  intake_kind?: 'singles' | 'bulk' | 'both' | null
   tenant_id: string
   created_at: string
   updated_at: string
   // joined
   order_items?: OrderItem[]
+  store_customer?: StoreCustomer | null
   assignee?: Profile
   customer?: Customer
   office?: Office
@@ -166,6 +172,145 @@ export interface OrderItem {
   /** 申込後に追加された明細の追加時刻。NULLなら申込時の明細 */
   added_at?: string | null
   returned_quantity: number | null
+  /** 店頭査定: 状態ランク（condition_ranks.code） */
+  condition_rank?: string | null
+  /** 店頭査定: まとめ買取の価格帯 */
+  price_band_id?: string | null
+  /** 店頭査定: ランク適用前の価格表の単価 */
+  list_price?: number | null
+  /** 店頭査定: ランク外の減額理由 */
+  deduction_reason?: string | null
+  created_at: string
+}
+
+/** 店頭の来店客（docs/pos/design.md 5.2 節）。会員アカウントの Customer とは別 */
+export interface StoreCustomer {
+  id: string
+  tenant_id: string
+  name: string
+  name_kana: string | null
+  phone: string | null
+  phone_normalized?: string | null
+  address: string | null
+  birth_date: string | null
+  occupation: string | null
+  last_document_type: string | null
+  last_verified_at: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** 店舗の状態ランク表 */
+export interface ConditionRank {
+  id: string
+  tenant_id: string
+  code: string
+  label: string
+  /** 価格表の単価に掛ける率。null は個別入力 */
+  rate: number | null
+  description: string | null
+  sample_image_path: string | null
+  sort_order: number
+  is_active: boolean
+}
+
+/** 安価カードの価格帯 */
+export interface PriceBand {
+  id: string
+  tenant_id: string
+  label: string
+  buy_price: number
+  sell_price: number | null
+  sleeve_color: string | null
+  barcode: string | null
+  sort_order: number
+  is_active: boolean
+}
+
+/** 店頭の本人確認 */
+export interface StoreIdentityCheck {
+  id: string
+  tenant_id: string
+  order_id: string
+  customer_id: string | null
+  method: 'id_document' | 'handwritten'
+  document_type: string | null
+  name: string
+  address: string
+  birth_date: string
+  occupation: string
+  age_at_check: number
+  front_image_path: string | null
+  handwritten_image_path: string | null
+  verified_by: string | null
+  verified_at: string
+  revoked_at: string | null
+  revoked_by: string | null
+  revoke_reason: string | null
+}
+
+/** 申込書兼受領書 */
+export interface StoreAgreement {
+  id: string
+  tenant_id: string
+  order_id: string
+  template_version: string
+  content_snapshot: Record<string, unknown>
+  signature_path: string
+  pdf_path: string | null
+  signed_at: string
+  witnessed_by: string | null
+  voided_at: string | null
+  void_reason: string | null
+}
+
+/** 古物台帳（追記のみ） */
+export interface KobutsuLedgerEntry {
+  id: string
+  tenant_id: string
+  order_id: string | null
+  sale_id: string | null
+  transaction_type: 'purchase' | 'sale'
+  transacted_on: string
+  items: { name: string; quantity: number; unit_price: number; amount: number; features: string[] }[]
+  total_amount: number
+  counterparty_name: string
+  counterparty_address: string
+  counterparty_occupation: string
+  counterparty_age: number
+  identity_method: string
+  recorded_by: string | null
+  recorded_by_name: string | null
+  recorded_at: string
+}
+
+/** レジの開局〜閉局 */
+export interface RegisterSession {
+  id: string
+  tenant_id: string
+  opened_at: string
+  opened_by: string | null
+  opening_float: number
+  operator_name: string | null
+  closed_at: string | null
+  closed_by: string | null
+  expected_cash: number | null
+  counted_cash: number | null
+  difference: number | null
+  notes: string | null
+  created_at: string
+}
+
+export interface CashMovement {
+  id: string
+  tenant_id: string
+  register_session_id: string
+  kind: 'in' | 'out'
+  amount: number
+  reason: string
+  created_by: string | null
   created_at: string
 }
 

@@ -21,7 +21,7 @@ async function loadAsset(path: string): Promise<string> {
   }
 }
 
-async function getFont(): Promise<string> {
+export async function getFont(): Promise<string> {
   if (fontCache) return fontCache
   fontCache = await loadAsset('fonts/NotoSansJP-Regular.ttf')
   return fontCache
