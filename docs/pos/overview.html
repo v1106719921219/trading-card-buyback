@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>山口店 POS のご説明</title>
+<style>
+@page { size: A4; margin: 16mm 16mm 14mm; }
+:root { --fg:#1f2a2e; --muted:#5f6b70; --line:#d6d0c4; --accent:#1f6f5f; --soft:#e6f0ec; --warn:#f6e7c8; }
+* { box-sizing: border-box; }
+body { margin:0; color:var(--fg); font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif; font-size:10.5pt; line-height:1.65; }
+h1 { font-size:20pt; margin:0 0 4px; letter-spacing:.02em; }
+h2 { font-size:12.5pt; margin:18px 0 8px; break-after:avoid; padding-left:10px; border-left:4px solid var(--accent); }
+p { margin:0 0 6px; }
+.meta { color:var(--muted); font-size:9.5pt; }
+.box { border:1px solid var(--line); border-radius:8px; padding:10px 12px; break-inside:avoid; }
+.link { background:var(--soft); border-radius:8px; padding:10px 12px; margin-top:10px; }
+.link b { color:var(--accent); }
+.grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+.grid .box h3 { font-size:11pt; margin:0 0 4px; color:var(--accent); }
+.grid .box p { font-size:9.5pt; margin:0; }
+.flow { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:4px; }
+.flow .step { background:var(--soft); border-radius:6px; padding:6px 10px; font-size:9.5pt; font-weight:600; }
+.flow .arrow { color:var(--muted); }
+ul { margin:4px 0 0; padding-left:18px; }
+li { margin-bottom:3px; }
+table { width:100%; border-collapse:collapse; font-size:9.5pt; }
+th, td { border-bottom:1px solid var(--line); padding:5px 6px; text-align:left; vertical-align:top; }
+tr { break-inside:avoid; }
+th { color:var(--muted); font-weight:600; width:26%; }
+.two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.note { background:var(--warn); border-radius:6px; padding:8px 10px; font-size:9.5pt; }
+.pb { break-before:page; }
+.footer { color:var(--muted); font-size:8.5pt; margin-top:14px; border-top:1px solid var(--line); padding-top:6px; }
+</style>
+</head>
+<body>
+
+<h1>山口店 POS（店舗システム）のご説明</h1>
+<p class="meta">2026年10月31日版 ・ 社内確認用</p>
+
+<p>山口に出す実店舗で使う「買取・販売・在庫・レジ」のシステムを、いま使っている通販の買取システムの上に作ります。この紙は、画面の試作（モックアップ）を触ってもらう前に、全体像をつかんでもらうためのものです。</p>
+<div class="note">ここに書いてあることは、すべて<b>たたき台</b>です。確定したものはなく、これをもとに相談しながら調整していきます。</div>
+
+<div class="link">
+  <b>モックアップ（画面の試作）</b><br>
+  https://claude.ai/artifact/CK5TxEHT9RmBeZyBSxQWqh<br>
+  <span class="meta">iPad を横向きにして開くと実際に近い見え方になります。データはすべて例で、保存・印刷・カメラは動きません。</span>
+</div>
+
+<h2>1. できること</h2>
+<div class="grid">
+  <div class="box"><h3>買取</h3><p>受付 → 査定 → 本人確認 → 署名 → 現金払い → 明細印刷まで iPad 1 台で完結。状態ランクを選ぶだけで減額が自動計算。</p></div>
+  <div class="box"><h3>販売</h3><p>ラベルのバーコードを読むか、安いカードは「100円カード × 枚数」で会計。レシート・領収書を印刷。</p></div>
+  <div class="box"><h3>在庫</h3><p>買い取った物は自動で在庫に入り、買取金額が仕入値になる。売価を付けてラベルを印刷。店で売るか本部へ送るかを後で振り分け。</p></div>
+  <div class="box"><h3>レジ</h3><p>開店時に釣銭を入れ、閉店時に「あるはずの現金」と「数えた現金」を突き合わせる。差額と理由を記録。</p></div>
+  <div class="box"><h3>記録</h3><p>法律で必要な古物台帳を自動で作成（3 年保存）。取引履歴から再印刷・返品・取消。売上・粗利・売れ筋の分析。</p></div>
+  <div class="box"><h3>価格表・設定</h3><p>「価格表」タブで商品ごとの買取価格と標準売価を確認・調整。「設定」で店名やレシートの文面、プリンタ、状態ランク表、お客様向けの価格表示を店長が変更。</p></div>
+</div>
+
+<h2>2. 買取の流れ（お客様 1 人あたり）</h2>
+<div class="flow">
+  <span class="step">1 受付</span><span class="arrow">→</span>
+  <span class="step">2 査定</span><span class="arrow">→</span>
+  <span class="step">3 金額の提示</span><span class="arrow">→</span>
+  <span class="step">4 本人確認</span><span class="arrow">→</span>
+  <span class="step">5 申込書に署名</span><span class="arrow">→</span>
+  <span class="step">6 現金を渡す</span><span class="arrow">→</span>
+  <span class="step">7 明細を印刷</span>
+</div>
+<ul>
+  <li><b>査定</b>: 型番や名前で商品を探す。カードの写真から候補を出す機能も予定。ノーマルカードは「50円 × 120枚」のようにまとめて入力。</li>
+  <li><b>本人確認</b>: 金額にかかわらず全員。身分証を見せてもらい、住所・氏名・生年月日・職業を記録。表面の撮影は任意（マイナンバーカードの裏面は撮らない）。</li>
+  <li><b>18 歳未満</b>: 山口県の条例により、保護者の同意がないと買取できません。生年月日から自動で止まります。</li>
+  <li><b>署名</b>: 1 回で「金額への同意」「盗品でないことの誓約」「現金の受領」を兼ねます。iPad に指で書いてもらいます。</li>
+  <li><b>現金を渡す</b>: 記録はマネージャーの承認が必要。渡した後は自動で在庫・台帳・レジに反映されます。</li>
+  <li><b>査定だけで帰る場合</b>: 「持ち帰る」で終了。査定の内容は残るので、再来店時に呼び出せるようにする予定です。</li>
+</ul>
+
+<h2>3. 販売・在庫・レジの流れ</h2>
+<table>
+  <tr><th>販売</th><td>商品のラベルをバーコードリーダーで読む（安いカードは「100円カード × 枚数」で入力）→ 合計と消費税を表示 → 預り金を入れるとおつりが出る → レシートを印刷。返品はレシート番号から呼び出します。</td></tr>
+  <tr><th>在庫</th><td>買い取った物は自動で「振分待ち」に入ります（仕入値 = 買取金額）。あとでまとめて「店で売る」か「本部へ送る」かを選びます。店で売る物には売価を付けてラベルを印刷。ボックスを開封してカードを在庫にする機能も入れる予定です。</td></tr>
+  <tr><th>事務所からの仕入れ</th><td>通販（事務所）で買い取った物を店舗で売る場合は、事務所側で移動伝票を作り、店舗で「本部から入庫」として受け入れます。伝票の原価がそのまま仕入値になります。同じ会社なので売買にはならず、台帳も事務所側の記録で足ります。</td></tr>
+  <tr><th>価格の入力</th><td>「価格表」タブに、商品ごとの「通販の買取価格」「店舗の買取価格」「標準売価」を並べます。店舗の買取価格と標準売価はここで直します。在庫 1 枚ごとの売価は標準売価を初期値に、在庫画面で変えられます。</td></tr>
+  <tr><th>棚卸し</th><td>システムが「あるはずの数」を一覧で出し、現場は「数えた数」を入れるだけ。差があった行だけ理由を入れます。</td></tr>
+  <tr><th>レジ</th><td>開店時に釣銭準備金を入力 → 日中の販売と買取で自動的に増減 → 閉店時に数えた現金を入れると差額が出る → 理由を記録して締め。</td></tr>
+</table>
+
+<h2>4. 土台（どういう作りか）</h2>
+<table>
+  <tr><th>ベース</th><td>通販の買取システムと同じ仕組みの上に作ります。注文・支払い・本人確認・署名の部分はすでにあるものを使います。</td></tr>
+  <tr><th>データ</th><td>店舗専用の区画を作り、通販のデータとは分けます。通販側の管理画面から店舗の数字は見えません。両方見る人はアカウントを 2 つ持ちます。</td></tr>
+  <tr><th>端末</th><td>iPad のホーム画面に入れて、アプリのように全画面で使います。インターネット接続が必要です。</td></tr>
+  <tr><th>機材</th><td>レシートプリンタ（受付票・明細・領収書を印刷。候補: Star mC-Print3）、バーコードリーダー（Bluetooth）、ラベルプリンタ（候補: Brother QL-820NWBc）。キャッシュドロワーは使わず、既存の金庫から手で数えて渡す。電子棚札は使いません。</td></tr>
+  <tr><th>買取価格</th><td>通販の価格表を自動で取り込み（時刻は自動、合わなければ「今すぐ同期」も可）、店舗用の割合を掛けます。例えば 95% なら、通販 16,000 円のカードは店舗 15,200 円になります。店で個別に直した商品は上書きされません。<b>何%にするか、商品ごとに変えるかはこれから決めます（95% は判断材料としての例）。</b></td></tr>
+  <tr><th>売価の見せ方</th><td>ラベルに価格は印字しません（相場が変わっても貼り替え不要）。価格は iPad の画面か QR コードの価格ページでお客様に見せます。</td></tr>
+  <tr><th>本部への移動</th><td>店舗で買い取った物を事務所（通販）に送るときは「本部へ移動」で伝票を作ります。同じ会社なので売買にはなりません。</td></tr>
+</table>
+
+
+
+<h2>5. 法律で決まっていること（ここは変えられません）</h2>
+<ul>
+  <li><b>本人確認と記録</b>: 古物営業法により、買い取るときは相手の住所・氏名・職業・年齢を確認し、取引の記録（古物台帳）を 3 年間保存します。システムが自動で台帳を作ります。</li>
+  <li><b>身分証がない人</b>: その場で住所・氏名・職業・年齢を手書きしてもらう方法が認められています。iPad に書いてもらう画面を用意します。</li>
+  <li><b>18 歳未満</b>: 山口県の条例で、保護者の同意がない買取は禁止です。</li>
+  <li><b>マイナンバーカード</b>: 裏面（番号のある面）は撮影・保存しません。</li>
+  <li><b>個人情報</b>: 使う目的（本人確認と取引記録）を申込書に書き、署名で同意をもらいます。</li>
+</ul>
+
+<h2>6. いまの土台（どれも確定ではありません）</h2>
+<p>以下はいったんの前提です。これをもとに、現場の意見を聞きながら調整します。</p>
+<div class="two">
+  <div class="box">
+    <b>土台としている前提</b>
+    <ul>
+      <li>現金のみ（振込なし）</li>
+      <li>本人確認は全員・全件</li>
+      <li>販売もするので手持ち在庫を管理する</li>
+      <li>買取価格は通販の価格表をもとに店舗で調整</li>
+      <li>iPad + レシートプリンタ + バーコードリーダー</li>
+      <li>売価はラベルに印字せず、iPad か QR コードで見せる</li>
+    </ul>
+  </div>
+  <div class="box">
+    <b>特に相談したいこと</b>
+    <ul>
+      <li>受付票を出して待ってもらうか、その場で査定するか</li>
+      <li>身分証は撮影を標準にするか、目視にするか</li>
+      <li>買取価格の調整の仕方（一律の割合か、商品ごとか）</li>
+      <li>高額品を 1 枚ずつ管理する境界（金額か PSA 品か）</li>
+      <li>売価の決め方、レジ締めで見たい数字</li>
+      <li>店舗の URL、プリンタの機種、iPad の台数</li>
+    </ul>
+  </div>
+</div>
+
+<h2>7. 今後の進め方</h2>
+<div class="flow">
+  <span class="step">設計の確定</span><span class="arrow">→</span>
+  <span class="step">買取の機能を先に実装</span><span class="arrow">→</span>
+  <span class="step">店舗で試す</span><span class="arrow">→</span>
+  <span class="step">販売・在庫を実装</span><span class="arrow">→</span>
+  <span class="step">開店</span>
+</div>
+<p style="margin-top:8px">買取の機能を先に本番に出して店舗で試しながら、販売と在庫を仕上げる順番を考えています。開店前に、営業所の届出・標識の掲示・管理者の選任（いずれも古物営業法の手続き）を別途行います。</p>
+
+
+</body>
+</html>

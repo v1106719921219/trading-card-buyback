@@ -22,6 +22,7 @@ export default function NewTenantPage() {
       ancient_dealer_number: form.get('ancient_dealer_number') as string,
       plan: form.get('plan') as 'starter' | 'standard' | 'pro',
       primary_color: form.get('primary_color') as string,
+      mode: form.get('mode') as 'online' | 'store',
     })
 
     setLoading(false)
@@ -118,6 +119,24 @@ export default function NewTenantPage() {
               className="w-full h-[38px] bg-gray-800 border border-gray-700 rounded-lg px-1 py-1 cursor-pointer"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1">
+            業態 <span className="text-red-400">*</span>
+          </label>
+          <select
+            name="mode"
+            required
+            defaultValue="online"
+            className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+          >
+            <option value="online">通販（申込フォーム・価格表を公開）</option>
+            <option value="store">実店舗 POS（公開ページなし。/pos と /admin のみ）</option>
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            実店舗 POS を選ぶと現金のみの扱いになり、振込系の画面を隠します。あとから変更できます。
+          </p>
         </div>
 
         <div>

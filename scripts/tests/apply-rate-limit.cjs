@@ -12,6 +12,8 @@ const {proxy} = load('src/proxy.ts', {
   'next/server': {NextResponse: Response},
   '@/lib/rate-limit': limiter,
   '@/lib/tenant-slug': {resolveTenantSlug: () => 'fixture'},
+  '@/lib/tenant-mode': {getTenantMode: async () => 'online'},
+  '@/lib/store-mode': {isOnlineOnlyPath: () => true, POS_HOME: '/pos'},
   '@/lib/supabase/middleware': {updateSession: async () => {sessions++; return {status: 200, headers: new Map()};}},
 });
 const purposeCounts = new Map();

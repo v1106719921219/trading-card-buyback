@@ -3,6 +3,7 @@ import { resolveTenantSlug } from '@/lib/tenant-slug'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cache } from 'react'
+import type { TenantMode } from '@/lib/store-mode'
 
 export interface Tenant {
   id: string
@@ -15,6 +16,17 @@ export interface Tenant {
   plan: 'starter' | 'standard' | 'pro'
   is_active: boolean
   ekyc_enabled: boolean
+  // 店舗 POS（docs/pos/design.md 2.2 節）。移行前の DB では undefined なので、読む側は online として扱う
+  mode?: TenantMode
+  cash_only?: boolean
+  price_source_tenant_id?: string | null
+  store_price_rate?: number
+  price_sync_time?: string | null
+  invoice_registration_number?: string | null
+  receipt_header?: Record<string, unknown>
+  printer_address?: string | null
+  high_value_approval_threshold?: number | null
+  customer_price_display?: 'ipad' | 'qr' | 'none'
 }
 
 /**

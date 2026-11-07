@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { safeRedirectPath } from '@/lib/store-mode'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -33,7 +34,8 @@ export default function LoginPage() {
     router.refresh()
     // Small delay to ensure cookies are propagated
     await new Promise((resolve) => setTimeout(resolve, 100))
-    window.location.href = '/admin'
+    // /pos など、ログイン前に開こうとした同一オリジンのパスへ戻す（既定は管理画面）
+    window.location.href = safeRedirectPath(new URLSearchParams(window.location.search).get('redirect'), '/admin')
   }
 
   return (

@@ -9,6 +9,7 @@ interface Tenant {
   is_active: boolean
   plan: string
   name: string
+  mode?: string | null
 }
 
 export function TenantActions({ tenant }: { tenant: Tenant }) {
@@ -19,6 +20,16 @@ export function TenantActions({ tenant }: { tenant: Tenant }) {
     if (!confirm(`テナント「${tenant.name}」を${tenant.is_active ? '停止' : '有効化'}しますか？`)) return
     setLoading(true)
     await toggleTenantActive(tenant.id, !tenant.is_active)
+    setLoading(false)
+    router.refresh()
+  }
+
+  async function handleChangeMode(mode: string) {
+    if (!confirm(mode === 'store'
+      ? '実店舗 POS に切り替えます。通販の公開ページ（申込フォーム・価格表など）は表示されなくなります。よろしいですか？'
+      : '通販に切り替えます。公開ページが表示されるようになります。よろしいですか？')) return
+    setLoading(true)
+    await updateTenant(tenant.id, { mode: mode as 'online' | 'store' })
     setLoading(false)
     router.refresh()
   }
@@ -55,6 +66,19 @@ export function TenantActions({ tenant }: { tenant: Tenant }) {
           <option value="starter">Starter</option>
           <option value="standard">Standard</option>
           <option value="pro">Pro</option>
+        </select>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-gray-400">業態:</span>
+        <select
+          value={tenant.mode === 'store' ? 'store' : 'online'}
+          onChange={(e) => handleChangeMode(e.target.value)}
+          disabled={loading}
+          className="bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+        >
+          <option value="online">通販</option>
+          <option value="store">実店舗 POS</option>
         </select>
       </div>
     </div>
