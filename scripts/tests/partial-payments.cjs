@@ -13,6 +13,10 @@ const actions = load('src/actions/payments.ts', {
  assert.equal(display.remainingPayment(order), 696500); assert.equal(display.paidAmount(order), 1000000); assert.equal(display.paymentStatusLabel(order), '一部支払済');
  assert.equal(display.remainingPayment({ status: '振込済', total_amount: 1500000 }), 0);
  assert.equal(display.paymentStatusLabel({status:'振込済',payment_method:'mixed'}),'支払済（現金・振込）');
+ // 振込確認（MF 照合）は振込した分だけ。振込記録がない従来の注文は買取合計
+ assert.equal(display.bankTransferAmount({ status: '振込済', total_amount: 1696500, paid_amount: 1696500, bank_paid_amount: 696500, payment_method: 'mixed' }), 696500);
+ assert.equal(display.bankTransferAmount({ status: '振込済', total_amount: 1500000, bank_paid_amount: 0 }), 1500000);
+ assert.equal(display.bankTransferAmount({ status: '振込済', total_amount: 1500000, inspection_discount: 500 }), 1499500);
  assert.equal(display.validPaymentDate('2026-02-30'), false); assert.equal(display.validPaymentDate('2099-01-01'), false);
  const args = ['order-a', 'cash', 1000000, '2026-10-05', '2026-10-06T00:00:00Z', '77777777-7777-4777-8777-777777777777'];
  authError = 'denied'; assert((await actions.recordPayment(...args)).error); assert.equal(rpcCalls.length, 0); authError = null;

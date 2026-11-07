@@ -6,6 +6,7 @@ import { requireTenantId } from '@/lib/tenant'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getMfTransactions, isMfConnected, type MFTransaction } from '@/lib/mf'
+import { bankTransferAmount } from '@/lib/payment-display'
 
 export interface ReconciliationOrder {
   id: string
@@ -104,13 +105,26 @@ export async function reconcileMfForOrders(
 
     const { data: orders, error: ordersError } = await supabase
       .from('orders')
-      .select('id, order_number, customer_name, bank_account_holder, total_amount, inspected_total_amount, inspection_discount, status, updated_at, payment_date')
+      .select('id, order_number, customer_name, bank_account_holder, total_amount, inspected_total_amount, inspection_discount, bank_paid_amount, bank_payment_count, status, updated_at, payment_date')
       .in('id', orderIds)
-      .or('payment_method.is.null,payment_method.eq.bank_transfer')
+      // 現金併用（mixed）も対象。照合するのは振込した分だけ（bankTransferAmount）。振込が 2 回以上に分かれた注文は 1 件 1 明細で突き合わせられないので対象外
+      .or('payment_method.is.null,payment_method.in.(bank_transfer,mixed)')
       .lte('bank_payment_count', 1)
       .eq('tenant_id', await requireTenantId())
 
     if (ordersError) return { error: `注文の取得に失敗しました: ${ordersError.message}` }
+
+    // 振込日は支払履歴の振込記録（現金の日付と混ざらない）を最優先にする
+    const bankPaidOnMap = new Map<string, string>()
+    if ((orders?.length ?? 0) > 0) {
+      const { data: bankPayments } = await supabase
+        .from('order_payments')
+        .select('order_id, paid_on')
+        .eq('method', 'bank_transfer')
+        .is('voided_at', null)
+        .in('order_id', orders?.map(o => o.id) ?? [])
+      for (const p of bankPayments ?? []) bankPaidOnMap.set(p.order_id, p.paid_on)
+    }
 
     // 2. 振込日（振込済に変更した日時）をステータス履歴から取得
     const paidDateMap = new Map<string, string>()
@@ -135,8 +149,8 @@ export async function reconcileMfForOrders(
           orderNumber: o.order_number,
           customerName: o.customer_name,
           bankAccountHolder: o.bank_account_holder,
-          amount: (o.inspected_total_amount ?? o.total_amount) - (o.inspection_discount ?? 0),
-          paidDate: o.payment_date ?? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date(paidAt)),
+          amount: bankTransferAmount(o),
+          paidDate: bankPaidOnMap.get(o.id) ?? o.payment_date ?? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date(paidAt)),
           status: o.status,
         }
       })
