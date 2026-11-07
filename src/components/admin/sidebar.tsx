@@ -21,6 +21,7 @@ import {
   ClipboardList,
   IdCard,
   Sparkles,
+  Store,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -36,32 +37,54 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import type { Profile } from '@/types/database'
 
-const navItems = [
+type NavItem = {
+  href: string
+  label: string
+  icon: typeof LayoutDashboard
+  adminOnly?: boolean
+  /** 通販テナント専用。店舗モード（実店舗 POS）では隠す（配送・追跡・振込・eKYC・SNS 画像） */
+  onlineOnly?: boolean
+  /** 店舗モードでだけ出す */
+  storeOnly?: boolean
+}
+
+const navItems: NavItem[] = [
+  { href: '/pos', label: 'POS を開く', icon: Store, storeOnly: true },
   { href: '/admin', label: 'ダッシュボード', icon: LayoutDashboard },
   { href: '/admin/orders', label: '注文管理', icon: ShoppingCart },
-  { href: '/admin/kyc', label: '本人確認', icon: IdCard },
-  { href: '/admin/offices', label: '事務所別管理', icon: Building2 },
-  { href: '/admin/arrival-schedule', label: '到着予定', icon: Calendar },
+  { href: '/admin/kyc', label: '本人確認', icon: IdCard, onlineOnly: true },
+  { href: '/admin/offices', label: '事務所別管理', icon: Building2, onlineOnly: true },
+  { href: '/admin/arrival-schedule', label: '到着予定', icon: Calendar, onlineOnly: true },
   { href: '/admin/products', label: '商品管理', icon: Package },
   { href: '/admin/price-comparison', label: '他社価格比較', icon: TrendingUp },
   { href: '/admin/products/price-history', label: '価格履歴', icon: TrendingUp },
   { href: '/admin/last-cost', label: '最終仕入原価', icon: ClipboardList },
   { href: '/admin/singles', label: 'シリーズ別シングル買取', icon: Sparkles },
   { href: '/admin/categories', label: 'カテゴリ管理', icon: FolderOpen },
-  { href: '/admin/marketing/image', label: 'ポケモンBOX画像・投稿文', icon: ImageIcon },
-  { href: '/admin/marketing/image-single', label: 'シングル画像・投稿文', icon: ImageIcon },
-  { href: '/admin/marketing/image-special-box', label: 'スペシャルBOX画像・投稿文', icon: ImageIcon },
-  { href: '/admin/marketing/image-onepiece', label: 'ワンピBOX画像・投稿文', icon: ImageIcon },
-  { href: '/admin/marketing/image-psa10', label: 'PSA10買取画像', icon: ImageIcon },
-  { href: '/admin/marketing/image-psa10-boost', label: 'PSA10強化画像', icon: ImageIcon },
-  { href: '/admin/payments', label: '振込管理', icon: CreditCard },
-  { href: '/admin/payment-verification', label: '振込確認', icon: ShieldCheck },
-  { href: '/admin/returns', label: '返品管理', icon: Undo2 },
+  { href: '/admin/marketing/image', label: 'ポケモンBOX画像・投稿文', icon: ImageIcon, onlineOnly: true },
+  { href: '/admin/marketing/image-single', label: 'シングル画像・投稿文', icon: ImageIcon, onlineOnly: true },
+  { href: '/admin/marketing/image-special-box', label: 'スペシャルBOX画像・投稿文', icon: ImageIcon, onlineOnly: true },
+  { href: '/admin/marketing/image-onepiece', label: 'ワンピBOX画像・投稿文', icon: ImageIcon, onlineOnly: true },
+  { href: '/admin/marketing/image-psa10', label: 'PSA10買取画像', icon: ImageIcon, onlineOnly: true },
+  { href: '/admin/marketing/image-psa10-boost', label: 'PSA10強化画像', icon: ImageIcon, onlineOnly: true },
+  { href: '/admin/payments', label: '振込管理', icon: CreditCard, onlineOnly: true },
+  { href: '/admin/payment-verification', label: '振込確認', icon: ShieldCheck, onlineOnly: true },
+  { href: '/admin/returns', label: '返品管理', icon: Undo2, onlineOnly: true },
   { href: '/admin/staff', label: 'スタッフ管理', icon: Users, adminOnly: true },
   { href: '/admin/settings', label: '設定', icon: Settings, adminOnly: true },
 ]
 
-function NavLinks({ profile, onNavigate }: { profile: Profile; onNavigate?: () => void }) {
+/** 役割と業態でメニューを絞る（純粋関数。テストから呼ぶ） */
+export function visibleNavItems(items: NavItem[], role: string, storeMode: boolean): NavItem[] {
+  return items.filter((item) => {
+    if (item.adminOnly && role !== 'admin') return false
+    if (item.onlineOnly && storeMode) return false
+    if (item.storeOnly && !storeMode) return false
+    return true
+  })
+}
+
+function NavLinks({ profile, storeMode, onNavigate }: { profile: Profile; storeMode: boolean; onNavigate?: () => void }) {
   const pathname = usePathname()
   const [officeLinks, setOfficeLinks] = useState<{ id: string; name: string }[]>([])
   // 本人確認の審査待ち（撮影完了＝processing）件数。左タブにバッジ表示する
@@ -94,9 +117,7 @@ function NavLinks({ profile, onNavigate }: { profile: Profile; onNavigate?: () =
     return () => clearInterval(timer)
   }, [pathname])
 
-  const filteredItems = navItems.filter(
-    (item) => !item.adminOnly || profile.role === 'admin'
-  )
+  const filteredItems = visibleNavItems(navItems, profile.role, storeMode)
 
   return (
     <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
@@ -174,7 +195,7 @@ function UserFooter({ profile, onLogout }: { profile: Profile; onLogout: () => v
   )
 }
 
-export function AdminSidebar({ profile }: { profile: Profile }) {
+export function AdminSidebar({ profile, storeMode = false }: { profile: Profile; storeMode?: boolean }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
 
@@ -194,7 +215,7 @@ export function AdminSidebar({ profile }: { profile: Profile }) {
             買取スクエア
           </Link>
         </div>
-        <NavLinks profile={profile} />
+        <NavLinks profile={profile} storeMode={storeMode} />
         <UserFooter profile={profile} onLogout={handleLogout} />
       </aside>
 
@@ -210,7 +231,7 @@ export function AdminSidebar({ profile }: { profile: Profile }) {
             <SheetHeader className="border-b px-6 py-4">
               <SheetTitle>買取スクエア</SheetTitle>
             </SheetHeader>
-            <NavLinks profile={profile} onNavigate={() => setOpen(false)} />
+            <NavLinks profile={profile} storeMode={storeMode} onNavigate={() => setOpen(false)} />
             <UserFooter profile={profile} onLogout={handleLogout} />
           </SheetContent>
         </Sheet>

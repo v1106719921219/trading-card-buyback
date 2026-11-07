@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { safeRedirectPath } from '@/lib/store-mode'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -33,18 +34,21 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protect /admin routes - redirect to login if not authenticated
-  if (request.nextUrl.pathname.startsWith('/admin') && !user) {
+  // Protect /admin and /pos routes - redirect to login if not authenticated
+  const { pathname } = request.nextUrl
+  const isProtected = pathname.startsWith('/admin') || pathname === '/pos' || pathname.startsWith('/pos/')
+  if (isProtected && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('redirect', request.nextUrl.pathname)
     return NextResponse.redirect(url)
   }
 
-  // Redirect logged-in users away from login page
-  if (request.nextUrl.pathname === '/login' && user) {
+  // Redirect logged-in users away from login page (店舗スタッフは ?redirect=/pos で POS へ戻す)
+  if (pathname === '/login' && user) {
     const url = request.nextUrl.clone()
-    url.pathname = '/admin'
+    url.pathname = safeRedirectPath(request.nextUrl.searchParams.get('redirect'), '/admin')
+    url.search = ''
     return NextResponse.redirect(url)
   }
 

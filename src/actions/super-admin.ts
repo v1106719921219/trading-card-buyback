@@ -62,9 +62,15 @@ export async function createTenant(input: {
   ancient_dealer_number?: string
   plan: 'starter' | 'standard' | 'pro'
   primary_color?: string
+  /** online: 通販（既定）。store: 実店舗 POS（通販の公開ページを出さず / は /pos へ） */
+  mode?: 'online' | 'store'
 }) {
   await requireSuperAdmin()
   const supabase = createAdminClient()
+
+  if (input.mode && !['online', 'store'].includes(input.mode)) {
+    return { error: '業態の指定が正しくありません' }
+  }
 
   // slugの形式チェック
   if (!/^[a-z0-9-]+$/.test(input.slug)) {
@@ -80,6 +86,7 @@ export async function createTenant(input: {
       ancient_dealer_number: input.ancient_dealer_number || null,
       plan: input.plan,
       primary_color: input.primary_color || '#2563eb',
+      ...(input.mode ? { mode: input.mode, cash_only: input.mode === 'store' } : {}),
     })
     .select('*')
     .single()
@@ -101,9 +108,14 @@ export async function updateTenant(id: string, input: {
   plan?: 'starter' | 'standard' | 'pro'
   primary_color?: string
   is_active?: boolean
+  mode?: 'online' | 'store'
 }) {
   await requireSuperAdmin()
   const supabase = createAdminClient()
+
+  if (input.mode && !['online', 'store'].includes(input.mode)) {
+    return { error: '業態の指定が正しくありません' }
+  }
 
   const { error } = await supabase
     .from('tenants')

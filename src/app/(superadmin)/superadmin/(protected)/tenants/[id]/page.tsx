@@ -61,6 +61,10 @@ export default async function TenantDetailPage({
             <code className="text-sm text-blue-400">{tenant.slug}</code>
           </div>
           <div>
+            <div className="text-xs text-gray-500 mb-1">業態</div>
+            <div className="text-sm text-white">{tenant.mode === 'store' ? '実店舗 POS' : '通販'}</div>
+          </div>
+          <div>
             <div className="text-xs text-gray-500 mb-1">プラン</div>
             <div className="text-sm text-white">{PLAN_LABELS[tenant.plan as keyof typeof PLAN_LABELS]}</div>
           </div>

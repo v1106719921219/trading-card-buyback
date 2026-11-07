@@ -1,0 +1,721 @@
+<title>山口店 POS モック</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: iPad landscape app. Left rail = sections, main pane = current step, right pane = running totals. Stacks on phones. */
+:root{
+  --bg:#f3f1ec; --panel:#ffffff; --panel-2:#e9e5dc; --line:#d6d0c4; --fg:#1f2a2e; --muted:#5f6b70;
+  --accent:#1f6f5f; --accent-fg:#ffffff; --accent-soft:#dcebe5;
+  --warn:#9a5b00; --warn-soft:#f6e7c8; --bad:#a0332b; --bad-soft:#f5dcd8; --good:#2e6b3a; --good-soft:#d9ebd9;
+  --font:"Noto Sans JP","Hiragino Sans","Hiragino Kaku Gothic ProN",system-ui,sans-serif;
+  --mono:"IBM Plex Mono","SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#171a1c; --panel:#20252a; --panel-2:#2a3036; --line:#3a424a; --fg:#e8e6e0; --muted:#9aa5ab;
+  --accent:#4fb39b; --accent-fg:#0d1a16; --accent-soft:#223a34;
+  --warn:#e2a64a; --warn-soft:#3d2f16; --bad:#e07a70; --bad-soft:#4a2320; --good:#7cc48a; --good-soft:#1f3a26; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#171a1c; --panel:#20252a; --panel-2:#2a3036; --line:#3a424a; --fg:#e8e6e0; --muted:#9aa5ab;
+  --accent:#4fb39b; --accent-fg:#0d1a16; --accent-soft:#223a34;
+  --warn:#e2a64a; --warn-soft:#3d2f16; --bad:#e07a70; --bad-soft:#4a2320; --good:#7cc48a; --good-soft:#1f3a26; color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.5}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit}
+.app{display:grid;grid-template-columns:76px 1fr;min-height:100%;}
+.rail{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:stretch;padding-block:10px;padding-left:max(6px,env(safe-area-inset-left,0px));padding-right:6px;gap:4px;position:sticky;top:0;height:100vh}
+.rail .brand{font-weight:700;font-size:12px;text-align:center;color:var(--muted);letter-spacing:.08em;padding:6px 0 10px}
+.rail button{border:0;background:transparent;border-radius:10px;padding:10px 4px;font-size:12px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--muted)}
+.rail button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.rail button.on{background:var(--accent-soft);color:var(--accent);font-weight:700}
+.rail .spacer{flex:1}
+.rail .staff{font-size:11px;color:var(--muted);text-align:center;line-height:1.3}
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{display:flex;align-items:center;gap:14px;padding-block:10px;padding-left:16px;padding-right:max(16px,env(safe-area-inset-right,0px));background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.topbar h1{font-size:17px;margin:0;font-weight:700}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.steps span{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--panel-2);color:var(--muted)}
+.steps span.on{background:var(--accent);color:var(--accent-fg);font-weight:700}
+.steps span.done{background:var(--accent-soft);color:var(--accent)}
+.content{display:grid;grid-template-columns:1fr 340px;gap:16px;padding-block:16px;padding-left:16px;padding-right:max(16px,env(safe-area-inset-right,0px));flex:1;min-width:0}
+.content.single{grid-template-columns:1fr}
+.pane{min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card+.card{margin-top:14px}
+.card h2{font-size:14px;margin:0 0 10px;color:var(--muted);font-weight:700;letter-spacing:.04em}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.col{display:flex;flex-direction:column;gap:10px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);flex:1;min-width:140px}
+input[type=text],input[type=date],input[type=number],select{font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--fg);width:100%}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:11px 16px;cursor:pointer;font-weight:500;min-height:44px}
+.btn.p{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:700}
+.btn.big{font-size:17px;padding:14px 22px}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.chip{border:1px solid var(--line);border-radius:999px;padding:7px 13px;background:var(--panel);cursor:pointer;font-size:14px;min-height:38px}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:700}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.total{font-family:var(--mono);font-size:30px;font-weight:600}
+.muted{color:var(--muted);font-size:13px}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;background:var(--panel-2);color:var(--muted);font-weight:700}
+.tag.good{background:var(--good-soft);color:var(--good)}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.tag.bad{background:var(--bad-soft);color:var(--bad)}
+.note{border-left:3px solid var(--warn);background:var(--warn-soft);padding:8px 12px;border-radius:6px;font-size:13px}
+.note.bad{border-color:var(--bad);background:var(--bad-soft)}
+.note.good{border-color:var(--good);background:var(--good-soft)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:700}
+td.r,th.r{text-align:right}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.item .nm{flex:1;min-width:0}
+.item .nm b{display:block}
+.item .nm small{color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.tile .k{font-size:12px;color:var(--muted)}
+.tile .v{font-family:var(--mono);font-size:24px;font-weight:600;margin-top:2px}
+.actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.actions .btn{min-height:76px;font-size:17px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px}
+.actions .btn small{font-weight:400;font-size:12px;color:var(--muted)}
+.actions .btn.p small{color:var(--accent-fg);opacity:.85}
+canvas.sig{width:100%;height:170px;border:1px dashed var(--line);border-radius:10px;background:var(--panel);touch-action:none;display:block}
+.doc{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;font-size:13px;line-height:1.7;max-height:380px;overflow:auto}
+.doc h3{font-size:16px;margin:0 0 8px;text-align:center}
+.doc h4{font-size:13px;margin:12px 0 4px}
+.doc ol{padding-left:18px;margin:0}
+.receipt{font-family:var(--mono);font-size:12.5px;background:#fff;color:#111;border:1px solid var(--line);padding:18px 16px;width:300px;max-width:100%;margin:0 auto;line-height:1.55;white-space:pre-wrap}
+.photo{border:2px dashed var(--line);border-radius:10px;min-height:150px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;color:var(--muted);text-align:center;padding:10px;background:var(--panel-2)}
+.footer-nav{display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-top:14px}
+.cand{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+.cand .score{font-size:12px;color:var(--muted);font-family:var(--mono)}
+.kbd{font-family:var(--mono);background:var(--panel-2);padding:1px 6px;border-radius:4px;font-size:12px}
+.srch{position:relative}
+.srch .res{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.srch .res .item{cursor:pointer}
+.srch .res .item:hover{border-color:var(--accent)}
+.toast{position:fixed;left:50%;bottom:max(16px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+.toast.show{opacity:1}
+.start{min-height:calc(100vh - 60px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:24px}
+.start .big2{display:grid;grid-template-columns:1fr 1fr;gap:24px;width:min(760px,100%)}
+.start .big2 button{border:2px solid var(--line);background:var(--panel);border-radius:20px;min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;font-size:28px;font-weight:700;cursor:pointer}
+.start .big2 button svg{width:72px;height:72px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.start .big2 button.buy{color:var(--warn);border-color:var(--warn)}
+.start .big2 button.sell{color:var(--accent);border-color:var(--accent)}
+.start .big2 button small{font-size:14px;font-weight:400;color:var(--muted)}
+@media (max-width:600px){.start .big2{grid-template-columns:1fr}.start .big2 button{min-height:160px}}
+.mockbar{background:var(--warn-soft);color:var(--warn);font-size:12px;padding:4px 16px;text-align:center;border-bottom:1px solid var(--line)}
+@media (max-width:900px){
+  .content{grid-template-columns:1fr}
+  .app{grid-template-columns:1fr}
+  .rail{position:sticky;top:0;height:auto;flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .rail .brand,.rail .spacer,.rail .staff{display:none}
+  .rail button{flex-direction:row;padding:8px 12px;white-space:nowrap}
+  .topbar{top:0}
+  .content{padding-left:max(16px,env(safe-area-inset-left,0px))}
+}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+
+<div class="mockbar">モックアップです。データは例で、保存や印刷は行いません。iPad 横向きを想定しています。</div>
+<div class="app">
+  <nav class="rail" id="rail">
+    <div class="brand">POS</div>
+    <button data-sec="start"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>待機</button>
+    <button data-sec="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>状況</button>
+    <button data-sec="buy"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6"/></svg>買取</button>
+    <button data-sec="sell"><svg viewBox="0 0 24 24"><path d="M3 5h2l2 11h11l2-7H7"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg>販売</button>
+    <button data-sec="stock"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>在庫</button>
+    <button data-sec="prices"><svg viewBox="0 0 24 24"><path d="M20 13l-7 7-10-10V4h6z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>価格表</button>
+    <button data-sec="reg"><svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M7 8V5h10v3M7 13h4"/></svg>レジ</button>
+    <button data-sec="history"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>履歴</button>
+    <button data-sec="analytics"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>分析</button>
+    <button data-sec="ledger"><svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>台帳</button>
+    <button data-sec="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>設定</button>
+    <div class="spacer"></div>
+    <div class="staff">山口店<br>担当: 中村</div>
+  </nav>
+  <div class="main">
+    <div class="topbar">
+      <h1 id="title">ホーム</h1>
+      <div class="steps" id="steps" hidden></div>
+    </div>
+    <div id="view"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- sample data ----------
+const PRODUCTS=[
+ {id:1,name:'リザードン ex (SAR)',code:'SV4a 349/190',price:16000,market:19800},
+ {id:2,name:'ナンジャモ (SAR)',code:'SV2D 096/071',price:21000,market:26500},
+ {id:3,name:'ピカチュウ ex (SAR)',code:'SV8a 243/187',price:9500,market:12000},
+ {id:4,name:'ミモザ (SAR)',code:'SV1V 089/078',price:7200,market:9000},
+ {id:5,name:'ルギア V (SA)',code:'S12 110/098',price:5600,market:7100},
+ {id:6,name:'カイ (SAR)',code:'S12a 227/172',price:12500,market:15800},
+];
+const RANKS=[{code:'A',label:'美品',rate:1},{code:'B',label:'白かけ・軽い傷',rate:.8},{code:'C',label:'傷・凹み',rate:.5},{code:'D',label:'要相談',rate:null}];
+const BANDS=[{label:'50円',price:50},{label:'100円',price:100},{label:'300円',price:300},{label:'500円',price:500}];
+const CUSTOMERS=[
+ {id:'c1',name:'山本 拓也',phone:'090-1234-5678',visits:3,last:'2026-09-12',idType:'運転免許証',address:'山口県山口市中央1-2-3',birth:'1994-05-20',job:'会社員'},
+ {id:'c2',name:'佐藤 美咲',phone:'080-9876-5432',visits:1,last:'2026-10-02',idType:'マイナンバーカード',address:'山口県防府市栄町4-5',birth:'2009-01-15',job:'高校生'},
+];
+const state={sec:'start',step:0,customer:null,items:[],rank:'A',band:null,idc:{type:'運転免許証',photo:false,hand:false,guardian:false,name:'',address:'',birth:'',job:''},signed:false,approved:false,cart:[],inStock:[
+ {name:'ルギア V (SA)',code:'S12 110/098',rank:'A',cost:5600,sale:7800,bc:'YS-000118',alloc:'store'},
+ {name:'ミモザ (SAR)',code:'SV1V 089/078',rank:'B',cost:5760,sale:8200,bc:'YS-000119',alloc:'store'},
+ {name:'カイ (SAR)',code:'S12a 227/172',rank:'A',cost:12500,sale:15800,bc:'YS-000120',alloc:'store'},
+ {name:'リザードン ex (SAR)',code:'SV4a 349/190',rank:'A',cost:16000,sale:null,bc:'YS-000121',alloc:'pending'},
+ {name:'ピカチュウ ex (SAR)',code:'SV8a 243/187',rank:'B',cost:7600,sale:null,bc:'YS-000122',alloc:'pending'},
+],settings:{rate:95,autoSync:true,syncTime:'04:00',priceDisplay:'ipad',threshold:100000}};
+const yen=n=>'¥'+Number(n).toLocaleString('ja-JP');
+const BUY_STEPS=['受付','査定','提示','本人確認','署名','支払い','完了'];
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),1800)}
+function age(b){if(!b)return null;const d=new Date(b),n=new Date('2026-10-31');let a=n.getFullYear()-d.getFullYear();const m=n.getMonth()-d.getMonth();if(m<0||(m===0&&n.getDate()<d.getDate()))a--;return a}
+function total(){return state.items.reduce((s,i)=>s+i.qty*i.unit,0)}
+
+// ---------- rendering ----------
+function go(sec){state.sec=sec;if(sec==='buy'&&state.step===0)state.step=0;render()}
+function render(){
+  document.querySelectorAll('#rail button').forEach(b=>b.classList.toggle('on',b.dataset.sec===state.sec));
+  const v=document.getElementById('view'),t=document.getElementById('title'),s=document.getElementById('steps');
+  s.hidden=state.sec!=='buy';
+  if(state.sec==='buy'){s.innerHTML=BUY_STEPS.map((n,i)=>`<span class="${i===state.step?'on':i<state.step?'done':''}">${i+1} ${n}</span>`).join('')}
+  const map={start:start,home:home,buy:buy,sell:sell,stock:stock,reg:reg,ledger:ledger,history:history,analytics:analytics,settings:settings,prices:prices};
+  t.textContent={start:'山口店 POS',home:'本日の状況',buy:'買取',sell:'販売',stock:'在庫',reg:'レジ',ledger:'古物台帳',history:'取引履歴',analytics:'売上分析',settings:'設定',prices:'価格表'}[state.sec];
+  v.innerHTML=map[state.sec]();
+  wire();
+}
+function summaryPane(){
+  const rows=state.items.map((i,k)=>`<tr><td>${i.name}<br><small class="muted">${i.code||''} ${i.rank?'<span class="tag">'+i.rank+'</span>':''}</small></td><td class="r num">${i.qty}</td><td class="r num">${yen(i.unit)}</td><td class="r num">${yen(i.qty*i.unit)}</td><td><button class="btn ghost" data-del="${k}" aria-label="削除">×</button></td></tr>`).join('');
+  return `<div class="pane"><div class="card"><h2>査定明細</h2>
+  ${state.customer?`<div class="muted">${state.customer.name} 様 ・ 来店 ${state.customer.visits} 回目</div>`:'<div class="muted">顧客未選択</div>'}
+  <table style="margin-top:8px"><thead><tr><th>商品</th><th class="r">数</th><th class="r">単価</th><th class="r">金額</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="muted">まだ明細がありません</td></tr>'}</tbody></table>
+  <div class="row" style="justify-content:space-between;margin-top:12px"><span class="muted">合計 ${state.items.reduce((s,i)=>s+i.qty,0)} 点</span><span class="total">${yen(total())}</span></div>
+  </div></div>`;
+}
+
+function start(){
+  return `<div class="start">
+   <div class="big2">
+    <button class="buy" data-go="buy"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6"/></svg>買取<small>受付 → 査定 → 本人確認 → 現金払い</small></button>
+    <button class="sell" data-go="sell"><svg viewBox="0 0 24 24"><path d="M3 5h2l2 11h11l2-7H7"/><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg>販売<small>スキャン / 価格帯で会計</small></button>
+   </div>
+   <div class="row" style="gap:14px"><span class="muted">進行中の受付 2 件</span><button class="btn" data-go="home">本日の状況</button><button class="btn ghost" data-go="stock">在庫</button><button class="btn ghost" data-go="reg">レジ</button></div>
+   <div class="muted">取引が終わると自動でこの画面に戻ります。金額など内部の数字はこの画面には出しません。</div>
+  </div>`;
+}
+function home(){
+  return `<div class="content single"><div class="pane">
+  <div class="tiles">
+   <div class="tile"><div class="k">本日の買取</div><div class="v">¥48,300</div><div class="muted">7 件</div></div>
+   <div class="tile"><div class="k">本日の販売</div><div class="v">¥31,900</div><div class="muted">12 件 ・ 粗利 ¥9,400</div></div>
+   <div class="tile"><div class="k">レジ現金（理論値）</div><div class="v">¥83,600</div><div class="muted">開局 10:02 ・ 準備金 ¥100,000</div></div>
+   <div class="tile"><div class="k">進行中の受付</div><div class="v">2</div><div class="muted">待ち 1 ・ 査定中 1</div></div>
+  </div>
+  <div class="card" style="margin-top:14px"><h2>はじめる</h2><div class="actions">
+   <button class="btn p" data-go="buy">買取を受け付ける<small>査定 → 本人確認 → 現金払い</small></button>
+   <button class="btn" data-go="sell">販売する<small>スキャン / 価格帯で会計</small></button>
+   <button class="btn" data-go="stock">在庫を見る<small>売価の設定、ラベル印刷</small></button>
+   <button class="btn" data-go="reg">レジを締める<small>入出金、現金の突合</small></button>
+  </div></div>
+  <div class="card"><h2>進行中の受付</h2><div class="list">
+   <div class="item"><span class="tag warn">査定中</span><div class="nm"><b>受付 014 ・ 山本 拓也 様</b><small>持込 6 点 ・ 11:40 受付 ・ 担当 中村</small></div><button class="btn" data-go="buy">続ける</button></div>
+   <div class="item"><span class="tag">待ち</span><div class="nm"><b>受付 015 ・ 新規のお客様</b><small>持込 約 200 点（まとめ） ・ 11:52 受付</small></div><button class="btn" data-go="buy">査定する</button></div>
+  </div></div>
+  </div></div>`;
+}
+
+// ---------- buyback flow ----------
+function buy(){
+  const st=state.step;
+  const left=[stepIntake,stepAppraise,stepPresent,stepIdentity,stepSign,stepPay,stepDone][st]();
+  const single=st===0||st===6;
+  return `<div class="content ${single?'single':''}"><div class="pane">${left}</div>${single?'':summaryPane()}</div>`;
+}
+function stepIntake(){
+  const c=state.customer;
+  return `<div class="card"><h2>お客様</h2>
+   <div class="row"><label class="f">電話番号 または 氏名<input type="text" id="q" placeholder="090-1234-5678" value="${c?c.phone:''}"></label><button class="btn" id="srch">検索</button><button class="btn" id="newc">新規のお客様</button></div>
+   <div class="list" id="cres" style="margin-top:10px">${CUSTOMERS.map(x=>`<div class="item" data-cust="${x.id}" style="cursor:pointer;${c&&c.id===x.id?'border-color:var(--accent)':''}"><div class="nm"><b>${x.name}</b><small>${x.phone} ・ 来店 ${x.visits} 回 ・ 前回 ${x.last}（${x.idType}で確認済み）</small></div>${age(x.birth)<18?'<span class="tag bad">18歳未満</span>':''}<span class="tag good">本人確認 記録あり</span></div>`).join('')}</div>
+  </div>
+  <div class="card"><h2>持込内容</h2>
+   <div class="row"><label class="f">持込点数（概算）<input type="number" id="cnt" value="6"></label><label class="f">区分<select id="kind"><option>シングル中心</option><option>まとめ（ノーマル多数）</option><option>両方</option></select></label></div>
+   <div class="muted" style="margin-top:6px">受付番号は自動で振られます（次は 016）。受付票はレシートプリンタで印刷します。混雑していなければ省略できます。</div>
+  </div>
+  <div class="footer-nav"><span class="muted">${c?`${c.name} 様を選択中`:'顧客を選ぶか、新規で進めます'}</span><div class="row"><button class="btn" id="ticket">受付票を印刷</button><button class="btn p big" id="next">査定へ</button></div></div>`;
+}
+function stepAppraise(){
+  const r=RANKS.find(x=>x.code===state.rank);
+  return `<div class="card"><h2>商品を探す</h2>
+   <div class="srch"><div class="row"><label class="f" style="flex:2">型番 または 名前（型番が最優先）<input type="text" id="pq" placeholder="例: SV4a 349 / リザードン"></label><button class="btn" id="photo">写真から読み取る</button><button class="btn" id="bulk">まとめ買取</button></div>
+   <div class="res" id="pres"></div></div>
+  </div>
+  <div class="card"><h2>状態ランク（選んだ商品に適用）</h2>
+   <div class="row">${RANKS.map(x=>`<button class="chip ${state.rank===x.code?'on':''}" data-rank="${x.code}">${x.code} ${x.label}${x.rate!=null?' ・ '+Math.round(x.rate*100)+'%':''}</button>`).join('')}</div>
+   <div class="muted" style="margin-top:8px">${r.rate!=null?`価格表 × ${Math.round(r.rate*100)}% で単価を計算します。ランク外の減額は理由の入力が必要です。`:'D は個別に金額と理由を入れます。'}</div>
+  </div>
+  <div id="extra"></div>
+  <div class="footer-nav"><button class="btn" id="back">受付に戻る</button><button class="btn p big" id="next" ${state.items.length?'':'disabled'}>査定結果を提示</button></div>`;
+}
+function stepPresent(){
+  return `<div class="card" style="text-align:center;padding:30px 16px"><div class="muted">買取合計（${state.items.reduce((s,i)=>s+i.qty,0)} 点）</div><div class="total" style="font-size:46px">${yen(total())}</div>
+   <div class="muted" style="margin-top:6px">お客様にこの画面を向けて金額を確認してもらいます</div></div>
+  <div class="card"><h2>この金額で進める場合</h2><div class="muted">本人確認 → 申込書への署名 → 現金のお渡し、の順です。署名は 1 回で、査定額への同意・誓約・受領を兼ねます。</div></div>
+  <div class="footer-nav"><div class="row"><button class="btn" id="back">査定に戻る</button><button class="btn danger" id="walk">持ち帰る（査定のみで終了）</button></div><button class="btn p big" id="next">同意して本人確認へ</button></div>`;
+}
+function stepIdentity(){
+  const c=state.customer,i=state.idc;const a=age(i.birth);
+  const types=['運転免許証','マイナンバーカード','パスポート','在留カード','健康保険証','その他'];
+  return `${c?`<div class="card"><h2>前回の本人確認</h2><div class="row" style="justify-content:space-between"><div><b>${c.name}</b> ・ ${c.last} に ${c.idType} で確認<br><small class="muted">${c.address} ・ ${c.birth} 生 ・ ${c.job}</small></div><button class="btn" id="reuse">前回の内容を使う</button></div><div class="muted" style="margin-top:6px">使う場合も書類の提示は受け、変更がないか確認します。</div></div>`:''}
+  <div class="card"><h2>確認方法</h2>
+   <div class="row"><button class="chip ${!i.hand?'on':''}" id="m-doc">身分証の提示</button><button class="chip ${i.hand?'on':''}" id="m-hand">書類がない（面前で手書き）</button></div>
+   ${!i.hand?`<div class="row" style="margin-top:10px">${types.map(t=>`<button class="chip ${i.type===t?'on':''}" data-type="${t}">${t}</button>`).join('')}</div>
+   <div class="row" style="margin-top:12px;align-items:stretch"><div class="photo" style="flex:1" id="photobox">${i.photo?'<span class="tag good">表面を保存しました</span><span>画像は 3 年保存。裏面は保存しません</span>':'<b>表面のみ撮影（任意）</b><span>マイナンバーカードの裏面は撮影しないでください</span>'}</div>
+   <div class="col" style="justify-content:center"><button class="btn" id="shoot">${i.photo?'撮り直す':'撮影する'}</button><button class="btn ghost" id="skipshoot">撮影せず目視で確認</button></div></div>`:
+   `<div class="note" style="margin-top:10px">お客様に iPad へ住所・氏名・職業・年齢を手書きしてもらいます（店員の面前で）。</div><canvas class="sig" id="hand" style="margin-top:8px"></canvas>`}
+  </div>
+  <div class="card"><h2>確認した内容（古物台帳に記録）</h2>
+   <div class="row"><label class="f">氏名<input type="text" id="i-name" value="${i.name}"></label><label class="f">生年月日<input type="date" id="i-birth" value="${i.birth}"></label></div>
+   <div class="row"><label class="f" style="flex:2">住所<input type="text" id="i-addr" value="${i.address}"></label><label class="f">職業<input type="text" id="i-job" value="${i.job}"></label></div>
+   <div style="margin-top:8px">${a==null?'<span class="muted">生年月日を入れると年齢を判定します</span>':a<18?`<span class="tag bad">${a} 歳 ・ 18 歳未満</span>`:`<span class="tag good">${a} 歳</span>`}</div>
+   ${a!=null&&a<18?`<div class="note bad" style="margin-top:10px"><b>山口県の条例により、保護者の同意がない買取はできません。</b><div class="row" style="margin-top:8px"><button class="chip ${i.guardian?'on':''}" id="guard">保護者が同席し、同意書に署名した</button><button class="btn danger" id="refuse">買取をお断りする（記録する）</button></div><div class="muted" style="margin-top:6px">保護者の氏名・続柄・身分証も記録します。</div></div>`:''}
+  </div>
+  <div class="footer-nav"><button class="btn" id="back">戻る</button><button class="btn p big" id="next" ${(i.name&&i.birth&&i.address&&i.job&&(a>=18||i.guardian))?'':'disabled'}>申込書へ</button></div>`;
+}
+function stepSign(){
+  const i=state.idc;
+  return `<div class="card"><h2>買取申込書 兼 受領書</h2><div class="doc">
+   <h3>買取申込書 兼 受領書</h3>
+   <div>取引番号 Y-2026-1031-016 ・ 2026年10月31日 ・ 山口店</div>
+   <h4>買取明細</h4>
+   <table>${state.items.map(x=>`<tr><td>${x.name}${x.rank?' ('+x.rank+')':''}</td><td class="r num">${x.qty}</td><td class="r num">${yen(x.qty*x.unit)}</td></tr>`).join('')}<tr><th>合計</th><th></th><th class="r num">${yen(total())}</th></tr></table>
+   <h4>申込者</h4><div>${i.name} ・ ${i.address} ・ ${i.birth} 生（${age(i.birth)} 歳）・ ${i.job} ・ 確認方法: ${i.hand?'面前での手書き':i.type}</div>
+   <h4>誓約事項</h4><ol><li>売却する物品は私の所有物であり、盗品や不正に入手した物品ではありません。</li><li>私は 18 歳以上です（18 歳未満の場合は保護者の同意を得ています）。</li><li>買取成立後の返品・返金には応じられないことに同意します。</li><li>上記の買取金額に同意し、現金で受領しました。</li></ol>
+   <h4>個人情報の利用目的</h4><div>古物営業法に基づく本人確認および取引記録の作成・保存（3 年間）のために利用し、法令に基づく場合を除き第三者に提供しません。</div>
+  </div></div>
+  <div class="card"><h2>署名（お客様）</h2><canvas class="sig" id="sig"></canvas><div class="row" style="margin-top:8px;justify-content:space-between"><span class="muted">iPad をお客様に向けて、指かペンで署名してもらいます</span><button class="btn ghost" id="clear">消す</button></div></div>
+  <div class="footer-nav"><button class="btn" id="back">戻る</button><button class="btn p big" id="next" ${state.signed?'':'disabled'}>署名を保存して支払いへ</button></div>`;
+}
+function stepPay(){
+  return `<div class="card" style="text-align:center;padding:26px 16px"><div class="muted">お渡しする現金</div><div class="total" style="font-size:46px">${yen(total())}</div></div>
+  <div class="card"><h2>記録の承認</h2>
+   ${state.approved?'<div class="note good">マネージャー（中村）が承認しました。</div>':`<div class="muted">現金の記録はマネージャーの承認が必要です（既存の支払い記録と同じ仕組み）。</div><div class="row" style="margin-top:10px"><button class="btn" id="approve">マネージャーとして承認する</button></div>`}
+  </div>
+  <div class="card"><h2>支払い後に自動で行うこと</h2><div class="list">
+   <div class="item"><span class="tag">自動</span><div class="nm"><b>在庫に入庫（振分待ち）</b><small>明細 ${state.items.filter(x=>!x.band).length} 件を 1 件ずつ、まとめ分は数量で登録。仕入原価 = 買取単価。あとで店頭販売か本部移動に振り分け</small></div></div>
+   <div class="item"><span class="tag">自動</span><div class="nm"><b>古物台帳に記録</b><small>取引日、品目・数量・特徴、相手方、確認方法。以後は変更不可</small></div></div>
+   <div class="item"><span class="tag">自動</span><div class="nm"><b>レジ現金を減らす</b><small>本日のレジ締めに反映</small></div></div>
+   <div class="item"><span class="tag">自動</span><div class="nm"><b>申込書 PDF を保存</b><small>署名画像付き。3 年保存</small></div></div>
+  </div></div>
+  <div class="footer-nav"><button class="btn" id="back">戻る</button><button class="btn p big" id="next" ${state.approved?'':'disabled'}>現金を渡して記録する</button></div>`;
+}
+function stepDone(){
+  const lines=state.items.map(x=>`${(x.name+(x.rank?' ('+x.rank+')':'')).padEnd(18,'　').slice(0,18)}\n   ${String(x.qty).padStart(3)} × ${yen(x.unit).padStart(8)}  ${yen(x.qty*x.unit).padStart(9)}`).join('\n');
+  return `<div class="content single" style="padding:0"><div class="pane">
+  <div class="note good">買取が完了しました。明細書を印刷してお渡しください。</div>
+  <div class="row" style="align-items:flex-start;margin-top:14px;gap:16px">
+   <div class="receipt">        カードショップ 山口店
+    山口県山口市○○町1-2-3
+    TEL 083-000-0000
+  古物商許可 山口県公安委員会 第741091000629号
+--------------------------------
+買取明細書        2026/10/31 12:08
+取引番号 Y-2026-1031-016
+担当 中村
+--------------------------------
+${lines}
+--------------------------------
+合計                 ${yen(total()).padStart(11)}
+お支払い方法         現金
+本人確認             済（${state.idc.hand?'手書き':state.idc.type}）
+--------------------------------
+買取成立後の返品・返金はお受け
+できません。本取引は古物営業法に
+基づく買取です。署名済み。
+   ありがとうございました</div>
+   <div class="col" style="flex:1;min-width:220px">
+    <button class="btn p big" id="print">明細書を印刷</button>
+    <button class="btn" id="pdf">申込書の控えも印刷（希望者のみ）</button>
+    <div class="card"><h2>記録された内容</h2><div class="list">
+     <div class="item"><span class="tag good">済</span><div class="nm"><b>在庫 ${state.items.filter(x=>!x.band).length} 件 入庫（振分待ち）</b><small>在庫画面の「振分待ち」で店頭販売か本部移動に振り分けます。仕入原価は買取単価で自動入力済み</small></div></div>
+     <div class="item"><span class="tag good">済</span><div class="nm"><b>古物台帳 1 件</b><small>Y-2026-1031-016</small></div></div>
+     <div class="item"><span class="tag good">済</span><div class="nm"><b>レジ現金 −${yen(total())}</b><small>理論残高 ¥${(83600-total()).toLocaleString()}</small></div></div>
+    </div></div>
+    <button class="btn" id="home">待機画面へ戻る</button>
+   </div>
+  </div></div></div>`;
+}
+
+// ---------- other sections ----------
+function sell(){
+  const sum=state.cart.reduce((s,i)=>s+i.qty*i.price,0),tax=Math.floor(sum*10/110);
+  return `<div class="content"><div class="pane">
+   <div class="card"><h2>商品を追加</h2>
+    <div class="row"><label class="f" style="flex:2">バーコードをスキャン（リーダーはキーボード入力として動きます）<input type="text" id="scan" placeholder="YS-000118" autocomplete="off"></label><button class="btn" id="scanbtn">${state.priceCheck?'価格を見る':'追加'}</button><button class="chip ${state.priceCheck?'on':''}" id="pcheck">価格確認モード</button></div>
+    <div class="muted" style="margin-top:8px">${state.priceCheck?'価格確認モード: スキャンすると売価・状態・入庫日を表示します。カートには入りません。':'ラベルに価格は印字しません。スキャンした時点の売価で会計します。値段を調べるだけなら「価格確認モード」。'}</div>
+   </div>
+   <div class="card"><h2>価格帯カード（ラベルなしのノーマルカード）</h2><div class="muted" style="margin-bottom:8px">価格帯はスリーブの色で見分けます（例: 50円 なし / 100円 透明 / 300円 青 / 500円 赤）。</div><div class="row">${BANDS.map(b=>`<button class="chip" data-band="${b.price}">${b.label} カード</button>`).join('')}<label class="f" style="max-width:120px">枚数<input type="number" id="bqty" value="10"></label></div></div>
+   <div class="card"><h2>在庫から探す</h2><div class="list">${state.inStock.filter(x=>x.alloc==='store'&&x.sale).map(x=>`<div class="item"><div class="nm"><b>${x.name}</b><small>${x.code} ・ ${x.rank} ・ ${x.bc}</small></div><span class="num">${yen(x.sale)}</span><button class="btn" data-add="${x.bc}">追加</button></div>`).join('')}</div>
+    <div class="muted" style="margin-top:8px">お客様向けの売価表示: ${state.settings.priceDisplay==='ipad'?'iPad の客向け画面に表示':state.settings.priceDisplay==='qr'?'QR コードの価格ページ':'なし'}（設定で変更）</div></div>
+  </div>
+  <div class="pane"><div class="card"><h2>会計</h2>
+   <table><tbody>${state.cart.map((i,k)=>`<tr><td>${i.name}</td><td class="r num">${i.qty}</td><td class="r num">${yen(i.qty*i.price)}</td><td><button class="btn ghost" data-cdel="${k}">×</button></td></tr>`).join('')||'<tr><td class="muted" colspan="4">カートは空です</td></tr>'}</tbody></table>
+   <div class="row" style="justify-content:space-between;margin-top:10px"><span class="muted">内消費税 10%</span><span class="num">${yen(tax)}</span></div>
+   <div class="row" style="justify-content:space-between"><span>合計</span><span class="total">${yen(sum)}</span></div>
+   <div class="row" style="margin-top:10px"><label class="f">預り金<input type="number" id="tender" value="${sum?Math.ceil(sum/1000)*1000:0}"></label><div><div class="muted">おつり</div><div class="num" id="change" style="font-size:22px">—</div></div></div>
+   <button class="btn p big" style="width:100%;margin-top:12px" id="checkout" ${sum?'':'disabled'}>レシートを印刷して確定</button>
+   <div class="muted" style="margin-top:8px">レシート: 店名・住所・電話・登録番号（インボイス登録時）・明細・小計・内消費税・合計・預り・おつり・返品条件。おつりは画面に大きく表示し、金庫から数えて渡します（ドロワー連携なし）。</div>
+  </div></div></div>`;
+}
+function stock(){
+  const mode=state.stockMode||'list';
+  if(mode==='stocktake'){
+    const counts=state.counts||{};
+    const bands=[{label:'50円帯',theo:310},{label:'100円帯',theo:1240},{label:'300円帯',theo:86},{label:'500円帯',theo:22}];
+    const rows=[...state.inStock.map(x=>({key:x.bc,name:x.name,sub:`${x.code} ・ ${x.rank} ・ ${x.bc}`,theo:1})),...bands.map(b=>({key:b.label,name:`ノーマルカード ${b.label}`,sub:'価格帯（概算枚数でよい）',theo:b.theo}))];
+    const has=r=>counts[r.key]!=null&&counts[r.key]!=='';
+    const entered=rows.filter(has).length,diffs=rows.filter(r=>has(r)&&Number(counts[r.key])!==r.theo).length;
+    return `<div class="content single"><div class="pane">
+     <div class="card"><h2>棚卸しモード（2026/10/31 ・ 担当 中村）</h2>
+      <div class="muted">左にシステムの理論在庫、右に数えた実数を入れます。差があった行だけ理由を入れて確定します。</div>
+      <div class="row" style="margin-top:10px"><label class="f" style="flex:2">高額品はラベルのスキャンでも確認できます（任意）<input type="text" id="stscan" placeholder="YS-000118" autocomplete="off"></label><button class="btn" id="stbtn">1 枚として記録</button></div>
+      <div class="row" style="margin-top:12px;gap:16px"><span class="tag good">入力済 ${entered} / ${rows.length}</span><span class="tag ${diffs?'warn':''}">差異 ${diffs} 行</span></div>
+      <div style="overflow-x:auto;margin-top:10px"><table><thead><tr><th>商品</th><th class="r">理論在庫</th><th class="r">実数</th><th class="r">差異</th><th>理由</th></tr></thead><tbody>
+      ${rows.map(r=>{const d=has(r)?Number(counts[r.key])-r.theo:null;return `<tr><td><b>${r.name}</b><br><small class="muted">${r.sub}</small></td><td class="r num">${r.theo}</td><td class="r"><input type="number" data-count="${r.key}" value="${counts[r.key]??''}" style="max-width:110px;text-align:right" placeholder="数える"></td><td class="r num">${d==null?'—':d===0?'<span class="tag good">一致</span>':`<span class="tag warn">${d>0?'+':''}${d}</span>`}</td><td>${d?`<input type="text" placeholder="例: 販売の登録漏れ" style="min-width:160px">`:''}</td></tr>`}).join('')}
+      </tbody></table></div>
+     </div>
+     <div class="footer-nav"><button class="btn" id="stexit">在庫一覧に戻る</button><button class="btn p big" id="stdone" ${entered<rows.length?'disabled':''}>棚卸しを確定（在庫を実数に合わせる）</button></div>
+    </div></div>`;
+  }
+  if(mode==='pending'){
+    const sel=state.allocSel||{};const list=state.inStock.filter(x=>x.alloc==='pending');const n=list.filter(x=>sel[x.bc]).length;
+    return `<div class="content"><div class="pane">
+     <div class="card"><h2>振分待ち（${list.length} 件）</h2><div class="muted">買取で入った在庫はここに貯まります。まとめて選んで振り分けます。</div>
+      <div class="list" style="margin-top:10px">${list.map(x=>`<div class="item" data-asel="${x.bc}" style="cursor:pointer;${sel[x.bc]?'border-color:var(--accent)':''}"><span class="tag ${sel[x.bc]?'good':''}">${sel[x.bc]?'選択':'　'}</span><div class="nm"><b>${x.name}</b><small>${x.code} ・ ${x.rank} ・ 仕入 ${yen(x.cost)} ・ 買取 Y-2026-1031-016</small></div></div>`).join('')||'<div class="muted">振分待ちはありません</div>'}</div>
+     </div>
+    </div><div class="pane"><div class="card"><h2>振り分け先</h2>
+     <div class="muted">${n} 件を選択中</div>
+     <button class="btn p big" style="width:100%;margin-top:12px" id="toStore" ${n?'':'disabled'}>店頭販売（個別管理・ラベルを貼る）</button>
+     <div class="muted" style="margin-top:10px">価格帯に入れる（個体の記録をやめて枚数に加算。帯の色のスリーブに入れ替える）</div>
+     <div class="row" style="margin-top:6px">${BANDS.map(b=>`<button class="chip" data-toband="${b.price}" ${n?'':'disabled'}>${b.label}</button>`).join('')}</div>
+     <button class="btn big" style="width:100%;margin-top:8px" id="toTransfer" ${n?'':'disabled'}>本部へ移動（移動伝票を作成）</button>
+     <button class="btn ghost" style="width:100%;margin-top:8px" id="pexit">在庫一覧に戻る</button>
+     <div class="muted" style="margin-top:10px">週 1 回まとめて振り分ける運用を想定。移動分は 1 枚の伝票になります。</div>
+    </div></div></div>`;
+  }
+  if(mode==='inbound'){
+    const slip=[{name:'ナンジャモ (SAR)',code:'SV2D 096/071',rank:'A',cost:21000},{name:'ルギア V (SA)',code:'S12 110/098',rank:'B',cost:4480},{name:'ノーマルカード 100円帯',code:'まとめ',rank:'-',cost:60,qty:150}];
+    return `<div class="content"><div class="pane">
+     <div class="card"><h2>本部から入庫（事務所で買い取った物を店舗で売る）</h2>
+      <label class="f">本部発の移動伝票<select><option>T-2026-1030-003（10/30 発送 ・ 3 明細）</option><option>T-2026-1028-002（受入済）</option></select></label>
+      <div style="overflow-x:auto;margin-top:10px"><table><thead><tr><th>商品</th><th>状態</th><th class="r">数量</th><th class="r">原価（本部の買取単価）</th></tr></thead><tbody>
+      ${slip.map(x=>`<tr><td><b>${x.name}</b><br><small class="muted">${x.code}</small></td><td>${x.rank==='-'?'':`<span class="tag">${x.rank}</span>`}</td><td class="r num">${x.qty||1}</td><td class="r num">${yen(x.cost)}</td></tr>`).join('')}
+      </tbody></table></div>
+     </div>
+    </div><div class="pane"><div class="card"><h2>受け入れ</h2>
+     <div class="muted">受け入れると店舗の在庫（店頭販売）になり、伝票の原価が仕入単価に入ります。本部側で台帳の記録は済んでいるので、店舗では台帳を書きません。同じ法人なので売買にはなりません。</div>
+     <div class="row" style="justify-content:space-between;margin-top:10px"><span class="muted">3 明細 ・ ${slip.reduce((s,x)=>s+(x.qty||1),0)} 点</span><span class="num">原価合計 ${yen(slip.reduce((s,x)=>s+x.cost*(x.qty||1),0))}</span></div>
+     <button class="btn p big" style="width:100%;margin-top:12px" id="indone">受け入れて在庫にする</button>
+     <button class="btn ghost" style="width:100%;margin-top:8px" id="inexit">在庫一覧に戻る</button>
+    </div></div></div>`;
+  }
+  if(mode==='open'){
+    const o=state.openBox||{name:'拡張パック テラスタルフェス ex BOX',cost:5400,supplier:'問屋 A',count:30,method:'equal'};
+    const unit=o.count?Math.round(o.cost/o.count):0;
+    return `<div class="content"><div class="pane">
+     <div class="card"><h2>開封入庫（ボックス・パックを開けて在庫にする）</h2>
+      <div class="row"><label class="f" style="flex:2">仕入れた商品<input type="text" id="ob-name" value="${o.name}"></label><label class="f">仕入先<input type="text" id="ob-sup" value="${o.supplier}"></label></div>
+      <div class="row"><label class="f">仕入値（税込・1 ボックス）<input type="number" id="ob-cost" value="${o.cost}"></label><label class="f">在庫にするカード枚数<input type="number" id="ob-count" value="${o.count}"></label></div>
+      <div style="margin-top:10px"><div class="muted">仕入単価の按分</div><div class="row" style="margin-top:6px"><button class="chip ${o.method==='equal'?'on':''}" data-ob="equal">均等割り（1 枚 ${yen(unit)}）</button><button class="chip ${o.method==='market'?'on':''}" data-ob="market">相場に比例（高額カードに多く配分）</button></div></div>
+      <div class="note" style="margin-top:12px">問屋から新品で仕入れた開封品は古物ではないため台帳は不要です。按分方式は税理士に確認してください。</div>
+     </div>
+    </div><div class="pane"><div class="card"><h2>登録されるカード（例）</h2>
+     <table><tbody><tr><td>テラパゴス ex (SAR)</td><td class="r num">${o.method==='equal'?yen(unit):yen(Math.round(o.cost*0.55))}</td></tr><tr><td>ブリジュラス ex (SR)</td><td class="r num">${o.method==='equal'?yen(unit):yen(Math.round(o.cost*0.2))}</td></tr><tr><td>ノーマル × ${Math.max(o.count-2,0)} 枚</td><td class="r num">${o.method==='equal'?yen(unit)+' / 枚':yen(Math.round(o.cost*0.25))+' 計'}</td></tr></tbody></table>
+     <div class="muted" style="margin-top:8px">開封後にカードを 1 枚ずつ（またはまとめて）登録すると、ここで決めた按分で仕入単価が入り、振分待ちに追加されます。</div>
+     <button class="btn p big" style="width:100%;margin-top:12px" id="obdone">カードを登録して入庫</button>
+     <button class="btn ghost" style="width:100%;margin-top:8px" id="obexit">在庫一覧に戻る</button>
+    </div></div></div>`;
+  }
+  if(mode==='transfer'){
+    const sel=state.transferSel||{};const n=Object.values(sel).filter(Boolean).length;const cost=state.inStock.filter(x=>sel[x.bc]).reduce((s,x)=>s+x.cost,0);
+    return `<div class="content"><div class="pane">
+     <div class="card"><h2>本部へ移動する在庫を選ぶ</h2><div class="list">${state.inStock.map(x=>`<div class="item" data-tsel="${x.bc}" style="cursor:pointer;${sel[x.bc]?'border-color:var(--accent)':''}"><span class="tag ${sel[x.bc]?'good':''}">${sel[x.bc]?'選択':'　'}</span><div class="nm"><b>${x.name}</b><small>${x.code} ・ ${x.rank} ・ 仕入 ${yen(x.cost)}</small></div></div>`).join('')}</div></div>
+    </div><div class="pane"><div class="card"><h2>移動伝票</h2>
+     <label class="f">送り先<select><option>通販（東京・山口 事務所）</option></select></label>
+     <div class="row" style="justify-content:space-between;margin-top:10px"><span class="muted">${n} 点</span><span class="num">原価合計 ${yen(cost)}</span></div>
+     <div class="muted" style="margin-top:8px">店舗の在庫から外れ、原価で振り替えます（店舗の粗利には乗せません）。通販側の受け入れ記録は作らず、伝票で追います。</div>
+     <button class="btn p big" style="width:100%;margin-top:12px" id="tdone" ${n?'':'disabled'}>伝票を作成して出庫</button>
+     <button class="btn ghost" style="width:100%;margin-top:8px" id="texit">在庫一覧に戻る</button>
+    </div></div></div>`;
+  }
+  return `<div class="content single"><div class="pane">
+   <div class="card"><h2>在庫（${state.inStock.length} 件）</h2>
+    <div class="row" style="margin-bottom:10px"><input type="text" placeholder="型番・名前・バーコード・状態・入庫元で検索" style="flex:1;min-width:200px"><button class="chip on">店頭販売</button><button class="chip">売価未設定</button><button class="chip">売却済</button></div>
+    <div class="row" style="margin-bottom:10px"><button class="btn" id="pmode">振分待ち（${state.inStock.filter(x=>x.alloc==='pending').length}）</button><button class="btn" id="obmode">開封入庫</button><button class="btn" id="inmode">本部から入庫</button><button class="btn" id="stmode">棚卸しモード</button><button class="btn" id="trmode">本部へ移動</button></div>
+    <div style="overflow-x:auto"><table><thead><tr><th>商品</th><th>状態</th><th class="r">仕入</th><th class="r">相場</th><th class="r">売価</th><th>バーコード</th><th></th></tr></thead><tbody>
+    ${state.inStock.filter(x=>x.alloc==='store').map(x=>`<tr><td><b>${x.name}</b><br><small class="muted">${x.code} ・ 買取 Y-2026-1029-009</small></td><td><span class="tag">${x.rank}</span></td><td class="r num">${yen(x.cost)}</td><td class="r num muted">${yen(Math.round(x.cost*1.3))}</td><td class="r num">${x.sale?yen(x.sale):'<span class="tag warn">未設定</span>'}</td><td class="num">${x.bc}</td><td><button class="btn" data-label="${x.bc}">ラベル印刷</button></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="muted" style="margin-top:8px">ラベルは「商品名 + バーコード」だけ。売価を変えてもラベルは貼り替え不要です。高額品はケース用プライスカードを別に印刷します。</div>
+   </div>
+   <div class="card"><div class="row" style="justify-content:space-between"><span class="muted">買取価格と標準売価の入力・調整は「価格表」タブで行います。在庫ごとの売価はこの画面で上書きできます。</span><button class="btn" data-go="prices">価格表を開く</button></div></div>
+  </div></div>`;
+}
+function prices(){
+  const adj=state.priceAdj||{};const rate=state.settings.rate/100;
+  const rows=PRODUCTS.map((p,k)=>{const a=adj[p.id]||{};const online=Math.round(p.price/0.95);const buy=a.buy??(k===1?p.price-500:Math.round(online*rate/100)*100);const sale=a.sale??Math.round(p.market*0.95/100)*100;return{p,online,buy,sale,locked:a.locked??k===1}});
+  const f=state.priceFilter||'all';const shown=rows.filter(r=>f==='all'||(f==='locked'&&r.locked));
+  return `<div class="content single"><div class="pane">
+   <div class="card"><h2>価格表（店舗の買取価格・標準売価）</h2>
+    <div class="row" style="margin-bottom:10px"><input type="text" placeholder="型番・名前で検索" style="flex:1;min-width:200px"><button class="chip ${f==='all'?'on':''}" data-pf="all">すべて</button><button class="chip ${f==='locked'?'on':''}" data-pf="locked">調整済み（${rows.filter(r=>r.locked).length}）</button><button class="chip">店舗専用</button><button class="btn" id="addprod">店舗専用の商品を追加</button></div>
+    <div class="muted" style="margin-bottom:8px">通販の買取価格を同期で取り込み、係数 ${state.settings.rate}%（例。設定で変更）を掛けた値が店舗の買取価格になります。店舗の買取価格を直接直すと「調整済み」になり、以後の同期で変わりません。標準売価は在庫に売価を付けるときの初期値で、状態ランクの率を掛けます。最終同期 2026/10/31 04:00。</div>
+    <div style="overflow-x:auto"><table><thead><tr><th>商品</th><th class="r">通販の買取価格</th><th class="r">店舗の買取価格</th><th>状態</th><th class="r">相場</th><th class="r">標準売価（A）</th><th></th></tr></thead><tbody>
+    ${shown.map(r=>`<tr><td><b>${r.p.name}</b><br><small class="muted">${r.p.code}</small></td><td class="r num muted">${yen(r.online)}</td><td class="r"><input type="number" data-buy="${r.p.id}" value="${r.buy}" style="max-width:120px;text-align:right"></td><td>${r.locked?'<span class="tag warn">調整済み</span>':'<span class="tag">同期</span>'}</td><td class="r num muted">${yen(r.p.market)}</td><td class="r"><input type="number" data-sale="${r.p.id}" value="${r.sale}" style="max-width:120px;text-align:right"></td><td>${r.locked?`<button class="btn ghost" data-unlock="${r.p.id}">同期に戻す</button>`:''}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="muted" style="margin-top:8px">通販の買取価格はここでは直せません（通販側で変更すると次の同期で反映）。状態ランク B の売価は標準売価 × 80% のように自動計算します。</div>
+   </div>
+  </div></div>`;
+}
+function reg(){
+  return `<div class="content single"><div class="pane">
+   <div class="tiles">
+    <div class="tile"><div class="k">準備金（開局 10:02）</div><div class="v">¥100,000</div></div>
+    <div class="tile"><div class="k">販売の現金</div><div class="v">+¥31,900</div></div>
+    <div class="tile"><div class="k">買取の支払い</div><div class="v">−¥48,300</div></div>
+    <div class="tile"><div class="k">入出金</div><div class="v">¥0</div></div>
+    <div class="tile" style="border-color:var(--accent)"><div class="k">理論残高</div><div class="v">¥83,600</div></div>
+   </div>
+   <div class="card" style="margin-top:14px"><h2>入出金</h2><div class="row"><button class="btn">釣銭を補充（入金）</button><button class="btn">経費を出す（出金）</button></div></div>
+   <div class="card"><h2>レジ締め</h2><div class="row"><label class="f">実際の現金（数えた額）<input type="number" id="counted" placeholder="83600"></label><div><div class="muted">差額</div><div class="num" id="diff" style="font-size:22px">—</div></div></div>
+    <div class="row" style="margin-top:10px"><label class="f" style="flex:2">差額の理由（あれば）<input type="text" placeholder="例: 釣銭の渡し間違い"></label><button class="btn p" id="close">締める（マネージャー）</button></div>
+    <div class="muted" style="margin-top:8px">締めると日次レポート（買取・販売・粗利・差額）が管理画面に残ります。</div></div>
+  </div></div>`;
+}
+function settings(){
+  const s=state.settings;
+  return `<div class="content single"><div class="pane">
+   <div class="note">設定はマネージャーと管理者だけが変更できます。管理画面の「店舗設定」からも同じ内容を変えられます。</div>
+   <div class="row" style="align-items:flex-start;gap:14px;margin-top:14px">
+    <div class="col" style="flex:1;min-width:300px">
+     <div class="card" style="margin-top:0"><h2>店舗情報（レシート・申込書に印字）</h2>
+      <div class="row"><label class="f">店名<input type="text" value="カードショップ 山口店"></label><label class="f">電話<input type="text" value="083-000-0000"></label></div>
+      <label class="f">住所<input type="text" value="山口県山口市○○町1-2-3"></label>
+      <div class="row"><label class="f">古物商許可番号<input type="text" value="山口県公安委員会 第741091000629号"></label><label class="f">インボイス登録番号（任意）<input type="text" placeholder="T1234567890123"></label></div>
+     </div>
+     <div class="card"><h2>レシートの文面</h2>
+      <label class="f">買取明細書の注意書き<input type="text" value="買取成立後の返品・返金はお受けできません。本取引は古物営業法に基づく買取です。"></label>
+      <label class="f">販売レシートの返品条件<input type="text" value="返品はレシート持参で7日以内、未開封・未使用に限ります。"></label>
+      <div class="muted" style="margin-top:6px">明細部分のレイアウトは固定です。文面だけ変えられます。</div>
+     </div>
+     <div class="card"><h2>プリンタ</h2>
+      <div class="row"><label class="f">レシートプリンタの IP アドレス<input type="text" value="192.168.1.50"></label><button class="btn" id="testprint">テスト印刷</button></div>
+      <div class="row" style="margin-top:8px"><button class="chip">ラベルプリンタを使う</button></div>
+     </div>
+    </div>
+    <div class="col" style="flex:1;min-width:300px">
+     <div class="card" style="margin-top:0"><h2>買取価格（通販からの同期）</h2>
+      <div class="row"><label class="f" style="max-width:160px">店舗係数（通販の何%）<input type="number" id="s-rate" value="${s.rate}"></label><div class="muted" style="flex:1">例: 通販 16,000 円 → 店舗 ${yen(Math.round(16000*s.rate/100/100)*100)}</div></div>
+      <div class="row" style="margin-top:10px"><button class="chip ${s.autoSync?'on':''}" id="s-auto">自動同期 ${s.autoSync?'ON':'OFF'}</button><label class="f" style="max-width:140px">時刻<select id="s-time" ${s.autoSync?'':'disabled'}>${['02:00','03:00','04:00','05:00','06:00'].map(t=>`<option ${t===s.syncTime?'selected':''}>${t}</option>`).join('')}</select></label><button class="btn" id="syncnow">今すぐ同期</button></div>
+      <div class="muted" style="margin-top:8px">最終同期: 2026/10/31 04:00 ・ 33,551 件（調整済み 12 件は価格を据え置き）</div>
+     </div>
+     <div class="card"><h2>状態ランク表</h2>
+      <table><thead><tr><th>ランク</th><th>説明</th><th class="r">率</th></tr></thead><tbody>${RANKS.map(r=>`<tr><td><b>${r.code}</b></td><td>${r.label}</td><td class="r"><input type="number" value="${r.rate!=null?Math.round(r.rate*100):''}" placeholder="個別" style="max-width:80px;text-align:right"></td></tr>`).join('')}</tbody></table>
+      <div class="muted" style="margin-top:6px">見本写真は品質ガイドの写真を使います。</div>
+     </div>
+     <div class="card"><h2>お客様向けの売価表示</h2>
+      <div class="row">${[['ipad','iPad の客向け画面'],['qr','QR コードの価格ページ'],['none','表示しない']].map(([v,l])=>`<button class="chip ${s.priceDisplay===v?'on':''}" data-pd="${v}">${l}</button>`).join('')}</div>
+      <div class="muted" style="margin-top:6px">電子棚札は使いません。ラベルに価格を印字しないので、相場が変わっても貼り替えは不要です。</div>
+     </div>
+     <div class="card"><h2>高額取引の承認</h2>
+      <label class="f" style="max-width:220px">この金額以上はマネージャー承認<input type="number" id="s-th" value="${s.threshold}"></label>
+     </div>
+    </div>
+   </div>
+   <div class="footer-nav"><span class="muted">変更は保存を押すまで反映されません</span><button class="btn p big" id="ssave">設定を保存</button></div>
+  </div></div>`;
+}
+function history(){
+  const tab=state.histTab||'buy';
+  const buys=[
+   {no:'Y-2026-1031-016',t:'12:08',who:'山本 拓也',amt:total()||25600,st:'支払済',items:3},
+   {no:'Y-2026-1031-015',t:'11:52',who:'田中 一郎',amt:16000,st:'支払済',items:2},
+   {no:'Y-2026-1031-014',t:'11:40',who:'佐藤 美咲',amt:0,st:'査定のみ',items:6},
+   {no:'Y-2026-1031-013',t:'10:30',who:'鈴木 花子',amt:6700,st:'支払済',items:1},
+  ];
+  const sales=[
+   {no:'R-2026-1031-0012',t:'12:20',amt:7800,items:'ルギア V (SA)',st:'完了'},
+   {no:'R-2026-1031-0011',t:'11:05',amt:3300,items:'100円カード × 33',st:'完了'},
+   {no:'R-2026-1031-0010',t:'10:48',amt:15800,items:'カイ (SAR)',st:'返品済'},
+  ];
+  return `<div class="content single"><div class="pane">
+   <div class="row" style="margin-bottom:12px"><button class="chip ${tab==='buy'?'on':''}" data-htab="buy">買取</button><button class="chip ${tab==='sell'?'on':''}" data-htab="sell">販売</button><input type="date" value="2026-10-31" style="max-width:170px"><input type="text" placeholder="番号・氏名で検索" style="flex:1;min-width:160px"></div>
+   ${tab==='buy'?`<div class="card"><h2>買取（本日 ${buys.length} 件）</h2><div style="overflow-x:auto"><table><thead><tr><th>時刻</th><th>取引番号</th><th>お客様</th><th class="r">点数</th><th class="r">金額</th><th>状態</th><th></th></tr></thead><tbody>
+    ${buys.map(b=>`<tr><td class="num">${b.t}</td><td class="num">${b.no}</td><td>${b.who}</td><td class="r num">${b.items}</td><td class="r num">${b.amt?yen(b.amt):'—'}</td><td><span class="tag ${b.st==='支払済'?'good':''}">${b.st}</span></td><td><div class="row" style="gap:6px">${b.st==='支払済'?`<button class="btn" data-rp="${b.no}">明細を再印刷</button><button class="btn ghost" data-pdf="${b.no}">申込書 PDF</button>`:`<button class="btn" data-resume="${b.no}">査定を呼び出す</button>`}</div></td></tr>`).join('')}
+    </tbody></table></div><div class="muted" style="margin-top:8px">支払い後の取消はできません。誤りは理由付きの打消し（支払い記録の取消）で残します。</div></div>`
+   :`<div class="card"><h2>販売（本日 ${sales.length} 件）</h2><div style="overflow-x:auto"><table><thead><tr><th>時刻</th><th>レシート番号</th><th>内容</th><th class="r">金額</th><th>状態</th><th></th></tr></thead><tbody>
+    ${sales.map(s=>`<tr><td class="num">${s.t}</td><td class="num">${s.no}</td><td>${s.items}</td><td class="r num">${yen(s.amt)}</td><td><span class="tag ${s.st==='完了'?'good':'warn'}">${s.st}</span></td><td><div class="row" style="gap:6px"><button class="btn" data-rp="${s.no}">レシート再印刷</button><button class="btn" data-rcpt="${s.no}">領収書を発行</button>${s.st==='完了'?`<button class="btn danger" data-ret="${s.no}">返品</button>`:''}</div></td></tr>`).join('')}
+    </tbody></table></div><div class="muted" style="margin-top:8px">領収書は宛名・但し書きを入れて印刷します。5 万円以上は収入印紙が必要です。返品はレシートから呼び出し、返金を記録して在庫に戻します。</div></div>`}
+  </div></div>`;
+}
+function analytics(){
+  const days=[{d:'10/25',b:62000,s:48000},{d:'10/26',b:41000,s:55000},{d:'10/27',b:0,s:0},{d:'10/28',b:38000,s:29000},{d:'10/29',b:71000,s:44000},{d:'10/30',b:52000,s:61000},{d:'10/31',b:48300,s:31900}];
+  const max=Math.max(...days.flatMap(x=>[x.b,x.s]));
+  const bar=(v,c)=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:120px"><div style="height:${Math.round(v/max*100)}%;background:${c};border-radius:4px 4px 0 0;min-height:${v?2:0}px"></div></div>`;
+  return `<div class="content single"><div class="pane">
+   <div class="row" style="margin-bottom:12px"><button class="chip on">今月</button><button class="chip">先月</button><button class="chip">日別</button><button class="btn">CSV 出力</button></div>
+   <div class="tiles">
+    <div class="tile"><div class="k">買取額（10月）</div><div class="v">¥1,284,300</div><div class="muted">214 件</div></div>
+    <div class="tile"><div class="k">販売額（10月）</div><div class="v">¥986,500</div><div class="muted">388 件</div></div>
+    <div class="tile"><div class="k">粗利（10月）</div><div class="v">¥291,200</div><div class="muted">粗利率 29.5%</div></div>
+    <div class="tile"><div class="k">現金差額の累計</div><div class="v">−¥1,200</div><div class="muted">差額あり 2 日</div></div>
+   </div>
+   <div class="card" style="margin-top:14px"><h2>日別の買取と販売（直近 7 日）</h2>
+    <div style="display:flex;gap:10px;align-items:flex-end">${days.map(x=>`<div style="flex:1;display:flex;flex-direction:column;gap:4px"><div style="display:flex;gap:3px">${bar(x.b,'var(--warn)')}${bar(x.s,'var(--accent)')}</div><div class="muted" style="text-align:center;font-size:11px">${x.d}</div></div>`).join('')}</div>
+    <div class="row" style="margin-top:8px;gap:14px"><span class="muted"><span style="display:inline-block;width:10px;height:10px;background:var(--warn);border-radius:2px"></span> 買取</span><span class="muted"><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px"></span> 販売</span><span class="muted">10/27 は定休日</span></div>
+   </div>
+   <div class="row" style="align-items:flex-start;gap:14px">
+    <div class="card" style="flex:1;min-width:280px;margin-top:0"><h2>売れ筋（10月・販売額）</h2><table><tbody>
+     <tr><td>ナンジャモ (SAR)</td><td class="r num">4 枚</td><td class="r num">¥108,000</td></tr>
+     <tr><td>リザードン ex (SAR)</td><td class="r num">3 枚</td><td class="r num">¥59,400</td></tr>
+     <tr><td>100円カード</td><td class="r num">1,240 枚</td><td class="r num">¥124,000</td></tr>
+     <tr><td>ピカチュウ ex (SAR)</td><td class="r num">5 枚</td><td class="r num">¥61,000</td></tr>
+    </tbody></table></div>
+    <div class="card" style="flex:1;min-width:280px;margin-top:0"><h2>滞留在庫（入庫から 60 日超）</h2><table><tbody>
+     <tr><td>ミモザ (SAR) B</td><td class="num muted">74 日</td><td class="r num">売価 ¥8,200</td></tr>
+     <tr><td>ルギア V (SA) A</td><td class="num muted">66 日</td><td class="r num">売価 ¥7,800</td></tr>
+    </tbody></table><div class="muted" style="margin-top:6px">値下げ候補。在庫画面でまとめて調整できます。</div></div>
+   </div>
+  </div></div>`;
+}
+function ledger(){
+  return `<div class="content single"><div class="pane"><div class="card"><h2>古物台帳（買受）</h2>
+   <div class="row" style="margin-bottom:10px"><input type="date" value="2026-10-01" style="max-width:170px"><span>〜</span><input type="date" value="2026-10-31" style="max-width:170px"><button class="btn">CSV 出力</button><button class="btn">PDF 出力</button></div>
+   <div style="overflow-x:auto"><table><thead><tr><th>取引日</th><th>番号</th><th>品目・数量・特徴</th><th>相手方</th><th>確認方法</th><th>記録者</th></tr></thead><tbody>
+    <tr><td class="num">2026/10/31</td><td class="num">Y-2026-1031-015</td><td>ポケモンカード ノーマル 100円帯 × 120、50円帯 × 80</td><td>田中 一郎 ・ 山口市○○ ・ 会社員 ・ 41 歳</td><td>運転免許証</td><td>中村</td></tr>
+    <tr><td class="num">2026/10/30</td><td class="num">Y-2026-1030-012</td><td>リザードン ex (SAR) SV4a 349/190 × 1 (A)、ナンジャモ (SAR) SV2D 096/071 × 1 (B)</td><td>山本 拓也 ・ 山口市中央1-2-3 ・ 会社員 ・ 32 歳</td><td>運転免許証</td><td>中村</td></tr>
+    <tr><td class="num">2026/10/29</td><td class="num">Y-2026-1029-009</td><td>ルギア V (SA) S12 110/098 × 1 (A)、ミモザ (SAR) × 1 (B)、カイ (SAR) × 1 (A)</td><td>鈴木 花子 ・ 防府市△△ ・ 学生 ・ 20 歳</td><td>面前での手書き</td><td>小林</td></tr>
+   </tbody></table></div>
+   <div class="muted" style="margin-top:8px">支払い完了時に自動で確定し、以後は変更できません。3 年間保存します。</div>
+  </div></div></div>`;
+}
+
+// ---------- wiring ----------
+function wire(){
+  const $=id=>document.getElementById(id);
+  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{go(b.dataset.go)});
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{state.items.splice(+b.dataset.del,1);render()});
+  if(state.sec==='buy'){
+    const st=state.step;
+    if($('back'))$('back').onclick=()=>{state.step=Math.max(0,st-1);render()};
+    if(st===0){
+      document.querySelectorAll('[data-cust]').forEach(el=>el.onclick=()=>{state.customer=CUSTOMERS.find(c=>c.id===el.dataset.cust);render()});
+      $('newc').onclick=()=>{state.customer=null;state.idc={type:'運転免許証',photo:false,hand:false,guardian:false,name:'',address:'',birth:'',job:''};toast('新規のお客様として進めます');render()};
+      $('srch').onclick=()=>toast('検索しました（例）');
+      $('ticket').onclick=()=>toast('受付票を印刷しました（例）');
+      $('next').onclick=()=>{state.step=1;render()};
+    }
+    if(st===1){
+      const pq=$('pq'),res=$('pres');
+      const show=q=>{q=q.trim().toLowerCase();res.innerHTML=(q?PRODUCTS.filter(p=>p.name.toLowerCase().includes(q)||p.code.toLowerCase().replace(/\s/g,'').includes(q.replace(/\s/g,''))):PRODUCTS.slice(0,3)).map(p=>`<div class="item" data-add="${p.id}"><div class="nm"><b>${p.name}</b><small>${p.code} ・ 相場 ${yen(p.market)}</small></div><span class="num">${yen(p.price)}</span><span class="tag">${state.rank}</span></div>`).join('')||'<div class="muted">見つかりません。自由入力で追加できます。</div>';
+        res.querySelectorAll('[data-add]').forEach(el=>el.onclick=()=>addProduct(PRODUCTS.find(p=>p.id==el.dataset.add)))};
+      show('');pq.oninput=()=>show(pq.value);
+      document.querySelectorAll('[data-rank]').forEach(b=>b.onclick=()=>{state.rank=b.dataset.rank;render()});
+      $('photo').onclick=()=>{$('extra').innerHTML=`<div class="card"><h2>写真から読み取り</h2><div class="row" style="align-items:stretch"><div class="photo" style="flex:1"><b>カードを枠に合わせて撮影</b><span>型番（左下の番号）を読み取ります</span></div><div class="col" style="flex:1"><div class="muted">候補（例）。店員が確定します。</div><div class="cand" data-add="1"><div class="nm" style="flex:1"><b>リザードン ex (SAR)</b><br><small class="muted">SV4a 349/190</small></div><span class="score">一致 97%</span><button class="btn">これ</button></div><div class="cand" data-add="3"><div class="nm" style="flex:1"><b>ピカチュウ ex (SAR)</b><br><small class="muted">SV8a 243/187</small></div><span class="score">一致 41%</span><button class="btn">これ</button></div></div></div></div>`;
+        $('extra').querySelectorAll('[data-add]').forEach(el=>el.onclick=()=>addProduct(PRODUCTS.find(p=>p.id==el.dataset.add)))};
+      $('bulk').onclick=()=>{$('extra').innerHTML=`<div class="card"><h2>まとめ買取（1 枚ずつ登録しません）</h2><div class="row">${BANDS.map(b=>`<button class="chip ${state.band===b.price?'on':''}" data-band="${b.price}">${b.label}</button>`).join('')}<label class="f" style="max-width:140px">枚数<input type="number" id="bq" value="120"></label><button class="btn p" id="addb">明細に追加</button></div><div class="muted" style="margin-top:8px">枚数は手で数えるのが基本。はかりで概算する場合は 1 枚およそ 1.7 g。</div></div>`;
+        $('extra').querySelectorAll('[data-band]').forEach(b=>b.onclick=()=>{state.band=+b.dataset.band;$('extra').querySelectorAll('[data-band]').forEach(x=>x.classList.toggle('on',+x.dataset.band===state.band))});
+        $('addb').onclick=()=>{if(!state.band){toast('価格帯を選んでください');return}state.items.push({name:`ノーマルカード ${state.band}円帯`,code:'まとめ',qty:+$('bq').value||1,unit:state.band,band:true});render()}};
+      $('next').onclick=()=>{state.step=2;render()};
+    }
+    if(st===2){$('walk').onclick=()=>{toast('査定のみで終了しました（記録は残ります）');state.items=[];state.step=0;state.sec='home';render()};$('next').onclick=()=>{state.step=3;render()}}
+    if(st===3){
+      const i=state.idc;
+      if($('reuse'))$('reuse').onclick=()=>{const c=state.customer;Object.assign(i,{name:c.name,address:c.address,birth:c.birth,job:c.job,type:c.idType});render()};
+      $('m-doc').onclick=()=>{i.hand=false;render()};$('m-hand').onclick=()=>{i.hand=true;render()};
+      document.querySelectorAll('[data-type]').forEach(b=>b.onclick=()=>{i.type=b.dataset.type;render()});
+      if($('shoot'))$('shoot').onclick=()=>{i.photo=true;toast('表面を保存しました（例）');render()};
+      if($('skipshoot'))$('skipshoot').onclick=()=>{i.photo=false;toast('目視で確認として記録します');};
+      if($('hand'))pad($('hand'),()=>{});
+      ['name','birth','addr','job'].forEach(k=>{const el=$('i-'+k);el.oninput=()=>{i[{name:'name',birth:'birth',addr:'address',job:'job'}[k]]=el.value;if(k==='birth')render();else updateNext()}});
+      if($('guard'))$('guard').onclick=()=>{i.guardian=!i.guardian;render()};
+      if($('refuse'))$('refuse').onclick=()=>{toast('買取拒否を記録しました（18 歳未満・保護者同意なし）');state.items=[];state.step=0;state.sec='home';render()};
+      function updateNext(){const a=age(i.birth);$('next').disabled=!(i.name&&i.birth&&i.address&&i.job&&(a>=18||i.guardian))}
+      $('next').onclick=()=>{state.step=4;render()};
+    }
+    if(st===4){pad($('sig'),()=>{state.signed=true;$('next').disabled=false});$('clear').onclick=()=>{const c=$('sig');c.getContext('2d').clearRect(0,0,c.width,c.height);state.signed=false;$('next').disabled=true};$('next').onclick=()=>{state.step=5;render()}}
+    if(st===5){if($('approve'))$('approve').onclick=()=>{state.approved=true;render()};$('next').onclick=()=>{state.step=6;render()}}
+    if(st===6){$('print').onclick=()=>toast('明細書を印刷しました（例）');$('pdf').onclick=()=>toast('申込書の控えを印刷しました（例）');$('home').onclick=()=>{state.items=[];state.customer=null;state.signed=false;state.approved=false;state.step=0;state.idc={type:'運転免許証',photo:false,hand:false,guardian:false,name:'',address:'',birth:'',job:''};go('start')}}
+  }
+  if(state.sec==='sell'){
+    const add=(name,price,qty)=>{state.cart.push({name,price,qty});render()};
+    $('pcheck').onclick=()=>{state.priceCheck=!state.priceCheck;render()};
+    $('scanbtn').onclick=()=>{const v=$('scan').value.trim();const x=state.inStock.find(s=>s.bc===v);if(state.priceCheck){if(x)toast(`${x.name} ・ ${x.rank} ・ 売価 ${x.sale?yen(x.sale):'未設定'} ・ 入庫 10/29`);else toast('在庫にないバーコードです');$('scan').value='';return}if(x&&x.sale)add(x.name,x.sale,1);else if(x)toast('売価が未設定です。在庫画面で設定してください');else toast('在庫にないバーコードです')};
+    $('scan').onkeydown=e=>{if(e.key==='Enter')$('scanbtn').click()};
+    document.querySelectorAll('[data-band]').forEach(b=>b.onclick=()=>add(`${b.dataset.band}円カード`,+b.dataset.band,+$('bqty').value||1));
+    document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{const x=state.inStock.find(s=>s.bc===b.dataset.add);if(x)add(x.name,x.sale,1)});
+    document.querySelectorAll('[data-cdel]').forEach(b=>b.onclick=()=>{state.cart.splice(+b.dataset.cdel,1);render()});
+    const sum=state.cart.reduce((s,i)=>s+i.qty*i.price,0);const upd=()=>{const t=+$('tender').value||0;$('change').textContent=t>=sum&&sum?yen(t-sum):'—'};$('tender').oninput=upd;upd();
+    $('checkout').onclick=()=>{toast('レシートを印刷し、在庫から出庫しました（例）');state.cart=[];go('start')};
+  }
+  if(state.sec==='stock'){
+    document.querySelectorAll('[data-label]').forEach(b=>b.onclick=()=>toast(`ラベル ${b.dataset.label} を印刷しました（例）`));
+    if($('stmode'))$('stmode').onclick=()=>{state.stockMode='stocktake';state.counts={};render()};
+    if($('trmode'))$('trmode').onclick=()=>{state.stockMode='transfer';state.transferSel={};render()};
+    if($('pmode'))$('pmode').onclick=()=>{state.stockMode='pending';state.allocSel={};render()};
+    if($('obmode'))$('obmode').onclick=()=>{state.stockMode='open';render()};
+    if($('inmode'))$('inmode').onclick=()=>{state.stockMode='inbound';render()};
+    if($('indone'))$('indone').onclick=()=>{state.inStock.push({name:'ナンジャモ (SAR)',code:'SV2D 096/071',rank:'A',cost:21000,sale:null,bc:'YS-000123',alloc:'store'},{name:'ルギア V (SA)',code:'S12 110/098',rank:'B',cost:4480,sale:null,bc:'YS-000124',alloc:'store'});toast('本部からの 3 明細を受け入れました。売価を設定してください（例）');state.stockMode='list';render()};
+    ['stexit','texit','pexit','obexit','inexit'].forEach(id=>{if($(id))$(id).onclick=()=>{state.stockMode='list';render()}});
+    const check=bc=>{if(!state.inStock.find(x=>x.bc===bc)){toast('在庫にないバーコードです');return}state.counts[bc]=1;render()};
+    if($('stbtn'))$('stbtn').onclick=()=>check($('stscan').value.trim());
+    if($('stscan'))$('stscan').onkeydown=e=>{if(e.key==='Enter')$('stbtn').click()};
+    document.querySelectorAll('[data-count]').forEach(el=>{el.oninput=()=>{state.counts[el.dataset.count]=el.value};el.onchange=()=>render()});
+    if($('stdone'))$('stdone').onclick=()=>{toast('棚卸しを確定し、在庫を実数に合わせました（例）');state.stockMode='list';render()};
+    document.querySelectorAll('[data-asel]').forEach(el=>el.onclick=()=>{state.allocSel[el.dataset.asel]=!state.allocSel[el.dataset.asel];render()});
+    if($('toStore'))$('toStore').onclick=()=>{state.inStock.forEach(x=>{if(state.allocSel[x.bc]){x.alloc='store'}});toast('店頭販売にしました。売価を設定してください（例）');state.stockMode='list';render()};
+    document.querySelectorAll('[data-toband]').forEach(b=>b.onclick=()=>{const k=Object.values(state.allocSel).filter(Boolean).length;state.inStock=state.inStock.filter(x=>!state.allocSel[x.bc]);toast(`${k} 件を ${b.dataset.toband}円帯に加算しました。その色のスリーブに入れ替えてください（例）`);state.stockMode='list';render()});
+    if($('toTransfer'))$('toTransfer').onclick=()=>{state.transferSel={...state.allocSel};state.stockMode='transfer';render()};
+    document.querySelectorAll('[data-ob]').forEach(b=>b.onclick=()=>{state.openBox={...(state.openBox||{name:'拡張パック テラスタルフェス ex BOX',cost:5400,supplier:'問屋 A',count:30}),method:b.dataset.ob};render()});
+    ['name','sup','cost','count'].forEach(k=>{const el=$('ob-'+k);if(el)el.onchange=()=>{const o=state.openBox||{name:'拡張パック テラスタルフェス ex BOX',cost:5400,supplier:'問屋 A',count:30,method:'equal'};state.openBox={...o,[{name:'name',sup:'supplier',cost:'cost',count:'count'}[k]]:(k==='cost'||k==='count')?+el.value:el.value};render()}});
+    if($('obdone'))$('obdone').onclick=()=>{toast('開封したカードを振分待ちに入庫しました（例）');state.stockMode='list';render()};
+    document.querySelectorAll('[data-tsel]').forEach(el=>el.onclick=()=>{state.transferSel[el.dataset.tsel]=!state.transferSel[el.dataset.tsel];render()});
+    if($('tdone'))$('tdone').onclick=()=>{state.inStock=state.inStock.filter(x=>!state.transferSel[x.bc]);toast('移動伝票を作成し、出庫しました（例）');state.stockMode='list';render()};
+  }
+  if(state.sec==='prices'){
+    state.priceAdj=state.priceAdj||{};
+    document.querySelectorAll('[data-pf]').forEach(b=>b.onclick=()=>{state.priceFilter=b.dataset.pf;render()});
+    document.querySelectorAll('[data-buy]').forEach(el=>el.onchange=()=>{const id=+el.dataset.buy;state.priceAdj[id]={...(state.priceAdj[id]||{}),buy:+el.value,locked:true};toast('店舗の買取価格を調整済みにしました（同期で上書きされません）');render()});
+    document.querySelectorAll('[data-sale]').forEach(el=>el.onchange=()=>{const id=+el.dataset.sale;state.priceAdj[id]={...(state.priceAdj[id]||{}),sale:+el.value};toast('標準売価を保存しました（例）')});
+    document.querySelectorAll('[data-unlock]').forEach(b=>b.onclick=()=>{const id=+b.dataset.unlock;state.priceAdj[id]={...(state.priceAdj[id]||{}),buy:undefined,locked:false};toast('次の同期から通販の価格に戻ります');render()});
+    $('addprod').onclick=()=>toast('店舗専用の商品を追加します（名前・型番・買取価格・売価）（例）');
+  }
+  if(state.sec==='settings'){
+    const s=state.settings;
+    $('s-auto').onclick=()=>{s.autoSync=!s.autoSync;render()};
+    $('s-time').onchange=()=>{s.syncTime=$('s-time').value};
+    $('s-rate').onchange=()=>{s.rate=+$('s-rate').value||s.rate;render()};
+    $('s-th').onchange=()=>{s.threshold=+$('s-th').value||s.threshold};
+    document.querySelectorAll('[data-pd]').forEach(b=>b.onclick=()=>{s.priceDisplay=b.dataset.pd;render()});
+    $('syncnow').onclick=()=>toast('通販の価格表を同期しました: 33,551 件、調整済み 12 件は据え置き（例）');
+    $('testprint').onclick=()=>toast('テスト印刷を送りました（例）');
+    $('ssave').onclick=()=>toast('設定を保存しました（例）');
+  }
+  if(state.sec==='history'){
+    document.querySelectorAll('[data-htab]').forEach(b=>b.onclick=()=>{state.histTab=b.dataset.htab;render()});
+    document.querySelectorAll('[data-rp]').forEach(b=>b.onclick=()=>toast(`${b.dataset.rp} を再印刷しました（例）`));
+    document.querySelectorAll('[data-pdf]').forEach(b=>b.onclick=()=>toast('申込書 PDF を開きます（例）'));
+    document.querySelectorAll('[data-rcpt]').forEach(b=>b.onclick=()=>toast('宛名を入力して領収書を印刷します（例）'));
+    document.querySelectorAll('[data-ret]').forEach(b=>b.onclick=()=>toast('返金を記録し、在庫に戻しました（例）'));
+    document.querySelectorAll('[data-resume]').forEach(b=>b.onclick=()=>toast('保存した査定を呼び出します（例）'));
+  }
+  if(state.sec==='reg'){$('counted').oninput=()=>{const v=+$('counted').value;$('diff').textContent=$('counted').value===''?'—':(v-83600>=0?'+':'−')+yen(Math.abs(v-83600))};$('close').onclick=()=>toast('レジを締めました（例）')}
+}
+function addProduct(p){const r=RANKS.find(x=>x.code===state.rank);const unit=r.rate!=null?Math.round(p.price*r.rate/100)*100:p.price;const ex=state.items.find(i=>i.id===p.id&&i.rank===state.rank);if(ex)ex.qty++;else state.items.push({id:p.id,name:p.name,code:p.code,qty:1,unit,rank:state.rank});toast(`${p.name} を追加（${state.rank}）`);render()}
+function pad(c,onDraw){const dpr=window.devicePixelRatio||1;const w=c.clientWidth,h=c.clientHeight;c.width=w*dpr;c.height=h*dpr;const ctx=c.getContext('2d');ctx.scale(dpr,dpr);ctx.lineWidth=2.2;ctx.lineCap='round';ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--fg').trim()||'#000';let d=false;const pos=e=>{const r=c.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};c.onpointerdown=e=>{d=true;c.setPointerCapture(e.pointerId);const[x,y]=pos(e);ctx.beginPath();ctx.moveTo(x,y)};c.onpointermove=e=>{if(!d)return;const[x,y]=pos(e);ctx.lineTo(x,y);ctx.stroke();onDraw()};c.onpointerup=c.onpointercancel=()=>{d=false}}
+document.querySelectorAll('#rail button').forEach(b=>b.onclick=()=>go(b.dataset.sec));
+render();
+</script>

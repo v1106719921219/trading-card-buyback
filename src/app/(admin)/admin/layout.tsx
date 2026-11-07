@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AdminSidebar } from '@/components/admin/sidebar'
 import type { Profile } from '@/types/database'
+import { getTenant } from '@/lib/tenant'
+import { isStoreMode } from '@/lib/store-mode'
 
 export default async function AdminLayout({
   children,
@@ -29,9 +31,11 @@ export default async function AdminLayout({
     if (error || data?.currentLevel !== 'aal2') redirect('/account-security')
   }
 
+  const tenant = await getTenant()
+
   return (
     <div className="min-h-screen">
-      <AdminSidebar profile={profile as Profile} />
+      <AdminSidebar profile={profile as Profile} storeMode={isStoreMode(tenant?.mode)} />
       <main className="md:ml-64 min-h-screen pt-14 md:pt-0">
         <div className="p-4 md:p-8">
           {children}
