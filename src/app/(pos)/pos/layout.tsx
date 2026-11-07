@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getTenant } from '@/lib/tenant'
 import { isStoreMode } from '@/lib/store-mode'
 import { PosShell } from '@/components/pos/pos-shell'
+import { getCurrentOperatorName } from '@/lib/pos-operator'
 import type { Profile } from '@/types/database'
 
 // iPad のホーム画面に追加したときに全画面で起動する（docs/pos/design.md 2.1 節）
@@ -63,8 +64,9 @@ export default async function PosLayout({ children }: { children: React.ReactNod
     )
   }
 
+  const operatorName = await getCurrentOperatorName(tenant.id)
   return (
-    <PosShell profile={profile as Profile} tenantName={tenant.name}>
+    <PosShell profile={profile as Profile} tenantName={tenant.name} operatorName={operatorName}>
       {children}
     </PosShell>
   )

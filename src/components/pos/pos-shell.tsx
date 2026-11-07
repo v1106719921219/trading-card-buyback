@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LayoutDashboard, LogOut } from 'lucide-react'
+import { BookOpen, ClipboardList, LayoutDashboard, LogOut, Wallet } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types/database'
 
@@ -13,10 +13,12 @@ import type { Profile } from '@/types/database'
 export function PosShell({
   profile,
   tenantName,
+  operatorName,
   children,
 }: {
   profile: Profile
   tenantName: string
+  operatorName?: string | null
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -37,8 +39,31 @@ export function PosShell({
         <Link href="/pos" className="font-bold">
           {tenantName} <span className="text-muted-foreground font-normal text-sm">POS</span>
         </Link>
+        <nav className="hidden items-center gap-1 text-sm sm:flex">
+          <Link href="/pos/buy" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <ClipboardList className="h-4 w-4" />
+            買取
+          </Link>
+          <Link href="/pos/register" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <Wallet className="h-4 w-4" />
+            レジ
+          </Link>
+          <Link href="/pos/ledger" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <BookOpen className="h-4 w-4" />
+            台帳
+          </Link>
+        </nav>
         <div className="ml-auto flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground hidden sm:inline">担当: {profile.display_name}</span>
+          {operatorName ? (
+            <Link href="/pos/register" className="hidden sm:inline rounded-md px-2 py-1 hover:bg-muted">
+              担当: <span className="font-medium">{operatorName}</span>
+            </Link>
+          ) : (
+            <Link href="/pos/register" className="hidden sm:inline rounded-md px-2 py-1 text-amber-700 hover:bg-muted">
+              レジ未開局（担当者未選択）
+            </Link>
+          )}
+          <span className="text-muted-foreground hidden lg:inline text-xs">{profile.display_name}</span>
           <Link
             href="/admin"
             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground"
