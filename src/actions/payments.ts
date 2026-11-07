@@ -6,6 +6,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole } from '@/lib/security'
 import { generateInspectionPdf } from '@/lib/pdf'
 import { jstToday, validPaymentDate, isBankTransferOrder, remainingPayment } from '@/lib/payment-display'
+import type { PlannedPaymentMethod } from '@/types/database'
+
+const PLANNED_METHODS: PlannedPaymentMethod[] = ['bank_transfer', 'cash', 'undecided']
 
 export async function getPaymentQueue() {
   const { user, error: authError } = await requireRole(['admin', 'manager'])
@@ -75,9 +78,11 @@ export async function getOrderPayments(orderId: string) {
 }
 
 // 現金手渡しは受領サイン必須。署名画像を保存してから支払RPCを呼び、支払記録に紐付ける。
-export async function recordCashPaymentWithSignature(orderId: string, amount: number, paymentDate: string, expectedUpdatedAt: string, requestId: string, signatureDataUrl: string): Promise<{ error?: string; success?: boolean }> {
+// 一部払いのときは remainingPlan（残りの支払方法）を必ず渡す。全額なら不要。判定は DB 側（record_order_payment）で行う。
+export async function recordCashPaymentWithSignature(orderId: string, amount: number, paymentDate: string, expectedUpdatedAt: string, requestId: string, signatureDataUrl: string, remainingPlan: PlannedPaymentMethod | null = null): Promise<{ error?: string; success?: boolean }> {
   const { user, error: authError } = await requireRole(['admin', 'manager'])
   if (authError || !user) return { error: authError ?? '認証が必要です' }
+  if (remainingPlan !== null && !PLANNED_METHODS.includes(remainingPlan)) return { error: '残りの支払方法を確認してください' }
   const prefix = 'data:image/png;base64,'
   if (typeof signatureDataUrl !== 'string' || !signatureDataUrl.startsWith(prefix)) return { error: '受領サインが必要です' }
   const base64 = signatureDataUrl.slice(prefix.length)
@@ -88,7 +93,7 @@ export async function recordCashPaymentWithSignature(orderId: string, amount: nu
   const path = `${user.tenant_id}/${orderId}/${requestId}.png`
   const upload = await admin.storage.from('cash-receipts').upload(path, bytes, { contentType: 'image/png', upsert: true })
   if (upload.error) return { error: '署名の保存に失敗しました。通信環境を確認して再度お試しください' }
-  const result = await recordPayment(orderId, 'cash', amount, paymentDate, expectedUpdatedAt, requestId)
+  const result = await recordPayment(orderId, 'cash', amount, paymentDate, expectedUpdatedAt, requestId, false, remainingPlan)
   if (result.error) {
     await admin.storage.from('cash-receipts').remove([path]).catch(() => {})
     return result
@@ -112,10 +117,11 @@ export async function getPaymentSignatureUrl(orderId: string, paymentId: string)
   return { url: signed.data.signedUrl }
 }
 
-export async function recordPayment(orderId: string, method: 'cash' | 'bank_transfer', amount: number, paymentDate: string, expectedUpdatedAt: string, requestId: string, requireInspection = false) {
+export async function recordPayment(orderId: string, method: 'cash' | 'bank_transfer', amount: number, paymentDate: string, expectedUpdatedAt: string, requestId: string, requireInspection = false, remainingPlan: PlannedPaymentMethod | null = null) {
   const { user, error: authError } = await requireRole(['admin', 'manager'])
   if (authError || !user) return { error: authError ?? '認証が必要です' }
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 2147483647 || !['cash', 'bank_transfer'].includes(method) || !validPaymentDate(paymentDate) || !/^[0-9a-f-]{36}$/i.test(requestId)) return { error: '金額・支払方法・日付を確認してください' }
+  if (remainingPlan !== null && !PLANNED_METHODS.includes(remainingPlan)) return { error: '残りの支払方法を確認してください' }
   const db = await createClient()
   if (requireInspection) {
     const { data: order } = await db.from('orders').select('status').eq('tenant_id', user.tenant_id).eq('id', orderId).single()
@@ -124,6 +130,7 @@ export async function recordPayment(orderId: string, method: 'cash' | 'bank_tran
   const result = await db.rpc('record_order_payment', {
     p_tenant: user.tenant_id, p_order: orderId, p_method: method, p_amount: amount,
     p_paid_on: paymentDate, p_request: requestId, p_expected_updated_at: expectedUpdatedAt, p_require_full: requireInspection,
+    p_remaining_plan: method === 'cash' ? remainingPlan : null,
   })
   if (result.error) return { error: result.error.code === 'P0001' ? result.error.message : '支払いを登録できませんでした。再読み込みして履歴を確認してください' }
   for (const path of ['/admin', '/admin/orders', `/admin/orders/${orderId}`, '/admin/payments', '/admin/payment-verification']) revalidatePath(path)
@@ -140,10 +147,10 @@ export async function voidPayment(orderId: string, paymentId: string, reason: st
   return { success: true }
 }
 
-export async function setPlannedPaymentMethod(orderId: string, method: 'cash' | 'bank_transfer', reason: string, expectedUpdatedAt: string) {
+export async function setPlannedPaymentMethod(orderId: string, method: PlannedPaymentMethod, reason: string, expectedUpdatedAt: string) {
   const { user, error } = await requireRole(['admin', 'manager'])
   if (error || !user) return { error: error ?? '認証が必要です' }
-  if (!['cash', 'bank_transfer'].includes(method) || !reason.trim() || reason.length > 500) return { error: '支払予定と変更理由を確認してください' }
+  if (!PLANNED_METHODS.includes(method) || !reason.trim() || reason.length > 500) return { error: '支払予定と変更理由を確認してください' }
   const db = await createClient()
   const result = await db.from('orders').update({ planned_payment_method: method, planned_payment_note: reason.trim(), payment_checked: false })
     .eq('tenant_id', user.tenant_id).eq('id', orderId).eq('updated_at', expectedUpdatedAt).select('id')

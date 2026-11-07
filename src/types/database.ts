@@ -5,6 +5,8 @@ export type OrderStatus = '承認待ち' | '申込' | '発送済' | '検品完�
 export type BankAccountType = '普通' | '当座'
 
 export type ReturnStatus = '返送待ち' | '返送済'
+/** 支払予定。bank_transfer のときだけ振込対象。cash と undecided（残りの支払方法が未定）は振込対象外 */
+export type PlannedPaymentMethod = 'bank_transfer' | 'cash' | 'undecided'
 
 export type InspectionStatus = '問題あり'
 
@@ -135,7 +137,7 @@ export interface Order {
   arrival_date: string | null
   price_date: string | null
   assigned_to: string | null
-  planned_payment_method?: 'bank_transfer' | 'cash'
+  planned_payment_method?: PlannedPaymentMethod
   planned_payment_note?: string | null
   payment_method?: 'bank_transfer' | 'cash' | 'mixed' | null
   paid_amount?: number

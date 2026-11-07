@@ -41,7 +41,7 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY profiles_select ON profiles FOR SELECT TO authenticated USING(id=auth.uid());
 CREATE POLICY profiles_update_admin ON profiles FOR UPDATE TO authenticated USING(get_user_role(auth.uid())='admin') WITH CHECK(get_user_role(auth.uid())='admin');
 `);
-for(const f of ['20260913000002_security_workflow_guards.sql','20260913000003_shared_security_controls.sql','20260913000004_staff_access_revocation.sql','20261006000001_cash_payment_method.sql','20261006000002_partial_payments.sql','20261013000001_deferred_kyc.sql','20261013000002_paper_kyc.sql','20261024000001_paper_kyc_documents.sql','20261024000002_paper_kyc_document_types.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
+for(const f of ['20260913000002_security_workflow_guards.sql','20260913000003_shared_security_controls.sql','20260913000004_staff_access_revocation.sql','20261006000001_cash_payment_method.sql','20261006000002_partial_payments.sql','20261013000001_deferred_kyc.sql','20261013000002_paper_kyc.sql','20261024000001_paper_kyc_documents.sql','20261024000002_paper_kyc_document_types.sql','20261104000001_planned_payment_method.sql','20261108000001_remaining_payment_plan.sql'])await db.exec(fs.readFileSync('supabase/migrations/'+f,'utf8'));
 await test('paper KYC document rows readable only by own-tenant staff or MFA admins; browser roles cannot write',async()=>{
  await session('service_role');await db.query("INSERT INTO order_paper_kyc_documents(tenant_id,order_id,label,storage_path,uploaded_by) VALUES($1,$2,'front','fixture/paper/front.jpg',$3)",[A,order,staff]);
  await session('authenticated',staff);assert.equal((await db.query('SELECT id FROM order_paper_kyc_documents')).rows.length,1);
@@ -70,7 +70,7 @@ await test('cash method requires privileged MFA and paid date; logs corrections 
 
 const partial='77777777-7777-4777-8777-777777777777', final='88888888-8888-4888-8888-888888888888';
 const snapshot=async()=> (await db.query('SELECT * FROM orders WHERE id=$1',[order])).rows[0];
-const pay=(id,amount,stamp,method='cash',tenant=A,date='2026-01-02')=>db.query('SELECT record_order_payment($1,$2,$3,$4,$5,$6,$7)',[tenant,order,method,amount,date,id,stamp]);
+const pay=(id,amount,stamp,method='cash',tenant=A,date='2026-01-02',plan=null)=>db.query('SELECT record_order_payment($1,$2,$3,$4,$5,$6,$7,false,$8)',[tenant,order,method,amount,date,id,stamp,plan]);
 await test('partial payments reject unauthorized, foreign tenant, invalid amount/date and KYC',async()=>{
  await session('service_role');await db.query("UPDATE orders SET status='検品完了',total_amount=1696500,kyc_request_id=$1,identity_verified_at=now() WHERE id=$2",[kyc,order]);const stamp=(await snapshot()).updated_at;
  await session('authenticated',staff);await assert.rejects(()=>pay(partial,1000000,stamp));
@@ -81,12 +81,27 @@ await test('partial payments reject unauthorized, foreign tenant, invalid amount
 });
 await test('cash 1000000 leaves 696500, idempotent retry and stale second request cannot double pay',async()=>{
  await session('authenticated',manager,'aal2');const stamp=(await snapshot()).updated_at;
- await pay(partial,1000000,stamp);await pay(partial,1000000,stamp);
+ await assert.rejects(()=>pay(partial,1000000,stamp),/残りの支払方法/);await assert.rejects(()=>pay(partial,1000000,stamp,'cash',A,'2026-01-02','later'));
+ await pay(partial,1000000,stamp,'cash',A,'2026-01-02','bank_transfer');await pay(partial,1000000,stamp);
  const o=await snapshot();assert.equal(Number(o.paid_amount),1000000);assert.equal(o.status,'検品完了');assert.equal(o.paid_at,null);assert.equal(Number(o.total_amount)-Number(o.paid_amount),696500);
+ assert.equal(o.planned_payment_method,'bank_transfer');assert.equal(o.payment_checked,false);
  await assert.rejects(()=>pay(final,696500,stamp,'bank_transfer'));
  await fails("UPDATE orders SET paid_amount=0 WHERE id=$1",[order]);await fails("UPDATE orders SET status='振込済' WHERE id=$1",[order]);await fails("UPDATE orders SET total_amount=999999 WHERE id=$1",[order]);
  await fails("INSERT INTO order_payments(id,tenant_id,order_id,method,amount,paid_on,prior_status) VALUES(gen_random_uuid(),$1,$2,'cash',1,'2026-01-02','検品完了')",[A,order]);
  await fails('DELETE FROM order_payments WHERE id=$1',[partial]);
+});
+await test('undecided remainder blocks bank transfer until the plan is set to bank transfer; cash history no longer blocks it',async()=>{
+ await session('authenticated',manager,'aal2');
+ await db.query("UPDATE orders SET planned_payment_method='undecided',planned_payment_note='客が未定' WHERE id=$1",[order]);
+ await fails('UPDATE orders SET payment_checked=true WHERE id=$1',[order]);
+ let stamp=(await snapshot()).updated_at;await assert.rejects(()=>pay(final,696500,stamp,'bank_transfer'),/支払予定が現金・未定/);
+ await db.query("UPDATE orders SET planned_payment_method='cash',planned_payment_note='後日現金' WHERE id=$1",[order]);
+ stamp=(await snapshot()).updated_at;await assert.rejects(()=>pay(final,696500,stamp,'bank_transfer'));
+ await session('authenticated',staff);await fails("UPDATE orders SET planned_payment_method='bank_transfer',planned_payment_note='スタッフが変更' WHERE id=$1",[order]);
+ await session('authenticated',manager,'aal2');await db.query("UPDATE orders SET planned_payment_method='bank_transfer',planned_payment_note='残りは振込' WHERE id=$1",[order]);
+ const after=await snapshot();assert.equal(after.payment_method,'cash');assert.equal(after.planned_payment_method,'bank_transfer');
+ await session('service_role');assert.ok((await db.query("SELECT count(*)::int n FROM security_audit_events WHERE action='planned_payment_changed' AND record_id=$1",[order])).rows[0].n>=3);
+ await session('authenticated',manager,'aal2');
 });
 await test('remaining bank payment completes mixed payment exactly once',async()=>{
  const stamp=(await snapshot()).updated_at;await pay(final,696500,stamp,'bank_transfer');await pay(final,696500,stamp,'bank_transfer');
@@ -110,7 +125,7 @@ await test('deferred KYC blocks cash/bank partial payments and status bypass unt
  await fails("UPDATE orders SET identity_verified_at=now(),status='振込済' WHERE id=$1",[d]);
  const payDeferred=async(method)=>{
   const stamp=(await db.query('SELECT updated_at FROM orders WHERE id=$1',[d])).rows[0].updated_at;
-  return db.query('SELECT record_order_payment($1,$2,$3,$4,$5,$6,$7)',[A,d,method,100,'2026-10-01',require('node:crypto').randomUUID(),stamp]);
+  return db.query('SELECT record_order_payment($1,$2,$3,$4,$5,$6,$7,false,$8)',[A,d,method,100,'2026-10-01',require('node:crypto').randomUUID(),stamp,method==='cash'?'undecided':null]);
  };
  await session('authenticated',admin,'aal2');
  for(const method of ['cash','bank_transfer'])await assert.rejects(()=>payDeferred(method));
@@ -120,7 +135,10 @@ await test('deferred KYC blocks cash/bank partial payments and status bypass unt
  await db.query('UPDATE orders SET kyc_request_id=$1,identity_verified_at=now() WHERE id=$2',[kyc,d]);
  await session('authenticated',admin,'aal2');await assert.rejects(()=>payDeferred('cash'));
  await session('service_role');await db.query("UPDATE kyc_requests SET status='approved' WHERE id=$1",[kyc]);
- await session('authenticated',admin,'aal2');await payDeferred('cash');await payDeferred('bank_transfer');
+ await session('authenticated',admin,'aal2');await payDeferred('cash');
+ let planned=(await db.query('SELECT planned_payment_method,planned_payment_note FROM orders WHERE id=$1',[d])).rows[0];assert.equal(planned.planned_payment_method,'undecided');assert.match(planned.planned_payment_note,/残り 900 円は未定/);
+ await assert.rejects(()=>payDeferred('bank_transfer'));
+ await db.query("UPDATE orders SET planned_payment_method='bank_transfer',planned_payment_note='残りは振込に決定' WHERE id=$1",[d]);await payDeferred('bank_transfer');
  const actual=(await db.query('SELECT paid_amount,kyc_deferred FROM orders WHERE id=$1',[d])).rows[0];
  assert.equal(Number(actual.paid_amount),200);assert.equal(actual.kyc_deferred,true);
 });
