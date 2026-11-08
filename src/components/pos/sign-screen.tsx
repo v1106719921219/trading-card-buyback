@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { BuySteps } from '@/components/pos/buy-steps'
 import { SignaturePad } from '@/components/admin/signature-pad'
 import { getStoreDocumentUrl, signAgreement } from '@/actions/pos-checkout'
-import { AGREEMENT_TEMPLATE, formatYen, identityMethodLabel, intakeNumberFromOrderNumber, sumAppraisal } from '@/lib/pos-buyback'
+import { AGREEMENT_TEMPLATE, formatYen, guardianRelationLabel, identityDocumentLabel, identityMethodLabel, intakeNumberFromOrderNumber, sumAppraisal } from '@/lib/pos-buyback'
 import type { Order, OrderItem, StoreAgreement, StoreIdentityCheck } from '@/types/database'
 
 /**
@@ -86,6 +86,21 @@ export function SignScreen({
             <dt className="text-muted-foreground">本人確認</dt>
             <dd>{identityMethodLabel(identity.method, identity.document_type)}</dd>
           </dl>
+
+          {identity.guardian_name ? (
+            <>
+              <h2 className="mt-5 font-bold">保護者（親権者等）</h2>
+              <dl className="mt-1 grid grid-cols-[6em_1fr] gap-y-1">
+                <dt className="text-muted-foreground">氏名</dt>
+                <dd>{identity.guardian_name}</dd>
+                <dt className="text-muted-foreground">続柄</dt>
+                <dd>{guardianRelationLabel(identity.guardian_relation)}</dd>
+                <dt className="text-muted-foreground">本人確認</dt>
+                <dd>{identity.guardian_document_type ? identityDocumentLabel(identity.guardian_document_type) : '（書類の提示なし）'}</dd>
+              </dl>
+              <p className="mt-2 rounded-xl bg-muted/40 px-3 py-2 text-xs text-muted-foreground">{AGREEMENT_TEMPLATE.guardian_consent}（保護者の同意署名は本人確認の画面で記録済み。申込書 PDF に載ります）</p>
+            </>
+          ) : null}
 
           <h2 className="mt-5 font-bold">売渡品目</h2>
           <table className="mt-1 w-full">

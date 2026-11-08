@@ -189,15 +189,50 @@ export function calcAge(birthDate: string, at: Date = new Date()): number | null
   return age
 }
 
-/** 山口県青少年健全育成条例 10 条: 18 歳未満からの買取は保護者の同意がなければ禁止。当初は同意経路を作らず断る */
+/** 山口県青少年健全育成条例 10 条: 18 歳未満からの買取は保護者の同意がなければ禁止。同意は保護者の同席・署名で記録する */
 export const MINOR_AGE_LIMIT = 18
 export function isMinor(age: number): boolean {
   return age < MINOR_AGE_LIMIT
 }
 
+/** 保護者の続柄。親権者か未成年後見人に限る */
+export const GUARDIAN_RELATIONS: { value: string; label: string }[] = [
+  { value: 'father', label: '父' },
+  { value: 'mother', label: '母' },
+  { value: 'guardian', label: 'その他の親権者・未成年後見人' },
+]
+
+export function guardianRelationLabel(value: string | null | undefined): string {
+  return GUARDIAN_RELATIONS.find((r) => r.value === value)?.label ?? (value || '')
+}
+
+export interface GuardianInput {
+  guardian_name: string | null | undefined
+  guardian_relation: string | null | undefined
+  guardian_signature: string | null | undefined
+}
+
+/**
+ * 18 歳未満のときに保護者同意として足りているか。氏名・続柄・署名の 3 つが揃えば通す。
+ * 書類の種類と画像は任意（保護者に書類の提示を求めるかは店の運用）。
+ */
+export function validateGuardianConsent(age: number, input: GuardianInput): { ok: true } | { ok: false; error: string } {
+  if (!isMinor(age)) return { ok: true }
+  if (!(input.guardian_name ?? '').trim()) return { ok: false, error: '保護者の氏名を入力してください' }
+  if (!GUARDIAN_RELATIONS.some((r) => r.value === input.guardian_relation)) return { ok: false, error: '保護者の続柄を選んでください' }
+  if (!(input.guardian_signature ?? '').startsWith('data:image/png;base64,')) return { ok: false, error: '保護者に同意の署名をしてもらってください' }
+  return { ok: true }
+}
+
+/** 台帳・明細に書く確認方法。保護者同意があればその旨を添える（警察照会で分かるように） */
+export function identityMethodLabelWithGuardian(method: IdentityMethod, documentType: string | null, guardianName: string | null | undefined): string {
+  const base = identityMethodLabel(method, documentType)
+  return guardianName ? `${base}・保護者同意あり（${guardianName}）` : base
+}
+
 /** 申込書兼誓約書の定型文。文面を変えたら version を上げる（署名済みの控えは snapshot に残る） */
 export const AGREEMENT_TEMPLATE = {
-  version: '2026-11-07.1',
+  version: '2026-11-08.1',
   title: '買取申込書 兼 誓約書 兼 受領書',
   pledges: [
     '売却する物品は私が正当に所有するものであり、盗品・遺失物・偽造品でないことを誓約します。',
@@ -208,6 +243,9 @@ export const AGREEMENT_TEMPLATE = {
   ],
   privacy:
     '記載いただいた個人情報は、古物営業法に基づく取引記録の作成・保存（3 年間）、本人確認、およびお取引に関するご連絡の目的にのみ利用し、法令に基づく場合を除き第三者に提供しません。',
+  /** 売渡人が 18 歳未満のとき、保護者の署名欄に添える文 */
+  guardian_consent:
+    '私は売渡人の親権者（または未成年後見人）として本売却に立ち会い、上記の内容と売却に同意します。',
 }
 
 export interface LedgerItemLike {
@@ -306,6 +344,8 @@ export interface AgreementSnapshot {
   store: Required<ReceiptHeader>
   customer: { name: string; address: string; birth_date: string; age: number; occupation: string }
   identity: { method: IdentityMethod; document_type: string | null; label: string }
+  /** 売渡人が 18 歳未満のときだけ入る */
+  guardian: { name: string; relation: string; relation_label: string; document_label: string | null; consent: string } | null
   items: { name: string; quantity: number; unit_price: number; amount: number; rank: string | null; reason: string | null }[]
   count: number
   total: number
@@ -317,11 +357,33 @@ export interface AgreementSnapshot {
 export function buildAgreementSnapshot(input: {
   orderNumber: string
   store: Required<ReceiptHeader>
-  identity: { method: IdentityMethod; document_type: string | null; name: string; address: string; birth_date: string; age_at_check: number; occupation: string }
+  identity: {
+    method: IdentityMethod
+    document_type: string | null
+    name: string
+    address: string
+    birth_date: string
+    age_at_check: number
+    occupation: string
+    guardian_name?: string | null
+    guardian_relation?: string | null
+    guardian_document_type?: string | null
+  }
   items: { product_name: string; quantity: number; unit_price: number; condition_rank?: string | null; deduction_reason?: string | null }[]
   witnessedByName: string
 }): AgreementSnapshot {
   const { count, total } = sumAppraisal(input.items)
+  const g = input.identity
+  const guardian =
+    g.guardian_name && g.guardian_relation
+      ? {
+          name: g.guardian_name,
+          relation: g.guardian_relation,
+          relation_label: guardianRelationLabel(g.guardian_relation),
+          document_label: g.guardian_document_type ? identityDocumentLabel(g.guardian_document_type) : null,
+          consent: AGREEMENT_TEMPLATE.guardian_consent,
+        }
+      : null
   return {
     template_version: AGREEMENT_TEMPLATE.version,
     title: AGREEMENT_TEMPLATE.title,
@@ -340,6 +402,7 @@ export function buildAgreementSnapshot(input: {
       document_type: input.identity.document_type,
       label: identityMethodLabel(input.identity.method, input.identity.document_type),
     },
+    guardian,
     items: input.items.map((i) => ({
       name: i.product_name,
       quantity: i.quantity,

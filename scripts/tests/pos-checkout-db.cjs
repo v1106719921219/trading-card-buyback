@@ -33,6 +33,7 @@ INSERT INTO orders(id,tenant_id,status,customer_name) VALUES('${order}','${A}','
 `);
 await db.exec(fs.readFileSync('supabase/migrations/20261107000002_store_buyback_intake.sql','utf8'));
 await db.exec(fs.readFileSync('supabase/migrations/20261107000003_store_buyback_checkout.sql','utf8'));
+await db.exec(fs.readFileSync('supabase/migrations/20261108000002_store_guardian_consent.sql','utf8'));
 
 await test('本人確認: スタッフは自テナントの受付にだけ記録できる。取消は manager の MFA が要る',async()=>{
  await session('authenticated',staff);
@@ -46,6 +47,14 @@ await test('本人確認: スタッフは自テナントの受付にだけ記録
  assert.notEqual((await db.query('SELECT revoked_at FROM store_identity_checks WHERE id=$1',[ok.rows[0].id])).rows[0].revoked_at,null);
  await session('authenticated',other);
  assert.equal((await db.query('SELECT id FROM store_identity_checks')).rows.length,0);
+});
+await test('本人確認: 18 歳未満は保護者の氏名・続柄・署名がなければ記録できない',async()=>{
+ await session('authenticated',staff);
+ await fails("INSERT INTO store_identity_checks(tenant_id,order_id,method,document_type,name,address,birth_date,occupation,age_at_check,verified_by) VALUES($1,$2,'id_document','other','未成年','山口市','2010-01-01','学生',16,$3)",[A,order,staff]);
+ await fails("INSERT INTO store_identity_checks(tenant_id,order_id,method,document_type,name,address,birth_date,occupation,age_at_check,verified_by,guardian_name,guardian_relation) VALUES($1,$2,'id_document','other','未成年','山口市','2010-01-01','学生',16,$3,'山本 花子','mother')",[A,order,staff]); // 署名なし
+ const ok=await db.query("INSERT INTO store_identity_checks(tenant_id,order_id,method,document_type,name,address,birth_date,occupation,age_at_check,verified_by,guardian_name,guardian_relation,guardian_signature_path) VALUES($1,$2,'id_document','other','未成年','山口市','2010-01-01','学生',16,$3,'山本 花子','mother','a/b/guardian.png') RETURNING id",[A,order,staff]);
+ assert.ok(ok.rows[0].id);
+ await db.query("INSERT INTO store_identity_checks(tenant_id,order_id,method,document_type,name,address,birth_date,occupation,age_at_check,verified_by) VALUES($1,$2,'id_document','drivers_license','成人','山口市','2000-01-01','会社員',26,$3)",[A,order,staff]); // 成人は保護者なしで可
 });
 await test('申込書: スタッフが記録でき、他テナントの受付には付けられない',async()=>{
  await session('authenticated',staff);

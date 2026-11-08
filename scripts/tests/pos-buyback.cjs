@@ -106,3 +106,79 @@ assert.equal(pb.csvCell(12), '12');
 assert.equal(pb.todayJst(new Date('2026-11-06T16:00:00Z')), '2026-11-07');
 assert.equal(pb.AGREEMENT_TEMPLATE.pledges.length, 5);
 console.log('PASS pos-buyback (checkout logic)');
+
+// ---- 保護者同意（18 歳未満） ----
+const sig = 'data:image/png;base64,' + 'A'.repeat(600);
+same(pb.validateGuardianConsent(20, { guardian_name: '', guardian_relation: '', guardian_signature: null }), { ok: true }); // 成人は不要
+assert.equal(pb.validateGuardianConsent(17, { guardian_name: '', guardian_relation: 'mother', guardian_signature: sig }).ok, false);
+assert.equal(pb.validateGuardianConsent(17, { guardian_name: '山本 花子', guardian_relation: 'aunt', guardian_signature: sig }).ok, false); // 続柄は親権者等だけ
+assert.equal(pb.validateGuardianConsent(17, { guardian_name: '山本 花子', guardian_relation: 'mother', guardian_signature: null }).ok, false);
+same(pb.validateGuardianConsent(17, { guardian_name: '山本 花子', guardian_relation: 'mother', guardian_signature: sig }), { ok: true });
+assert.equal(pb.guardianRelationLabel('father'), '父');
+assert.equal(pb.identityMethodLabelWithGuardian('id_document', 'mynumber_card', null), 'マイナンバーカードの提示');
+assert.equal(pb.identityMethodLabelWithGuardian('id_document', 'mynumber_card', '山本 花子'), 'マイナンバーカードの提示・保護者同意あり（山本 花子）');
+
+// 申込書のスナップショットに保護者が入る（成人は null）
+const store = { store_name: 'S', address: '', phone: '', license_number: '', notes: '' };
+const adult = pb.buildAgreementSnapshot({ orderNumber: 'ST-20261108-001', store, witnessedByName: '中村',
+  identity: { method: 'id_document', document_type: 'drivers_license', name: 'A', address: 'B', birth_date: '1990-01-01', age_at_check: 36, occupation: 'C' },
+  items: [{ product_name: 'x', quantity: 1, unit_price: 100 }] });
+assert.equal(adult.guardian, null);
+assert.equal(adult.template_version, pb.AGREEMENT_TEMPLATE.version);
+const minorSnap = pb.buildAgreementSnapshot({ orderNumber: 'ST-20261108-002', store, witnessedByName: '中村',
+  identity: { method: 'id_document', document_type: 'other', name: 'A', address: 'B', birth_date: '2010-01-01', age_at_check: 16, occupation: '学生', guardian_name: '山本 花子', guardian_relation: 'mother', guardian_document_type: 'drivers_license' },
+  items: [{ product_name: 'x', quantity: 1, unit_price: 100 }] });
+same(minorSnap.guardian, { name: '山本 花子', relation: 'mother', relation_label: '母', document_label: '運転免許証', consent: pb.AGREEMENT_TEMPLATE.guardian_consent });
+console.log('PASS pos-buyback (guardian consent)');
+
+// ---- 設定タブ ----
+const ps = load('src/lib/pos-settings.ts');
+assert.equal(ps.normalizeInvoiceNumber('t1234567890123'), 'T1234567890123');
+assert.equal(ps.normalizeInvoiceNumber('T1234-5678-90123'), 'T1234567890123');
+assert.equal(ps.normalizeInvoiceNumber('1234567890123'), 'T1234567890123');
+assert.equal(ps.normalizeInvoiceNumber('T12345'), null);
+const info = { store_name: ' 山口カードショップ ', address: '山口市', phone: '083-000-0000', license_number: '', notes: '', invoice_registration_number: '', high_value_approval_threshold: '100,000', customer_price_display: 'ipad' };
+const okInfo = ps.validateStoreInfo(info);
+assert.equal(okInfo.ok, true);
+assert.equal(okInfo.value.receipt_header.store_name, '山口カードショップ');
+assert.equal(okInfo.value.high_value_approval_threshold, 100000);
+assert.equal(okInfo.value.invoice_registration_number, null);
+assert.equal(ps.validateStoreInfo({ ...info, phone: 'abc' }).ok, false);
+assert.equal(ps.validateStoreInfo({ ...info, invoice_registration_number: 'T1' }).ok, false);
+assert.equal(ps.validateStoreInfo({ ...info, high_value_approval_threshold: '-1' }).ok, false);
+assert.equal(ps.validateStoreInfo({ ...info, customer_price_display: 'tv' }).ok, false);
+assert.equal(ps.validateStoreInfo({ ...info, high_value_approval_threshold: '' }).value.high_value_approval_threshold, null);
+
+assert.equal(ps.rateToPercent(0.8), '80');
+assert.equal(ps.rateToPercent('0.800'), '80');
+assert.equal(ps.rateToPercent(null), '');
+assert.equal(ps.rateToPercent(0.125), '12.5');
+const ranks = [
+  { id: null, code: 'a', label: '美品', rate_percent: '100', description: '', is_active: true },
+  { id: null, code: 'B', label: '白かけ', rate_percent: '80', description: '縁', is_active: true },
+  { id: null, code: 'D', label: '要相談', rate_percent: '', description: '', is_active: true },
+];
+const okRanks = ps.safeValidateConditionRanks(ranks);
+assert.equal(okRanks.ok, true);
+same(okRanks.value.map(r => [r.code, r.rate, r.sort_order]), [['A', 1, 1], ['B', 0.8, 2], ['D', null, 3]]);
+assert.equal(ps.safeValidateConditionRanks([]).ok, false);
+assert.equal(ps.safeValidateConditionRanks([ranks[0], { ...ranks[1], code: 'a' }]).ok, false); // 記号の重複（大文字小文字は同一視）
+assert.equal(ps.safeValidateConditionRanks([{ ...ranks[0], rate_percent: '120' }]).ok, false);
+assert.equal(ps.safeValidateConditionRanks([{ ...ranks[0], label: '' }]).ok, false);
+assert.equal(ps.safeValidateConditionRanks([{ ...ranks[0], is_active: false }]).ok, false); // 有効なランクが 0
+assert.equal(ps.safeValidateConditionRanks([{ ...ranks[0], rate_percent: '12.5' }]).value[0].rate, 0.125);
+
+const bands = [
+  { id: null, label: '', buy_price: '100', sell_price: '', sleeve_color: '透明', is_active: true },
+  { id: null, label: '300円', buy_price: '300', sell_price: '500', sleeve_color: '青', is_active: true },
+];
+const okBands = ps.safeValidatePriceBands(bands);
+assert.equal(okBands.ok, true);
+same(okBands.value.map(b => [b.label, b.buy_price, b.sell_price, b.sleeve_color]), [['100円', 100, null, '透明'], ['300円', 300, 500, '青']]);
+assert.equal(ps.safeValidatePriceBands([bands[0], { ...bands[1], sleeve_color: '透明' }]).ok, false); // 色の重複は不可
+assert.equal(ps.safeValidatePriceBands([bands[0], { ...bands[1], sleeve_color: '透明', is_active: false }]).ok, true); // 無効な帯の色は数えない
+assert.equal(ps.safeValidatePriceBands([{ ...bands[1], sell_price: '200' }]).ok, false); // 売価 < 買取
+assert.equal(ps.safeValidatePriceBands([{ ...bands[1], buy_price: '' }]).ok, false);
+assert.equal(ps.safeValidatePriceBands([{ ...bands[1], buy_price: '1,000', sell_price: '' }]).value[0].buy_price, 1000);
+assert.equal(ps.safeValidatePriceBands([]).ok, true);
+console.log('PASS pos-settings');

@@ -22,7 +22,12 @@ async function withFont(doc: jsPDF) {
 }
 
 /** 申込書兼誓約書兼受領書（A4）。署名画像を末尾に入れる */
-export async function generateAgreementPdf(snapshot: AgreementSnapshot, signaturePngBase64: string, signedAtIso: string): Promise<Buffer> {
+export async function generateAgreementPdf(
+  snapshot: AgreementSnapshot,
+  signaturePngBase64: string,
+  signedAtIso: string,
+  guardianSignaturePngBase64: string | null = null
+): Promise<Buffer> {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   await withFont(doc)
   const w = doc.internal.pageSize.getWidth()
@@ -78,6 +83,28 @@ export async function generateAgreementPdf(snapshot: AgreementSnapshot, signatur
     ],
   })
   y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6
+
+  // 保護者（売渡人が 18 歳未満のとき）
+  if (snapshot.guardian) {
+    doc.setFontSize(10)
+    doc.setFont(FONT, 'bold')
+    doc.text('保護者（親権者等）', left, y)
+    doc.setFont(FONT, 'normal')
+    y += 2
+    autoTable(doc, {
+      startY: y,
+      margin: { left, right: 16 },
+      theme: 'grid',
+      styles: { font: FONT, fontSize: 9, cellPadding: 1.5 },
+      columnStyles: { 0: { cellWidth: 30, fillColor: [248, 248, 248] } },
+      body: [
+        ['氏名', snapshot.guardian.name],
+        ['続柄', snapshot.guardian.relation_label],
+        ['本人確認', snapshot.guardian.document_label ?? '（書類の提示なし）'],
+      ],
+    })
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6
+  }
 
   // 明細
   doc.setFontSize(10)
@@ -153,6 +180,29 @@ export async function generateAgreementPdf(snapshot: AgreementSnapshot, signatur
   doc.text(`立会: ${snapshot.witnessed_by_name}`, right, y + 4, { align: 'right' })
   doc.text(`署名日時: ${formatDateTimeJst(signedAtIso)}`, right, y + 10, { align: 'right' })
   y += 34
+
+  // 保護者の同意署名
+  if (snapshot.guardian) {
+    ensureSpace(45)
+    doc.setFontSize(8.5)
+    const consentLines = doc.splitTextToSize(snapshot.guardian.consent, right - left)
+    doc.text(consentLines, left, y)
+    y += consentLines.length * 4 + 2
+    doc.setFontSize(9)
+    doc.text('保護者 署名', left, y + 4)
+    doc.rect(left + 26, y - 2, 80, 28)
+    if (guardianSignaturePngBase64) {
+      try {
+        doc.addImage(`data:image/png;base64,${guardianSignaturePngBase64}`, 'PNG', left + 27, y - 1, 78, 26)
+      } catch {
+        doc.text('（署名画像を読み込めませんでした）', left + 30, y + 12)
+      }
+    } else {
+      doc.text('（署名画像なし）', left + 30, y + 12)
+    }
+    doc.text(`${snapshot.guardian.relation_label}: ${snapshot.guardian.name}`, right, y + 4, { align: 'right' })
+    y += 34
+  }
   doc.setFontSize(7.5)
   doc.setTextColor(110)
   doc.text(`様式 ${snapshot.template_version}`, left, y)
