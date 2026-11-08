@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BookOpen, ClipboardList, LayoutDashboard, LogOut, Wallet } from 'lucide-react'
+import { BookOpen, ClipboardList, History, LayoutDashboard, LogOut, Settings, Wallet } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types/database'
 
@@ -48,9 +48,17 @@ export function PosShell({
             <Wallet className="h-4 w-4" />
             レジ
           </Link>
+          <Link href="/pos/history" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <History className="h-4 w-4" />
+            履歴
+          </Link>
           <Link href="/pos/ledger" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">
             <BookOpen className="h-4 w-4" />
             台帳
+          </Link>
+          <Link href="/pos/settings" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <Settings className="h-4 w-4" />
+            設定
           </Link>
         </nav>
         <div className="ml-auto flex items-center gap-2 text-sm">

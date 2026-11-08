@@ -29,8 +29,10 @@ import {
   csvCell,
   expectedRegisterCash,
   identityMethodLabel,
+  identityMethodLabelWithGuardian,
   intakeNumberFromOrderNumber,
   isMinor,
+  validateGuardianConsent,
   ledgerItemsSummary,
   resolveReceiptHeader,
   sumAppraisal,
@@ -45,7 +47,7 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const uuid = z.uuid()
 
 function posPaths(orderId: string) {
-  return ['/pos', '/pos/buy', `/pos/buy/${orderId}`, `/pos/buy/${orderId}/identity`, `/pos/buy/${orderId}/sign`, `/pos/buy/${orderId}/pay`, `/pos/buy/${orderId}/done`, '/pos/ledger', '/pos/register']
+  return ['/pos', '/pos/buy', `/pos/buy/${orderId}`, `/pos/buy/${orderId}/identity`, `/pos/buy/${orderId}/sign`, `/pos/buy/${orderId}/pay`, `/pos/buy/${orderId}/done`, '/pos/ledger', '/pos/register', '/pos/history']
 }
 
 /** data URL（PNG / JPEG / WebP）を Buffer に。形式が違えば null */
@@ -111,11 +113,26 @@ const identitySchema = z.object({
   occupation: z.string().trim().min(1, '職業を入力してください').max(60),
   front_image: z.string().max(14_000_100).nullable(),
   handwritten_image: z.string().max(14_000_100).nullable(),
+  // 18 歳未満のときだけ使う（保護者同意）。成人のときは無視する
+  guardian_name: z.string().trim().max(100).nullable().optional(),
+  guardian_relation: z.string().max(20).nullable().optional(),
+  guardian_document_type: z.string().max(40).nullable().optional(),
+  guardian_image: z.string().max(14_000_100).nullable().optional(),
+  guardian_signature: z.string().max(1_000_000).nullable().optional(),
 })
 export type IdentityInput = z.input<typeof identitySchema>
 
+/** 署名パッドの PNG（data URL）を検証して base64 本体を返す */
+function parseSignaturePng(dataUrl: string | null | undefined): string | null {
+  const prefix = 'data:image/png;base64,'
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith(prefix)) return null
+  const base64 = dataUrl.slice(prefix.length)
+  if (base64.length < 500 || base64.length > 700_000 || !/^[A-Za-z0-9+/=]+$/.test(base64)) return null
+  return base64
+}
+
 /**
- * 本人確認を保存する。18 歳未満は保護者同意の経路を当初は作らないので、ここで止める（記録は残さない）。
+ * 本人確認を保存する。18 歳未満は保護者（親権者）の同席と同意署名がなければ保存できない（山口県青少年健全育成条例 10 条）。
  * 再入力したときは前の記録を取消にして新しい行を足す。
  */
 export async function saveIdentityCheck(orderId: string, input: IdentityInput): Promise<ActionResult<{ minor?: boolean; age?: number }>> {
@@ -130,9 +147,16 @@ export async function saveIdentityCheck(orderId: string, input: IdentityInput): 
 
   const age = calcAge(v.birth_date)
   if (age === null) return { error: '生年月日を確認してください' }
-  if (isMinor(age)) {
-    return { error: '18 歳未満のお客様からは保護者の同意がない限り買い取れません（山口県青少年健全育成条例）。今回はお断りしてください。', minor: true, age }
+  const minor = isMinor(age)
+  const guardianCheck = validateGuardianConsent(age, { guardian_name: v.guardian_name, guardian_relation: v.guardian_relation, guardian_signature: v.guardian_signature })
+  if (!guardianCheck.ok) {
+    return { error: `18 歳未満のお客様は保護者の同席と同意が必要です（山口県青少年健全育成条例）。${guardianCheck.error}。同意が得られなければお断りしてください。`, minor: true, age }
   }
+  const guardianSignature = minor ? parseSignaturePng(v.guardian_signature) : null
+  if (minor && !guardianSignature) return { error: '保護者の署名画像を読み取れませんでした。書き直してください', minor: true, age }
+  const guardianDoc = minor && v.guardian_document_type ? IDENTITY_DOCUMENT_TYPES.find((d) => d.value === v.guardian_document_type) : null
+  if (minor && v.guardian_document_type && !guardianDoc) return { error: '保護者の本人確認書類の種類が正しくありません' }
+  if (minor && v.guardian_image && !guardianDoc?.photoAllowed) return { error: guardianDoc ? `${guardianDoc.label}は撮影・保存できません` : '保護者の書類を撮影するときは書類の種類を選んでください' }
   const docType = v.method === 'id_document' ? IDENTITY_DOCUMENT_TYPES.find((d) => d.value === v.document_type) : null
   if (v.method === 'id_document' && !docType) return { error: '本人確認書類の種類を選んでください' }
   if (v.method === 'id_document' && v.front_image && !docType?.photoAllowed) return { error: `${docType?.label}は撮影・保存できません。目視で確認して入力してください` }
@@ -154,6 +178,14 @@ export async function saveIdentityCheck(orderId: string, input: IdentityInput): 
   try {
     const frontPath = v.method === 'id_document' && v.front_image ? await uploadImage(v.front_image, 'identity-front') : null
     const handPath = v.method === 'handwritten' && v.handwritten_image ? await uploadImage(v.handwritten_image, 'handwritten') : null
+    const guardianImagePath = minor && v.guardian_image ? await uploadImage(v.guardian_image, 'guardian-front') : null
+    let guardianSignaturePath: string | null = null
+    if (minor && guardianSignature) {
+      guardianSignaturePath = `${user.tenant_id}/${orderId}/guardian-signature-${randomUUID()}.png`
+      const up = await admin.storage.from(BUCKET).upload(guardianSignaturePath, Buffer.from(guardianSignature, 'base64'), { contentType: 'image/png', upsert: false })
+      if (up.error) throw new Error('保護者の署名の保存に失敗しました。通信環境を確認して再度お試しください')
+      uploaded.push(guardianSignaturePath)
+    }
     const documentLabel = v.method === 'handwritten' ? null : (docType?.label ?? null)
 
     // 店頭のお客様を確定（受付時に未登録なら作る）
@@ -200,6 +232,11 @@ export async function saveIdentityCheck(orderId: string, input: IdentityInput): 
       age_at_check: age,
       front_image_path: frontPath,
       handwritten_image_path: handPath,
+      guardian_name: minor ? v.guardian_name?.trim() || null : null,
+      guardian_relation: minor ? v.guardian_relation ?? null : null,
+      guardian_document_type: minor ? guardianDoc?.value ?? null : null,
+      guardian_image_path: guardianImagePath,
+      guardian_signature_path: guardianSignaturePath,
       verified_by: user.id,
     })
     if (icErr) throw new Error(sanitizeError(icErr))
@@ -212,7 +249,7 @@ export async function saveIdentityCheck(orderId: string, input: IdentityInput): 
         customer_address: v.address,
         customer_birth_date: v.birth_date,
         customer_occupation: v.occupation,
-        customer_identity_method: identityMethodLabel(v.method, v.document_type),
+        customer_identity_method: identityMethodLabelWithGuardian(v.method, v.document_type, minor ? v.guardian_name : null),
         identity_verified_at: new Date().toISOString(),
       })
       .eq('tenant_id', user.tenant_id)
@@ -224,7 +261,7 @@ export async function saveIdentityCheck(orderId: string, input: IdentityInput): 
       actor_id: user.id,
       action: 'store_identity_checked',
       record_id: orderId,
-      details: { method: v.method, document_type: v.document_type, age, photo: !!frontPath },
+      details: { method: v.method, document_type: v.document_type, age, photo: !!frontPath, guardian: minor },
     })
   } catch (e) {
     if (uploaded.length) await admin.storage.from(BUCKET).remove(uploaded).catch(() => {})
@@ -271,7 +308,12 @@ export async function signAgreement(orderId: string, signatureDataUrl: string): 
   if (sigUpload.error) return { error: '署名の保存に失敗しました。通信環境を確認して再度お試しください' }
   let pdfSaved = false
   try {
-    const pdf = await generateAgreementPdf(snapshot, base64, signedAt)
+    let guardianSignature: string | null = null
+    if (identity.guardian_signature_path) {
+      const g = await admin.storage.from(BUCKET).download(identity.guardian_signature_path)
+      if (!g.error && g.data) guardianSignature = Buffer.from(await g.data.arrayBuffer()).toString('base64')
+    }
+    const pdf = await generateAgreementPdf(snapshot, base64, signedAt, guardianSignature)
     const pdfUpload = await admin.storage.from(BUCKET).upload(pdfPath, pdf, { contentType: 'application/pdf', upsert: false })
     pdfSaved = !pdfUpload.error
   } catch {
@@ -367,7 +409,7 @@ export async function recordStoreCashPayment(orderId: string, expectedUpdatedAt:
     counterparty_address: identity.address,
     counterparty_occupation: identity.occupation,
     counterparty_age: identity.age_at_check,
-    identity_method: identityMethodLabel(identity.method, identity.document_type),
+    identity_method: identityMethodLabelWithGuardian(identity.method, identity.document_type, identity.guardian_name),
     recorded_by: user.id,
     recorded_by_name: await resolveOperatorName(user.tenant_id, user.display_name),
   })
@@ -386,7 +428,10 @@ export async function recordStoreCashPayment(orderId: string, expectedUpdatedAt:
 // ---------------------------------------------------------------------------
 
 /** 申込書 PDF・署名・本人確認画像の閲覧用 URL（10 分有効） */
-export async function getStoreDocumentUrl(orderId: string, kind: 'agreement_pdf' | 'signature' | 'identity_front' | 'handwritten'): Promise<ActionResult<{ url: string }>> {
+export async function getStoreDocumentUrl(
+  orderId: string,
+  kind: 'agreement_pdf' | 'signature' | 'identity_front' | 'handwritten' | 'guardian_front' | 'guardian_signature'
+): Promise<ActionResult<{ url: string }>> {
   const { user, error } = await requirePosUser()
   if (error || !user) return { error }
   if (!uuid.safeParse(orderId).success) return { error: '不正なリクエストです' }
@@ -396,7 +441,11 @@ export async function getStoreDocumentUrl(orderId: string, kind: 'agreement_pdf'
     path = kind === 'agreement_pdf' ? (a?.pdf_path ?? null) : (a?.signature_path ?? null)
   } else {
     const i = await loadActiveIdentity(user.tenant_id, orderId)
-    path = kind === 'identity_front' ? (i?.front_image_path ?? null) : (i?.handwritten_image_path ?? null)
+    path =
+      kind === 'identity_front' ? (i?.front_image_path ?? null)
+      : kind === 'handwritten' ? (i?.handwritten_image_path ?? null)
+      : kind === 'guardian_front' ? (i?.guardian_image_path ?? null)
+      : (i?.guardian_signature_path ?? null)
   }
   if (!path) return { error: 'ファイルがありません' }
   const admin = createAdminClient()

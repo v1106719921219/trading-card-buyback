@@ -246,6 +246,12 @@ export interface StoreIdentityCheck {
   age_at_check: number
   front_image_path: string | null
   handwritten_image_path: string | null
+  /** 18 歳未満のときの保護者同意（age_at_check < 18 なら氏名・続柄・署名が必須） */
+  guardian_name: string | null
+  guardian_relation: string | null
+  guardian_document_type: string | null
+  guardian_image_path: string | null
+  guardian_signature_path: string | null
   verified_by: string | null
   verified_at: string
   revoked_at: string | null
