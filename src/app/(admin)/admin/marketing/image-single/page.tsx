@@ -1,6 +1,7 @@
 'use client'
 
 import { BULK_SINGLE_IDS, isBulkSingle } from '@/lib/single-product-groups'
+import { SINGLE_CARD_RARITIES, UNKNOWN_RARITY, singleCardRarity } from '@/lib/single-card-rarity'
 import { CardImage } from '@/components/admin/card-image'
 import { promoImageFrame } from '@/lib/promo-image-framing'
 
@@ -23,10 +24,49 @@ const SETTING_KEY = 'sns_single_promo_default_products'
 const CATEGORY_ID = 'db02ec12-d529-453c-a749-53da99e05533'
 const SINGLE_SUBCATEGORY_ID = '19b8ce8e-1380-42ea-ba7a-0e2a0ad8a0b9'
 const PROMO_SUBCATEGORY_ID = '14d18906-99e2-4efe-81bd-f7e6d0f1972c'
+const RARITY_PAGE_SIZE = 24
 
 type ProductWithRelations = Product & {
   category: Category | null
   subcategory: Subcategory | null
+}
+
+type ImagePage = {
+  key: string
+  label: string
+  singles: ProductWithRelations[]
+  promos: ProductWithRelations[]
+}
+
+function rarityImagePages(singles: ProductWithRelations[], promos: ProductWithRelations[]): ImagePage[] {
+  const groups = new Map<string, ProductWithRelations[]>()
+  for (const product of singles) {
+    const rarity = singleCardRarity(product.name)
+    const name = product.name.normalize('NFKC')
+    const combined = isBulkSingle(product) ? name.match(/^[A-Z]+(?:\s*\/\s*[A-Z]+)+(?=\s|$)/)?.[0] : undefined
+    const grade = name.match(/\bPSA\s*(\d+)\b/i)?.[1]
+    const base = combined ?? (rarity === UNKNOWN_RARITY ? (isBulkSingle(product) ? 'その他の最低保証' : 'レアリティ未設定') : rarity)
+    const label = grade ? `${base} PSA${grade}` : base
+    const products = groups.get(label) ?? []
+    products.push(product)
+    groups.set(label, products)
+  }
+  const labels = [...SINGLE_CARD_RARITIES, ...Array.from(groups.keys()).filter(label => !SINGLE_CARD_RARITIES.some(rarity => rarity === label))]
+  const pages: ImagePage[] = []
+  for (const label of [...labels, 'プロモカード']) {
+    const products = label === 'プロモカード' ? promos : groups.get(label) ?? []
+    const count = Math.ceil(products.length / RARITY_PAGE_SIZE)
+    for (let index = 0; index < count; index++) {
+      const items = products.slice(index * RARITY_PAGE_SIZE, (index + 1) * RARITY_PAGE_SIZE)
+      pages.push({
+        key: `${label}-${index}`,
+        label: count > 1 ? `${label}（${index + 1}/${count}）` : label,
+        singles: label === 'プロモカード' ? [] : items,
+        promos: label === 'プロモカード' ? items : [],
+      })
+    }
+  }
+  return pages
 }
 
 export default function SinglePromoImagePage() {
@@ -43,6 +83,8 @@ export default function SinglePromoImagePage() {
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [byRarity, setByRarity] = useState(false)
+  const [imagePageKey, setImagePageKey] = useState('')
   const previewRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
@@ -163,7 +205,8 @@ export default function SinglePromoImagePage() {
 
       const a = document.createElement('a')
       a.href = dataUrl
-      a.download = `シングルプロモ買取価格表_${new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }).replace(/\//g, '')}.png`
+      const suffix = imagePage ? `_${imagePage.label.replaceAll('/', '-')}` : ''
+      a.download = `シングルプロモ買取価格表${suffix}_${new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }).replace(/\//g, '')}.png`
       a.click()
       toast.success('画像をダウンロードしました')
     } catch (e) {
@@ -178,6 +221,10 @@ export default function SinglePromoImagePage() {
   const selectedSingles = groupSingles.filter((p) => p.price > 0 && selectedSingleIds.has(p.id))
   const selectedPromos = group === 'bulk' ? [] : promos.filter((p) => p.price > 0 && selectedPromoIds.has(p.id))
   const totalSelected = selectedSingles.length + selectedPromos.length
+  const pages = byRarity ? rarityImagePages(selectedSingles, selectedPromos) : []
+  const imagePage = pages.find(page => page.key === imagePageKey) ?? pages[0]
+  const previewSingles = imagePage?.singles ?? selectedSingles
+  const previewPromos = imagePage?.promos ?? selectedPromos
 
   return (
     <div>
@@ -283,19 +330,37 @@ export default function SinglePromoImagePage() {
 
         {/* プレビュー */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-muted-foreground">プレビュー（1920×1080 / X推奨 16:9）</p>
             <Button onClick={handleDownload} disabled={downloading || totalSelected === 0} className="gap-2">
               <Download className="h-4 w-4" />
               {downloading ? '生成中...' : 'PNG ダウンロード'}
             </Button>
           </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="grid gap-1 text-sm">
+              画像の分け方
+              <select className="rounded-md border bg-background px-3 py-2" value={byRarity ? 'rarity' : 'combined'} onChange={e => setByRarity(e.target.value === 'rarity')} disabled={downloading}>
+                <option value="combined">1枚にまとめる</option>
+                <option value="rarity">レアリティ別</option>
+              </select>
+            </label>
+            {byRarity && (
+              <label className="grid gap-1 text-sm">
+                表示する画像
+                <select className="rounded-md border bg-background px-3 py-2" value={imagePage?.key ?? ''} onChange={e => setImagePageKey(e.target.value)} disabled={downloading || pages.length === 0}>
+                  {pages.length === 0 && <option value="">対象商品なし</option>}
+                  {pages.map(page => <option key={page.key} value={page.key}>{page.label}（{page.singles.length + page.promos.length}件）</option>)}
+                </select>
+              </label>
+            )}
+          </div>
           <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
             <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
-              <SinglePromoCanvas ref={previewRef} singles={selectedSingles} promos={selectedPromos} highPriceIds={highPriceIds} />
+              <SinglePromoCanvas ref={previewRef} singles={previewSingles} promos={previewPromos} highPriceIds={highPriceIds} sectionLabel={imagePage?.label} />
             </div>
           </div>
-          <ImagePostText products={[...selectedSingles, ...selectedPromos]} heading={group === 'promo-bulk' ? '🃏ポケモンカード プロモ・最低保証 買取強化中🃏' : '🃏ポケモンカード シングル＆プロモ 高価買取中🃏'} />
+          <ImagePostText products={[...previewSingles, ...previewPromos]} heading={group === 'promo-bulk' ? '🃏ポケモンカード プロモ・最低保証 買取強化中🃏' : '🃏ポケモンカード シングル＆プロモ 高価買取中🃏'} />
         </div>
       </div>
     </div>
@@ -307,7 +372,8 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
   singles: ProductWithRelations[]
   promos: ProductWithRelations[]
   highPriceIds: Set<string>
-}>(({ singles, promos, highPriceIds }, ref) => {
+  sectionLabel?: string
+}>(({ singles, promos, highPriceIds, sectionLabel }, ref) => {
   const updatedAt = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')
   const products = [...singles, ...promos]
   const W = 1920
@@ -354,7 +420,7 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
         background: '#dc2626', color: '#fff', padding: '2px 14px',
         fontSize: 14, fontWeight: 900, letterSpacing: '0.1em',
         borderRadius: 3, border: '2px solid #111', boxShadow: '2px 2px 0 #111',
-      }}>{label}</div>}
+      }}>{sectionLabel ?? label}</div>}
 
       {/* Singles */}
       {products.map((product, i) => {
