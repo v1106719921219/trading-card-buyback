@@ -12,6 +12,11 @@ export type RushQuote = z.infer<typeof rushQuoteSchema>
 export type RushRow = { id: string; name: string; code: string; current: number; proposed: number | null; quote: number | null; sourceUpdated: string | null; sourceUrl: string; expected: string; reason: string }
 export function isEligibleSingle(p: SingleProduct) { return p.is_active && singleSubcategories.includes(p.subcategory_id || '') && !isBulkSingle(p) && !/PSA|鑑定|未開封|ミラー|セット|1ED|プロモ|仕様/i.test(p.name) }
 const norm = (s: string) => s.normalize('NFKC').replace(/\s|LV\.\d+|LV\.X|\(上\)|\(下\)/gi, '').toLowerCase()
+// These S8b CSR names include the trainer in our catalog; Cardrush omits it.
+const mimikyuCsrNames: Partial<Record<string, string>> = {
+  '233/184': 'ミミッキュV',
+  '234/184': 'ミミッキュVMAX',
+}
 export { sourceIsFresh } from './cardrush-freshness'
 export function matchRush(p: SingleProduct, quotes: RushQuote[], percent: number, now = Date.now()): RushRow {
   const code = singleSeriesCode(p)
@@ -25,7 +30,15 @@ export function matchRush(p: SingleProduct, quotes: RushQuote[], percent: number
   name = name.replace(/\s(SAR|CSR|CHR|AR|SR|UR|MUR|BWR|FUR|HR|SSR|RRR|RR|MA|P|U|C)(?:\s+SA)?$/, '')
   const model = p.model_number?.trim().replace(/^[A-Za-z0-9-]+\s+(\d+\/\d+)$/, '$1') || p.name.match(/\((\d{3}\/103)\)/)?.[1]
   if (!model || code === 'OTHER') return { ...row, reason: 'シリーズ・型番の確認が必要' }
-  const exact = quotes.filter(q => q.pack_code?.toUpperCase() === code && q.model_number === model && q.rarity === rarity && norm(q.name) === norm(name) && (specialArt ? q.extra_difference === 'SA' : !q.extra_difference) && !q.is_unlimited)
+  const nameKey = norm(name)
+  const mimikyuName = code === 'S8B' && rarity === 'CSR' && !specialArt ? mimikyuCsrNames[model] : undefined
+  const aliasKey = mimikyuName && nameKey === norm(`${mimikyuName}(アセロラ)`) ? norm(mimikyuName) : null
+  const exact = quotes.filter(q => {
+    const quoteName = norm(q.name)
+    return q.pack_code?.toUpperCase() === code && q.model_number === model && q.rarity === rarity &&
+      (quoteName === nameKey || quoteName === aliasKey) &&
+      (specialArt ? q.extra_difference === 'SA' : !q.extra_difference) && !q.is_unlimited
+  })
   // 30th has a normal 30th/reprint annotation; match the unique named card, never a parallel variant.
   const mfSar = code === 'MF' && rarity === 'SAR' && !specialArt &&
     ((model === '043/040' && name === 'エーフィex') || (model === '044/040' && name === 'ブラッキーex'))

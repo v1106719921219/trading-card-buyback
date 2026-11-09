@@ -9,4 +9,12 @@ for(const other of [{...q,pack_code:'M2'},{...q,rarity:'MA'},{...q,model_number:
 assert.equal(h.matchRush(p,[q,{...q,id:2}],100,now).proposed,null);
 for(const other of [{...p,price:0},{...p,is_active:false},{...p,name:p.name+' PSA10'},{...p,name:p.name+' 未開封'},{...p,subcategory_id:'PSA'},{...p,id:'e93a8a89-e742-4763-8a05-5ad7089d0e38'}])assert.equal(h.matchRush(other,[q],100,now).proposed,null);
 assert.equal(h.sourceIsFresh('2026-10-25T00:00:00+09:00',Date.parse('2026-10-25T00:01:00+09:00')),true);
+for (const [name, model, amount] of [['ミミッキュV', '233/184', 4500], ['ミミッキュVMAX', '234/184', 7000]]) {
+  const product = {...p, name: `${name}（アセロラ） CSR [S8b ${model}]`, set_number: `S8b ${model}`, model_number: model, price: amount};
+  const quote = {...q, name, pack_code: 'S8b', model_number: model, rarity: 'CSR', amount};
+  assert.equal(h.matchRush(product, [quote], 100, now).quote, amount);
+  assert.equal(h.matchRush(product, [{...quote, extra_difference: 'ミラー'}], 100, now).quote, null);
+  assert.equal(h.matchRush(product, [quote, {...quote, id: 2}], 100, now).quote, null);
+  assert.equal(h.matchRush({...product, name: product.name.replace('アセロラ', '別の表記')}, [quote], 100, now).quote, null);
+}
 console.log('Cardrush matching, variants, JST freshness, zero price, inactive and PSA exclusions passed');
