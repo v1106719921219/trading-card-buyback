@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
+import { singleCardRarity } from '@/lib/single-card-rarity'
 import { imagePublicationSelection } from '@/lib/image-publication'
 import { ImagePublicationControl } from '@/components/admin/image-publication-control'
 import { AdminHeader } from '@/components/admin/header'
@@ -24,6 +25,7 @@ const PSA10_SUBCATEGORY_ID = '8b34c75d-d7f8-4393-89fe-7685b3f61e5b'
 const TENANT_ID = 'aaaaaaaa-0000-0000-0000-000000000001'
 // 1枚あたり最大48件、件数に応じて行列を調整
 const MAX_PER_PAGE = 48
+const MA_GROUP = 'MA'
 
 // ポケモン別グループ（先に長い名前からマッチさせる: ミュウツー→ミュウ の順が必須）
 const CHARACTER_GROUPS = [
@@ -87,7 +89,12 @@ export default function PSA10ImagePage() {
   const [header, setHeader] = useState(DEFAULT_HEADER)
   const [footer, setFooter] = useState(DEFAULT_FOOTER)
   const [publishedOnly, setPublishedOnly] = useState(true)
-  const { products, selectedIds } = imagePublicationSelection(allProducts, manualSelectedIds, publishedOnly)
+  const [maOnly, setMaOnly] = useState(false)
+  const eligibleProducts = maOnly
+    ? allProducts.filter((product) => singleCardRarity(product.name) === 'MA').sort((a, b) => b.price - a.price)
+    : allProducts
+  const { products, selectedIds } = imagePublicationSelection(eligibleProducts, manualSelectedIds, publishedOnly)
+  const groupOf = maOnly ? () => MA_GROUP : displayGroupOf
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -206,8 +213,20 @@ export default function PSA10ImagePage() {
       await document.fonts.ready
 
       const { toPng, getFontEmbedCSS } = await import('html-to-image')
+      const dateStr = new Intl.DateTimeFormat('ja-JP', {
+        timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date()).replace(/\//g, '')
+      if (maOnly && pages.length === 1) {
+        const node = pageRefs.current[0]
+        if (!node) throw new Error('Preview unavailable')
+        const link = document.createElement('a')
+        link.href = await toPng(node, { includeQueryParams: true, pixelRatio: 1 })
+        link.download = `PSA10買取表_MA_${dateStr}.png`
+        link.click()
+        toast.success('MAの買取画像をダウンロードしました')
+        return
+      }
       const JSZip = (await import('jszip')).default
-      const dateStr = new Date().toLocaleDateString('ja-JP').replace(/\//g, '')
       const zip = new JSZip()
       let count = 0
       let fontEmbedCSS: string | undefined
@@ -230,7 +249,7 @@ export default function PSA10ImagePage() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `PSA10買取表_${dateStr}.zip`
+      a.download = `PSA10買取表${maOnly ? '_MA' : ''}_${dateStr}.zip`
       a.click()
       URL.revokeObjectURL(url)
       toast.success(`${count}枚の画像をZIPでダウンロードしました`)
@@ -249,9 +268,9 @@ export default function PSA10ImagePage() {
   // 48+1のような偏りを避けるため均等に配分する（例: 49件 → 25+24件）
   const pages: PageDef[] = []
   {
-    const groups = [...new Set(selectedProducts.map((p) => displayGroupOf(p.name)))]
+    const groups = [...new Set(selectedProducts.map((p) => groupOf(p.name)))]
     for (const group of groups) {
-      const groupProducts = selectedProducts.filter((p) => displayGroupOf(p.name) === group)
+      const groupProducts = selectedProducts.filter((p) => groupOf(p.name) === group)
       // リザードンは専用画像1枚に集約（16列×4行まで）。
       const pageCapacity = group === 'リザードン' ? 64 : MAX_PER_PAGE
       const totalPages = Math.ceil(groupProducts.length / pageCapacity)
@@ -269,7 +288,7 @@ export default function PSA10ImagePage() {
   pageRefs.current.length = pages.length
 
   // 左リストのグループ見出し用
-  const listGroups = [...new Set(products.map((p) => displayGroupOf(p.name)))]
+  const listGroups = [...new Set(products.map((p) => groupOf(p.name)))]
 
   // 価格先頭型: 「¥29,000 ピカチュウ ミラー (SA-L)」。
   // 画像1枚（ページ）ごとに投稿文を分け、写真とセットで投稿できるようにする
@@ -298,8 +317,17 @@ export default function PSA10ImagePage() {
     <div>
       <AdminHeader
         title="PSA10買取画像・投稿文生成"
-        description="PSA10鑑定カードの買取価格画像をポケモン別に自動生成します（1920×1080 / 通常48商品・リザードン64商品まで）"
+        description="PSA10鑑定カードの買取価格画像と投稿文を生成します"
       />
+
+      <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="画像のまとめ方">
+        <Button variant={maOnly ? 'outline' : 'default'} aria-pressed={!maOnly} disabled={downloading} onClick={() => setMaOnly(false)}>
+          ポケモン別
+        </Button>
+        <Button variant={maOnly ? 'default' : 'outline'} aria-pressed={maOnly} disabled={downloading} onClick={() => setMaOnly(true)}>
+          MAをまとめる
+        </Button>
+      </div>
 
       <ImagePublicationControl linked={publishedOnly} onChange={setPublishedOnly} count={products.length} loading={loading} refresh={() => void fetchData()} />
 
@@ -312,7 +340,7 @@ export default function PSA10ImagePage() {
                 <CardTitle className="text-base">掲載する商品</CardTitle>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">
-                    {selectedIds.size} 件選択中
+                    {selectedProducts.length} 件選択中
                   </span>
                   <Button variant="outline" size="sm" onClick={saveDefaults} disabled={saving || loading} className="gap-1">
                     <Save className="h-3.5 w-3.5" />
@@ -332,10 +360,12 @@ export default function PSA10ImagePage() {
             <CardContent>
               {loading ? (
                 <p className="text-sm text-muted-foreground">読み込み中...</p>
+              ) : maOnly && products.length === 0 ? (
+                <p className="text-sm text-muted-foreground">掲載できるMA商品がありません。</p>
               ) : (
                 <div className="space-y-1.5 max-h-[70vh] overflow-y-auto pr-1">
                   {listGroups.map((group) => {
-                    const groupProducts = products.filter((p) => displayGroupOf(p.name) === group)
+                    const groupProducts = products.filter((p) => groupOf(p.name) === group)
                     const groupIds = groupProducts.map((p) => p.id)
                     const selectedCount = groupIds.filter((id) => selectedIds.has(id)).length
                     return (
@@ -419,9 +449,9 @@ export default function PSA10ImagePage() {
             <p className="text-sm text-muted-foreground">
               プレビュー（1920×1080）— {pages.length}枚（下に表示）
             </p>
-            <Button onClick={handleDownload} disabled={downloading || pages.length === 0} className="gap-2">
+            <Button onClick={handleDownload} disabled={loading || downloading || pages.length === 0} className="gap-2">
               <Download className="h-4 w-4" />
-              {downloading ? '生成中...' : `${pages.length}枚ダウンロード`}
+              {downloading ? '生成中...' : maOnly && pages.length === 1 ? 'PNGダウンロード' : `${pages.length}枚ダウンロード`}
             </Button>
           </div>
         </div>
