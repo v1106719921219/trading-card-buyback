@@ -127,6 +127,15 @@ function DragHandle() {
 
 type SingleABQuote = { quote: { A: { price: number }; B: { price: number }; checked_at: string } }
 
+const DEFAULT_BUYBACK_GROUPS = [
+  { key: 'default_single_buyback', label: 'シングル', matches: isIndividualSingle },
+  { key: 'default_promo_buyback', label: 'プロモ', matches: (product: { subcategory?: { name: string } | null }) => product.subcategory?.name === 'プロモカード' },
+]
+
+function canShowProduct(product: { is_active: boolean; price: number; auto_closed_at?: string | null }) {
+  return product.is_active && product.price > 0 && !product.auto_closed_at
+}
+
 export default function ProductsPage() {
   const [singleABQuotes, setSingleABQuotes] = useState<Record<string, SingleABQuote>>({})
   const [products, setProducts] = useState<(Product & { category: Category; subcategory: Subcategory | null })[]>([])
@@ -180,6 +189,8 @@ export default function ProductsPage() {
   // Bulk price list toggle
   const [bulkAction, setBulkAction] = useState<'show' | 'hide' | null>(null)
   const [bulkUpdating, setBulkUpdating] = useState(false)
+  const [defaultBuybackIds, setDefaultBuybackIds] = useState<Map<string, Set<string>> | null>(null)
+  const [savingDefaultBuyback, setSavingDefaultBuyback] = useState(false)
   const visibilityLocks = useRef(new Set<string>())
   const visibilityOverrides = useRef(new Map<string, VisibilityRow>())
   const [visibilitySaving, setVisibilitySaving] = useState<Set<string>>(new Set())
@@ -223,6 +234,33 @@ export default function ProductsPage() {
       if (data) setArQualityEnabled(data.value === 'true')
     })
   }, [])
+
+  useEffect(() => {
+    if (!tenantId) return
+    const settingsTenantId = tenantId
+    const keys = DEFAULT_BUYBACK_GROUPS.map(group => `${group.key}_${settingsTenantId}`)
+    let cancelled = false
+    setDefaultBuybackIds(null)
+    async function loadDefaults() {
+      const { data, error } = await supabase.from('app_settings').select('key,value')
+        .eq('tenant_id', settingsTenantId).in('key', keys)
+      if (cancelled) return
+      try {
+        if (error) throw error
+        const settings = new Map<string, Set<string>>()
+        for (const row of data ?? []) {
+          const ids: unknown = JSON.parse(row.value)
+          if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string')) throw new Error('Invalid product list')
+          settings.set(row.key, new Set(ids))
+        }
+        setDefaultBuybackIds(settings)
+      } catch {
+        toast.error('いつもの買取商品の設定を読み込めませんでした')
+      }
+    }
+    void loadDefaults()
+    return () => { cancelled = true }
+  }, [supabase, tenantId])
 
   async function fetchData() {
     const generation = ++fetchGeneration.current
@@ -368,7 +406,17 @@ export default function ProductsPage() {
 
   const rushMarket = useCardrushMarket(catalogReady ? visibleProducts.filter(isIndividualSingle).map(p => p.id) : [])
 
-  const bulkShowTargets = filteredProducts.filter((p) => p.is_active && p.price > 0 && !p.auto_closed_at)
+  const bulkShowTargets = filteredProducts.filter(canShowProduct)
+  const defaultBuybackGroups = useMemo(() => DEFAULT_BUYBACK_GROUPS.map(group => {
+    const key = `${group.key}_${tenantId}`
+    const savedIds = defaultBuybackIds?.get(key)
+    const groupProducts = products.filter(group.matches)
+    const saved = groupProducts.filter(p => savedIds?.has(p.id))
+    const published = groupProducts.filter(p => p.show_in_price_list && canShowProduct(p))
+    const targets = saved.filter(p => !p.show_in_price_list && canShowProduct(p))
+    return { key, label: group.label, published, saved, targets }
+  }), [products, tenantId, defaultBuybackIds])
+  const defaultBuybackBusy = loading || !catalogReady || !tenantId || bulkUpdating || visibilitySaving.size > 0 || savingDefaultBuyback || defaultBuybackIds === null
   const bulkTargetCount = bulkAction === 'show' ? bulkShowTargets.length : filteredProducts.length
 
 async function syncToChiba() {
@@ -975,12 +1023,30 @@ async function syncToChiba() {
     } finally { setVisibilitySaving(new Set(visibilityLocks.current)) }
   }
 
-  async function handleBulkTogglePriceList(show: boolean) {
-    if (!catalogReady || visibilityLocks.current.size || bulkUpdating) return
-    // 表示にする場合、0円の商品と自動締切中（申込済み・相場確認待ち）の商品は除外する
-    const targets = show
-      ? bulkShowTargets
-      : filteredProducts
+  async function saveDefaultBuyback(group: typeof defaultBuybackGroups[number]) {
+    if (defaultBuybackBusy || !tenantId || !group.published.length) return
+    const ids = group.published.map(product => product.id)
+    setSavingDefaultBuyback(true)
+    try {
+      const { error } = await supabase.from('app_settings').upsert({
+        key: group.key,
+        tenant_id: tenantId,
+        value: JSON.stringify(ids),
+        description: `いつもの買取商品（${group.label}）`,
+      }, { onConflict: 'tenant_id,key' })
+      if (error) throw error
+      setDefaultBuybackIds(previous => new Map(previous).set(group.key, new Set(ids)))
+      toast.success(`表示中の${group.label}${ids.length}件を保存しました`)
+    } catch {
+      toast.error('いつもの買取商品を保存できませんでした')
+    } finally {
+      setSavingDefaultBuyback(false)
+    }
+  }
+
+  async function handleBulkTogglePriceList(show: boolean, savedTargets?: { id: string }[]) {
+    if (!catalogReady || !tenantId || visibilityLocks.current.size || bulkUpdating) return
+    const targets = savedTargets ?? (show ? bulkShowTargets : filteredProducts)
     const ids = targets.map((p) => p.id)
     if (ids.length === 0) return
 
@@ -990,7 +1056,8 @@ async function syncToChiba() {
       // PostgREST places the ID filter in the URL; keep each request bounded.
       for (let offset = 0; offset < ids.length; offset += 100) {
         const batchIds = ids.slice(offset, offset + 100)
-        let query = supabase.from('products').update({ show_in_price_list: show }).in('id', batchIds)
+        let query = supabase.from('products').update({ show_in_price_list: show }).eq('tenant_id', tenantId).in('id', batchIds)
+        if (savedTargets) query = query.eq('show_in_price_list', false)
         if (show) query = query.is('auto_closed_at', null).gt('price', 0).eq('is_active', true)
         const { data: updated, error } = await query.select('id,show_in_price_list,auto_closed_at,updated_at')
         if (error) throw error
@@ -1007,9 +1074,13 @@ async function syncToChiba() {
       setBulkUpdating(false)
       setBulkAction(null)
     }
-    const skipped = show ? filteredProducts.length - updatedCount : 0
+    const skipped = savedTargets ? ids.length - updatedCount : show ? filteredProducts.length - updatedCount : 0
     const msg = `${updatedCount}件を価格表${show ? '表示' : '非表示'}にしました`
-    toast.success(skipped > 0 ? `${msg}（0円・受付停止中の${skipped}件は非表示のまま）` : msg)
+    if (savedTargets && skipped > 0) {
+      toast.success(`${msg}（状態が変わった${skipped}件は再読み込みして確認してください）`)
+    } else {
+      toast.success(skipped > 0 ? `${msg}（0円・受付停止中の${skipped}件は非表示のまま）` : msg)
+    }
   }
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -1375,6 +1446,21 @@ async function syncToChiba() {
           }}
           disabled={savingArQuality}
         />
+      </div>
+
+      <div className="space-y-2 rounded-lg border p-4">
+        <p className="text-sm font-medium">いつもの買取商品</p>
+        {defaultBuybackGroups.map(group => (
+          <div key={group.key} className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" disabled={defaultBuybackBusy || group.published.length === 0} onClick={() => void saveDefaultBuyback(group)}>
+              表示中の{group.label}を保存（{group.published.length}件）
+            </Button>
+            <Button size="sm" disabled={defaultBuybackBusy || group.targets.length === 0} onClick={() => void handleBulkTogglePriceList(true, group.targets)}>
+              {group.label}を一括オン（{group.targets.length}件）
+            </Button>
+            {defaultBuybackIds !== null && <span className="text-sm text-muted-foreground">保存済み {group.saved.length}件</span>}
+          </div>
+        ))}
       </div>
 
       {catalogLoading && <div role="status" aria-live="polite" className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">商品を順次読み込み中（{loadedCount.toLocaleString()}件取得済み）。一括変更・CSV出力は全件そろってから利用できます。</div>}
