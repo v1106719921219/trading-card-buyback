@@ -89,6 +89,7 @@ export default function SinglePromoImagePage() {
   const [downloading, setDownloading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [byRarity, setByRarity] = useState(false)
+  const [splitPromos, setSplitPromos] = useState(false)
   const [imagePageKey, setImagePageKey] = useState('')
   const previewRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
@@ -228,7 +229,7 @@ export default function SinglePromoImagePage() {
   const totalSelected = selectedSingles.length + selectedPromos.length
   const promoPageCount = Math.ceil(selectedPromos.length / PROMO_PAGE_SIZE)
   const pages: ImagePage[] = promoOnly
-    ? Array.from({ length: promoPageCount }, (_, index) => ({
+    ? Array.from({ length: splitPromos ? promoPageCount : 0 }, (_, index) => ({
         key: `promo-only-${index}`,
         label: `プロモカード（${index + 1}/${promoPageCount}）`,
         singles: [],
@@ -351,6 +352,13 @@ export default function SinglePromoImagePage() {
             </Button>
           </div>
           <div className="flex flex-wrap items-end gap-3">
+            {promoOnly && <label className="grid gap-1 text-sm">
+              画像の分け方
+              <select className="rounded-md border bg-background px-3 py-2" value={splitPromos ? 'split' : 'combined'} onChange={e => { setSplitPromos(e.target.value === 'split'); setImagePageKey('') }} disabled={downloading}>
+                <option value="combined">1枚にまとめる</option>
+                <option value="split">10商品ずつ分ける</option>
+              </select>
+            </label>}
             {!promoOnly && <label className="grid gap-1 text-sm">
               画像の分け方
               <select className="rounded-md border bg-background px-3 py-2" value={byRarity ? 'rarity' : 'combined'} onChange={e => setByRarity(e.target.value === 'rarity')} disabled={downloading}>
@@ -358,7 +366,7 @@ export default function SinglePromoImagePage() {
                 <option value="rarity">レアリティ別</option>
               </select>
             </label>}
-            {(promoOnly || byRarity) && (
+            {(promoOnly ? splitPromos : byRarity) && (
               <label className="grid gap-1 text-sm">
                 表示する画像
                 <select className="rounded-md border bg-background px-3 py-2" value={imagePage?.key ?? ''} onChange={e => setImagePageKey(e.target.value)} disabled={downloading || pages.length === 0}>
@@ -397,14 +405,15 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
   const gridTop = promoOnly ? 155 : 310
   const footerH = 36
   const gridW = W - padX * 2
-  const rows = promoOnly ? 2 : Math.max(1, Math.ceil(products.length / 8))
-  const cols = promoOnly ? 5 : Math.max(1, Math.ceil(products.length / rows))
+  const promoCols = products.length <= PROMO_PAGE_SIZE ? 5 : Math.ceil(Math.sqrt(products.length * 1.65))
+  const rows = promoOnly ? Math.max(2, Math.ceil(products.length / promoCols)) : Math.max(1, Math.ceil(products.length / 8))
+  const cols = promoOnly ? promoCols : Math.max(1, Math.ceil(products.length / rows))
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellH = Math.floor((H - gridTop - footerH - gap * (rows - 1)) / rows)
-  const priceH = Math.min(48, Math.max(30, Math.floor(cellH * 0.15)))
+  const priceH = promoOnly ? Math.min(48, Math.max(1, Math.floor(cellH * 0.17))) : Math.min(48, Math.max(30, Math.floor(cellH * 0.15)))
   const imgH = cellH - priceH
-  const nameH = promoOnly ? 65 : 18
-  const nameFontSize = promoOnly ? 21 : 11
+  const nameH = promoOnly ? Math.min(65, Math.floor(cellH * 0.26)) : 18
+  const nameFontSize = promoOnly ? Math.min(21, Math.floor(nameH / 3)) : 11
   const priceFontSize = Math.min(36, priceH - 6)
   const hasBulk = singles.some(isBulkSingle)
   const label = hasBulk && promos.length ? 'プロモカード・最低保証' : hasBulk ? 'まとめ買取・最低保証' : singles.length && promos.length ? 'シングルカード・プロモ' : promos.length ? 'プロモカード' : 'シングルカード'
@@ -428,7 +437,7 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
         <header style={{ display: 'flex', alignItems: 'center', gap: 24, margin: '12px 20px', height: 112, borderBottom: '4px solid #ea630c', color: '#201913' }}>
           <img src="/assets/logo-full.png" alt="買取スクエア" style={{ width: 94, height: 94, objectFit: 'contain' }} />
           <span style={{ fontSize: 50, fontWeight: 900 }}>ポケモンカード プロモ買取価格表</span>
-          <span style={{ marginLeft: 'auto', fontSize: 25, fontWeight: 800 }}>{sectionLabel}</span>
+          <span style={{ marginLeft: 'auto', fontSize: 25, fontWeight: 800 }}>{sectionLabel ?? (products.length > 0 ? `${products.length}商品` : '')}</span>
         </header>
       ) : <img
         src="/assets/single-promo-bg.png"
@@ -473,7 +482,7 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
                 position: 'absolute', bottom: 0, left: 0, right: 0,
                 background: promoOnly ? '#fff' : 'rgba(0,0,0,0.6)', padding: promoOnly ? '5px 8px' : '2px 3px',
                 height: promoOnly ? nameH : undefined, alignContent: promoOnly ? 'center' : undefined,
-                fontSize: promoOnly && product.name.length > 45 ? 18 : nameFontSize, fontWeight: 900, color: promoOnly ? '#201913' : '#fff', textAlign: 'center',
+                fontSize: promoOnly && product.name.length > 45 ? Math.min(18, nameFontSize) : nameFontSize, fontWeight: 900, color: promoOnly ? '#201913' : '#fff', textAlign: 'center',
                 lineHeight: 1.2, overflow: 'hidden', whiteSpace: promoOnly ? 'normal' : 'nowrap', textOverflow: 'ellipsis',
               }}>
                 {product.name}
