@@ -157,6 +157,7 @@ export default function ProductsPage() {
   const [filterSeries, setFilterSeries] = useState('all')
   const [filterRarity, setFilterRarity] = useState('all')
   const [filterVisibility, setFilterVisibility] = useState('all')
+  const [usualBuybackOnly, setUsualBuybackOnly] = useState(false)
   const [priceBasis, setPriceBasis] = useState('buyback')
   const [priceOrder, setPriceOrder] = useState<ProductPriceOrder>('default')
   const [minPrice, setMinPrice] = useState('')
@@ -385,6 +386,20 @@ export default function ProductsPage() {
     return [...SINGLE_CARD_RARITIES, UNKNOWN_RARITY].filter(r => found.has(r))
   }, [rarityById])
 
+  const defaultBuybackGroups = useMemo(() => DEFAULT_BUYBACK_GROUPS.map(group => {
+    const key = `${group.key}_${tenantId}`
+    const savedIds = defaultBuybackIds?.get(key)
+    const groupProducts = products.filter(group.matches)
+    const saved = groupProducts.filter(p => savedIds?.has(p.id))
+    const published = groupProducts.filter(p => p.show_in_price_list && canShowProduct(p))
+    const targets = saved.filter(p => !p.show_in_price_list && canShowProduct(p))
+    return { key, label: group.label, published, saved, targets }
+  }), [products, tenantId, defaultBuybackIds])
+  const usualBuybackIds = useMemo(
+    () => new Set(defaultBuybackGroups.flatMap(group => group.saved.map(product => product.id))),
+    [defaultBuybackGroups],
+  )
+
   const filteredProducts = useMemo(() => sortProductsByPrice(products.filter((p) => {
     const matchesVisibility = filterVisibility === 'all' || (filterVisibility === 'shown' ? p.show_in_price_list : !p.show_in_price_list)
     const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory
@@ -395,27 +410,19 @@ export default function ProductsPage() {
     const matchesPrice = !hasPriceFilter || (amount != null && amount > 0 &&
       (minPrice === '' || amount >= Number(minPrice)) &&
       (maxPrice === '' || amount <= Number(maxPrice)))
-    return matchesVisibility && (filterRarity === 'all' || rarityById.get(p.id) === filterRarity) && (filterSeries === 'all' || (isIndividualSingle(p) && singleSeriesCode(p) === filterSeries)) && (singleScope === 'all' || (singleScope === 'bulk' ? isBulkSingle(p) : isIndividualSingle(p))) && matchesCategory && matchesSubcategory && matchesSearch && matchesPrice
-  }), priceOrder), [products, priceOrder, filterVisibility, filterRarity, rarityById, filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
+    return (!usualBuybackOnly || usualBuybackIds.has(p.id)) && matchesVisibility && (filterRarity === 'all' || rarityById.get(p.id) === filterRarity) && (filterSeries === 'all' || (isIndividualSingle(p) && singleSeriesCode(p) === filterSeries)) && (singleScope === 'all' || (singleScope === 'bulk' ? isBulkSingle(p) : isIndividualSingle(p))) && matchesCategory && matchesSubcategory && matchesSearch && matchesPrice
+  }), priceOrder), [products, priceOrder, usualBuybackOnly, usualBuybackIds, filterVisibility, filterRarity, rarityById, filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice])
 
   useEffect(() => {
     setVisibleCount(100)
-  }, [filterVisibility, filterRarity, filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice, priceOrder])
+  }, [usualBuybackOnly, filterVisibility, filterRarity, filterSeries, singleScope, filterCategory, filterSubcategory, search, priceBasis, minPrice, maxPrice, priceOrder])
 
   const visibleProducts = useMemo(() => filteredProducts.slice(0, visibleCount), [filteredProducts, visibleCount])
 
-  const rushMarket = useCardrushMarket(catalogReady ? visibleProducts.filter(isIndividualSingle).map(p => p.id) : [])
+  const rushMarketIds = catalogReady ? (usualBuybackOnly ? filteredProducts : visibleProducts).filter(isIndividualSingle).map(p => p.id) : []
+  const rushMarket = useCardrushMarket(rushMarketIds)
 
   const bulkShowTargets = filteredProducts.filter(canShowProduct)
-  const defaultBuybackGroups = useMemo(() => DEFAULT_BUYBACK_GROUPS.map(group => {
-    const key = `${group.key}_${tenantId}`
-    const savedIds = defaultBuybackIds?.get(key)
-    const groupProducts = products.filter(group.matches)
-    const saved = groupProducts.filter(p => savedIds?.has(p.id))
-    const published = groupProducts.filter(p => p.show_in_price_list && canShowProduct(p))
-    const targets = saved.filter(p => !p.show_in_price_list && canShowProduct(p))
-    return { key, label: group.label, published, saved, targets }
-  }), [products, tenantId, defaultBuybackIds])
   const defaultBuybackBusy = loading || !catalogReady || !tenantId || bulkUpdating || visibilitySaving.size > 0 || savingDefaultBuyback || defaultBuybackIds === null
   const bulkTargetCount = bulkAction === 'show' ? bulkShowTargets.length : filteredProducts.length
 
@@ -1084,7 +1091,7 @@ async function syncToChiba() {
   }
 
   async function handleDragEnd(event: DragEndEvent) {
-    if (!catalogReady || priceOrder !== 'default') return
+    if (!catalogReady || usualBuybackOnly || priceOrder !== 'default') return
     const { active, over } = event
     if (!over || active.id === over.id) return
 
@@ -1175,7 +1182,7 @@ async function syncToChiba() {
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshingMarket ? 'animate-spin' : ''}`} />
               {refreshingMarket ? '相場取得中...' : '相場を更新'}
             </Button>
-            <Button variant="outline" disabled={!catalogReady || rushMarket.busy || !visibleProducts.some(isIndividualSingle)} onClick={rushMarket.refresh}>{rushMarket.busy ? 'カードラッシュ取得中…' : 'カードラッシュ相場を再取得'}</Button>
+            <Button variant="outline" disabled={!catalogReady || rushMarket.busy || rushMarketIds.length === 0} onClick={rushMarket.refresh}>{rushMarket.busy ? 'カードラッシュ取得中…' : 'カードラッシュ相場を再取得'}</Button>
             <CardrushSingleUpdate disabled={!catalogReady} ids={filteredProducts.filter(isIndividualSingle).map(p => p.id)} onApplied={() => { rushMarket.refresh(); void fetchData() }} />
             <Button variant="outline" onClick={handleCsvExport} disabled={!catalogReady}>
               <Download className="mr-2 h-4 w-4" />
@@ -1449,7 +1456,18 @@ async function syncToChiba() {
       </div>
 
       <div className="space-y-2 rounded-lg border p-4">
-        <p className="text-sm font-medium">いつもの買取商品</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm font-medium">いつもの買取商品</p>
+          <Button
+            variant={usualBuybackOnly ? 'default' : 'outline'}
+            size="sm"
+            aria-pressed={usualBuybackOnly}
+            disabled={!usualBuybackOnly && defaultBuybackIds === null}
+            onClick={() => setUsualBuybackOnly(value => !value)}
+          >
+            いつもの買取商品だけ表示
+          </Button>
+        </div>
         {defaultBuybackGroups.map(group => (
           <div key={group.key} className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" disabled={defaultBuybackBusy || group.published.length === 0} onClick={() => void saveDefaultBuyback(group)}>
@@ -1639,7 +1657,7 @@ async function syncToChiba() {
               </TableRow>
             ) : (
               visibleProducts.map((product) => (
-                <SortableRow key={product.id} id={product.id} disabled={!catalogReady || priceOrder !== 'default'}>
+                <SortableRow key={product.id} id={product.id} disabled={!catalogReady || usualBuybackOnly || priceOrder !== 'default'}>
                   <TableCell className="hidden md:table-cell">
                     <DragHandle />
                   </TableCell>
