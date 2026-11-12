@@ -441,8 +441,7 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
   const cellH = Math.floor((H - gridTop - footerH - gap * (rows - 1)) / rows)
   const priceH = promoOnly ? Math.min(48, Math.max(1, Math.floor(cellH * 0.17))) : Math.min(48, Math.max(30, Math.floor(cellH * 0.15)))
   const imgH = cellH - priceH
-  const nameH = promoOnly ? 68 : 18
-  const nameFontSize = promoOnly ? Math.min(21, Math.floor(nameH / 3)) : 11
+  const nameH = promoOnly ? 82 : 18
   const priceFontSize = Math.min(36, priceH - 6)
   const hasBulk = singles.some(isBulkSingle)
   const label = hasBulk && promos.length ? 'プロモカード・最低保証' : hasBulk ? 'まとめ買取・最低保証' : singles.length && promos.length ? 'シングルカード・プロモ' : promos.length ? 'プロモカード' : 'シングルカード'
@@ -491,6 +490,11 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
         const x = padX + rowInset + col * (cellW + gap)
         const y = gridTop + row * (cellH + gap)
         const isHigh = highPriceIds.has(product.id)
+        // Leave space for three lines and size conservatively for full-width characters.
+        const nameLength = [...product.name].length
+        const nameFontSize = promoOnly
+          ? Math.min(22, Math.floor((cellW - 24) / Math.max(1, Math.ceil(nameLength / 3))))
+          : 11
         return (
           <div key={product.id} data-product-id={product.id} style={{
             position: 'absolute', left: x, top: y, width: cellW, height: cellH,
@@ -511,8 +515,10 @@ const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
                 position: 'absolute', bottom: 0, left: 0, right: 0,
                 background: promoOnly ? '#fff' : 'rgba(0,0,0,0.6)', padding: promoOnly ? '5px 8px' : '2px 3px',
                 height: promoOnly ? nameH : undefined, alignContent: promoOnly ? 'center' : undefined,
-                fontSize: promoOnly && product.name.length > 45 ? Math.min(18, nameFontSize) : nameFontSize, fontWeight: 900, color: promoOnly ? '#201913' : '#fff', textAlign: 'center',
-                lineHeight: 1.2, overflow: 'hidden', whiteSpace: promoOnly ? 'normal' : 'nowrap', textOverflow: 'ellipsis',
+                fontSize: nameFontSize, fontWeight: 900, color: promoOnly ? '#201913' : '#fff', textAlign: 'center',
+                lineHeight: promoOnly ? 1.08 : 1.2, overflow: 'hidden',
+                whiteSpace: promoOnly ? 'normal' : 'nowrap', overflowWrap: promoOnly ? 'anywhere' : undefined,
+                textOverflow: 'ellipsis',
               }}>
                 {product.name}
               </div>
