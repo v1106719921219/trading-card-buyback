@@ -92,6 +92,19 @@ export default function SinglePromoImagePage() {
   const [splitPromos, setSplitPromos] = useState(false)
   const [imagePageKey, setImagePageKey] = useState('')
   const previewRef = useRef<HTMLDivElement>(null)
+  const previewViewportRef = useRef<HTMLDivElement>(null)
+  const [previewWidth, setPreviewWidth] = useState(0)
+  const [previewZoomed, setPreviewZoomed] = useState(false)
+
+  useEffect(() => {
+    const viewport = previewViewportRef.current
+    if (!viewport) return
+    const measure = () => setPreviewWidth(viewport.clientWidth)
+    const observer = new ResizeObserver(measure)
+    observer.observe(viewport)
+    measure()
+    return () => observer.disconnect()
+  }, [])
   const supabase = createClient()
 
   useEffect(() => {
@@ -239,6 +252,12 @@ export default function SinglePromoImagePage() {
   const imagePage = pages.find(page => page.key === imagePageKey) ?? pages[0]
   const previewSingles = imagePage?.singles ?? selectedSingles
   const previewPromos = imagePage?.promos ?? selectedPromos
+  const tallPromoSheet = promoOnly && !splitPromos && previewPromos.length > PROMO_PAGE_SIZE
+  const canvasWidth = tallPromoSheet ? 1440 : 1920
+  const promoColumns = tallPromoSheet ? Math.max(5, Math.ceil(Math.sqrt(previewPromos.length / 2))) : 5
+  const canvasHeight = tallPromoSheet ? 200 + Math.ceil(previewPromos.length / promoColumns) * 330 : 1080
+  const fitScale = previewWidth > 0 ? Math.min(1, previewWidth / canvasWidth) : 0.35
+  const previewScale = promoOnly && previewZoomed ? 1 : fitScale
 
   return (
     <div>
@@ -343,15 +362,20 @@ export default function SinglePromoImagePage() {
         </div>
 
         {/* プレビュー */}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">プレビュー（1920×1080 / X推奨 16:9）</p>
+            <p className="text-sm text-muted-foreground">プレビュー（{canvasWidth}×{canvasHeight}）</p>
             <Button onClick={handleDownload} disabled={loading || downloading || totalSelected === 0} className="gap-2">
               <Download className="h-4 w-4" />
               {downloading ? '生成中...' : 'PNG ダウンロード'}
             </Button>
           </div>
           <div className="flex flex-wrap items-end gap-3">
+            {promoOnly && (
+              <Button variant="outline" aria-pressed={previewZoomed} onClick={() => setPreviewZoomed(zoomed => !zoomed)}>
+                {previewZoomed ? '全体を表示' : '拡大して確認'}
+              </Button>
+            )}
             {promoOnly && <label className="grid gap-1 text-sm">
               画像の分け方
               <select className="rounded-md border bg-background px-3 py-2" value={splitPromos ? 'split' : 'combined'} onChange={e => { setSplitPromos(e.target.value === 'split'); setImagePageKey('') }} disabled={downloading}>
@@ -376,9 +400,14 @@ export default function SinglePromoImagePage() {
               </label>
             )}
           </div>
-          <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
-            <div style={{ transform: 'scale(0.35)', transformOrigin: 'top left', width: '1920px', height: '1080px', position: 'absolute', top: 0, left: 0 }}>
-              <SinglePromoCanvas ref={previewRef} singles={previewSingles} promos={previewPromos} highPriceIds={highPriceIds} sectionLabel={imagePage?.label} promoOnly={promoOnly} />
+          <div ref={previewViewportRef} className="w-full overflow-auto rounded-lg border bg-muted/30"
+            style={{ maxHeight: promoOnly && previewZoomed ? '75vh' : undefined }}>
+            <div style={{ position: 'relative', width: Math.floor(canvasWidth * previewScale), height: Math.ceil(canvasHeight * previewScale), overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: 0, left: 0, transform: `scale(${previewScale})`, transformOrigin: 'top left' }}>
+                <SinglePromoCanvas ref={previewRef} singles={previewSingles} promos={previewPromos}
+                  highPriceIds={highPriceIds} sectionLabel={imagePage?.label} promoOnly={promoOnly}
+                  width={canvasWidth} height={canvasHeight} promoColumns={promoColumns} />
+              </div>
             </div>
           </div>
           <ImagePostText key={promoOnly ? 'promo' : 'standard'} products={[...previewSingles, ...previewPromos]} heading={promoOnly ? '🃏ポケモンカード プロモ買取強化中🃏' : group === 'promo-bulk' ? '🃏ポケモンカード プロモ・最低保証 買取強化中🃏' : '🃏ポケモンカード シングル＆プロモ 高価買取中🃏'} />
@@ -388,31 +417,31 @@ export default function SinglePromoImagePage() {
   )
 }
 
-// --- Canvas (1920 × 1080) ---
+// Export canvas
 const SinglePromoCanvas = React.forwardRef<HTMLDivElement, {
   singles: ProductWithRelations[]
   promos: ProductWithRelations[]
   highPriceIds: Set<string>
   sectionLabel?: string
   promoOnly: boolean
-}>(({ singles, promos, highPriceIds, sectionLabel, promoOnly }, ref) => {
+  width: number
+  height: number
+  promoColumns: number
+}>(({ singles, promos, highPriceIds, sectionLabel, promoOnly, width: W, height: H, promoColumns }, ref) => {
   const updatedAt = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.')
   const products = [...singles, ...promos]
-  const W = 1920
-  const H = 1080
   const padX = 20
-  const gap = 4
+  const gap = promoOnly ? 12 : 4
   const gridTop = promoOnly ? 155 : 310
   const footerH = 36
   const gridW = W - padX * 2
-  const promoCols = products.length <= PROMO_PAGE_SIZE ? 5 : Math.ceil(Math.sqrt(products.length * 1.65))
-  const rows = promoOnly ? Math.max(2, Math.ceil(products.length / promoCols)) : Math.max(1, Math.ceil(products.length / 8))
-  const cols = promoOnly ? promoCols : Math.max(1, Math.ceil(products.length / rows))
+  const rows = promoOnly ? Math.max(2, Math.ceil(products.length / promoColumns)) : Math.max(1, Math.ceil(products.length / 8))
+  const cols = promoOnly ? promoColumns : Math.max(1, Math.ceil(products.length / rows))
   const cellW = Math.floor((gridW - gap * (cols - 1)) / cols)
   const cellH = Math.floor((H - gridTop - footerH - gap * (rows - 1)) / rows)
   const priceH = promoOnly ? Math.min(48, Math.max(1, Math.floor(cellH * 0.17))) : Math.min(48, Math.max(30, Math.floor(cellH * 0.15)))
   const imgH = cellH - priceH
-  const nameH = promoOnly ? Math.min(65, Math.floor(cellH * 0.26)) : 18
+  const nameH = promoOnly ? 68 : 18
   const nameFontSize = promoOnly ? Math.min(21, Math.floor(nameH / 3)) : 11
   const priceFontSize = Math.min(36, priceH - 6)
   const hasBulk = singles.some(isBulkSingle)
