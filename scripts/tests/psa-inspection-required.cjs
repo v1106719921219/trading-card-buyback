@@ -3,7 +3,7 @@ const ts = require('typescript'), fs = require('node:fs'), vm = require('node:vm
 const context = { exports: {} }
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/psa-inspection-state.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, context)
 const check = context.exports.getPsaInspectionState
-const item = (changes = {}) => ({ id: 'one', product_name: 'AR/CHR PSA9 最低保証', _inspected: 1, _returned: 0, _certs: '', ...changes })
+const item = (changes = {}) => ({ id: 'one', product_name: 'PSA9 個別カード', _inspected: 1, _returned: 0, _certs: '', ...changes })
 assert.equal(check([item()]).items[0].message, 'あと1枚の鑑定番号が未入力です。')
 assert.equal(check([item({ _certs: '00123456' })]).complete, true)
 assert.equal(check([item({ _inspected: 2, _returned: 1, _certs: '12345678' })]).complete, true)
@@ -14,3 +14,9 @@ assert.equal(check([item({ _certs: '12345678' }), item({ id: 'two', _certs: '123
 assert.equal(check([item({ _certs: 'abc' })]).complete, false)
 assert.equal(check([item({ _certs: '12345678\n23456789' })]).complete, false)
 console.log('PASS: missing PSA9, valid/leading-zero, returns, zero quantity, normal cards, category, duplicate, invalid and excess numbers')
+const guarantee = (changes = {}) => item({ product_name: 'AR/CHR PSA9 最低保証', _inspected: 129, ...changes })
+assert.equal(check([guarantee()]).items[0].optional, true)
+assert.equal(check([guarantee()]).complete, true)
+assert.equal(check([guarantee({ _certs: '12345678' })]).complete, true)
+assert.equal(check([guarantee({ _certs: 'abc' })]).complete, false)
+assert.equal(check([guarantee(), item({ id: 'two' })]).complete, false)
