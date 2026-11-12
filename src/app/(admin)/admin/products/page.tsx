@@ -130,6 +130,7 @@ type SingleABQuote = { quote: { A: { price: number }; B: { price: number }; chec
 const DEFAULT_BUYBACK_GROUPS = [
   { key: 'default_single_buyback', label: 'シングル', matches: isIndividualSingle },
   { key: 'default_promo_buyback', label: 'プロモ', matches: (product: { subcategory?: { name: string } | null }) => product.subcategory?.name === 'プロモカード' },
+  { key: 'default_psa10_buyback', label: 'PSA10', matches: (product: { subcategory?: { name: string } | null }) => product.subcategory?.name === 'PSA10' },
 ]
 
 function canShowProduct(product: { is_active: boolean; price: number; auto_closed_at?: string | null }) {
