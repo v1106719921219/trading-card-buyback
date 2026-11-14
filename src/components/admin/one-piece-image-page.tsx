@@ -201,7 +201,7 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
       const dateStr = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }).replace(/\//g, '')
       if (promoOnly) {
         for (const [index] of promoPages.entries()) {
-          await downloadImage(promoRefs.current.get(index), `ワンピースプロモ買取価格表_${index + 1}_${dateStr}.png`)
+          await downloadImage(promoRefs.current.get(index), `ワンピースプロモ買取価格表_${dateStr}${promoPages.length > 1 ? `_${index + 1}` : ""}.png`)
         }
         toast.success(`${promoPages.length}枚の画像をダウンロードしました`)
       } else if (totalPages >= 2) {
@@ -229,7 +229,10 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
   const promoProducts = selectedProducts.filter((p) => p.subcategory_id === PROMO_SUBCATEGORY_ID)
   const page1Products = boxProducts.slice(0, perPage)
   const page2Products = [...boxProducts.slice(perPage), ...promoProducts].slice(0, perPage)
-  const promoPageSize = 8
+  const promoSinglePageLimit = 24
+  const promoPageSize = promoProducts.length <= promoSinglePageLimit
+    ? promoSinglePageLimit
+    : Math.min(promoSinglePageLimit, Math.ceil(promoProducts.length / 3))
   const promoPages = Array.from({ length: Math.ceil(promoProducts.length / promoPageSize) }, (_, index) =>
     promoProducts.slice(index * promoPageSize, (index + 1) * promoPageSize))
   const totalPages = promoOnly ? promoPages.length : page2Products.length > 0 ? 2 : 1
@@ -501,9 +504,15 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
 })
 PriceImageCanvas.displayName = 'PriceImageCanvas'
 
-const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend[] }>(({ products }, ref) => (
+const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend[] }>(({ products }, ref) => {
+  const columns = products.length <= 8 ? 4 : 6
+  const rows = Math.max(2, Math.ceil(products.length / columns))
+  const compact = rows >= 3
+  const photoSize = rows === 4 ? 94 : compact ? 160 : 222
+
+  return (
   <div ref={ref} style={{ width: 1920, height: 1080, background: '#fff9ef', color: '#191e2a', fontFamily: '"Noto Sans JP", sans-serif', display: 'flex', flexDirection: 'column' }}>
-    <header style={{ height: 233, background: '#191e2a', color: 'white', borderBottom: '8px solid #ffb14e', padding: '26px 72px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <header style={{ height: 233, flexShrink: 0, background: '#191e2a', color: 'white', borderBottom: '8px solid #ffb14e', padding: '26px 72px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div>
         <p style={{ color: '#ffb14e', fontSize: 32, margin: 0 }}>ONE PIECE CARD GAME</p>
         <p style={{ fontSize: 80, fontWeight: 900, margin: 0 }}>ワンピース プロモ買取</p>
@@ -511,15 +520,15 @@ const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/logo.png" alt="買取スクエア" style={{ width: 150, height: 150, objectFit: 'contain', background: 'white', borderRadius: 18 }} />
     </header>
-    <div style={{ flex: 1, padding: '24px 72px', display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gridAutoRows: '350px', gap: 20 }}>
+    <div style={{ flex: 1, minHeight: 0, padding: '20px 60px', display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`, gap: 12 }}>
       {products.map((product) => (
         <div key={product.id} style={{ background: 'white', border: '2px solid #e9d7bd', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '6px 12px' }}>
           {product.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={product.image_url} alt={product.name} crossOrigin="anonymous" style={{ width: 222, height: 222, objectFit: 'contain' }} />
-          ) : <div style={{ width: 222, height: 222 }} />}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', fontSize: product.name.length > 38 ? 21 : 25, lineHeight: 1.2, fontWeight: 800, overflowWrap: 'anywhere' }}>{product.name}</div>
-          <div style={{ fontSize: 37, lineHeight: 1.2, fontWeight: 900, color: '#aa4108' }}>¥{product.price.toLocaleString('ja-JP')}</div>
+            <img src={product.image_url} alt={product.name} crossOrigin="anonymous" style={{ width: photoSize, height: photoSize, flexShrink: 0, objectFit: 'contain' }} />
+          ) : <div style={{ width: photoSize, height: photoSize, flexShrink: 0 }} />}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', fontSize: compact ? (product.name.length > 38 ? 17 : 21) : (product.name.length > 38 ? 21 : 25), lineHeight: 1.2, fontWeight: 800, overflowWrap: 'anywhere' }}>{product.name}</div>
+          <div style={{ fontSize: compact ? 29 : 37, lineHeight: 1.2, fontWeight: 900, color: '#aa4108' }}>¥{product.price.toLocaleString('ja-JP')}</div>
         </div>
       ))}
     </div>
@@ -527,5 +536,6 @@ const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend
       買取価格・受付状況は公式LINEへ
     </footer>
   </div>
-))
+  )
+})
 PromoImage.displayName = 'PromoImage'
