@@ -512,7 +512,7 @@ PriceImageCanvas.displayName = 'PriceImageCanvas'
 const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend[]; layoutCount: number }>(({ products, layoutCount }, ref) => {
   const columns = layoutCount <= 12 ? 3 : 4
   const rows = Math.max(2, Math.ceil(layoutCount / columns))
-  const photoSize = rows >= 6 ? 215 : 285
+  const photoSize = rows >= 6 ? 195 : 250
   const displayName = (name: string) => name
     .replace('プレミアムカードコレクション ', 'プレミアムカード ')
     .replace('ONE PIECEカードゲーム ', '')
