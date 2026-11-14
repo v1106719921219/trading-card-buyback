@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
+import { CardImage } from '@/components/admin/card-image'
 import { ImagePostText } from '@/components/admin/image-post-text'
 import { imagePublicationSelection } from '@/lib/image-publication'
 import { ImagePublicationControl } from '@/components/admin/image-publication-control'
@@ -118,6 +119,8 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
       ...fetched.filter((p) => p.subcategory_id === BOX_SUBCATEGORY_ID),
       ...fetched.filter((p) => p.subcategory_id === PROMO_SUBCATEGORY_ID),
     ]
+    if (promoOnly) ordered.sort((a, b) => b.price - a.price)
+
     const prods = ordered.map((p): ProductWithTrend => {
       const prevPrice = prevPriceMap.get(p.id)
       let trend: Trend = 'flat'
@@ -338,7 +341,7 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
                     {totalPages > 1 && <p className="text-xs text-muted-foreground">{index + 1}枚目</p>}
                     <div className="relative aspect-video w-full overflow-hidden rounded-lg border">
                       <div style={{ position: 'absolute', top: 0, left: 0, transform: `scale(${promoScale})`, transformOrigin: 'top left' }}>
-                        <PromoImage products={page} ref={(node) => {
+                        <PromoImage products={page} layoutCount={promoPages[0].length} ref={(node) => {
                           if (node) promoRefs.current.set(index, node)
                           else promoRefs.current.delete(index)
                         }} />
@@ -504,18 +507,18 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
 })
 PriceImageCanvas.displayName = 'PriceImageCanvas'
 
-const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend[] }>(({ products }, ref) => {
-  const columns = products.length <= 8 ? 4 : 6
-  const rows = Math.max(2, Math.ceil(products.length / columns))
+const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend[]; layoutCount: number }>(({ products, layoutCount }, ref) => {
+  const columns = layoutCount <= 8 ? 4 : 6
+  const rows = Math.max(2, Math.ceil(layoutCount / columns))
   const compact = rows >= 3
   const photoSize = compact ? (rows === 4 ? 145 : 166) : 250
   const displayName = (name: string) => name
-    .replace('プレミアムカードコレクション ', 'プレミアムカード\n')
+    .replace('プレミアムカードコレクション ', 'プレミアムカード ')
     .replace('ONE PIECEカードゲーム ', '')
     .replace('ONE PIECE CARD GAME ', '')
     .replace('プロモーションパック', 'プロモパック')
     .replace('プロモーションカードセット', 'プロモカードセット')
-    .replace(/（([^）]+)）/g, '\n（$1）')
+
 
   return (
   <div ref={ref} style={{ width: 1920, height: 1080, background: '#fff9ef', color: '#191e2a', fontFamily: '"Noto Sans JP", sans-serif', display: 'flex', flexDirection: 'column' }}>
@@ -528,18 +531,23 @@ const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend
       <img src="/logo.png" alt="買取スクエア" style={{ width: 112, height: 112, objectFit: 'contain', background: 'white', borderRadius: 18 }} />
     </header>
     <div style={{ flex: 1, minHeight: 0, padding: '20px 60px', display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`, gap: 12 }}>
-      {products.map((product) => (
+      {products.map((product) => {
+        const name = displayName(product.name)
+        const details = name.match(/（([^（）]+)）$/)
+        const title = details ? name.slice(0, details.index).trim() : name
+        return (
         <div key={product.id} style={{ background: 'white', border: '2px solid #e9d7bd', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: compact ? 'row' : 'column', alignItems: 'center', textAlign: 'center', gap: 4, padding: '4px 6px' }}>
-          {product.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={product.image_url} alt={product.name} crossOrigin="anonymous" style={{ width: photoSize, height: photoSize, flexShrink: 0, objectFit: 'contain' }} />
-          ) : <div style={{ width: photoSize, height: photoSize, flexShrink: 0 }} />}
+          <div style={{ width: photoSize, height: photoSize, flexShrink: 0, padding: 5, background: '#fff' }}>
+            {product.image_url && <CardImage src={product.image_url} alt={product.name} />}
+          </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: compact ? 17 : 24, lineHeight: 1.22, fontWeight: 800, whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>{displayName(product.name)}</div>
+            <div style={{ fontSize: compact ? (title.length > 26 ? 15 : 18) : 24, lineHeight: 1.22, fontWeight: 800, overflowWrap: 'anywhere' }}>{title}</div>
+            {details && <div style={{ marginTop: 3, fontSize: compact ? 13 : 17, lineHeight: 1.2, color: '#625448', overflowWrap: 'anywhere' }}>{details[1]}</div>}
             <div style={{ marginTop: 6, fontSize: compact ? 27 : 37, lineHeight: 1.1, fontWeight: 900, color: '#aa4108' }}>¥{product.price.toLocaleString('ja-JP')}</div>
           </div>
         </div>
-      ))}
+        )
+      })}
     </div>
     <footer style={{ background: '#191e2a', color: 'white', padding: '16px 72px', fontSize: 27 }}>
       買取価格・受付状況は公式LINEへ
