@@ -65,6 +65,7 @@ const navItems: NavItem[] = [
   { href: '/admin/marketing/image-single', label: 'シングル画像・投稿文', icon: ImageIcon, onlineOnly: true },
   { href: '/admin/marketing/image-special-box', label: 'スペシャルBOX画像・投稿文', icon: ImageIcon, onlineOnly: true },
   { href: '/admin/marketing/image-onepiece', label: 'ワンピBOX画像・投稿文', icon: ImageIcon, onlineOnly: true },
+  { href: '/admin/marketing/image-onepiece-promo', label: 'ワンピプロモ画像・投稿文', icon: ImageIcon },
   { href: '/admin/marketing/image-psa10', label: 'PSA10買取画像', icon: ImageIcon, onlineOnly: true },
   { href: '/admin/marketing/image-psa10-boost', label: 'PSA10強化画像', icon: ImageIcon, onlineOnly: true },
   { href: '/admin/payments', label: '振込管理', icon: CreditCard, onlineOnly: true },
