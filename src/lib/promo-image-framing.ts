@@ -4,6 +4,8 @@ const frames: Record<string, { file: string; left: number; top: number; width: n
   '72771898-f0b4-4506-b809-3161c214f5d7': { file: '/unopened-promos-20261025/72771898-f0b4-4506-b809-3161c214f5d7.webp', left: 0.258, top: 0.094, width: 0.484, height: 0.812 },
   '9e6b810a-55aa-4d7c-827f-aa457d463a12': { file: '/promo-white-20261026/9e6b810a-55aa-4d7c-827f-aa457d463a12-white-v2.webp', left: 0.296, top: 0.092, width: 0.408, height: 0.816 },
   '59a5b514-4cba-41e2-b206-6be846cf225f': { file: '/promo-white-20261026/59a5b514-4cba-41e2-b206-6be846cf225f-white-v2.webp', left: 0.298, top: 0.092, width: 0.408, height: 0.816 },
+  '3aeb102f-5961-4864-b223-33223e034be9': { file: '/onepiece/promo/3aeb102f-5961-4864-b223-33223e034be9-260770989075.webp', left: 0.375, top: 0.326, width: 0.25, height: 0.347 },
+  '0a32f27c-86fc-4853-9a43-58ce8afc3b47': { file: '/onepiece/promo/0a32f27c-86fc-4853-9a43-58ce8afc3b47-6b119a98b433.webp', left: 0.377, top: 0.33, width: 0.247, height: 0.343 },
 }
 
 export function promoImageFrame(product: { id: string; image_url: string | null }) {

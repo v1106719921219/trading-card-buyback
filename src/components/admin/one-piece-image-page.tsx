@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import React from 'react'
 import { CardImage } from '@/components/admin/card-image'
+import { promoImageFrame } from '@/lib/promo-image-framing'
 import { ImagePostText } from '@/components/admin/image-post-text'
 import { imagePublicationSelection } from '@/lib/image-publication'
 import { ImagePublicationControl } from '@/components/admin/image-publication-control'
@@ -351,7 +352,7 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
                     </div>
                   </div>
                 ))}
-                <ImagePostText products={promoProducts} heading={heading} label="全画像まとめて投稿文" />
+                <ImagePostText products={promoProducts.map(product => ({ ...product, name: promoListingName(product.name) }))} heading={heading} label="全画像まとめて投稿文" />
               </>
             ) : <p className="text-sm text-muted-foreground">{loading ? '読み込み中…' : publishedOnly ? '価格表に表示中のプロモがありません。連動をオフにすると、受付停止中を含む価格設定済みの商品で画像を準備できます。' : '掲載する商品を選んでください。'}</p>
           ) : <>
@@ -509,6 +510,10 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
 })
 PriceImageCanvas.displayName = 'PriceImageCanvas'
 
+function promoListingName(name: string) {
+  return name.replace(/^(ONE PIECE CHOPPER[’']s 1)（付録カード付き・書籍）$/, '$1（付録カード必須・書籍は有無不問）')
+}
+
 const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend[]; layoutCount: number }>(({ products, layoutCount }, ref) => {
   const columns = layoutCount <= 12 ? 3 : 4
   const rows = Math.max(2, Math.ceil(layoutCount / columns))
@@ -533,13 +538,13 @@ const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend
     </header>
     <div style={{ flex: 1, minHeight: 0, padding: '20px 60px', display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`, gap: 12 }}>
       {products.map((product) => {
-        const name = displayName(product.name)
+        const name = displayName(promoListingName(product.name))
         const details = name.match(/（([^（）]+)）$/)
         const title = details ? name.slice(0, details.index).trim() : name
         return (
         <div key={product.id} style={{ background: 'white', border: '2px solid #e9d7bd', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 4, padding: '8px 10px' }}>
           <div style={{ width: '100%', height: photoSize, flexShrink: 0, padding: 5, background: '#fff' }}>
-            {product.image_url && <CardImage src={product.image_url} alt={product.name} />}
+            {product.image_url && <CardImage src={product.image_url} alt={product.name} frame={promoImageFrame(product)} />}
           </div>
           <div style={{ minWidth: 0, width: '100%' }}>
             <div style={{ fontSize: title.length > 26 ? 21 : 26, lineHeight: 1.22, fontWeight: 800, overflowWrap: 'anywhere' }}>{title}</div>
