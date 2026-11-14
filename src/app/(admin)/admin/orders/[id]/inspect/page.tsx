@@ -576,18 +576,19 @@ export default function InspectPage() {
                     />
                   </div>
                 </div>
-                {(certState.required || !!item._certs) && (
+                {(certState.required || certState.optional || !!item._certs) && (
                   <div className={`mt-3 rounded-lg border p-3 ${certState.complete ? 'border-green-200 bg-green-50' : 'border-amber-400 bg-amber-50'}`}>
                     <Label htmlFor={`psa-certs-${item.id}`} className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                       PSA鑑定番号
-                      {certState.expected > 0 && <Badge variant="destructive">検品完了時に必須</Badge>}
+                      {certState.required && certState.expected > 0 && <Badge variant="destructive">検品完了時に必須</Badge>}
+                      {certState.optional && <Badge variant="secondary">任意</Badge>}
                       <span>{certState.count} / {certState.expected}枚 入力済み</span>
                     </Label>
                     <p id={`psa-help-${item.id}`} className="my-2 text-sm">
-                      {certState.complete ? '必要な鑑定番号を入力済みです。' : certState.message}
+                      {certState.message || (certState.optional ? '最低保証品は鑑定番号なしでも検品完了できます。' : '必要な鑑定番号を入力済みです。')}
                       {' '}ケースのラベルにある7〜12桁の鑑定番号を、1行に1枚ずつ入力するかバーコードで読み取ってください。
                     </p>
-                    <Textarea id={`psa-certs-${item.id}`} aria-label={`${item.product_name}のPSA鑑定番号`} aria-required={certState.expected > 0} aria-invalid={!certState.complete} aria-describedby={`psa-help-${item.id}`} placeholder="例：12345678（1行に1枚）" lang="en" autoComplete="off" value={item._certs ?? ''} onChange={e => setItems(old => old.map(i => i.id === item.id ? {...i, _certs:e.target.value} : i))} />
+                    <Textarea id={`psa-certs-${item.id}`} aria-label={`${item.product_name}のPSA鑑定番号`} aria-required={certState.required && certState.expected > 0} aria-invalid={!certState.complete} aria-describedby={`psa-help-${item.id}`} placeholder="例：12345678（1行に1枚）" lang="en" autoComplete="off" value={item._certs ?? ''} onChange={e => setItems(old => old.map(i => i.id === item.id ? {...i, _certs:e.target.value} : i))} />
                   </div>
                 )}
               </CardContent>

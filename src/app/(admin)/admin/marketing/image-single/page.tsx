@@ -71,7 +71,7 @@ function rarityImagePages(singles: ProductWithRelations[], promos: ProductWithRe
 }
 
 export default function SinglePromoImagePage() {
-  const [group, setGroup] = useState('promo-bulk')
+  const [group, setGroup] = useState('promo')
   useEffect(() => {
     const requestedGroup = new URLSearchParams(window.location.search).get('group')
     if (requestedGroup === 'bulk' || requestedGroup === 'promo') setGroup(requestedGroup)
@@ -238,7 +238,9 @@ export default function SinglePromoImagePage() {
 
   const groupSingles = promoOnly ? [] : singles.filter(p => group === 'all' || (group === 'bulk' || group === 'promo-bulk' ? isBulkSingle(p) : !isBulkSingle(p)))
   const selectedSingles = groupSingles.filter((p) => p.price > 0 && selectedSingleIds.has(p.id))
-  const selectedPromos = group === 'bulk' ? [] : promos.filter((p) => p.price > 0 && selectedPromoIds.has(p.id))
+  const selectedPromos = group === 'bulk' ? [] : promos
+    .filter((p) => p.price > 0 && selectedPromoIds.has(p.id))
+    .sort((a, b) => b.price - a.price)
   const totalSelected = selectedSingles.length + selectedPromos.length
   const promoPageCount = Math.ceil(selectedPromos.length / PROMO_PAGE_SIZE)
   const pages: ImagePage[] = promoOnly
