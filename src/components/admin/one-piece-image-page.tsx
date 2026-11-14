@@ -70,7 +70,7 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
       supabase
         .from('products')
         .select('*, category:categories(*), subcategory:subcategories(*)')
-        .eq('is_active', true)
+        .in('is_active', promoOnly ? [true, false] : [true])
         .eq('category_id', '3fbd50ad-f5b6-4541-b08b-f87d107dae9c')
         .in('subcategory_id', promoOnly ? [PROMO_SUBCATEGORY_ID] : [BOX_SUBCATEGORY_ID, PROMO_SUBCATEGORY_ID])
         .order('sort_order'),
@@ -302,6 +302,7 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
                           {product.trend === 'up' ? '▲' : '▼'}
                         </span>
                       )}
+                      {promoOnly && !product.is_active && <Badge variant="outline">受付停止中</Badge>}
                       <Badge variant="secondary" className="shrink-0 tabular-nums text-xs">
                         {product.price.toLocaleString('ja-JP')}円
                       </Badge>
@@ -344,7 +345,7 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
                 ))}
                 <ImagePostText products={promoProducts} heading={heading} label="全画像まとめて投稿文" />
               </>
-            ) : <p className="text-sm text-muted-foreground">{loading ? '読み込み中…' : publishedOnly ? '価格表に表示中のプロモがありません。連動をオフにすると、受付中で価格設定済みの商品を選べます。' : '掲載する商品を選んでください。'}</p>
+            ) : <p className="text-sm text-muted-foreground">{loading ? '読み込み中…' : publishedOnly ? '価格表に表示中のプロモがありません。連動をオフにすると、受付停止中を含む価格設定済みの商品で画像を準備できます。' : '掲載する商品を選んでください。'}</p>
           ) : <>
           {totalPages > 1 && <p className="text-xs text-muted-foreground">1枚目</p>}
           <div className="border rounded-lg bg-muted/30" style={{ width: Math.ceil(1920 * 0.35), height: Math.ceil(1080 * 0.35), overflow: 'hidden', position: 'relative' }}>
