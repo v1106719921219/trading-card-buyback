@@ -21,6 +21,8 @@ const BOX_SUBCATEGORY_ID = '09daefe5-d36f-4ccd-931b-e42f3191ff4a'
 const PROMO_SUBCATEGORY_ID = '8f5717b7-0a69-4ca4-b012-85608793695f'
 const PROMO_SETTING_KEY = 'sns_onepiece_promo_default_products'
 const COLS = 8
+const PROMO_WIDTH = 1440
+const PROMO_HEIGHT = 2510
 
 type Trend = 'up' | 'down' | 'flat'
 
@@ -49,7 +51,7 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
   const promoColumn = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!promoOnly || !promoColumn.current) return
-    const observer = new ResizeObserver(([entry]) => setPromoScale(entry.contentRect.width / 1920))
+    const observer = new ResizeObserver(([entry]) => setPromoScale(Math.min(1, entry.contentRect.width / PROMO_WIDTH)))
     observer.observe(promoColumn.current)
     return () => observer.disconnect()
   }, [promoOnly])
@@ -244,7 +246,7 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
     <div>
       <AdminHeader
         title={promoOnly ? "ワンピースプロモ価格画像・投稿文生成" : "ワンピースBOX価格画像・投稿文生成"}
-        description="X投稿用の買取価格画像を自動生成します（1920×1080）"
+        description={promoOnly ? "X投稿用の縦長買取価格画像を自動生成します（1440×2510）" : "X投稿用の買取価格画像を自動生成します（1920×1080）"}
       />
 
       <ImagePublicationControl linked={publishedOnly} onChange={setPublishedOnly} count={products.length} loading={loading} refresh={() => void fetchData()} />
@@ -325,7 +327,7 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
         <div ref={promoColumn} className="min-w-0 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              プレビュー（1920×1080 / X推奨 16:9）{totalPages > 1 && ` — ${totalPages}枚に分割`}
+              プレビュー（{promoOnly ? "1440×2510" : "1920×1080 / X推奨 16:9"}）{totalPages > 1 && ` — ${totalPages}枚に分割`}
             </p>
             <Button onClick={handleDownload} disabled={downloading || selectedIds.size === 0} className="gap-2">
               <Download className="h-4 w-4" />
@@ -339,7 +341,7 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
                 {promoPages.map((page, index) => (
                   <div key={index} className="space-y-2">
                     {totalPages > 1 && <p className="text-xs text-muted-foreground">{index + 1}枚目</p>}
-                    <div className="relative aspect-video w-full overflow-hidden rounded-lg border">
+                    <div className="relative w-full overflow-hidden rounded-lg border" style={{ aspectRatio: PROMO_WIDTH / PROMO_HEIGHT, maxWidth: PROMO_WIDTH }}>
                       <div style={{ position: 'absolute', top: 0, left: 0, transform: `scale(${promoScale})`, transformOrigin: 'top left' }}>
                         <PromoImage products={page} layoutCount={promoPages[0].length} ref={(node) => {
                           if (node) promoRefs.current.set(index, node)
@@ -508,10 +510,9 @@ const PriceImageCanvas = React.forwardRef<HTMLDivElement, {
 PriceImageCanvas.displayName = 'PriceImageCanvas'
 
 const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend[]; layoutCount: number }>(({ products, layoutCount }, ref) => {
-  const columns = layoutCount <= 8 ? 4 : 6
+  const columns = layoutCount <= 12 ? 3 : 4
   const rows = Math.max(2, Math.ceil(layoutCount / columns))
-  const compact = rows >= 3
-  const photoSize = compact ? (rows === 4 ? 145 : 166) : 250
+  const photoSize = rows >= 6 ? 215 : 285
   const displayName = (name: string) => name
     .replace('プレミアムカードコレクション ', 'プレミアムカード ')
     .replace('ONE PIECEカードゲーム ', '')
@@ -521,8 +522,8 @@ const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend
 
 
   return (
-  <div ref={ref} style={{ width: 1920, height: 1080, background: '#fff9ef', color: '#191e2a', fontFamily: '"Noto Sans JP", sans-serif', display: 'flex', flexDirection: 'column' }}>
-    <header style={{ height: 162, flexShrink: 0, background: '#191e2a', color: 'white', borderBottom: '8px solid #ffb14e', padding: '26px 72px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+  <div ref={ref} style={{ width: PROMO_WIDTH, height: PROMO_HEIGHT, background: '#fff9ef', color: '#191e2a', fontFamily: '"Noto Sans JP", sans-serif', display: 'flex', flexDirection: 'column' }}>
+    <header style={{ height: 155, flexShrink: 0, background: '#191e2a', color: 'white', borderBottom: '8px solid #ffb14e', padding: '26px 72px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div>
         <p style={{ color: '#ffb14e', fontSize: 32, margin: 0 }}>ONE PIECE CARD GAME</p>
         <p style={{ fontSize: 63, fontWeight: 900, margin: 0 }}>ワンピース プロモ買取</p>
@@ -536,14 +537,14 @@ const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend
         const details = name.match(/（([^（）]+)）$/)
         const title = details ? name.slice(0, details.index).trim() : name
         return (
-        <div key={product.id} style={{ background: 'white', border: '2px solid #e9d7bd', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: compact ? 'row' : 'column', alignItems: 'center', textAlign: 'center', gap: 4, padding: '4px 6px' }}>
-          <div style={{ width: photoSize, height: photoSize, flexShrink: 0, padding: 5, background: '#fff' }}>
+        <div key={product.id} style={{ background: 'white', border: '2px solid #e9d7bd', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 4, padding: '8px 10px' }}>
+          <div style={{ width: '100%', height: photoSize, flexShrink: 0, padding: 5, background: '#fff' }}>
             {product.image_url && <CardImage src={product.image_url} alt={product.name} />}
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: compact ? (title.length > 26 ? 15 : 18) : 24, lineHeight: 1.22, fontWeight: 800, overflowWrap: 'anywhere' }}>{title}</div>
-            {details && <div style={{ marginTop: 3, fontSize: compact ? 13 : 17, lineHeight: 1.2, color: '#625448', overflowWrap: 'anywhere' }}>{details[1]}</div>}
-            <div style={{ marginTop: 6, fontSize: compact ? 27 : 37, lineHeight: 1.1, fontWeight: 900, color: '#aa4108' }}>¥{product.price.toLocaleString('ja-JP')}</div>
+          <div style={{ minWidth: 0, width: '100%' }}>
+            <div style={{ fontSize: title.length > 26 ? 21 : 26, lineHeight: 1.22, fontWeight: 800, overflowWrap: 'anywhere' }}>{title}</div>
+            {details && <div style={{ marginTop: 3, fontSize: 18, lineHeight: 1.2, color: '#625448', overflowWrap: 'anywhere' }}>{details[1]}</div>}
+            <div style={{ marginTop: 6, fontSize: 36, lineHeight: 1.1, fontWeight: 900, color: '#aa4108' }}>¥{product.price.toLocaleString('ja-JP')}</div>
           </div>
         </div>
         )
