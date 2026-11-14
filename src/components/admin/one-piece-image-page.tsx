@@ -508,7 +508,7 @@ const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend
   const columns = products.length <= 8 ? 4 : 6
   const rows = Math.max(2, Math.ceil(products.length / columns))
   const compact = rows >= 3
-  const photoSize = rows === 4 ? 94 : compact ? 160 : 222
+  const photoSize = rows === 4 ? 72 : compact ? 118 : 222
 
   return (
   <div ref={ref} style={{ width: 1920, height: 1080, background: '#fff9ef', color: '#191e2a', fontFamily: '"Noto Sans JP", sans-serif', display: 'flex', flexDirection: 'column' }}>
