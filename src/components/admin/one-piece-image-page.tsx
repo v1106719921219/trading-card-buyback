@@ -246,7 +246,7 @@ export function OnePieceImagePage({ promoOnly = false }: { promoOnly?: boolean }
 
       <ImagePublicationControl linked={publishedOnly} onChange={setPublishedOnly} count={products.length} loading={loading} refresh={() => void fetchData()} />
 
-      <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className={`mt-6 grid grid-cols-1 gap-6 ${promoOnly ? "xl:grid-cols-[minmax(280px,1fr)_minmax(0,2fr)]" : "xl:grid-cols-2"}`}>
         {/* 左カラム: 商品選択 */}
         <div className="space-y-4">
           <Card>
@@ -508,27 +508,36 @@ const PromoImage = React.forwardRef<HTMLDivElement, { products: ProductWithTrend
   const columns = products.length <= 8 ? 4 : 6
   const rows = Math.max(2, Math.ceil(products.length / columns))
   const compact = rows >= 3
-  const photoSize = rows === 4 ? 62 : compact ? 106 : 222
+  const photoSize = compact ? (rows === 4 ? 145 : 166) : 250
+  const displayName = (name: string) => name
+    .replace('プレミアムカードコレクション ', 'プレミアムカード\n')
+    .replace('ONE PIECEカードゲーム ', '')
+    .replace('ONE PIECE CARD GAME ', '')
+    .replace('プロモーションパック', 'プロモパック')
+    .replace('プロモーションカードセット', 'プロモカードセット')
+    .replace(/（([^）]+)）/g, '\n（$1）')
 
   return (
   <div ref={ref} style={{ width: 1920, height: 1080, background: '#fff9ef', color: '#191e2a', fontFamily: '"Noto Sans JP", sans-serif', display: 'flex', flexDirection: 'column' }}>
-    <header style={{ height: 233, flexShrink: 0, background: '#191e2a', color: 'white', borderBottom: '8px solid #ffb14e', padding: '26px 72px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <header style={{ height: 162, flexShrink: 0, background: '#191e2a', color: 'white', borderBottom: '8px solid #ffb14e', padding: '26px 72px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div>
         <p style={{ color: '#ffb14e', fontSize: 32, margin: 0 }}>ONE PIECE CARD GAME</p>
-        <p style={{ fontSize: 80, fontWeight: 900, margin: 0 }}>ワンピース プロモ買取</p>
+        <p style={{ fontSize: 63, fontWeight: 900, margin: 0 }}>ワンピース プロモ買取</p>
       </div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.png" alt="買取スクエア" style={{ width: 150, height: 150, objectFit: 'contain', background: 'white', borderRadius: 18 }} />
+      <img src="/logo.png" alt="買取スクエア" style={{ width: 112, height: 112, objectFit: 'contain', background: 'white', borderRadius: 18 }} />
     </header>
     <div style={{ flex: 1, minHeight: 0, padding: '20px 60px', display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`, gap: 12 }}>
       {products.map((product) => (
-        <div key={product.id} style={{ background: 'white', border: '2px solid #e9d7bd', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '6px 12px' }}>
+        <div key={product.id} style={{ background: 'white', border: '2px solid #e9d7bd', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: compact ? 'row' : 'column', alignItems: 'center', textAlign: 'center', gap: 4, padding: '4px 6px' }}>
           {product.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={product.image_url} alt={product.name} crossOrigin="anonymous" style={{ width: photoSize, height: photoSize, flexShrink: 0, objectFit: 'contain' }} />
           ) : <div style={{ width: photoSize, height: photoSize, flexShrink: 0 }} />}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', fontSize: compact ? (product.name.length > 38 ? 17 : 21) : (product.name.length > 38 ? 21 : 25), lineHeight: 1.2, fontWeight: 800, overflowWrap: 'anywhere' }}>{product.name}</div>
-          <div style={{ fontSize: compact ? 29 : 37, lineHeight: 1.2, fontWeight: 900, color: '#aa4108' }}>¥{product.price.toLocaleString('ja-JP')}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: compact ? 17 : 24, lineHeight: 1.22, fontWeight: 800, whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>{displayName(product.name)}</div>
+            <div style={{ marginTop: 6, fontSize: compact ? 27 : 37, lineHeight: 1.1, fontWeight: 900, color: '#aa4108' }}>¥{product.price.toLocaleString('ja-JP')}</div>
+          </div>
         </div>
       ))}
     </div>
