@@ -71,7 +71,7 @@ function rarityImagePages(singles: ProductWithRelations[], promos: ProductWithRe
 }
 
 export default function SinglePromoImagePage() {
-  const [group, setGroup] = useState('promo-bulk')
+  const [group, setGroup] = useState('promo')
   useEffect(() => {
     const requestedGroup = new URLSearchParams(window.location.search).get('group')
     if (requestedGroup === 'bulk' || requestedGroup === 'promo') setGroup(requestedGroup)
