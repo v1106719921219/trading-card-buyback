@@ -69,6 +69,16 @@ export function CashPaymentCard({ order, role, onSaved }: { order: Order; role: 
     } catch { toast.error('結果を確認できませんでした。再読み込みして支払履歴を確認してください') }
     finally { setSaving(false) }
   }
+  if (order.status === '精算済') return <Card className="border-teal-400 bg-teal-50">
+    <CardHeader><CardTitle>精算済み（別注文へ振り分け）</CardTitle></CardHeader>
+    <CardContent className="space-y-3">
+      <p className="font-semibold">この申込みへの追加の支払いは不要です。</p>
+      <p className="text-sm">元の商品明細・金額を参照用に残しています。現金分を含む合算精算で、銀行振込の記録は下記の注文にあります。この注文を振込待ち・振込CSV・未払い集計には含めません。</p>
+      <p className="text-sm font-medium">銀行振込の記録先：{(order.settlement_order_numbers ?? []).join('・')}</p>
+      <p className="text-sm">元明細の金額：{paymentTotal(order).toLocaleString()}円 ／ 追加支払額：0円</p>
+      <p className="text-xs text-muted-foreground">元明細の金額を、銀行振込の記録先の支払額へ重複加算していません。現金分の経緯は内部メモを参照してください。</p>
+    </CardContent>
+  </Card>
   return <Card className={paidAmount(order) > 0 ? 'border-emerald-400 bg-emerald-50' : ''}>
     <CardHeader><CardTitle>支払状況</CardTitle></CardHeader>
     <CardContent className="space-y-4">

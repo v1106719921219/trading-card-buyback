@@ -13,6 +13,7 @@ export const ORDER_STATUSES: OrderStatus[] = [
   '検品完了',
   '振込済',
   '振込確認済',
+  '精算済',
   'キャンセル',
 ]
 
@@ -24,6 +25,7 @@ export const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   '検品完了': ['振込済', 'キャンセル'],
   '振込済': ['振込確認済'],
   '振込確認済': [],
+  '精算済': [],
   'キャンセル': [],
 }
 
@@ -34,6 +36,7 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   '検品完了': 'bg-green-100 text-green-800',
   '振込済': 'bg-orange-100 text-orange-800',
   '振込確認済': 'bg-gray-100 text-gray-800',
+  '精算済': 'bg-teal-100 text-teal-800',
   'キャンセル': 'bg-red-100 text-red-800',
 }
 

@@ -71,7 +71,7 @@ export default async function AdminDashboard() {
   const todayTotalAmount = dailyTotals[today]?.amount || 0
 
   const totalActive = orders?.filter(
-    (o) => o.status !== '振込済' && o.status !== 'キャンセル'
+    (o) => !['振込済', '振込確認済', '精算済', 'キャンセル'].includes(o.status)
   ).length || 0
 
   return (
