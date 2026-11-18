@@ -373,7 +373,7 @@ export default function OrdersPage() {
       .range(offset, offset + ITEMS_PER_PAGE - 1)
 
     if (statusFilter === 'partial_paid') {
-      query = query.gt('paid_amount', 0).not('status', 'in', '(振込済,振込確認済,キャンセル)')
+      query = query.gt('paid_amount', 0).not('status', 'in', '(振込済,振込確認済,精算済,キャンセル)')
     } else if (statusFilter === 'cash_paid') {
       query = query.in('status', ['振込済', '振込確認済']).eq('payment_method', 'cash')
     } else if (statusFilter !== 'all') {
@@ -411,7 +411,7 @@ export default function OrdersPage() {
         .lt('created_at', rangeEnd.toISOString())
 
       if (statusFilter === 'partial_paid') {
-        totalsQuery = totalsQuery.gt('paid_amount', 0).not('status', 'in', '(振込済,振込確認済,キャンセル)')
+        totalsQuery = totalsQuery.gt('paid_amount', 0).not('status', 'in', '(振込済,振込確認済,精算済,キャンセル)')
       } else if (statusFilter === 'cash_paid') {
         totalsQuery = totalsQuery.in('status', ['振込済', '振込確認済']).eq('payment_method', 'cash')
       } else if (statusFilter !== 'all') {
@@ -429,7 +429,7 @@ export default function OrdersPage() {
         const dateKey = new Date(order.created_at).toLocaleDateString('ja-JP')
         const amount = (order.inspected_total_amount ?? order.total_amount) - (order.inspection_discount ?? 0)
         // 残り振込: まだ振込していない注文（振込済・振込確認済・キャンセルを除く）
-        const isUnpaid = !['振込済', '振込確認済', 'キャンセル'].includes(order.status)
+        const isUnpaid = !['振込済', '振込確認済', '精算済', 'キャンセル'].includes(order.status)
         const existing = map.get(dateKey)
         if (existing) {
           existing.total += order.total_amount

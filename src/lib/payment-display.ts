@@ -7,9 +7,12 @@ export function paidAmount(order: PaymentOrder) {
   return Number(order.paid_amount || (['振込済', '振込確認済'].includes(order.status) ? paymentTotal(order) : 0))
 }
 export function remainingPayment(order: PaymentOrder) {
+  // 振り分け元は実支払額を水増しせず、追加の支払対象から外す。
+  if (order.status === '精算済') return 0
   return Math.max(0, paymentTotal(order) - paidAmount(order))
 }
 export function paymentStatusLabel(order: { status: string; payment_method?: string | null; paid_amount?: number | null }) {
+  if (order.status === '精算済') return '精算済み（別注文へ振り分け）'
   if (!['振込済', '振込確認済', 'キャンセル'].includes(order.status) && Number(order.paid_amount) > 0) return '一部支払済'
   if (['振込済', '振込確認済'].includes(order.status)) {
     if (order.payment_method === 'cash') return order.status === '振込確認済' ? '現金支払済（会計確認済）' : '現金支払済'
@@ -48,6 +51,7 @@ export function hasCashHistory(order: { payment_method?: string | null }) {
 }
 /** 銀行明細と照合する金額。振込の記録があればその合計（現金分を除く）、なければ従来どおり買取合計 */
 export function bankTransferAmount(order: PaymentOrder & { bank_paid_amount?: number | null }) {
+  if (order.status === '精算済') return 0
   const bank = Number(order.bank_paid_amount || 0)
   return bank > 0 ? bank : paymentTotal(order)
 }

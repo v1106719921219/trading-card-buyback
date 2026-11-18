@@ -174,6 +174,14 @@ export async function generateInspectionPdf(
     doc.text(`${paidAmount(order).toLocaleString()}円`, rightX, finalY, { align: 'right' })
     finalY += 6
   }
+  if (order.status === '精算済') {
+    doc.setFontSize(8)
+    doc.text('精算済み（別注文へ振り分け）・追加支払い不要', 14, finalY)
+    finalY += 6
+    const settlementLines = doc.splitTextToSize(`銀行振込の記録先: ${(order.settlement_order_numbers ?? []).join(' / ')}`, 180)
+    doc.text(settlementLines, 14, finalY)
+    finalY += settlementLines.length * 4 + 4
+  }
   // 区切り線
   doc.setDrawColor(100, 100, 100)
   doc.line(rightX - 80, finalY, rightX, finalY)

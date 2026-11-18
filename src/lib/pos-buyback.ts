@@ -20,6 +20,7 @@ export const POS_STATUS_LABELS: Record<OrderStatus, string> = {
   '検品完了': '査定確定',
   '振込済': '支払済',
   '振込確認済': '支払済',
+  '精算済': '精算済（別注文）',
   'キャンセル': '持ち帰り・取消',
 }
 

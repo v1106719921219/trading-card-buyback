@@ -1,6 +1,6 @@
 export type UserRole = 'admin' | 'manager' | 'staff'
 
-export type OrderStatus = '承認待ち' | '申込' | '発送済' | '検品完了' | '振込済' | '振込確認済' | 'キャンセル'
+export type OrderStatus = '承認待ち' | '申込' | '発送済' | '検品完了' | '振込済' | '振込確認済' | 'キャンセル' | '精算済'
 
 export type BankAccountType = '普通' | '当座'
 
@@ -86,6 +86,8 @@ export interface ProductPriceHistory {
 }
 
 export interface Order {
+  settlement_order_numbers?: string[]
+  settled_at?: string | null
   id: string
   order_number: string
   status: OrderStatus
