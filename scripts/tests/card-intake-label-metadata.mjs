@@ -1,13 +1,22 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import vm from 'node:vm';import ts from 'typescript';
-const code=ts.transpileModule(readFileSync(new URL('../../src/app/api/card-intake/route.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-function api({locations=['tokyo'],connection='https://hbvkaidvrwgskjtvvwfw.supabase.co'}={}){
- const filters=[];let adminReads=0;const row={id:'order-id',order_number:'BB-2098',customer_name:'申込者テスト',status:'検品完了',arrival_date:null,created_at:'2026-10-30T16:00:00Z',updated_at:'2026-11-01T00:00:00Z',inspection_discount:0,return_status:null,inspection_status:null,phone:'NOT-RETURNED',bank_account:'NOT-RETURNED',order_items:[]};
+function compile(path){return ts.transpileModule(readFileSync(new URL(path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;}
+const inspectionCostsExports={};vm.runInNewContext(compile('../../src/lib/inspection-costs.ts'),{exports:inspectionCostsExports,require(){throw Error('unexpected dependency in inspection-costs.ts');}});
+const code=compile('../../src/app/api/card-intake/route.ts');
+function api({locations=['tokyo'],connection='https://hbvkaidvrwgskjtvvwfw.supabase.co',items=[],discount=0}={}){
+ const filters=[];let adminReads=0;const row={id:'order-id',order_number:'BB-2098',customer_name:'申込者テスト',status:'検品完了',arrival_date:null,created_at:'2026-10-30T16:00:00Z',updated_at:'2026-11-01T00:00:00Z',inspection_discount:discount,return_status:null,inspection_status:null,phone:'NOT-RETURNED',bank_account:'NOT-RETURNED',order_items:items};
  const q={select(columns){filters.push(['select',columns]);return q},eq(k,v){filters.push([k,v]);return q},in(k,v){filters.push([k,v]);return q},gte(){return q},lt(){return q},order(){return q},range(){return Promise.resolve({data:[row],count:1,error:null})}};
  const exports={};vm.runInNewContext(code,{exports,Date,Intl,process:{env:{INVENTORY_PUBLIC_ANON_KEY:'test',NEXT_PUBLIC_SUPABASE_URL:connection}},require(name){
  if(name==='next/server')return {NextResponse:{json:(data,init)=>({data,status:init.status})}};
  if(name==='@supabase/supabase-js')return {createClient:()=>({rpc:async()=>({data:{organization_id:'b0000000-0000-0000-0000-000000000001',locations}})})};
+ if(name==='@/lib/inspection-costs')return inspectionCostsExports;
  if(name==='@/lib/supabase/admin')return {createAdminClient:()=>{adminReads++;return {from:t=>t==='tenants'?{select:()=>({eq:()=>({single:async()=>({data:{id:'tenant'}})})})}:q}}};throw Error(name);}});
  return {get:query=>exports.GET({headers:{get:()=> 'Bearer test'},nextUrl:new URL('https://example.com?'+query)}),filters,reads:()=>adminReads};
 }
 test('申込者名と買取番号だけ追加し、拠点・組織・検品条件とJST日付を保つ',async()=>{const a=api();const r=await a.get('location=tokyo');assert.equal(r.status,200);assert.equal(r.data.orders[0].number,'BB-2098');assert.equal(r.data.orders[0].customer_name,'申込者テスト');assert.equal(r.data.orders[0].purchase_date,'2026-10-31');assert.ok(a.filters.some(([k,v])=>k==='select'&&v.includes('customer_name')));assert.ok(a.filters.some(([k])=>k==='tenant_id'));assert.ok(a.filters.some(([k])=>k==='office_id'));assert.equal(JSON.stringify(r.data).includes('NOT-RETURNED'),false);});
 test('担当外拠点と千葉接続では申込者を取得しない',async()=>{const a=api();assert.equal((await a.get('location=yamaguchi')).status,403);assert.equal(a.reads(),0);const b=api({connection:'https://fqbtulaerxrnekbkjlhu.supabase.co'});assert.equal((await b.get('location=tokyo')).status,403);assert.equal(b.reads(),0);});
+const card=(overrides={})=>({id:'item-1',psa_cert_numbers:null,inspection_cost_bands:[],product_name:'テストカード',unit_price:1000,quantity:3,inspected_quantity:3,returned_quantity:0,products:{model_number:'T-1',subcategories:{name:'シングルカード'}},...overrides});
+const costs=(order,index=0)=>JSON.parse(JSON.stringify(order.items[index].unit_costs));
+test('減額なし：商品ごとの減額未入力でも完了扱いにし、全枚単価のunit_costsを返す',async()=>{const a=api({items:[card()]});const r=await a.get('location=tokyo');const o=r.data.orders[0];assert.equal(o.cost_allocation_complete,true);assert.deepEqual(costs(o),[1000,1000,1000]);});
+test('商品ごとの減額が注文全体の減額と一致すれば完了扱い',async()=>{const a=api({discount:2000,items:[card({inspection_cost_bands:[{quantity:2,unit_price:0,reason:'傷あり'}]})]});const o=(await a.get('location=tokyo')).data.orders[0];assert.equal(o.cost_allocation_complete,true);assert.deepEqual(costs(o),[0,0,1000]);});
+test('商品ごとの減額が注文全体の減額と不一致なら未完了にする（内訳自体は反映）',async()=>{const a=api({discount:2000,items:[card({inspection_cost_bands:[{quantity:1,unit_price:0,reason:'傷あり'}]})]});const o=(await a.get('location=tokyo')).data.orders[0];assert.equal(o.cost_allocation_complete,false);assert.deepEqual(costs(o),[0,1000,1000]);});
+test('減額対象の枚数が買取枚数を超える不正な内訳は無視し未完了・全枚単価にする',async()=>{const a=api({discount:3000,items:[card({inspection_cost_bands:[{quantity:5,unit_price:0,reason:'傷あり'}]})]});const o=(await a.get('location=tokyo')).data.orders[0];assert.equal(o.cost_allocation_complete,false);assert.deepEqual(costs(o),[1000,1000,1000]);});

@@ -40,6 +40,7 @@ import { notifyReductionLine } from '@/actions/orders'
 import type { Order, OrderItem, InspectionStatus } from '@/types/database'
 import { getPsaInspectionState } from '@/lib/psa-inspection-state'
 import { INSPECTION_STATUSES } from '@/lib/constants'
+import { validateCostBands, itemSubtotal, bandsReduction, type InspectionCostBand } from '@/lib/inspection-costs'
 
 interface InspectItem {
   id: string
@@ -56,6 +57,7 @@ interface InspectItem {
   _certs?: string
   _psa?: boolean
   _addedAt?: string | null
+  _costBands: InspectionCostBand[]
 }
 
 export default function InspectPage() {
@@ -121,6 +123,7 @@ export default function InspectPage() {
         _isNew: false,
         _isCustom: false,
         _addedAt: item.added_at ?? null,
+        _costBands: item.inspection_cost_bands ?? [],
       }))
     )
     setLoading(false)
@@ -187,6 +190,7 @@ export default function InspectPage() {
       _returned: 0,
       _isNew: true,
       _isCustom: false,
+      _costBands: [],
     }])
   }
 
@@ -216,7 +220,10 @@ export default function InspectPage() {
     .reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
 
   const inspectedSubtotal = items.reduce(
-    (sum, item) => sum + item._inspected_price * ((item._inspected ?? 0) - item._returned), 0
+    (sum, item) => sum + itemSubtotal(item._inspected_price, Math.max(0, (item._inspected ?? 0) - item._returned), item._costBands), 0
+  )
+  const itemCostBandsReduction = items.reduce(
+    (sum, item) => sum + bandsReduction(item._inspected_price, item._costBands), 0
   )
 
   // 既存商品（_isNew=false）が全て入力済みかどうか
@@ -241,6 +248,12 @@ export default function InspectPage() {
       }
     }
 
+    for (const item of items) {
+      const available = Math.max(0, (item._inspected ?? 0) - item._returned)
+      const bandError = item._costBands.length ? validateCostBands(item._inspected_price, available, item._costBands) : null
+      if (bandError) { toast.error(`${item.product_name || '追加商品'}：${bandError}`); return false }
+    }
+
     const allCerts = items.flatMap(i => (i._certs ?? '').split(/\s+/).filter(Boolean))
     if (allCerts.some(c => !/^\d{7,12}$/.test(c)) || new Set(allCerts).size !== allCerts.length) {
       toast.error('PSA鑑定番号は7〜12桁の数字で入力してください。同じ番号は登録できません')
@@ -263,6 +276,7 @@ export default function InspectPage() {
           unit_price: item._inspected_price,
           returned_quantity: item._returned,
           psa_cert_numbers: (item._certs ?? "").split(/\s+/).filter(Boolean),
+          inspection_cost_bands: item._costBands,
         })
         .eq('id', item.id)
 
@@ -285,6 +299,7 @@ export default function InspectPage() {
         inspected_quantity: item._inspected,
         returned_quantity: item._returned,
         psa_cert_numbers: (item._certs ?? "").split(/\s+/).filter(Boolean),
+        inspection_cost_bands: item._costBands,
         tenant_id: order?.tenant_id,
       }))
 
@@ -406,10 +421,12 @@ export default function InspectPage() {
 
       <div className="space-y-4">
         {items.map((item, index) => {
-          const subtotal = item._inspected_price * ((item._inspected ?? 0) - item._returned)
+          const available = Math.max(0, (item._inspected ?? 0) - item._returned)
+          const subtotal = itemSubtotal(item._inspected_price, available, item._costBands)
           const isMismatch = !item._isNew && item._inspected !== null && item._inspected !== item.quantity
           const isUnfilled = !item._isNew && item._inspected === null
           const certState = psaState.items[index]
+          const bandError = item._costBands.length ? validateCostBands(item._inspected_price, available, item._costBands) : null
           return (
             <Card key={item.id} className={isMismatch ? 'border-red-400' : isUnfilled ? 'border-amber-400' : ''}>
               <CardContent className="pt-5 pb-4 space-y-4">
@@ -576,6 +593,43 @@ export default function InspectPage() {
                     />
                   </div>
                 </div>
+                {!item._isNew && (
+                  <div className="space-y-2 rounded-lg border p-3">
+                    <p className="text-sm font-medium">商品ごとの減額（状態が違う場合は分けて入力）</p>
+                    <p className="text-xs text-muted-foreground">対象外のカードは検品単価のままです。</p>
+                    {item._costBands.map((band, bandIndex) => (
+                      <div key={bandIndex} className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1 block">減額対象の枚数</Label>
+                          <Input type="text" inputMode="numeric" value={band.quantity || ''} onFocus={(e) => e.target.select()}
+                            onChange={(e) => setItems(items.map((i) => i.id === item.id ? { ...i, _costBands: i._costBands.map((b, n) => n === bandIndex ? { ...b, quantity: Math.max(0, Number(e.target.value) || 0) } : b) } : i))} />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1 block">減額後の1枚単価（円）</Label>
+                          <Input type="text" inputMode="numeric" value={band.unit_price || ''} onFocus={(e) => e.target.select()}
+                            onChange={(e) => setItems(items.map((i) => i.id === item.id ? { ...i, _costBands: i._costBands.map((b, n) => n === bandIndex ? { ...b, unit_price: Math.max(0, Number(e.target.value) || 0) } : b) } : i))} />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <Label className="text-xs text-muted-foreground mb-1 block">減額理由</Label>
+                          <Input value={band.reason} onChange={(e) => setItems(items.map((i) => i.id === item.id ? { ...i, _costBands: i._costBands.map((b, n) => n === bandIndex ? { ...b, reason: e.target.value } : b) } : i))} />
+                        </div>
+                        <div className="flex items-end">
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setItems(items.map((i) => i.id === item.id ? { ...i, _costBands: i._costBands.filter((_, n) => n !== bandIndex) } : i))}>
+                            <Trash2 className="mr-1 h-4 w-4" />この減額行を削除
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <Button type="button" variant="outline" size="sm" onClick={() => setItems(items.map((i) => i.id === item.id ? { ...i, _costBands: [...i._costBands, { quantity: 1, unit_price: Math.max(0, item._inspected_price - 1), reason: '' }] } : i))}>
+                      減額対象を追加
+                    </Button>
+                    {bandError ? (
+                      <p className="text-xs text-destructive">{bandError}</p>
+                    ) : item._costBands.length > 0 && (
+                      <p className="text-xs">商品減額 {bandsReduction(item._inspected_price, item._costBands).toLocaleString()}円 ／ 減額後小計 {subtotal.toLocaleString()}円</p>
+                    )}
+                  </div>
+                )}
                 {(certState.required || certState.optional || !!item._certs) && (
                   <div className={`mt-3 rounded-lg border p-3 ${certState.complete ? 'border-green-200 bg-green-50' : 'border-amber-400 bg-amber-50'}`}>
                     <Label htmlFor={`psa-certs-${item.id}`} className="flex flex-wrap items-center gap-2 text-sm font-semibold">
@@ -630,6 +684,11 @@ export default function InspectPage() {
             placeholder="0"
           />
           <p className="text-xs text-muted-foreground mt-1">検品後合計から差し引かれます</p>
+          {itemCostBandsReduction > 0 && (
+            <p className={`text-xs mt-1 ${itemCostBandsReduction === discount ? 'text-green-600' : 'text-amber-600'}`}>
+              商品ごとの減額の合計：{itemCostBandsReduction.toLocaleString()}円{itemCostBandsReduction !== discount && '（上の金額と一致させてください）'}
+            </p>
+          )}
         </div>
         <div>
           <Label className="text-sm font-medium mb-1 block">検品メモ</Label>

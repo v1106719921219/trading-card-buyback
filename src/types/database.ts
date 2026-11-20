@@ -165,6 +165,7 @@ export interface Order {
 
 export interface OrderItem {
   psa_cert_numbers?: string[]
+  inspection_cost_bands?: import('@/lib/inspection-costs').InspectionCostBand[]
   products?: { subcategories?: { name: string } | null } | null
   id: string
   order_id: string
