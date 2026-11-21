@@ -40,7 +40,7 @@ import { notifyReductionLine } from '@/actions/orders'
 import type { Order, OrderItem, InspectionStatus } from '@/types/database'
 import { getPsaInspectionState } from '@/lib/psa-inspection-state'
 import { INSPECTION_STATUSES } from '@/lib/constants'
-import { validateCostBands, itemSubtotal, bandsReduction, type InspectionCostBand } from '@/lib/inspection-costs'
+import { validateCostBands, itemSubtotal, bandsReduction, inspectionBaseSubtotal, inspectionNetTotal, type InspectionCostBand } from '@/lib/inspection-costs'
 
 interface InspectItem {
   id: string
@@ -219,8 +219,10 @@ export default function InspectPage() {
     .filter((i) => !i._isNew)
     .reduce((sum, item) => sum + item.unit_price * item.quantity, 0)
 
+  // 商品ごとの減額は cost bands に保存し、注文の検品小計には減額前の価格を記録する。
+  // 支払額を計算する全画面が inspection_discount を差し引くため、ここで減額後小計を保存すると二重控除になる。
   const inspectedSubtotal = items.reduce(
-    (sum, item) => sum + itemSubtotal(item._inspected_price, Math.max(0, (item._inspected ?? 0) - item._returned), item._costBands), 0
+    (sum, item) => sum + inspectionBaseSubtotal(item._inspected_price, Math.max(0, (item._inspected ?? 0) - item._returned)), 0
   )
   const itemCostBandsReduction = items.reduce(
     (sum, item) => sum + bandsReduction(item._inspected_price, item._costBands), 0
@@ -230,7 +232,7 @@ export default function InspectPage() {
   const allInspected = items.filter((i) => !i._isNew).every((i) => i._inspected !== null)
 
   const psaState = getPsaInspectionState(items)
-  const inspectedTotal = inspectedSubtotal - discount
+  const inspectedTotal = inspectionNetTotal(inspectedSubtotal, discount)
   const difference = inspectedTotal - originalTotal
 
   async function handleSave(): Promise<boolean> {
@@ -252,6 +254,11 @@ export default function InspectPage() {
       const available = Math.max(0, (item._inspected ?? 0) - item._returned)
       const bandError = item._costBands.length ? validateCostBands(item._inspected_price, available, item._costBands) : null
       if (bandError) { toast.error(`${item.product_name || '追加商品'}：${bandError}`); return false }
+    }
+
+    if (!Number.isSafeInteger(discount) || discount < 0 || discount > inspectedSubtotal) {
+      toast.error('減額は0円以上、検品小計以下の整数で入力してください')
+      return false
     }
 
     const allCerts = items.flatMap(i => (i._certs ?? '').split(/\s+/).filter(Boolean))
@@ -365,6 +372,10 @@ export default function InspectPage() {
 
     if (!psaState.complete) {
       toast.error('PSAの買取枚数分の鑑定番号を読み取ってください'); return
+    }
+    if (itemCostBandsReduction !== discount) {
+      toast.error('商品ごとの減額合計と「減額」欄を一致させてください')
+      return
     }
     const saved = await handleSave()
     if (saved === false) return
@@ -596,7 +607,7 @@ export default function InspectPage() {
                 {!item._isNew && (
                   <div className="space-y-2 rounded-lg border p-3">
                     <p className="text-sm font-medium">商品ごとの減額（状態が違う場合は分けて入力）</p>
-                    <p className="text-xs text-muted-foreground">対象外のカードは検品単価のままです。</p>
+                    <p className="text-xs text-muted-foreground">対象外のカードは検品単価のままです。ここで入力した減額合計を下の「減額」欄に反映してください。</p>
                     {item._costBands.map((band, bandIndex) => (
                       <div key={bandIndex} className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                         <div>
@@ -626,7 +637,7 @@ export default function InspectPage() {
                     {bandError ? (
                       <p className="text-xs text-destructive">{bandError}</p>
                     ) : item._costBands.length > 0 && (
-                      <p className="text-xs">商品減額 {bandsReduction(item._inspected_price, item._costBands).toLocaleString()}円 ／ 減額後小計 {subtotal.toLocaleString()}円</p>
+                      <p className="text-xs">商品減額 {bandsReduction(item._inspected_price, item._costBands).toLocaleString()}円 ／ 商品の減額後小計 {subtotal.toLocaleString()}円</p>
                     )}
                   </div>
                 )}
@@ -683,8 +694,8 @@ export default function InspectPage() {
             step={100}
             placeholder="0"
           />
-          <p className="text-xs text-muted-foreground mt-1">検品後合計から差し引かれます</p>
-          {itemCostBandsReduction > 0 && (
+          <p className="text-xs text-muted-foreground mt-1">商品ごとの減額合計を入力してください。検品後合計から一度差し引きます。</p>
+          {(itemCostBandsReduction > 0 || discount > 0) && (
             <p className={`text-xs mt-1 ${itemCostBandsReduction === discount ? 'text-green-600' : 'text-amber-600'}`}>
               商品ごとの減額の合計：{itemCostBandsReduction.toLocaleString()}円{itemCostBandsReduction !== discount && '（上の金額と一致させてください）'}
             </p>
