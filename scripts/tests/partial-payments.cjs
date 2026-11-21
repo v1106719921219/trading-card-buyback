@@ -1,6 +1,8 @@
 const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict'), ts = require('typescript');
 function load(file, deps) { const m = { exports: {} }; vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { module: m, exports: m.exports, require: n => { if (n in deps) return deps[n]; throw Error(n); }, Date, Intl, console }); return m.exports; }
 const display = load('src/lib/payment-display.ts', {});
+assert.equal(display.paymentTotal({ status: '検品完了', total_amount: 3000, inspected_total_amount: 3000, inspection_discount: 400 }), 2600,
+  '商品別減額後も支払額から注文全体の減額を一度だけ差し引く');
 let authError = null, rpcCalls = [];
 const db = { rpc: async (name, args) => { rpcCalls.push({ name, args }); return { data: args.p_request }; } };
 const actions = load('src/actions/payments.ts', {

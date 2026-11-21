@@ -1,5 +1,14 @@
 export type InspectionCostBand = { quantity: number; unit_price: number; reason: string }
 
+/** 検品単価ベースの減額前小計。inspection_discount を後で一度だけ差し引く。 */
+export function inspectionBaseSubtotal(unitPrice: number, availableQty: number): number {
+  return unitPrice * availableQty
+}
+
+export function inspectionNetTotal(baseSubtotal: number, discount: number): number {
+  return baseSubtotal - discount
+}
+
 export function validateCostBands(unitPrice: number, availableQty: number, bands: InspectionCostBand[]): string | null {
   if (!Number.isSafeInteger(unitPrice) || unitPrice < 0) return '検品単価を確認してください'
   if (!Number.isSafeInteger(availableQty) || availableQty < 0) return '検品数量・返品数量を確認してください'
