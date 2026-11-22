@@ -201,17 +201,19 @@ export async function collectBoxPrices(db: SupabaseClient, tenantId: string) {
     }
   }))
   const observations = results.flatMap((result) => result.observations)
-  let saved = 0
+  const rowsByKey = new Map<string, { key: string; value: string; description: string }>()
   const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(new Date(checkedAt))
   for (const observation of observations) {
     const key = `box_comparison_v1:${tenantId}:${observation.productId}:${observation.sourceId}:${observation.condition}:${day}`
-    const { data: existing, error: lookupError } = await db.from('app_settings').select('key').eq('key', key).maybeSingle()
-    if (lookupError) continue
-    const value = JSON.stringify(observation)
-    const result = existing
-      ? await db.from('app_settings').update({ value }).eq('key', key)
-      : await db.from('app_settings').insert({ key, value, description: 'BOX他社買取価格・自動取得' })
-    if (!result.error) saved += 1
+    rowsByKey.set(key, { key, value: JSON.stringify(observation), description: 'BOX他社買取価格・自動取得' })
+  }
+  const rowsToSave = [...rowsByKey.values()]
+  let saved = 0
+  for (let index = 0; index < rowsToSave.length; index += 500) {
+    const chunk = rowsToSave.slice(index, index + 500)
+    const { error } = await db.from('app_settings').upsert(chunk, { onConflict: 'key' })
+    if (error) throw new Error(`他社価格を保存できませんでした: ${error.message}`)
+    saved += chunk.length
   }
   return { fetchedAt: checkedAt, attemptedSources: SOURCES.map((source) => ({ ...source, name: BOX_PRICE_SOURCES.find((item) => item.id === source.id)?.name })), saved, matched: observations.length, sources: results.map(({ sourceId, observations: items, error }) => ({ sourceId, matched: items.length, error })) }
 }
