@@ -208,6 +208,19 @@ export async function collectBoxPrices(db: SupabaseClient, tenantId: string) {
     rowsByKey.set(key, { key, value: JSON.stringify(observation), description: 'BOX他社買取価格・自動取得', tenant_id: tenantId })
   }
   const rowsToSave = [...rowsByKey.values()]
+  const shrinklessProductIds = new Set(products.filter((product) => /シュリンク|シュリ無|no\s*-?\s*shrink/i.test(product.name)).map((product) => product.id))
+  const { data: currentDayExpoRows, error: expoLookupError } = await db.from('app_settings').select('key,value').eq('tenant_id', tenantId).like('key', `box_comparison_v1:${tenantId}:%:expo:shrink:${day}`)
+  if (expoLookupError) throw new Error(`EXPOの既存価格を確認できませんでした: ${expoLookupError.message}`)
+  const staleExpoKeys = (currentDayExpoRows ?? []).filter((row) => {
+    try {
+      const value = JSON.parse(row.value) as Partial<Observation>
+      return value.sourceId === 'expo' && value.condition === 'shrink' && shrinklessProductIds.has(value.productId ?? '') && value.note?.startsWith('自動取得・EXPO更新')
+    } catch { return false }
+  }).map((row) => row.key)
+  if (staleExpoKeys.length) {
+    const { error } = await db.from('app_settings').delete().eq('tenant_id', tenantId).in('key', staleExpoKeys)
+    if (error) throw new Error(`EXPOの旧条件価格を整理できませんでした: ${error.message}`)
+  }
   const existingKeys = new Set<string>()
   for (let index = 0; index < rowsToSave.length; index += 500) {
     const keys = rowsToSave.slice(index, index + 500).map((row) => row.key)
