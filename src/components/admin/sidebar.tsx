@@ -57,6 +57,7 @@ const navItems: NavItem[] = [
   { href: '/admin/arrival-schedule', label: '到着予定', icon: Calendar, onlineOnly: true },
   { href: '/admin/products', label: '商品管理', icon: Package },
   { href: '/admin/price-comparison', label: '他社価格比較', icon: TrendingUp },
+  { href: '/admin/box-price-comparison', label: 'BOX他社価格比較', icon: TrendingUp },
   { href: '/admin/products/price-history', label: '価格履歴', icon: TrendingUp },
   { href: '/admin/last-cost', label: '最終仕入原価', icon: ClipboardList },
   { href: '/admin/singles', label: 'シリーズ別シングル買取', icon: Sparkles },
