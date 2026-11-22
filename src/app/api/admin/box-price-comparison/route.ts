@@ -39,14 +39,20 @@ export async function GET() {
   const boxSubcategoryIds = (subcategories ?? [])
     .filter((subcategory) => /BOX|ボックス|ボックス商品/i.test(subcategory.name))
     .map((subcategory) => subcategory.id)
+  const productQuery = () => context.db.from('products').select('id,name,model_number,set_number,price,is_active,subcategory_id')
+    .eq('tenant_id', context.profile.tenant_id).eq('is_active', true).order('name')
+  const { count: productCount, error: productCountError } = await context.db.from('products')
+    .select('id', { count: 'exact', head: true }).eq('tenant_id', context.profile.tenant_id).eq('is_active', true)
+  if (productCountError) return NextResponse.json({ error: 'BOX商品を取得できませんでした' }, { status: 503 })
   const allProducts: { id: string; name: string; model_number: string | null; set_number: string | null; price: number; is_active: boolean; subcategory_id: string | null }[] = []
-  for (let offset = 0; ; offset += 500) {
-    const { data, error } = await context.db.from('products')
-      .select('id,name,model_number,set_number,price,is_active,subcategory_id')
-      .eq('tenant_id', context.profile.tenant_id).order('name').range(offset, offset + 499)
-    if (error) return NextResponse.json({ error: 'BOX商品を取得できませんでした' }, { status: 503 })
-    allProducts.push(...(data ?? []))
-    if ((data ?? []).length < 500) break
+  const productPageCount = Math.ceil((productCount ?? 0) / 500)
+  // Load a few pages concurrently so the admin request does not time out on a large catalog.
+  for (let batch = 0; batch < productPageCount; batch += 4) {
+    const pages = await Promise.all(Array.from({ length: Math.min(4, productPageCount - batch) }, (_, index) =>
+      productQuery().range((batch + index) * 500, (batch + index) * 500 + 499)
+    ))
+    if (pages.some((page) => page.error)) return NextResponse.json({ error: 'BOX商品を取得できませんでした' }, { status: 503 })
+    for (const page of pages) allProducts.push(...(page.data ?? []))
   }
   const boxSubcategorySet = new Set(boxSubcategoryIds)
   const products = allProducts.filter((product) => boxSubcategorySet.has(product.subcategory_id ?? '') || /\bBOX\b|ボックス/i.test(product.name))
