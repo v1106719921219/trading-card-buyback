@@ -95,4 +95,57 @@ same(ps.topSellers([
 ]);
 assert.equal(ps.topSellers([{ name: 'a', quantity: 1, unit_price: 1, unit_cost: 0 }, { name: 'b', quantity: 1, unit_price: 2, unit_cost: 0 }], 1)[0].name, 'b');
 
+// 返品: 状態、返品を引いた明細、画面の選択 → 送る明細と返金額
+assert.equal(ps.saleStatus({ voided_at: null, refunded_total: 0 }), 'sold');
+assert.equal(ps.saleStatus({ voided_at: null }), 'sold');
+assert.equal(ps.saleStatus({ voided_at: null, refunded_total: 100 }), 'partial');
+assert.equal(ps.saleStatus({ voided_at: '2026-11-22T00:00:00Z', refunded_total: 700 }), 'voided');
+same(ps.netSaleItems([
+  { name: 'a', quantity: 3, returned_quantity: 1, unit_price: 100, unit_cost: 30 },
+  { name: 'b', quantity: 1, returned_quantity: 1, unit_price: 200, unit_cost: 50 },
+  { name: 'c', quantity: 2, unit_price: 10, unit_cost: 1 },
+]).map(i => [i.name, i.quantity]), [['a', 2], ['c', 2]]);
+const sold = [
+  { id: 'x', name: 'リザードン', quantity: 1, returned_quantity: 0, unit_price: 15000 },
+  { id: 'y', name: '100 円帯', quantity: 8, returned_quantity: 3, unit_price: 100 },
+];
+same(ps.buildReturnLines(sold, { y: 2 }), { ok: true, lines: [{ sale_item_id: 'y', quantity: 2 }], refund: 200, count: 2 });
+same(ps.buildReturnLines(sold, { x: 1, y: 5 }), { ok: true, lines: [{ sale_item_id: 'x', quantity: 1 }, { sale_item_id: 'y', quantity: 5 }], refund: 15500, count: 6 });
+assert.equal(ps.buildReturnLines(sold, {}).ok, false);
+assert.equal(ps.buildReturnLines(sold, { x: 0, y: 0 }).ok, false);
+assert.match(ps.buildReturnLines(sold, { y: 6 }).error, /5 点まで/);
+assert.equal(ps.buildReturnLines(sold, { x: 1.5 }).ok, false);
+assert.equal(ps.buildReturnLines(sold, { x: -1 }).ok, false);
+
+// レジの金種: 合計、棒金、検証、締めの内訳、開局の初期値
+const pr = load('src/lib/pos-register.ts');
+assert.equal(pr.cashCountTotal({ pieces: { 10000: 3, 1000: 7, 100: 12 }, rolls: { 500: 1, 100: 2 } }), 30000 + 7000 + 1200 + 25000 + 10000);
+assert.equal(pr.piecesOf({ pieces: { 500: 4 }, rolls: { 500: 2 } }, 500), 104);
+assert.equal(pr.isEmptyCashCount({ pieces: {}, rolls: {} }), true);
+assert.equal(pr.isEmptyCashCount(null), true);
+assert.equal(pr.isEmptyCashCount({ pieces: { 1: 1 }, rolls: {} }), false);
+same(pr.normalizeCashCount({ pieces: { 10000: 2, 5000: 0 }, rolls: { 500: 1 } }), { ok: true, count: { pieces: { 10000: 2 }, rolls: { 500: 1 } } });
+same(pr.normalizeCashCount(undefined), { ok: true, count: { pieces: {}, rolls: {} } });
+assert.equal(pr.normalizeCashCount({ pieces: { 3000: 1 } }).ok, false);   // 無い金種
+assert.equal(pr.normalizeCashCount({ rolls: { 1000: 1 } }).ok, false);    // 札の棒金
+assert.equal(pr.normalizeCashCount({ pieces: { 100: -1 } }).ok, false);
+assert.equal(pr.normalizeCashCount({ pieces: { 100: 1.5 } }).ok, false);
+assert.equal(pr.normalizeCashCount({ pieces: { 100: '3' } }).ok, false);
+assert.equal(pr.normalizeCashCount({ pieces: { 10000: 100000 } }).ok, false); // 金額が大きすぎる
+assert.equal(pr.normalizeCashCount([1]).ok, false);
+assert.equal(pr.formatCashCount({ pieces: { 10000: 3, 2000: 1, 500: 4 }, rolls: { 500: 1 } }), '1万×3 2千×1 500×54（棒金1本）');
+same(pr.describeCashCount({ pieces: { 1: 3 }, rolls: {} }), [{ denomination: 1, pieces: 3, rolls: 0, amount: 3 }]);
+same(pr.planClose(80000, 50000), { ok: true, withdrawn: 30000, carryOver: 50000 });
+same(pr.planClose(80000, 0), { ok: true, withdrawn: 80000, carryOver: 0 });
+assert.equal(pr.planClose(80000, 80001).ok, false);
+assert.equal(pr.planClose(80000, -1).ok, false);
+assert.equal(pr.planClose(-1, 0).ok, false);
+assert.equal(pr.suggestedOpeningFloat({ carry_over_float: 50000, counted_cash: 80000 }), 50000);
+assert.equal(pr.suggestedOpeningFloat({ carry_over_float: 0, counted_cash: 80000 }), 0);
+assert.equal(pr.suggestedOpeningFloat({ carry_over_float: null, counted_cash: 80000 }), 80000); // 内訳のない古い締め
+assert.equal(pr.suggestedOpeningFloat(null), null);
+assert.equal(pr.cashMovementLabel({ kind: 'in', category: 'change' }), '釣銭の追加');
+assert.equal(pr.cashMovementLabel({ kind: 'out', category: null }), '出金');
+same(pr.CASH_MOVEMENT_CATEGORIES.filter(c => c.kind === 'in').map(c => c.value), ['change', 'other_in']);
+
 console.log('pos-sales: all passed');

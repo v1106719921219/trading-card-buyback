@@ -1,4 +1,4 @@
-// 店舗 POS 段階 2 の移行（20261121000001）: 買取→在庫、振り分け、会計、取消、調整、RLS を PGlite で確かめる
+// 店舗 POS 段階 2 の移行（20261121000001、20261122000001）: 買取→在庫、振り分け、会計、取消、商品ごとの返品、レジ締めの内訳、調整、RLS を PGlite で確かめる
 const fs=require('node:fs'),assert=require('node:assert/strict');
 const { PGlite }=require(process.env.PGLITE_MODULE || '@electric-sql/pglite');
 const A='aaaaaaaa-0000-0000-0000-000000000001', B='bbbbbbbb-0000-0000-0000-000000000002';
@@ -129,6 +129,82 @@ await test('取消: 理由が必須。在庫と価格帯が戻り、返金した
  assert.ok(sale.voided_at); assert.deepEqual([sale.void_reason,sale.void_register_session_id,sale.voided_by_name],['誤会計',uuid(50),'中村']);
  assert.equal((await q("SELECT count(*)::int c FROM inventory_movements WHERE kind='return' AND sale_id=$1",[uuid(101)]))[0].c,3);
 });
+await test('移行 20261122000001: これまでの取消が返品の記録に写り、2 回流しても増えない',async()=>{
+ await db.exec('RESET ROLE');
+ const sql=fs.readFileSync('supabase/migrations/20261122000001_store_register_count_and_returns.sql','utf8');
+ await db.exec(sql); await db.exec(sql);
+ await session('service_role');
+ const r=await q('SELECT amount,reason,register_session_id,returned_by_name,lines FROM sale_returns WHERE sale_id=$1',[uuid(101)]);
+ assert.equal(r.length,1);
+ assert.deepEqual([r[0].amount,r[0].reason,r[0].register_session_id,r[0].returned_by_name],[16200,'誤会計',uuid(50),'中村']);
+ assert.equal(r[0].lines.reduce((a,l)=>a+l.quantity*l.unit_price,0),16200);
+ assert.equal((await q('SELECT refunded_total FROM sales WHERE id=$1',[uuid(101)]))[0].refunded_total,16200);
+ assert.equal((await q('SELECT count(*)::int c FROM sale_items WHERE sale_id=$1 AND returned_quantity<>quantity',[uuid(101)]))[0].c,0);
+ assert.equal((await q('SELECT refunded_total FROM sales WHERE id=$1',[uuid(103)]))[0].refunded_total,0);
+});
+await test('返品: 商品ごとに数量を選べる。在庫が戻り、返金額が記録され、すべて返品すると取消になる',async()=>{
+ const lines=JSON.stringify([{inventory_item_id:bulkStore,quantity:2,unit_price:200},{price_band_id:uuid(1),quantity:3,unit_price:100}]);
+ const sale=await call('store_complete_sale',[A,uuid(105),lines,1000,staff,'中村']);
+ assert.equal(sale.total,700);
+ const items=await q('SELECT id,inventory_item_id,price_band_id FROM sale_items WHERE sale_id=$1',[uuid(105)]);
+ const invLine=items.find(i=>i.inventory_item_id).id, bandLine=items.find(i=>i.price_band_id).id;
+ const ret=(l,reason='お客様都合')=>call('store_return_sale_items',[A,uuid(105),l===null?null:JSON.stringify(l),reason,staff,'田中']);
+ const fails=(re,l,reason='お客様都合')=>failsWith(re,'SELECT store_return_sale_items($1,$2,$3::jsonb,$4,$5,$6)',[A,uuid(105),JSON.stringify(l),reason,staff,'田中']);
+ await fails(/理由/,[{sale_item_id:bandLine,quantity:1}],' ');
+ await fails(/選んでください/,[]);
+ await fails(/返品数が正しくありません/,[{sale_item_id:bandLine,quantity:4}]);
+ await fails(/返品数が正しくありません/,[{sale_item_id:bandLine,quantity:0}]);
+ await fails(/2 回指定/,[{sale_item_id:bandLine,quantity:1},{sale_item_id:bandLine,quantity:1}]);
+ await fails(/明細が見つかりません/,[{sale_item_id:uuid(999),quantity:1}]);
+ await failsWith(/販売が見つかりません/,'SELECT store_return_sale_items($1,$2,$3::jsonb,$4,$5,$6)',[B,uuid(105),JSON.stringify([{sale_item_id:bandLine,quantity:1}]),'x',staff,'田中']);
+ // 失敗した呼び出しは何も変えていない
+ assert.equal((await q('SELECT refunded_total FROM sales WHERE id=$1',[uuid(105)]))[0].refunded_total,0);
+
+ // 価格帯を 1 枚だけ返品
+ assert.deepEqual(await ret([{sale_item_id:bandLine,quantity:1}]),{refunded:100,fully_returned:false});
+ let s=(await q('SELECT refunded_total,voided_at FROM sales WHERE id=$1',[uuid(105)]))[0];
+ assert.deepEqual([s.refunded_total,s.voided_at],[100,null]);
+ assert.equal((await q('SELECT returned_quantity FROM sale_items WHERE id=$1',[bandLine]))[0].returned_quantity,1);
+ assert.equal((await q('SELECT stock_quantity FROM price_bands WHERE id=$1',[uuid(1)]))[0].stock_quantity,3);
+ await fails(/返品できるのは 2 点まで/,[{sale_item_id:bandLine,quantity:3}]);
+
+ // 個別在庫を 1 点返品（売り切れていた在庫が in_stock に戻る）
+ assert.equal((await q('SELECT status FROM inventory_items WHERE id=$1',[bulkStore]))[0].status,'in_stock');
+ assert.deepEqual(await ret([{sale_item_id:invLine,quantity:1}]),{refunded:200,fully_returned:false});
+ assert.equal((await q('SELECT quantity FROM inventory_items WHERE id=$1',[bulkStore]))[0].quantity,2);
+
+ // 残りをまとめて返品（NULL）= 取消
+ assert.deepEqual(await ret(null,'全部返品'),{refunded:400,fully_returned:true});
+ s=(await q('SELECT refunded_total,total,voided_at,void_reason,void_register_session_id,voided_by_name FROM sales WHERE id=$1',[uuid(105)]))[0];
+ assert.ok(s.voided_at); assert.deepEqual([s.refunded_total,s.total,s.void_reason,s.void_register_session_id,s.voided_by_name],[700,700,'全部返品',uuid(50),'田中']);
+ await fails(/取消済み/,[{sale_item_id:bandLine,quantity:1}]);
+ // 在庫は販売前に戻る
+ assert.equal((await q('SELECT quantity FROM inventory_items WHERE id=$1',[bulkStore]))[0].quantity,3);
+ assert.equal((await q('SELECT stock_quantity FROM price_bands WHERE id=$1',[uuid(1)]))[0].stock_quantity,5);
+ // 返品 3 回分の記録。レジの返金合計は 700
+ const rs=await q('SELECT amount,reason,returned_by_name,register_session_id FROM sale_returns WHERE sale_id=$1 ORDER BY created_at,amount',[uuid(105)]);
+ assert.equal(rs.length,3); assert.equal(rs.reduce((a,r)=>a+r.amount,0),700);
+ assert.ok(rs.every(r=>r.register_session_id===uuid(50)&&r.returned_by_name==='田中'));
+ assert.equal((await q("SELECT coalesce(sum(quantity),0)::int c FROM inventory_movements WHERE kind='return' AND sale_id=$1",[uuid(105)]))[0].c,5);
+ // これまでの取消の関数は、残りをすべて返品する
+ const again=await call('store_complete_sale',[A,uuid(106),JSON.stringify([{price_band_id:uuid(1),quantity:2,unit_price:100}]),200,staff,'中村']);
+ assert.equal(again.total,200);
+ assert.equal(await call('store_void_sale',[A,uuid(106),'打ち間違い',staff,'中村']),200);
+ assert.equal((await q('SELECT stock_quantity FROM price_bands WHERE id=$1',[uuid(1)]))[0].stock_quantity,5);
+});
+await test('レジ締め: 回収額と翌日に残す額は、足すと数えた現金になる。入出金の種類は決まったものだけ',async()=>{
+ const sid=uuid(60);
+ await db.query("INSERT INTO register_sessions(id,tenant_id,opening_float,closed_at,counted_cash,expected_cash,difference) VALUES($1,$2,50000,now(),80000,80000,0)",[sid,A]);
+ await failsWith(/register_sessions_split_check/,'UPDATE register_sessions SET withdrawn_amount=30000 WHERE id=$1',[sid]);
+ await failsWith(/register_sessions_split_check/,'UPDATE register_sessions SET withdrawn_amount=30000,carry_over_float=40000 WHERE id=$1',[sid]);
+ await failsWith(/register_sessions_carry_over_check/,'UPDATE register_sessions SET withdrawn_amount=90000,carry_over_float=-10000 WHERE id=$1',[sid]);
+ await db.query(`UPDATE register_sessions SET withdrawn_amount=30000,carry_over_float=50000,counted_denominations='{"pieces":{"10000":5,"1000":5},"rolls":{"500":1}}' WHERE id=$1`,[sid]);
+ const r=(await q('SELECT withdrawn_amount,carry_over_float,counted_denominations FROM register_sessions WHERE id=$1',[sid]))[0];
+ assert.deepEqual([r.withdrawn_amount,r.carry_over_float,r.counted_denominations.rolls['500']],[30000,50000,1]);
+ await failsWith(/cash_movements_category_check/,"INSERT INTO cash_movements(tenant_id,register_session_id,kind,category,amount,reason) VALUES($1,$2,'in','bogus',1000,'x')",[A,uuid(50)]);
+ await db.query(`INSERT INTO cash_movements(tenant_id,register_session_id,kind,category,amount,reason,denominations) VALUES($1,$2,'in','change',25000,'釣銭の追加','{"pieces":{},"rolls":{"500":1}}')`,[A,uuid(50)]);
+ await db.query("INSERT INTO cash_movements(tenant_id,register_session_id,kind,amount,reason) VALUES($1,$2,'out',500,'種類なしの古い記録')",[A,uuid(50)]);
+});
 await test('調整: 理由が必須。0 にすると除却になり、価格帯は実数に合わせられる',async()=>{
  await failsWith(/理由/,'SELECT store_adjust_inventory($1,$2,$3,$4,$5,$6,$7)',[A,bulkStore,null,2,'',staff,'中村']);
  await failsWith(/対象が正しくありません/,'SELECT store_adjust_inventory($1,$2,$3,$4,$5,$6,$7)',[A,bulkStore,uuid(1),2,'x',staff,'中村']);
@@ -142,7 +218,10 @@ await test('調整: 理由が必須。0 にすると除却になり、価格帯�
 await test('RLS: スタッフは自テナントを読めるが、直接は書けず関数も呼べない。他テナントからは見えない',async()=>{
  await session('authenticated',staff);
  assert.ok((await q('SELECT id FROM inventory_items')).length>=3);
- assert.equal((await q('SELECT id FROM sales')).length,2);
+ assert.equal((await q('SELECT id FROM sales')).length,4);
+ assert.equal((await q('SELECT id FROM sale_returns')).length,5);
+ await failsWith(/permission denied/,"DELETE FROM sale_returns");
+ await failsWith(/permission denied/,'SELECT store_return_sale_items($1,$2,$3::jsonb,$4,$5,$6)',[A,uuid(103),'[]','x',staff,'中村']);
  assert.ok((await q('SELECT id FROM sale_items')).length>0);
  await failsWith(/permission denied/,"UPDATE inventory_items SET sale_price=1 WHERE id=$1",[charizard]);
  await failsWith(/permission denied/,"INSERT INTO inventory_items(tenant_id,name,source,quantity) VALUES($1,'x','manual',1)",[A]);
@@ -152,7 +231,7 @@ await test('RLS: スタッフは自テナントを読めるが、直接は書け
  await failsWith(/permission denied/,'SELECT store_complete_sale($1,$2,$3::jsonb,$4,$5,$6)',[A,uuid(104),'[]',0,staff,'中村']);
  await failsWith(/permission denied/,'SELECT store_intake_paid_orders($1)',[A]);
  await session('authenticated',other);
- for (const t of ['inventory_items','sales','sale_items','inventory_movements']) assert.equal((await q('SELECT id FROM '+t)).length,0);
+ for (const t of ['inventory_items','sales','sale_items','inventory_movements','sale_returns']) assert.equal((await q('SELECT id FROM '+t)).length,0);
  await session('anon');
  await failsWith(/permission denied/,'SELECT id FROM inventory_items');
 });

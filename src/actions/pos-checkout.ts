@@ -17,6 +17,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePosUser } from '@/lib/pos-auth'
 import { resolveOperatorName } from '@/lib/pos-operator'
+import { cashCountTotal, cashMovementCategory, isEmptyCashCount, normalizeCashCount, planClose, type CashMovementCategory } from '@/lib/pos-register'
 import { getInspectorOptions } from '@/actions/inspection'
 import { sanitizeImage } from '@/lib/safe-image'
 import { jstToday } from '@/lib/payment-display'
@@ -594,15 +595,39 @@ export async function changeRegisterOperator(sessionId: string, operatorName: st
   return { ok: true }
 }
 
-export async function addCashMovement(sessionId: string, kind: 'in' | 'out', amount: number, reason: string): Promise<ActionResult> {
+/**
+ * 入出金。種類（釣銭の追加・売上金の回収・経費など）と、棒金・札の内訳（任意）を残す。
+ * 内訳を入れたときは、内訳の合計が金額になる。
+ */
+export async function addCashMovement(
+  sessionId: string,
+  input: { category: CashMovementCategory; amount: number; reason: string; count?: unknown },
+): Promise<ActionResult> {
   const { user, error } = await requirePosUser()
   if (error || !user) return { error }
-  if (!uuid.safeParse(sessionId).success || !['in', 'out'].includes(kind)) return { error: '不正なリクエストです' }
+  const category = cashMovementCategory(input?.category)
+  if (!uuid.safeParse(sessionId).success || !category) return { error: '不正なリクエストです' }
+  const counted = normalizeCashCount(input.count)
+  if (!counted.ok) return { error: counted.error }
+  const hasCount = !isEmptyCashCount(counted.count)
+  const amount = hasCount ? cashCountTotal(counted.count) : input.amount
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 100_000_000) return { error: '金額を 1 円以上で入力してください' }
-  const r = reason.trim()
+  // 釣銭の追加・売上金の回収は種類そのものが理由になる。それ以外は理由を必ず書く
+  const r = (input.reason ?? '').trim() || (category.value === 'change' || category.value === 'pickup' ? category.label : '')
   if (!r || r.length > 200) return { error: '理由を入力してください' }
   const db = await createClient()
-  const { error: insErr } = await db.from('cash_movements').insert({ tenant_id: user.tenant_id, register_session_id: sessionId, kind, amount, reason: r, created_by: user.id })
+  const { data: session } = await db.from('register_sessions').select('id').eq('tenant_id', user.tenant_id).eq('id', sessionId).is('closed_at', null).maybeSingle()
+  if (!session) return { error: '開局中のレジが見つかりません' }
+  const { error: insErr } = await db.from('cash_movements').insert({
+    tenant_id: user.tenant_id,
+    register_session_id: sessionId,
+    kind: category.kind,
+    category: category.value,
+    amount,
+    reason: r,
+    denominations: hasCount ? counted.count : null,
+    created_by: user.id,
+  })
   if (insErr) return { error: sanitizeError(insErr) }
   revalidatePath('/pos/register')
   return { ok: true }
@@ -610,7 +635,7 @@ export async function addCashMovement(sessionId: string, kind: 'in' | 'out', amo
 
 /**
  * 開局中のレジの理論残高を計算する（準備金 + 販売現金 − 買取支払い ± 入出金）。
- * 販売現金 = このレジで会計した販売の合計 − このレジで返金した取消の合計（取消は別の日の販売でもよい）
+ * 販売現金 = このレジで会計した販売の合計 − このレジで返金した返品・取消の合計（別の日の販売の返品でもよい）
  */
 async function computeExpected(tenantId: string, session: { id: string; opened_at: string; opening_float: number }) {
   const admin = createAdminClient()
@@ -625,11 +650,11 @@ async function computeExpected(tenantId: string, session: { id: string; opened_a
       .gte('created_at', session.opened_at)
       .eq('orders.channel', 'store'),
     admin.from('sales').select('total').eq('tenant_id', tenantId).eq('register_session_id', session.id).limit(5000),
-    admin.from('sales').select('total').eq('tenant_id', tenantId).eq('void_register_session_id', session.id).limit(5000),
+    admin.from('sale_returns').select('amount').eq('tenant_id', tenantId).eq('register_session_id', session.id).limit(5000),
   ])
   const buybackPaid = (payments.data ?? []).reduce((s, p) => s + Number(p.amount), 0)
   const salesCash =
-    (sold.data ?? []).reduce((s, r) => s + Number(r.total), 0) - (refunded.data ?? []).reduce((s, r) => s + Number(r.total), 0)
+    (sold.data ?? []).reduce((s, r) => s + Number(r.total), 0) - (refunded.data ?? []).reduce((s, r) => s + Number(r.amount), 0)
   const moves = (movements.data ?? []) as { kind: 'in' | 'out'; amount: number }[]
   return {
     buybackPaid,
@@ -650,13 +675,25 @@ export async function getRegisterSummary(sessionId: string): Promise<ActionResul
   return { expected: s.expected, buybackPaid: s.buybackPaid, salesCash: s.salesCash }
 }
 
-/** レジ締め（スタッフもできる）。理論残高と実数を突合し、差額と理由を記録する */
-export async function closeRegister(sessionId: string, countedCash: number, notes: string): Promise<ActionResult<{ expected: number; difference: number }>> {
+/**
+ * レジ締め（スタッフもできる）。理論残高と実数を突合し、差額と理由を記録する。
+ * 金種（札・硬貨・棒金の枚数）を入れたときは、その合計が実数になる。
+ * 数えた現金は「翌日に残す額（次の開局の釣銭準備金）」と「回収する額」に分けて残す。
+ */
+export async function closeRegister(
+  sessionId: string,
+  input: { countedCash: number; count?: unknown; carryOver: number; notes: string },
+): Promise<ActionResult<{ expected: number; difference: number; withdrawn: number; carryOver: number }>> {
   const { user, error } = await requirePosUser()
   if (error || !user) return { error }
-  if (!uuid.safeParse(sessionId).success) return { error: '不正なリクエストです' }
-  if (!Number.isSafeInteger(countedCash) || countedCash < 0 || countedCash > 100_000_000) return { error: '実際の現金を 0 円以上で入力してください' }
-  const n = notes.trim().slice(0, 500)
+  if (!uuid.safeParse(sessionId).success || !input) return { error: '不正なリクエストです' }
+  const counted = normalizeCashCount(input.count)
+  if (!counted.ok) return { error: counted.error }
+  const hasCount = !isEmptyCashCount(counted.count)
+  const countedCash = hasCount ? cashCountTotal(counted.count) : input.countedCash
+  const plan = planClose(countedCash, input.carryOver)
+  if (!plan.ok) return { error: plan.error }
+  const n = (input.notes ?? '').trim().slice(0, 500)
   const db = await createClient()
   const { data: session } = await db.from('register_sessions').select('id, opened_at, opening_float, closed_at').eq('tenant_id', user.tenant_id).eq('id', sessionId).single()
   if (!session) return { error: 'レジが見つかりません' }
@@ -666,12 +703,22 @@ export async function closeRegister(sessionId: string, countedCash: number, note
   if (difference !== 0 && !n) return { error: '差額があります。理由を入力してください' }
   const { error: updErr } = await db
     .from('register_sessions')
-    .update({ closed_at: new Date().toISOString(), closed_by: user.id, expected_cash: expected, counted_cash: countedCash, difference, notes: n || null })
+    .update({
+      closed_at: new Date().toISOString(),
+      closed_by: user.id,
+      expected_cash: expected,
+      counted_cash: countedCash,
+      counted_denominations: hasCount ? counted.count : null,
+      withdrawn_amount: plan.withdrawn,
+      carry_over_float: plan.carryOver,
+      difference,
+      notes: n || null,
+    })
     .eq('tenant_id', user.tenant_id)
     .eq('id', sessionId)
     .is('closed_at', null)
   if (updErr) return { error: sanitizeError(updErr) }
   revalidatePath('/pos/register')
   revalidatePath('/pos/standby')
-  return { expected, difference }
+  return { expected, difference, withdrawn: plan.withdrawn, carryOver: plan.carryOver }
 }

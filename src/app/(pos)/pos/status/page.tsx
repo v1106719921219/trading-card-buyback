@@ -46,7 +46,7 @@ export default async function PosStatusPage() {
       {totals ? (
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Tile label="買取（支払済）" value={formatYen(totals.buybackAmount)} sub={`${totals.buybackCount} 件`} href="/pos/history" />
-          <Tile label="販売（税込）" value={formatYen(totals.salesAmount)} sub={`${totals.salesCount} 件${'error' in overview || overview.voidedCount === 0 ? '' : ` ・ 取消 ${overview.voidedCount} 件`}`} href="/pos/history/sales" />
+          <Tile label="販売（税込）" value={formatYen(totals.salesAmount)} sub={`${totals.salesCount} 件${'error' in overview || overview.voidedCount === 0 ? '' : ` ・ 返品・取消 ${overview.voidedCount} 件`}`} href="/pos/history/sales" />
           <Tile label="粗利（販売 − 仕入）" value={formatYen(totals.grossProfit)} sub="今日売れた分" href="/pos/analytics" />
           {session ? (
             <Tile

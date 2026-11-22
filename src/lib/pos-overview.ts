@@ -1,7 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePosUser } from '@/lib/pos-auth'
-import { buildDailyRows, jstDateOf, topSellers, type DailyRow } from '@/lib/pos-sales'
+import { buildDailyRows, jstDateOf, netSaleItems, topSellers, type DailyRow } from '@/lib/pos-sales'
 
 /**
  * 「本日の状況」「分析」用の集計。買取の支払い（order_payments）はスタッフの RLS では読めないので、
@@ -10,9 +10,9 @@ import { buildDailyRows, jstDateOf, topSellers, type DailyRow } from '@/lib/pos-
  */
 export interface PosOverview {
   rows: DailyRow[]
-  /** 売れ筋（期間内、取消を除く） */
+  /** 売れ筋（期間内、返品・取消を除く） */
   top: { name: string; quantity: number; amount: number; profit: number }[]
-  /** 期間内の取消（販売） */
+  /** 期間内の販売のうち、返品・取消があった件数と返金の合計 */
   voidedCount: number
   voidedAmount: number
   /** 販売のテーブルが読めたか（移行前は false） */
@@ -38,29 +38,37 @@ export async function loadPosOverview(from: string, to: string): Promise<PosOver
       .limit(10000),
     admin
       .from('sales')
-      .select('id, total, created_at, voided_at, sale_items(name, quantity, unit_price, unit_cost)')
+      .select('id, total, refunded_total, created_at, voided_at, sale_items(name, quantity, returned_quantity, unit_price, unit_cost)')
       .eq('tenant_id', user.tenant_id)
       .gte('created_at', start)
       .lte('created_at', end)
       .limit(10000),
   ])
-  type SaleRow = { id: string; total: number; created_at: string; voided_at: string | null; sale_items: { name: string; quantity: number; unit_price: number; unit_cost: number }[] }
+  type SaleRow = {
+    id: string
+    total: number
+    refunded_total: number | null
+    created_at: string
+    voided_at: string | null
+    sale_items: { name: string; quantity: number; returned_quantity: number | null; unit_price: number; unit_cost: number }[]
+  }
   const saleRows = (sales.data ?? []) as SaleRow[]
-  const live = saleRows.filter((s) => !s.voided_at)
-  const voided = saleRows.filter((s) => s.voided_at)
+  // すべて返品した販売（取消）は売上から外す。一部返品は、返品分を引いた額と数量で数える
+  const live = saleRows.filter((s) => !s.voided_at).map((s) => ({ ...s, net: s.total - (s.refunded_total ?? 0), items: netSaleItems(s.sale_items ?? []) }))
+  const refunded = saleRows.filter((s) => (s.refunded_total ?? 0) > 0)
   const rows = buildDailyRows(from, to, {
     buybacks: (payments.data ?? []).map((p) => ({ paid_on: jstDateOf(p.created_at), amount: Number(p.amount) })),
     sales: live.map((s) => ({
       sold_on: jstDateOf(s.created_at),
-      total: s.total,
-      cost: (s.sale_items ?? []).reduce((a, i) => a + i.quantity * i.unit_cost, 0),
+      total: s.net,
+      cost: s.items.reduce((a, i) => a + i.quantity * i.unit_cost, 0),
     })),
   })
   return {
     rows,
-    top: topSellers(live.flatMap((s) => s.sale_items ?? [])),
-    voidedCount: voided.length,
-    voidedAmount: voided.reduce((a, s) => a + s.total, 0),
+    top: topSellers(live.flatMap((s) => s.items)),
+    voidedCount: refunded.length,
+    voidedAmount: refunded.reduce((a, s) => a + (s.refunded_total ?? 0), 0),
     salesReady: !sales.error,
   }
 }

@@ -276,7 +276,48 @@ export async function completeSale(input: z.input<typeof completeSaleSchema>): P
   return { saleId: r.sale_id, saleNumber: r.sale_number, total: r.total, changeDue: r.change_due }
 }
 
-/** 販売の取消（全額返金して在庫に戻す）。返金は開局中のレジから出す。理由は必須で監査に残す */
+const returnSchema = z.object({
+  saleId: uuid,
+  lines: z.array(z.object({ sale_item_id: uuid, quantity: z.number().int().min(1).max(10000) })).min(1).max(200),
+  reason: z.string().trim().min(1).max(200),
+})
+
+/**
+ * 販売の返品（商品ごとに数量を選ぶ）。返金して在庫に戻す。返金は開局中のレジから出す。
+ * 残っている明細をすべて返品すると、その販売は取消になる。理由は必須で監査に残す。
+ */
+export async function returnSaleItems(input: z.input<typeof returnSchema>): Promise<ActionResult<{ refunded: number; fullyReturned: boolean }>> {
+  const { user, error } = await requirePosUser()
+  if (error || !user) return { error }
+  const parsed = returnSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues.some((i) => i.path[0] === 'reason') ? '返品の理由を入力してください' : '返品する商品を選んでください' }
+  const { saleId, lines, reason } = parsed.data
+  const admin = createAdminClient()
+  const { data, error: rpcErr } = await admin.rpc('store_return_sale_items', {
+    p_tenant: user.tenant_id,
+    p_sale: saleId,
+    p_lines: lines,
+    p_reason: reason,
+    p_user: user.id,
+    p_user_name: await resolveOperatorName(user.tenant_id, user.display_name),
+  })
+  if (rpcErr || !data) return { error: rpcErr ? rpcError(rpcErr, '返品に失敗しました') : '返品に失敗しました' }
+  const r = data as { refunded: number; fully_returned: boolean }
+  await admin.from('security_audit_events').insert({
+    tenant_id: user.tenant_id,
+    actor_id: user.id,
+    action: r.fully_returned ? 'store_sale_voided' : 'store_sale_returned',
+    record_id: saleId,
+    details: { refunded: r.refunded, reason, lines, role: user.role },
+  })
+  revalidateStock()
+  revalidatePath('/pos/register')
+  revalidatePath('/pos/history/sales')
+  revalidatePath(`/pos/sell/${saleId}`)
+  return { refunded: r.refunded, fullyReturned: r.fully_returned }
+}
+
+/** 販売の取消（残っている明細をすべて返品する）。返金は開局中のレジから出す。理由は必須で監査に残す */
 export async function voidSale(saleId: string, reason: string): Promise<ActionResult<{ refunded: number }>> {
   const { user, error } = await requirePosUser()
   if (error || !user) return { error }

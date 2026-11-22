@@ -70,7 +70,7 @@ export default async function PosAnalyticsPage({ searchParams }: { searchParams:
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile label="買取（支払済）" value={formatYen(totals.buybackAmount)} sub={`${totals.buybackCount} 件`} />
-        <Tile label="販売（税込）" value={formatYen(totals.salesAmount)} sub={`${totals.salesCount} 件${overview.voidedCount > 0 ? ` ・ 取消 ${overview.voidedCount} 件 ${formatYen(overview.voidedAmount)}` : ''}`} />
+        <Tile label="販売（税込）" value={formatYen(totals.salesAmount)} sub={`${totals.salesCount} 件${overview.voidedCount > 0 ? ` ・ 返品・取消 ${overview.voidedCount} 件 ${formatYen(overview.voidedAmount)}` : ''}`} />
         <Tile label="粗利（販売 − 仕入）" value={formatYen(totals.grossProfit)} sub={totals.salesAmount > 0 ? `粗利率 ${Math.round((totals.grossProfit / totals.salesAmount) * 100)}%（税込の販売額に対して）` : '販売なし'} />
         <Tile label="レジ締めの差額（合計）" value={`${diffTotal > 0 ? '+' : ''}${formatYen(diffTotal)}`} sub={`締め ${sessions.length} 回`} warn={diffTotal !== 0} />
       </section>

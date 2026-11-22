@@ -2,6 +2,7 @@ import { getOperatorOptions, getRegisterSummary } from '@/actions/pos-checkout'
 import { createClient } from '@/lib/supabase/server'
 import { requireTenantId } from '@/lib/tenant'
 import { RegisterScreen } from '@/components/pos/register-screen'
+import { suggestedOpeningFloat } from '@/lib/pos-register'
 import type { CashMovement, RegisterSession } from '@/types/database'
 
 export const dynamic = 'force-dynamic'
@@ -26,5 +27,18 @@ export default async function PosRegisterPage() {
     movements = (mv ?? []) as CashMovement[]
     if (!s.error) summary = { expected: s.expected ?? 0, buybackPaid: s.buybackPaid ?? 0, salesCash: s.salesCash ?? 0 }
   }
-  return <RegisterScreen session={session} movements={movements} summary={summary} recent={(recent ?? []) as RegisterSession[]} canClose operatorOptions={ops.names ?? []} />
+  const recentSessions = (recent ?? []) as RegisterSession[]
+  return (
+    <RegisterScreen
+      // 開局・閉局で入力欄の初期値（準備金・翌日に残す額）を取り直す
+      key={session?.id ?? `closed-${recentSessions[0]?.id ?? 'none'}`}
+      session={session}
+      movements={movements}
+      summary={summary}
+      recent={recentSessions}
+      canClose
+      operatorOptions={ops.names ?? []}
+      suggestedFloat={suggestedOpeningFloat(recentSessions[0])}
+    />
+  )
 }
