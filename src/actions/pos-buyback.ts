@@ -34,7 +34,7 @@ type ActionResult<T = { ok?: true }> = ({ error: string } & Partial<T>) | ({ err
 const uuid = z.uuid()
 
 function posPaths(orderId?: string) {
-  const paths = ['/pos', '/pos/buy']
+  const paths = ['/pos/standby', '/pos/status', '/pos/buy']
   if (orderId) paths.push(`/pos/buy/${orderId}`, `/pos/buy/${orderId}/appraise`, `/pos/buy/${orderId}/present`)
   return paths
 }

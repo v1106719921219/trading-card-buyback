@@ -16,6 +16,35 @@ function load(file, deps = {}, extra = {}) {
   for (const p of ['/login', '/admin', '/admin/orders', '/pos', '/pos/buy', '/account-security', '/privacy', '/terms', '/api/foo', '/auth/callback', '/superadmin', '/guidebook'])
     assert.equal(sm.isOnlineOnlyPath(p), false, p);
 
+  // 店舗で開かせないページ: 通販の公開ページ ＋ 管理画面。/pos /login /account-security /api は開ける
+  for (const p of ['/', '/apply', '/admin', '/admin/staff', '/admin/orders/1'])
+    assert.equal(sm.isStoreHiddenPath(p), true, p);
+  for (const p of ['/pos', '/pos/staff', '/login', '/account-security', '/api/admin/foo', '/administrator', '/superadmin'])
+    assert.equal(sm.isStoreHiddenPath(p), false, p);
+
+  // /pos の振り分け: 管理者・マネージャーはダッシュボード、スタッフはレジ開局（開局済みなら待機）
+  assert.equal(sm.posLandingPath('admin', false), '/pos/status');
+  assert.equal(sm.posLandingPath('admin', true), '/pos/status');
+  assert.equal(sm.posLandingPath('manager', true), '/pos/status');
+  assert.equal(sm.posLandingPath('staff', false), '/pos/register');
+  assert.equal(sm.posLandingPath('staff', true), '/pos/standby');
+  assert.equal(sm.posLandingPath(undefined, false), '/pos/register');
+  assert.equal(sm.canSeePosFigures('staff'), false);
+  assert.equal(sm.canManagePosStaff('manager'), false);
+  assert.equal(sm.canManagePosStaff('admin'), true);
+
+  // 左メニュー: スタッフには 状況・分析・スタッフ を出さない。マネージャーには スタッフ だけ出さない
+  const shell = load('src/components/pos/pos-shell.tsx', {
+    'lucide-react': new Proxy({}, { get: () => () => null }),
+    '@/lib/store-mode': sm,
+  });
+  const rail = [
+    { href: '/pos/status', figures: true }, { href: '/pos/buy' }, { href: '/pos/analytics', figures: true }, { href: '/pos/staff', adminOnly: true },
+  ];
+  assert.deepEqual(shell.visibleRailItems(rail, 'staff').map(i => i.href), ['/pos/buy']);
+  assert.deepEqual(shell.visibleRailItems(rail, 'manager').map(i => i.href), ['/pos/status', '/pos/buy', '/pos/analytics']);
+  assert.equal(shell.visibleRailItems(rail, 'admin').length, 4);
+
   // ログイン後の戻り先は同一オリジンのパスだけ
   assert.equal(sm.safeRedirectPath('/pos', '/admin'), '/pos');
   assert.equal(sm.safeRedirectPath(null, '/admin'), '/admin');
@@ -43,7 +72,11 @@ function load(file, deps = {}, extra = {}) {
   assert.equal(r.status, 307); assert.equal(r.location, '/pos'); assert.equal(sessions, 0);
   r = await proxy(req('/apply')); assert.equal(r.location, '/pos');
   r = await proxy(req('/pos')); assert.equal(r.status, 200); assert.equal(sessions, 1);
-  r = await proxy(req('/admin/orders')); assert.equal(r.status, 200);
+  // 店舗では管理画面（/admin）も出さず、POS の入口へ送る（2026-11-22）
+  r = await proxy(req('/admin/orders')); assert.equal(r.status, 307); assert.equal(r.location, '/pos');
+  r = await proxy(req('/admin')); assert.equal(r.location, '/pos');
+  r = await proxy(req('/administrator')); assert.equal(r.status, 200);
+  mode = 'online'; r = await proxy(req('/admin/orders')); assert.equal(r.status, 200); mode = 'store';
   r = await proxy(req('/account-security')); assert.equal(r.status, 200);
   mode = 'online'; r = await proxy(req('/')); assert.equal(r.status, 200);
   mode = null; r = await proxy(req('/apply')); assert.equal(r.status, 200);

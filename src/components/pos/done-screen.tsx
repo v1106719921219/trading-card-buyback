@@ -46,7 +46,7 @@ export function DoneScreen({
     return () => clearInterval(t)
   }, [autoReturn])
   useEffect(() => {
-    if (autoReturn && left <= 0) router.push('/pos')
+    if (autoReturn && left <= 0) router.push('/pos/standby')
   }, [left, autoReturn, router])
 
   function downloadPdf() {
@@ -113,7 +113,7 @@ export function DoneScreen({
           </section>
           <div className="flex items-center gap-3">
             <Button asChild className="h-12 px-6 text-base">
-              <Link href="/pos">
+              <Link href="/pos/standby">
                 <Home className="h-4 w-4" />
                 待機画面へ
               </Link>

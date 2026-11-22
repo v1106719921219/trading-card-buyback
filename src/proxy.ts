@@ -3,7 +3,7 @@ import { updateSession } from '@/lib/supabase/middleware'
 import { rateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { resolveTenantSlug } from '@/lib/tenant-slug'
 import { getTenantMode } from '@/lib/tenant-mode'
-import { isOnlineOnlyPath, POS_HOME } from '@/lib/store-mode'
+import { isStoreHiddenPath, POS_HOME } from '@/lib/store-mode'
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -63,9 +63,9 @@ export async function proxy(request: NextRequest) {
   }
   request.headers.set('x-real-ip', ip)
 
-  // 店舗テナント（mode = 'store'）では通販の公開ページを出さず、待機画面 /pos へ送る。
+  // 店舗テナント（mode = 'store'）では通販の公開ページと管理画面（/admin）を出さず、POS の入口 /pos へ送る。
   // 通販テナントや、mode 列がまだ無い DB では getTenantMode が 'store' を返さないので何もしない。
-  if (isOnlineOnlyPath(pathname) && (await getTenantMode(tenantSlug)) === 'store') {
+  if (isStoreHiddenPath(pathname) && (await getTenantMode(tenantSlug)) === 'store') {
     const url = request.nextUrl.clone()
     url.pathname = POS_HOME
     url.search = ''

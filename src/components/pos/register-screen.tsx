@@ -59,6 +59,8 @@ export function RegisterScreen({
       }
       toast.success('開局しました')
       setFloat('')
+      // 開局したら待機画面へ（スタッフはレジ開局から 1 日を始める）
+      router.push('/pos/standby')
       router.refresh()
     })
   }
@@ -165,7 +167,7 @@ export function RegisterScreen({
           <section className="grid gap-3 sm:grid-cols-4">
             <Tile label="開局" value={formatDateTimeJst(session.opened_at)} sub={`準備金 ${formatYen(session.opening_float)}`} />
             <Tile label="買取支払い（現金）" value={formatYen(summary?.buybackPaid ?? 0)} />
-            <Tile label="販売（現金）" value={formatYen(summary?.salesCash ?? 0)} sub="販売は段階 2 から" />
+            <Tile label="販売（現金）" value={formatYen(summary?.salesCash ?? 0)} sub="取消の返金を引いた額" />
             <Tile label="理論残高" value={formatYen(summary?.expected ?? session.opening_float)} strong />
           </section>
 
@@ -280,7 +282,7 @@ function OperatorPicker({ options, value, onChange, compact }: { options: string
     return (
       <div className={compact ? '' : 'mt-1'}>
         <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder="担当者名" className={compact ? 'h-9 w-40' : 'h-11 w-60'} />
-        <p className="mt-1 text-xs text-muted-foreground">担当者のリストが未登録です。管理者が管理画面の「検品者リスト」に名前を登録すると、ここで選べるようになります。</p>
+        <p className="mt-1 text-xs text-muted-foreground">担当者のリストが未登録です。管理者が左メニューの「スタッフ」で担当者の名前を登録すると、ここで選べるようになります。</p>
       </div>
     )
   }
