@@ -47,7 +47,7 @@ export async function GET(req:NextRequest){
    _reduction:bandsOk?bandsReduction(i.unit_price,bands):0,_bandsOk:bandsOk};
  });
  const reduction=resolved.reduce((s,i)=>s+i._reduction,0);
- const costAllocationComplete=o.inspection_discount===0||resolved.every(i=>i._bandsOk)&&reduction===o.inspection_discount;
+ const costAllocationComplete=resolved.every(i=>i._bandsOk)&&reduction===o.inspection_discount;
  return {id:o.id,number:o.order_number,customer_name:o.customer_name??'',status:o.status,arrival_date:o.arrival_date,purchase_date:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(o.created_at)),updated_at:o.updated_at,discount:o.inspection_discount,cost_allocation_complete:costAllocationComplete,blocked:Boolean(o.return_status||o.inspection_status),items:resolved.map(({_reduction,_bandsOk,...i})=>i)};
  });return reply({prelabel,orders,total:count??0,arrival_date:arrival,inspected_from:inspectedFrom,inspected_on:inspectedOn});
 }
