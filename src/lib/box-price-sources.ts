@@ -9,7 +9,7 @@ export type BoxPriceSource = {
 // URLs submitted by the user plus public BOX purchase pages discovered during review.
 // Automatic collection is enabled for public pages with readable product/price data.
 export const BOX_PRICE_SOURCES: BoxPriceSource[] = [
-  { id: 'expo', name: '買取EXPO', url: 'https://www.kaitori-expo.com/expo-build/cms/buyback/', extraction: 'structured', note: '商品一覧・条件表示あり' },
+  { id: 'expo', name: '買取EXPO', url: 'https://www.kaitori-expo.com/expo-build/cms/buyback/', extraction: 'structured', note: '公開カタログAPIから商品名・カテゴリ・シュリンク有無・カートン・受付状況を自動取得' },
   { id: 'shinsoku', name: 'シンソクTCG', url: 'https://shinsoku-tcg.com/kaitori', extraction: 'structured', note: '価格表。読み込み後に確認' },
   { id: 'base', name: '買取BASE', url: 'https://kaitori-base.com/?p=9534', extraction: 'structured', note: '商品表から自動取得・シュリンク付き' },
   { id: 'somurie', name: '買取ソムリエ', url: 'https://somurie-kaitori.com/', extraction: 'structured', note: '商品一覧' },
