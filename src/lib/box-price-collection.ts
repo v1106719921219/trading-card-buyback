@@ -150,7 +150,7 @@ function parseExpo(data: unknown, products: Product[], checkedAt: string): Obser
     if (!condition || item.available !== true || !Number.isSafeInteger(item.price) || (item.price ?? 0) <= 0) continue
     const categoryPattern = EXPO_CATEGORY_NAMES[item.category ?? '']
     if (!categoryPattern) continue
-    const candidates = products.filter((product) => categoryPattern.test(product.category_name ?? ''))
+    const candidates = products.filter((product) => categoryPattern.test(product.category_name ?? '') && !/シュリンク|シュリ無|no\s*-?\s*shrink/i.test(product.name))
     const product = productFor(item.series?.trim() || item.name || '', candidates)
     if (!product) continue
     out.push({ sourceId: 'expo', productId: product.id, condition, price: item.price!, url, note: `自動取得・EXPO更新 ${catalog.updated ?? '日時未表示'}${condition === 'shrink' ? '・シュリンク付き' : condition === 'no_shrink' ? '・シュリンクなし' : '・カートン'}`, checkedAt })
