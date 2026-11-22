@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import type { BoxCondition, BoxPriceSource } from '@/lib/box-price-sources'
 
-type Product = { id: string; name: string; model_number: string | null; set_number: string | null; price: number; is_active: boolean; subcategory_id: string | null }
+type Product = { id: string; name: string; model_number: string | null; set_number: string | null; price: number; is_active: boolean; category_id: string; category_name: string; subcategory_id: string | null }
 type Condition = { id: BoxCondition; label: string }
 type Quote = { productId: string; sourceId: string; condition: BoxCondition; price: number; url: string; note: string; checkedAt: string }
 type Data = { products: Product[]; quotes: Quote[]; sources: BoxPriceSource[]; conditions: Condition[]; canEdit: boolean }
@@ -17,6 +17,7 @@ const dateTime = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', mont
 export default function BoxPriceComparisonPage() {
   const [data, setData] = useState<Data | null>(null)
   const [query, setQuery] = useState('')
+  const [categoryId, setCategoryId] = useState('all')
   const [productId, setProductId] = useState('')
   const [sourceId, setSourceId] = useState('expo')
   const [condition, setCondition] = useState<BoxCondition>('shrink')
@@ -48,9 +49,15 @@ export default function BoxPriceComparisonPage() {
 
   useEffect(() => { void load() }, [load])
   const source = data?.sources.find((item) => item.id === sourceId)
+  const productCategories = useMemo(() => {
+    const unique = new Map<string, string>()
+    for (const product of data?.products ?? []) unique.set(product.category_id, product.category_name)
+    return [...unique.entries()].sort((a, b) => a[1].localeCompare(b[1], 'ja'))
+  }, [data])
   const visibleProducts = useMemo(() => (data?.products ?? []).filter((product) =>
+    (categoryId === 'all' || product.category_id === categoryId) &&
     `${product.name} ${product.model_number ?? ''} ${product.set_number ?? ''}`.normalize('NFKC').toLowerCase().includes(query.normalize('NFKC').toLowerCase())
-  ), [data, query])
+  ), [data, query, categoryId])
   const comparisonSources = data?.sources ?? []
   const comparisonConditions = data?.conditions ?? []
 
@@ -139,6 +146,10 @@ export default function BoxPriceComparisonPage() {
       </div>
       <div className="flex flex-wrap gap-2" aria-label="商品状態で絞り込み">
         {comparisonConditions.map((item) => <Button key={item.id} type="button" size="sm" variant={displayCondition === item.id ? 'default' : 'outline'} onClick={() => setDisplayCondition(item.id)}>{item.label}</Button>)}
+      </div>
+      <div className="flex flex-wrap gap-2" aria-label="カードカテゴリで絞り込み">
+        <Button type="button" size="sm" variant={categoryId === 'all' ? 'default' : 'outline'} onClick={() => setCategoryId('all')}>すべて</Button>
+        {productCategories.map(([id, name]) => <Button key={id} type="button" size="sm" variant={categoryId === id ? 'default' : 'outline'} onClick={() => setCategoryId(id)}>{name}</Button>)}
       </div>
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       {!loading && visibleProducts.length === 0 && <p className="rounded border p-5 text-sm">BOX商品が見つかりません。商品管理でカテゴリをBOXにするか、商品名に「BOX」「ボックス」を含めてください。</p>}
