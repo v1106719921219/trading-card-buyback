@@ -200,3 +200,58 @@ export function topSellers(items: TopSellerInput[], limit = 10): { name: string;
   }
   return [...map.values()].sort((a, b) => b.amount - a.amount || b.quantity - a.quantity).slice(0, limit)
 }
+
+// ---------------------------------------------------------------------------
+// 返品（商品ごと）
+// ---------------------------------------------------------------------------
+
+/** 販売の状態。すべて返品すると取消、一部だけなら一部返品 */
+export function saleStatus(sale: { voided_at: string | null; refunded_total?: number | null }): 'sold' | 'partial' | 'voided' {
+  if (sale.voided_at) return 'voided'
+  return (sale.refunded_total ?? 0) > 0 ? 'partial' : 'sold'
+}
+
+export const SALE_STATUS_LABELS: Record<'sold' | 'partial' | 'voided', string> = {
+  sold: '販売済',
+  partial: '一部返品',
+  voided: '取消',
+}
+
+/** 返品を引いた数量にした明細（すべて返品済みの明細は落とす）。売上・粗利・売れ筋の集計に使う */
+export function netSaleItems<T extends { quantity: number; returned_quantity?: number | null }>(items: T[]): T[] {
+  return items
+    .map((i) => ({ ...i, quantity: i.quantity - (i.returned_quantity ?? 0) }))
+    .filter((i) => i.quantity > 0)
+}
+
+export interface ReturnableItem {
+  id: string
+  name: string
+  quantity: number
+  returned_quantity?: number | null
+  unit_price: number
+}
+
+/**
+ * 画面で選んだ返品数（明細 ID → 数量）から、サーバーへ送る明細と返金額を作る。
+ * 0 は無視する。残っている数量を超える指定はエラー。
+ */
+export function buildReturnLines(
+  items: ReturnableItem[],
+  selection: Record<string, number>,
+): { ok: true; lines: { sale_item_id: string; quantity: number }[]; refund: number; count: number } | { ok: false; error: string } {
+  const lines: { sale_item_id: string; quantity: number }[] = []
+  let refund = 0
+  let count = 0
+  for (const item of items) {
+    const qty = selection[item.id] ?? 0
+    if (qty === 0) continue
+    const remaining = item.quantity - (item.returned_quantity ?? 0)
+    if (!Number.isSafeInteger(qty) || qty < 0 || qty > remaining) return { ok: false, error: `「${item.name}」の返品数が正しくありません（返品できるのは ${remaining} 点まで）` }
+    lines.push({ sale_item_id: item.id, quantity: qty })
+    refund += qty * item.unit_price
+    count += qty
+  }
+  if (lines.length === 0) return { ok: false, error: '返品する商品を選んでください' }
+  return { ok: true, lines, refund, count }
+}

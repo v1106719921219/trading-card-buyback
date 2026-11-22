@@ -3,12 +3,12 @@ import { ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { requireTenantId } from '@/lib/tenant'
 import { formatDateTimeJst, formatYen, todayJst } from '@/lib/pos-buyback'
-import { shiftDate } from '@/lib/pos-sales'
+import { SALE_STATUS_LABELS, saleStatus, shiftDate } from '@/lib/pos-sales'
 import type { Sale } from '@/types/database'
 
 export const dynamic = 'force-dynamic'
 
-/** 取引履歴（販売）。既定は今日。行から詳細（レシートの再印刷・取消）へ */
+/** 取引履歴（販売）。既定は今日。行から詳細（レシートの再印刷・返品・取消）へ */
 export default async function PosSalesHistoryPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
   const sp = await searchParams
   const today = todayJst()
@@ -19,15 +19,15 @@ export default async function PosSalesHistoryPage({ searchParams }: { searchPara
   const supabase = await createClient()
   const { data } = await supabase
     .from('sales')
-    .select('*, sale_items(quantity)')
+    .select('*, sale_items(quantity, returned_quantity)')
     .eq('tenant_id', tenantId)
     .gte('created_at', `${from}T00:00:00+09:00`)
     .lte('created_at', `${to}T23:59:59.999+09:00`)
     .order('created_at', { ascending: false })
     .limit(300)
-  const rows = (data ?? []) as (Sale & { sale_items: { quantity: number }[] })[]
+  const rows = (data ?? []) as (Sale & { sale_items: { quantity: number; returned_quantity: number | null }[] })[]
   const live = rows.filter((r) => !r.voided_at)
-  const total = live.reduce((s, r) => s + r.total, 0)
+  const total = live.reduce((s, r) => s + r.total - (r.refunded_total ?? 0), 0)
   const singleDay = from === to
 
   return (
@@ -66,7 +66,7 @@ export default async function PosSalesHistoryPage({ searchParams }: { searchPara
               <th className="px-3 py-2 text-left font-normal">日時</th>
               <th className="px-3 py-2 text-left font-normal">状態</th>
               <th className="px-3 py-2 text-right font-normal">点数</th>
-              <th className="px-3 py-2 text-right font-normal">合計（税込）</th>
+              <th className="px-3 py-2 text-right font-normal">合計（税込・返品後）</th>
               <th className="px-3 py-2 text-left font-normal">担当</th>
               <th className="px-3 py-2" />
             </tr>
@@ -88,18 +88,29 @@ export default async function PosSalesHistoryPage({ searchParams }: { searchPara
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 tabular-nums">{formatDateTimeJst(r.created_at)}</td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    {r.voided_at ? (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground" title={r.void_reason ?? ''}>取消</span>
+                    {saleStatus(r) === 'voided' ? (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground" title={r.void_reason ?? ''}>{SALE_STATUS_LABELS.voided}</span>
+                    ) : saleStatus(r) === 'partial' ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">{SALE_STATUS_LABELS.partial}</span>
                     ) : (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">販売済</span>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">{SALE_STATUS_LABELS.sold}</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{r.sale_items.reduce((s, i) => s + i.quantity, 0)}</td>
-                  <td className={`whitespace-nowrap px-3 py-2 text-right tabular-nums ${r.voided_at ? 'text-muted-foreground line-through' : ''}`}>{formatYen(r.total)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{r.sale_items.reduce((s, i) => s + i.quantity - (i.returned_quantity ?? 0), 0)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                    {r.voided_at ? (
+                      <span className="text-muted-foreground line-through">{formatYen(r.total)}</span>
+                    ) : (
+                      <>
+                        {formatYen(r.total - (r.refunded_total ?? 0))}
+                        {(r.refunded_total ?? 0) > 0 ? <div className="text-xs text-muted-foreground">返金 {formatYen(r.refunded_total)}</div> : null}
+                      </>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">{r.sold_by_name ?? ''}</td>
                   <td className="px-3 py-2 text-right">
                     <Link href={`/pos/sell/${r.id}`} className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted">
-                      レシート・取消
+                      レシート・返品
                       <ChevronRight className="h-3.5 w-3.5" />
                     </Link>
                   </td>

@@ -279,6 +279,21 @@ export interface Sale {
   voided_by_name: string | null
   void_reason: string | null
   void_register_session_id: string | null
+  /** 返品・取消で返金した合計 */
+  refunded_total: number
+  created_at: string
+}
+
+/** 販売の返品（1 回ごと） */
+export interface SaleReturn {
+  id: string
+  tenant_id: string
+  sale_id: string
+  register_session_id: string
+  amount: number
+  reason: string
+  lines: { sale_item_id: string; name: string; quantity: number; unit_price: number }[]
+  returned_by_name: string | null
   created_at: string
 }
 
@@ -289,6 +304,8 @@ export interface SaleItem {
   price_band_id: string | null
   name: string
   quantity: number
+  /** うち返品済みの数量 */
+  returned_quantity: number
   unit_price: number
   unit_cost: number
   tax_rate: number
@@ -369,6 +386,12 @@ export interface RegisterSession {
   closed_by: string | null
   expected_cash: number | null
   counted_cash: number | null
+  /** 締めで数えた金種。{ pieces: { 額面: バラの枚数 }, rolls: { 額面: 棒金の本数 } } */
+  counted_denominations: { pieces: Record<string, number>; rolls: Record<string, number> } | null
+  /** 締めでレジから回収した額 */
+  withdrawn_amount: number | null
+  /** 締めでレジに残した額（翌日の釣銭準備金） */
+  carry_over_float: number | null
   difference: number | null
   notes: string | null
   created_at: string
@@ -379,8 +402,10 @@ export interface CashMovement {
   tenant_id: string
   register_session_id: string
   kind: 'in' | 'out'
+  category: 'change' | 'other_in' | 'expense' | 'pickup' | 'other_out' | null
   amount: number
   reason: string
+  denominations: { pieces: Record<string, number>; rolls: Record<string, number> } | null
   created_by: string | null
   created_at: string
 }
