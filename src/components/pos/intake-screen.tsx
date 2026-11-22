@@ -223,7 +223,7 @@ export function IntakeScreen({ intakes }: { intakes: OpenIntake[] }) {
         <span className="text-sm text-muted-foreground">{customerLabel}</span>
         <div className="flex gap-2">
           <Button asChild variant="ghost">
-            <Link href="/pos">待機画面へ</Link>
+            <Link href="/pos/standby">待機画面へ</Link>
           </Button>
           <Button type="button" onClick={submit} disabled={pending} className="h-12 px-6 text-base">
             査定へ

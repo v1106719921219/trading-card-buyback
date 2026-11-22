@@ -30,7 +30,7 @@ type ActionResult<T = { ok?: true }> = ({ error: string } & Partial<T>) | ({ err
 
 const uuid = z.uuid()
 
-const SETTINGS_PATHS = ['/pos/settings', '/pos', '/pos/buy']
+const SETTINGS_PATHS = ['/pos/settings', '/pos/standby', '/pos/buy']
 
 function revalidateSettings() {
   for (const p of SETTINGS_PATHS) revalidatePath(p)
@@ -196,7 +196,7 @@ export async function savePriceBands(inputs: PriceBandInput[]): Promise<ActionRe
   const values = check.value
 
   const db = await createClient()
-  const { data: existing, error: loadErr } = await db.from('price_bands').select('id, label').eq('tenant_id', user.tenant_id)
+const { data: existing, error: loadErr } = await db.from('price_bands').select('id, label, stock_quantity').eq('tenant_id', user.tenant_id)
   if (loadErr) return { error: sanitizeError(loadErr) }
   const existingIds = new Set((existing ?? []).map((b) => b.id))
   for (const v of values) if (v.id && !existingIds.has(v.id)) return { error: '価格帯が他で変更されています。再読み込みしてください' }
@@ -212,7 +212,18 @@ export async function savePriceBands(inputs: PriceBandInput[]): Promise<ActionRe
       .eq('tenant_id', user.tenant_id)
       .in('price_band_id', removed.map((b) => b.id))
       .limit(1000)
-    const usedIds = new Set((used ?? []).map((u) => u.price_band_id))
+    // 販売した価格帯・在庫が残っている価格帯も消さずに無効化する（段階 2）
+    const { data: sold } = await admin
+      .from('sale_items')
+      .select('price_band_id')
+      .eq('tenant_id', user.tenant_id)
+      .in('price_band_id', removed.map((b) => b.id))
+      .limit(1000)
+    const usedIds = new Set([
+      ...(used ?? []).map((u) => u.price_band_id),
+      ...(sold ?? []).map((u) => u.price_band_id),
+      ...removed.filter((b) => (b.stock_quantity ?? 0) !== 0).map((b) => b.id),
+    ])
     for (const b of removed) {
       if (usedIds.has(b.id)) {
         const { error: e } = await db.from('price_bands').update({ is_active: false, sort_order: 999 }).eq('tenant_id', user.tenant_id).eq('id', b.id)

@@ -139,7 +139,7 @@ export function IdentityScreen({
         return
       }
       toast.success('お断りとして記録し、受付を終了しました')
-      router.push('/pos')
+      router.push('/pos/standby')
     })
   }
 

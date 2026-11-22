@@ -52,7 +52,7 @@ export function PresentScreen({ order, items }: { order: Order; items: OrderItem
         return
       }
       toast.success('査定のみで終了しました（記録は残ります）')
-      router.push('/pos')
+      router.push('/pos/standby')
     })
   }
 

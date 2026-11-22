@@ -47,7 +47,7 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const uuid = z.uuid()
 
 function posPaths(orderId: string) {
-  return ['/pos', '/pos/buy', `/pos/buy/${orderId}`, `/pos/buy/${orderId}/identity`, `/pos/buy/${orderId}/sign`, `/pos/buy/${orderId}/pay`, `/pos/buy/${orderId}/done`, '/pos/ledger', '/pos/register', '/pos/history']
+  return ['/pos/standby', '/pos/status', '/pos/buy', `/pos/buy/${orderId}`, `/pos/buy/${orderId}/identity`, `/pos/buy/${orderId}/sign`, `/pos/buy/${orderId}/pay`, `/pos/buy/${orderId}/done`, '/pos/ledger', '/pos/register', '/pos/history']
 }
 
 /** data URL（PNG / JPEG / WebP）を Buffer に。形式が違えば null */
@@ -419,6 +419,12 @@ export async function recordStoreCashPayment(orderId: string, expectedUpdatedAt:
     for (const p of posPaths(orderId)) revalidatePath(p)
     return { error: '支払いは記録しましたが、古物台帳の書き込みに失敗しました。管理者に連絡してください', amount }
   }
+  // 買い取った物を在庫（振分待ち）に入れる。失敗しても支払いは成立しており、在庫画面を開いたときにも取り込む
+  const intake = await admin.rpc('store_intake_paid_orders', { p_tenant: user.tenant_id })
+  if (intake.error) {
+    await admin.from('security_audit_events').insert({ tenant_id: user.tenant_id, actor_id: user.id, action: 'store_intake_failed', record_id: orderId, details: { message: intake.error.message } })
+  }
+  revalidatePath('/pos/stock')
   for (const p of posPaths(orderId)) revalidatePath(p)
   return { amount }
 }
@@ -537,7 +543,7 @@ export async function exportLedgerCsv(range: { from: string; to: string }): Prom
 // レジ
 // ---------------------------------------------------------------------------
 
-/** レジ担当者の候補。管理画面の「検品者リスト」（共通）を流用する。管理者が遠隔で名前を足せる */
+/** レジ担当者の候補。app_settings の「検品者リスト」（共通）を流用する。管理者が POS の「スタッフ」画面で名前を足す */
 export async function getOperatorOptions(): Promise<ActionResult<{ names: string[] }>> {
   const { user, error } = await requirePosUser()
   if (error || !user) return { error }
@@ -548,7 +554,7 @@ async function validateOperatorName(raw: string): Promise<{ name: string } | { e
   const name = raw.normalize('NFKC').trim()
   if (!name || name.length > 40) return { error: '担当者を選んでください' }
   const names = await getInspectorOptions(null)
-  if (names.length > 0 && !names.includes(name)) return { error: '担当者はリストから選んでください（名前の追加は管理者が管理画面の検品者リストで行います）' }
+  if (names.length > 0 && !names.includes(name)) return { error: '担当者はリストから選んでください（名前の追加は管理者が「スタッフ」画面で行います）' }
   return { name }
 }
 
@@ -566,7 +572,7 @@ export async function openRegister(openingFloat: number, operatorName: string): 
     .single()
   if (insErr || !data) return { error: /unique|duplicate/i.test(insErr?.message ?? '') ? '既に開局中のレジがあります。再読み込みしてください' : sanitizeError(insErr ?? new Error('insert failed')) }
   revalidatePath('/pos/register')
-  revalidatePath('/pos')
+  revalidatePath('/pos/standby')
   return { sessionId: data.id }
 }
 
@@ -584,7 +590,7 @@ export async function changeRegisterOperator(sessionId: string, operatorName: st
   if (updErr) return { error: sanitizeError(updErr) }
   await createAdminClient().from('security_audit_events').insert({ tenant_id: user.tenant_id, actor_id: user.id, action: 'register_operator_changed', record_id: sessionId, details: { from: before.operator_name, to: op.name } })
   revalidatePath('/pos/register')
-  revalidatePath('/pos')
+  revalidatePath('/pos/standby')
   return { ok: true }
 }
 
@@ -602,10 +608,13 @@ export async function addCashMovement(sessionId: string, kind: 'in' | 'out', amo
   return { ok: true }
 }
 
-/** 開局中のレジの理論残高を計算する（準備金 + 販売現金 − 買取支払い ± 入出金）。販売は段階 2 まで 0 */
+/**
+ * 開局中のレジの理論残高を計算する（準備金 + 販売現金 − 買取支払い ± 入出金）。
+ * 販売現金 = このレジで会計した販売の合計 − このレジで返金した取消の合計（取消は別の日の販売でもよい）
+ */
 async function computeExpected(tenantId: string, session: { id: string; opened_at: string; opening_float: number }) {
   const admin = createAdminClient()
-  const [movements, payments] = await Promise.all([
+  const [movements, payments, sold, refunded] = await Promise.all([
     admin.from('cash_movements').select('kind, amount').eq('tenant_id', tenantId).eq('register_session_id', session.id),
     admin
       .from('order_payments')
@@ -615,13 +624,18 @@ async function computeExpected(tenantId: string, session: { id: string; opened_a
       .is('voided_at', null)
       .gte('created_at', session.opened_at)
       .eq('orders.channel', 'store'),
+    admin.from('sales').select('total').eq('tenant_id', tenantId).eq('register_session_id', session.id).limit(5000),
+    admin.from('sales').select('total').eq('tenant_id', tenantId).eq('void_register_session_id', session.id).limit(5000),
   ])
   const buybackPaid = (payments.data ?? []).reduce((s, p) => s + Number(p.amount), 0)
+  const salesCash =
+    (sold.data ?? []).reduce((s, r) => s + Number(r.total), 0) - (refunded.data ?? []).reduce((s, r) => s + Number(r.total), 0)
+  const moves = (movements.data ?? []) as { kind: 'in' | 'out'; amount: number }[]
   return {
     buybackPaid,
-    salesCash: 0,
-    movements: (movements.data ?? []) as { kind: 'in' | 'out'; amount: number }[],
-    expected: expectedRegisterCash({ openingFloat: session.opening_float, salesCash: 0, buybackPaid, movements: (movements.data ?? []) as { kind: 'in' | 'out'; amount: number }[] }),
+    salesCash,
+    movements: moves,
+    expected: expectedRegisterCash({ openingFloat: session.opening_float, salesCash, buybackPaid, movements: moves }),
   }
 }
 
@@ -658,6 +672,6 @@ export async function closeRegister(sessionId: string, countedCash: number, note
     .is('closed_at', null)
   if (updErr) return { error: sanitizeError(updErr) }
   revalidatePath('/pos/register')
-  revalidatePath('/pos')
+  revalidatePath('/pos/standby')
   return { expected, difference }
 }

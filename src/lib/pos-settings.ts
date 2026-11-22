@@ -222,3 +222,15 @@ export function safeValidatePriceBands(inputs: PriceBandInput[]): Validation<Pri
     return { ok: false, error: e instanceof Error ? e.message : '価格帯の入力を確認してください' }
   }
 }
+
+/**
+ * レジ担当者の名前リストを整える。カンマ・読点・改行で区切り、空白を落とし、重複を除く。
+ * 保存先は app_settings の検品者リスト（カンマ区切り）なので、名前の中の区切り文字は残らない。
+ */
+export function normalizeOperatorNames(raw: string | null | undefined): string[] {
+  const names = (raw ?? '')
+    .split(/[,、\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return [...new Set(names)]
+}

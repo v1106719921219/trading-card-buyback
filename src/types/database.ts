@@ -230,8 +230,68 @@ export interface PriceBand {
   sell_price: number | null
   sleeve_color: string | null
   barcode: string | null
+  /** 価格帯の在庫枚数（理論値。実数とのずれは調整で直す） */
+  stock_quantity?: number
   sort_order: number
   is_active: boolean
+}
+
+export type InventoryAllocation = 'pending' | 'store' | 'transfer'
+export type InventoryStatus = 'in_stock' | 'sold' | 'written_off' | 'transferred' | 'banded'
+
+/** 店舗の在庫（段階 2） */
+export interface InventoryItem {
+  id: string
+  tenant_id: string
+  product_id: string | null
+  name: string
+  model_number: string | null
+  condition_rank: string | null
+  psa_cert_number: string | null
+  barcode: string
+  source: 'buyback' | 'opened_box' | 'transfer_in' | 'manual'
+  source_order_item_id: string | null
+  source_order_id: string | null
+  parent_item_id: string | null
+  cost: number
+  sale_price: number | null
+  quantity: number
+  allocation: InventoryAllocation
+  status: InventoryStatus
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** 店頭販売 */
+export interface Sale {
+  id: string
+  tenant_id: string
+  sale_number: string
+  total: number
+  tax_amount: number
+  tendered: number
+  change_due: number
+  register_session_id: string
+  sold_by: string | null
+  sold_by_name: string | null
+  voided_at: string | null
+  voided_by_name: string | null
+  void_reason: string | null
+  void_register_session_id: string | null
+  created_at: string
+}
+
+export interface SaleItem {
+  id: string
+  sale_id: string
+  inventory_item_id: string | null
+  price_band_id: string | null
+  name: string
+  quantity: number
+  unit_price: number
+  unit_cost: number
+  tax_rate: number
 }
 
 /** 店頭の本人確認 */

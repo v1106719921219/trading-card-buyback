@@ -70,6 +70,9 @@ export function HistoryScreen({ rows, from, to, q, filter }: { rows: HistoryRow[
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 p-4">
       <div className="flex flex-wrap items-end gap-3">
         <h1 className="mr-auto text-lg font-bold">取引履歴（買取）</h1>
+        <Link href="/pos/history/sales" className="rounded-md border px-3 py-2 text-sm hover:bg-muted">
+          販売の履歴へ
+        </Link>
         <div className="flex items-end gap-1">
           <Button type="button" variant="outline" size="sm" onClick={() => go({ from: shiftDay(from, -1), to: singleDay ? shiftDay(from, -1) : to })} className="h-10">
             前日
@@ -173,7 +176,7 @@ export function HistoryScreen({ rows, from, to, q, filter }: { rows: HistoryRow[
           ) : null}
         </table>
       </div>
-      <p className="text-xs text-muted-foreground">最大 300 件まで表示します。支払済の取消・返品は段階 2 で足します。古物台帳は「台帳」から見てください。</p>
+      <p className="text-xs text-muted-foreground">最大 300 件まで表示します。支払済の買取の取消はまだできません。古物台帳は「台帳」から見てください。</p>
     </div>
   )
 }
