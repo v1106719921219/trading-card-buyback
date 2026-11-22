@@ -208,11 +208,26 @@ export async function collectBoxPrices(db: SupabaseClient, tenantId: string) {
     rowsByKey.set(key, { key, value: JSON.stringify(observation), description: 'BOX他社買取価格・自動取得' })
   }
   const rowsToSave = [...rowsByKey.values()]
-  let saved = 0
+  const existingKeys = new Set<string>()
   for (let index = 0; index < rowsToSave.length; index += 500) {
-    const chunk = rowsToSave.slice(index, index + 500)
-    const { error } = await db.from('app_settings').upsert(chunk, { onConflict: 'key' })
-    if (error) throw new Error(`他社価格を保存できませんでした: ${error.message}`)
+    const keys = rowsToSave.slice(index, index + 500).map((row) => row.key)
+    const { data, error } = await db.from('app_settings').select('key').in('key', keys)
+    if (error) throw new Error(`既存の他社価格を確認できませんでした: ${error.message}`)
+    for (const row of data ?? []) existingKeys.add(row.key)
+  }
+  const newRows = rowsToSave.filter((row) => !existingKeys.has(row.key))
+  for (let index = 0; index < newRows.length; index += 500) {
+    const { error } = await db.from('app_settings').insert(newRows.slice(index, index + 500))
+    if (error) throw new Error(`他社価格を登録できませんでした: ${error.message}`)
+  }
+  const updateRows = rowsToSave.filter((row) => existingKeys.has(row.key))
+  let saved = 0
+  saved += newRows.length
+  for (let index = 0; index < updateRows.length; index += 20) {
+    const chunk = updateRows.slice(index, index + 20)
+    const updates = await Promise.all(chunk.map((row) => db.from('app_settings').update({ value: row.value, description: row.description }).eq('key', row.key)))
+    const failure = updates.find((result) => result.error)
+    if (failure?.error) throw new Error(`他社価格を更新できませんでした: ${failure.error.message}`)
     saved += chunk.length
   }
   return { fetchedAt: checkedAt, attemptedSources: SOURCES.map((source) => ({ ...source, name: BOX_PRICE_SOURCES.find((item) => item.id === source.id)?.name })), saved, matched: observations.length, sources: results.map(({ sourceId, observations: items, error }) => ({ sourceId, matched: items.length, error })) }
