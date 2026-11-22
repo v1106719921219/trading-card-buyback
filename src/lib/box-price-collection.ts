@@ -7,10 +7,11 @@ const SOURCES = [
   { id: 'otachu', url: 'https://otachu-akiba.com/1gocard/buying_price/pokemon-card-game/' },
   { id: 'tcgpro', url: 'https://tcgpro.co.jp/box-kaitori/' },
   { id: 'morimori', url: 'https://www.morimori-kaitori.jp/coporate/product_list' },
+  { id: 'expo', url: 'https://www.kaitori-expo.com/expo-build/cms/buyback/api.php?action=catalog' },
 ] as const
 
 type Product = { id: string; name: string; model_number: string | null; set_number: string | null; category_id: string | null; category_name?: string }
-type Observation = { sourceId: string; productId: string; condition: 'shrink' | 'no_shrink' | 'unknown'; price: number; url: string; note: string; checkedAt: string }
+type Observation = { sourceId: string; productId: string; condition: 'shrink' | 'no_shrink' | 'carton' | 'unknown'; price: number; url: string; note: string; checkedAt: string }
 
 function decode(value: string) {
   return value.replace(/&nbsp;|&#160;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&#x([\da-f]+);/gi, (_, n: string) => String.fromCodePoint(parseInt(n, 16))).replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
@@ -125,10 +126,48 @@ function parseMorimori(html: string, products: Product[], checkedAt: string): Ob
   return out
 }
 
+const EXPO_CATEGORY_NAMES: Record<string, RegExp> = {
+  pokemon: /ポケモン|ポケカ/i,
+  onepiece: /ワンピース/i,
+  dragonball: /ドラゴンボール/i,
+  lorcana: /ロルカナ/i,
+  weiss: /ヴァイス/i,
+  union: /ユニオンアリーナ/i,
+  magic: /マジック|MTG/i,
+  yugioh: /遊戯王/i,
+  gundam: /ガンダム/i,
+}
+
+function parseExpo(data: unknown, products: Product[], checkedAt: string): Observation[] {
+  if (!data || typeof data !== 'object') throw new Error('EXPOの価格データ形式が想定と異なります')
+  const catalog = data as { ok?: boolean; updated?: string; products?: Array<{ name?: string; series?: string; price?: number; category?: string; kind?: string; available?: boolean }> }
+  if (catalog.ok !== true || !Array.isArray(catalog.products)) throw new Error('EXPOの価格データを読み込めませんでした')
+  const out: Observation[] = []
+  const url = 'https://www.kaitori-expo.com/expo-build/cms/buyback/'
+  const kindToCondition: Record<string, Observation['condition']> = { box: 'shrink', unsealed: 'no_shrink', carton: 'carton' }
+  for (const item of catalog.products) {
+    const condition = kindToCondition[item.kind ?? '']
+    if (!condition || item.available !== true || !Number.isSafeInteger(item.price) || (item.price ?? 0) <= 0) continue
+    const categoryPattern = EXPO_CATEGORY_NAMES[item.category ?? '']
+    if (!categoryPattern) continue
+    const candidates = products.filter((product) => categoryPattern.test(product.category_name ?? ''))
+    const product = productFor(item.series?.trim() || item.name || '', candidates)
+    if (!product) continue
+    out.push({ sourceId: 'expo', productId: product.id, condition, price: item.price!, url, note: `自動取得・EXPO更新 ${catalog.updated ?? '日時未表示'}${condition === 'shrink' ? '・シュリンク付き' : condition === 'no_shrink' ? '・シュリンクなし' : '・カートン'}`, checkedAt })
+  }
+  return out
+}
+
 async function fetchSource(url: string) {
   const response = await fetch(url, { headers: { 'User-Agent': 'KaitoriSquarePriceMonitor/1.0 (+https://kaitorisquare.com)', Accept: 'text/html' }, signal: AbortSignal.timeout(20000), cache: 'no-store' })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   return response.text()
+}
+
+async function fetchExpoCatalog(url: string) {
+  const response = await fetch(url, { headers: { 'User-Agent': 'KaitoriSquarePriceMonitor/1.0 (+https://kaitorisquare.com)', Accept: 'application/json' }, signal: AbortSignal.timeout(20000), cache: 'no-store' })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json() as Promise<unknown>
 }
 
 export async function collectBoxPrices(db: SupabaseClient, tenantId: string) {
@@ -145,6 +184,11 @@ export async function collectBoxPrices(db: SupabaseClient, tenantId: string) {
   const checkedAt = new Date().toISOString()
   const results = await Promise.all(SOURCES.map(async (source) => {
     try {
+      if (source.id === 'expo') {
+        const catalog = await fetchExpoCatalog(source.url)
+        const observations = parseExpo(catalog, products, checkedAt)
+        return { sourceId: source.id, observations, error: null }
+      }
       const html = await fetchSource(source.url)
       const observations = source.id === 'homura' ? parseHomura(html, pokemonProducts, checkedAt)
         : source.id === 'otachu' ? parseOtachu(html, pokemonProducts, checkedAt)
