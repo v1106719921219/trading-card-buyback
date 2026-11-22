@@ -201,11 +201,11 @@ export async function collectBoxPrices(db: SupabaseClient, tenantId: string) {
     }
   }))
   const observations = results.flatMap((result) => result.observations)
-  const rowsByKey = new Map<string, { key: string; value: string; description: string }>()
+  const rowsByKey = new Map<string, { key: string; value: string; description: string; tenant_id: string }>()
   const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(new Date(checkedAt))
   for (const observation of observations) {
     const key = `box_comparison_v1:${tenantId}:${observation.productId}:${observation.sourceId}:${observation.condition}:${day}`
-    rowsByKey.set(key, { key, value: JSON.stringify(observation), description: 'BOX他社買取価格・自動取得' })
+    rowsByKey.set(key, { key, value: JSON.stringify(observation), description: 'BOX他社買取価格・自動取得', tenant_id: tenantId })
   }
   const rowsToSave = [...rowsByKey.values()]
   const existingKeys = new Set<string>()
@@ -225,7 +225,7 @@ export async function collectBoxPrices(db: SupabaseClient, tenantId: string) {
   saved += newRows.length
   for (let index = 0; index < updateRows.length; index += 20) {
     const chunk = updateRows.slice(index, index + 20)
-    const updates = await Promise.all(chunk.map((row) => db.from('app_settings').update({ value: row.value, description: row.description }).eq('key', row.key)))
+    const updates = await Promise.all(chunk.map((row) => db.from('app_settings').update({ value: row.value, description: row.description, tenant_id: row.tenant_id }).eq('key', row.key)))
     const failure = updates.find((result) => result.error)
     if (failure?.error) throw new Error(`他社価格を更新できませんでした: ${failure.error.message}`)
     saved += chunk.length
