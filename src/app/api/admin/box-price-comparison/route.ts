@@ -33,10 +33,10 @@ export async function GET() {
   if (!context) return NextResponse.json({ error: 'ログインが必要です' }, { status: 401 })
 
   const { data: subcategories, error: subError } = await context.db
-    .from('subcategories').select('id,name').eq('tenant_id', context.profile.tenant_id)
+    .from('subcategories').select('id,name,category_id,sort_order').eq('tenant_id', context.profile.tenant_id)
   if (subError) return NextResponse.json({ error: '商品カテゴリを取得できませんでした' }, { status: 503 })
   const { data: categories, error: categoryError } = await context.db
-    .from('categories').select('id,name').eq('tenant_id', context.profile.tenant_id)
+    .from('categories').select('id,name,sort_order').eq('tenant_id', context.profile.tenant_id)
   if (categoryError) return NextResponse.json({ error: '商品カテゴリを取得できませんでした' }, { status: 503 })
 
   const boxSubcategoryIds = (subcategories ?? [])
@@ -44,18 +44,30 @@ export async function GET() {
     .map((subcategory) => subcategory.id)
   const nameFilter = 'name.ilike.%BOX%,name.ilike.%ボックス%'
   let productQuery = context.db.from('products')
-    .select('id,name,model_number,set_number,price,is_active,category_id,subcategory_id')
+    .select('id,name,model_number,set_number,price,is_active,category_id,subcategory_id,sort_order')
     .eq('tenant_id', context.profile.tenant_id).eq('is_active', true)
   productQuery = boxSubcategoryIds.length
     ? productQuery.or(`subcategory_id.in.(${boxSubcategoryIds.join(',')}),${nameFilter}`)
     : productQuery.or(nameFilter)
   const { data: products, error: productsError } = await productQuery.order('name').limit(2000)
   if (productsError) return NextResponse.json({ error: 'BOX商品を取得できませんでした' }, { status: 503 })
-  const categoryNames = new Map((categories ?? []).map((category) => [category.id, category.name]))
-  const boxProducts = (products ?? []).map((product) => ({
-    ...product,
-    category_name: categoryNames.get(product.category_id) ?? '未分類',
-  }))
+  const categoryMap = new Map((categories ?? []).map((category) => [category.id, category]))
+  const subcategoryMap = new Map((subcategories ?? []).map((subcategory) => [subcategory.id, subcategory]))
+  const boxProducts = (products ?? []).map((product) => {
+    const category = categoryMap.get(product.category_id)
+    const subcategory = subcategoryMap.get(product.subcategory_id ?? '')
+    return {
+      ...product,
+      category_name: category?.name ?? '未分類',
+      category_sort_order: category?.sort_order ?? 0,
+      subcategory_sort_order: subcategory?.sort_order ?? -1,
+    }
+  }).sort((a, b) =>
+    a.category_sort_order - b.category_sort_order ||
+    a.subcategory_sort_order - b.subcategory_sort_order ||
+    a.sort_order - b.sort_order ||
+    a.id.localeCompare(b.id)
+  )
 
   const prefix = `box_comparison_v1:${context.profile.tenant_id}:`
   const quotes: { productId: string; sourceId: string; condition: string; price: number; url: string; note: string; checkedAt: string }[] = []
