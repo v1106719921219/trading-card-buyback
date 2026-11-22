@@ -35,20 +35,27 @@ export async function GET() {
   const { data: subcategories, error: subError } = await context.db
     .from('subcategories').select('id,name').eq('tenant_id', context.profile.tenant_id)
   if (subError) return NextResponse.json({ error: '商品カテゴリを取得できませんでした' }, { status: 503 })
+  const { data: categories, error: categoryError } = await context.db
+    .from('categories').select('id,name').eq('tenant_id', context.profile.tenant_id)
+  if (categoryError) return NextResponse.json({ error: '商品カテゴリを取得できませんでした' }, { status: 503 })
 
   const boxSubcategoryIds = (subcategories ?? [])
     .filter((subcategory) => /BOX|ボックス|拡張パック|ハイクラスパック|ブースター/i.test(subcategory.name))
     .map((subcategory) => subcategory.id)
   const nameFilter = 'name.ilike.%BOX%,name.ilike.%ボックス%'
   let productQuery = context.db.from('products')
-    .select('id,name,model_number,set_number,price,is_active,subcategory_id')
+    .select('id,name,model_number,set_number,price,is_active,category_id,subcategory_id')
     .eq('tenant_id', context.profile.tenant_id).eq('is_active', true)
   productQuery = boxSubcategoryIds.length
     ? productQuery.or(`subcategory_id.in.(${boxSubcategoryIds.join(',')}),${nameFilter}`)
     : productQuery.or(nameFilter)
   const { data: products, error: productsError } = await productQuery.order('name').limit(2000)
   if (productsError) return NextResponse.json({ error: 'BOX商品を取得できませんでした' }, { status: 503 })
-  const boxProducts = products ?? []
+  const categoryNames = new Map((categories ?? []).map((category) => [category.id, category.name]))
+  const boxProducts = (products ?? []).map((product) => ({
+    ...product,
+    category_name: categoryNames.get(product.category_id) ?? '未分類',
+  }))
 
   const prefix = `box_comparison_v1:${context.profile.tenant_id}:`
   const quotes: { productId: string; sourceId: string; condition: string; price: number; url: string; note: string; checkedAt: string }[] = []
