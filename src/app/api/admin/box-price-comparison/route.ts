@@ -37,25 +37,18 @@ export async function GET() {
   if (subError) return NextResponse.json({ error: '商品カテゴリを取得できませんでした' }, { status: 503 })
 
   const boxSubcategoryIds = (subcategories ?? [])
-    .filter((subcategory) => /BOX|ボックス|ボックス商品/i.test(subcategory.name))
+    .filter((subcategory) => /BOX|ボックス|拡張パック|ハイクラスパック|ブースター/i.test(subcategory.name))
     .map((subcategory) => subcategory.id)
-  const productQuery = () => context.db.from('products').select('id,name,model_number,set_number,price,is_active,subcategory_id')
-    .eq('tenant_id', context.profile.tenant_id).eq('is_active', true).order('name')
-  const { count: productCount, error: productCountError } = await context.db.from('products')
-    .select('id', { count: 'exact', head: true }).eq('tenant_id', context.profile.tenant_id).eq('is_active', true)
-  if (productCountError) return NextResponse.json({ error: 'BOX商品を取得できませんでした' }, { status: 503 })
-  const allProducts: { id: string; name: string; model_number: string | null; set_number: string | null; price: number; is_active: boolean; subcategory_id: string | null }[] = []
-  const productPageCount = Math.ceil((productCount ?? 0) / 500)
-  // Load a few pages concurrently so the admin request does not time out on a large catalog.
-  for (let batch = 0; batch < productPageCount; batch += 4) {
-    const pages = await Promise.all(Array.from({ length: Math.min(4, productPageCount - batch) }, (_, index) =>
-      productQuery().range((batch + index) * 500, (batch + index) * 500 + 499)
-    ))
-    if (pages.some((page) => page.error)) return NextResponse.json({ error: 'BOX商品を取得できませんでした' }, { status: 503 })
-    for (const page of pages) allProducts.push(...(page.data ?? []))
-  }
-  const boxSubcategorySet = new Set(boxSubcategoryIds)
-  const products = allProducts.filter((product) => boxSubcategorySet.has(product.subcategory_id ?? '') || /\bBOX\b|ボックス/i.test(product.name))
+  const nameFilter = 'name.ilike.%BOX%,name.ilike.%ボックス%'
+  let productQuery = context.db.from('products')
+    .select('id,name,model_number,set_number,price,is_active,subcategory_id')
+    .eq('tenant_id', context.profile.tenant_id).eq('is_active', true)
+  productQuery = boxSubcategoryIds.length
+    ? productQuery.or(`subcategory_id.in.(${boxSubcategoryIds.join(',')}),${nameFilter}`)
+    : productQuery.or(nameFilter)
+  const { data: products, error: productsError } = await productQuery.order('name').limit(2000)
+  if (productsError) return NextResponse.json({ error: 'BOX商品を取得できませんでした' }, { status: 503 })
+  const boxProducts = products ?? []
 
   const prefix = `box_comparison_v1:${context.profile.tenant_id}:`
   const quotes: { productId: string; sourceId: string; condition: string; price: number; url: string; note: string; checkedAt: string }[] = []
@@ -67,13 +60,13 @@ export async function GET() {
     for (const row of data ?? []) {
       try {
         const parsed = quoteSchema.parse(JSON.parse(row.value))
-        if (products.some((product) => product.id === parsed.productId)) quotes.push(parsed)
+        if (boxProducts.some((product) => product.id === parsed.productId)) quotes.push(parsed)
       } catch { /* ignore settings outside the current schema */ }
     }
     if ((data ?? []).length < 500) break
   }
 
-  return NextResponse.json({ products, quotes, sources: BOX_PRICE_SOURCES, conditions: BOX_CONDITIONS, canEdit: context.profile.role === 'admin' }, {
+  return NextResponse.json({ products: boxProducts, quotes, sources: BOX_PRICE_SOURCES, conditions: BOX_CONDITIONS, canEdit: context.profile.role === 'admin' }, {
     headers: { 'Cache-Control': 'private, no-store' },
   })
 }
@@ -88,12 +81,12 @@ export async function POST(request: NextRequest) {
   let body: z.infer<typeof requestSchema>
   try { body = requestSchema.parse(await request.json()) } catch { return NextResponse.json({ error: '価格・条件の入力を確認してください' }, { status: 400 }) }
   if (body.action === 'buyback_price') {
-    const { data: product } = await context.db.from('products').select('id,subcategory_id')
+    const { data: product } = await context.db.from('products').select('id,subcategory_id,name')
       .eq('id', body.productId).eq('tenant_id', context.profile.tenant_id).single()
     if (!product) return NextResponse.json({ error: 'BOX商品が見つかりません' }, { status: 404 })
     const { data: subcategory } = await context.db.from('subcategories').select('name')
       .eq('id', product.subcategory_id).eq('tenant_id', context.profile.tenant_id).single()
-    if (!subcategory || !/BOX|ボックス|ボックス商品/i.test(subcategory.name)) return NextResponse.json({ error: 'BOXカテゴリの商品だけ変更できます' }, { status: 400 })
+    if (!((subcategory && /BOX|ボックス|拡張パック|ハイクラスパック|ブースター/i.test(subcategory.name)) || /\bBOX\b|ボックス/i.test(product.name))) return NextResponse.json({ error: 'BOXカテゴリの商品だけ変更できます' }, { status: 400 })
     const { data, error } = await context.db.from('products').update({ price: body.price, ...(body.price === 0 ? { show_in_price_list: false } : {}) })
       .eq('id', body.productId).eq('tenant_id', context.profile.tenant_id).eq('price', body.expected).select('id,price')
     if (error) return NextResponse.json({ error: '自社買取価格を保存できませんでした' }, { status: 500 })
@@ -101,12 +94,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
   }
   const quote = quoteSchema.parse(body)
-  const { data: product } = await context.db.from('products').select('id,subcategory_id')
+  const { data: product } = await context.db.from('products').select('id,subcategory_id,name')
     .eq('id', quote.productId).eq('tenant_id', context.profile.tenant_id).single()
   if (!product) return NextResponse.json({ error: 'BOX商品が見つかりません' }, { status: 404 })
   const { data: subcategory } = await context.db.from('subcategories').select('name')
     .eq('id', product.subcategory_id).eq('tenant_id', context.profile.tenant_id).single()
-  if (!subcategory || !/BOX|ボックス|ボックス商品/i.test(subcategory.name)) {
+  if (!((subcategory && /BOX|ボックス|拡張パック|ハイクラスパック|ブースター/i.test(subcategory.name)) || /\bBOX\b|ボックス/i.test(product.name))) {
     return NextResponse.json({ error: 'BOXカテゴリの商品だけ保存できます' }, { status: 400 })
   }
 
