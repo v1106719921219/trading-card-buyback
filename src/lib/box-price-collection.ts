@@ -1,0 +1,122 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { BOX_PRICE_SOURCES } from '@/lib/box-price-sources'
+
+const SOURCES = [
+  { id: 'homura', url: 'https://kaitori-homura.com/column/2026/10/21/pokemon-box-buyback-price-list/' },
+  { id: 'otachu', url: 'https://otachu-akiba.com/1gocard/buying_price/pokemon-card-game/' },
+] as const
+
+type Product = { id: string; name: string; model_number: string | null; set_number: string | null; category_id: string | null; category_name?: string }
+type Observation = { sourceId: string; productId: string; condition: 'shrink' | 'no_shrink'; price: number; url: string; note: string; checkedAt: string }
+
+function decode(value: string) {
+  return value.replace(/&nbsp;|&#160;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&#x([\da-f]+);/gi, (_, n: string) => String.fromCodePoint(parseInt(n, 16))).replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
+}
+
+function cellText(html: string) {
+  return decode(html.replace(/<br\s*\/?\s*>/gi, ' ').replace(/<[^>]*>/g, ' ')).replace(/[\s\u3000]+/g, ' ').trim()
+}
+
+function rows(html: string) {
+  return [...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].map((match) => [...match[1].matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((cell) => cellText(cell[1])))
+}
+
+function price(value: string) {
+  const match = value.match(/[¥￥]?\s*([\d,]+)\s*円?/)
+  if (!match) return null
+  const amount = Number(match[1].replace(/,/g, ''))
+  return Number.isSafeInteger(amount) && amount > 0 ? amount : null
+}
+
+function normalizeName(value: string) {
+  return value.normalize('NFKC').toLowerCase().replace(/\([^)]*\)|（[^）]*）/g, '').replace(/シュリンク(?:付き|あり|有り|なし|無し)?|未開封|買取|価格|box|ボックス|\s/g, '').replace(/[^\p{L}\p{N}]/gu, '')
+}
+
+function productFor(name: string, products: Product[]) {
+  const normalized = normalizeName(name)
+  if (!normalized) return null
+  const candidates = products.filter((product) => {
+    const names = [product.name, product.model_number ?? '', product.set_number ?? ''].map(normalizeName).filter(Boolean)
+    return names.includes(normalized) || names.some((candidate) => candidate.length >= 4 && (normalized.startsWith(candidate) || candidate.startsWith(normalized)))
+  })
+  return candidates.length === 1 ? candidates[0] : null
+}
+
+function parseHomura(html: string, products: Product[], checkedAt: string): Observation[] {
+  const out: Observation[] = []
+  for (const cells of rows(html)) {
+    if (cells.length < 3) continue
+    const name = cells.find((cell) => /[\p{L}\p{N}]/u.test(cell) && !/シュリンク|円|価格推移|^BOX$/i.test(cell))
+    if (!name) continue
+    const product = productFor(name, products)
+    if (!product) continue
+    const shrink = cells.map(price).find((value) => value !== null)
+    const noShrinkCell = cells.find((cell) => /シュリンク\s*(?:なし|無し)/.test(cell))
+    // Table order is explicitly 商品名・シュリンク有り・シュリンク無し. Don't infer missing prices.
+    const priceCells = cells.slice(-2).map(price)
+    const shrinkPrice = priceCells[0] ?? shrink
+    const noShrinkPrice = priceCells[1] ?? (noShrinkCell ? price(noShrinkCell) : null)
+    if (shrinkPrice) out.push({ sourceId: 'homura', productId: product.id, condition: 'shrink', price: shrinkPrice, url: SOURCES[0].url, note: '自動取得・シュリンク有り', checkedAt })
+    if (noShrinkPrice) out.push({ sourceId: 'homura', productId: product.id, condition: 'no_shrink', price: noShrinkPrice, url: SOURCES[0].url, note: '自動取得・シュリンク無し', checkedAt })
+  }
+  return out
+}
+
+function parseOtachu(html: string, products: Product[], checkedAt: string): Observation[] {
+  const out: Observation[] = []
+  for (const cells of rows(html)) {
+    if (cells.length < 3) continue
+    const rawName = cells.find((cell) => /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(cell) && !/買取価格|商品名|更新|日付/.test(cell)) ?? ''
+    const explicitNoShrink = /シュリンク\s*(?:なし|無し)/.test(rawName)
+    const name = rawName.replace(/\s*[（(]シュリンク\s*(?:なし|無し)[）)]\s*/g, '').trim()
+    const product = productFor(name, products)
+    if (!product) continue
+    const amount = cells.map(price).find((value) => value !== null)
+    if (!amount) continue
+    out.push({ sourceId: 'otachu', productId: product.id, condition: explicitNoShrink ? 'no_shrink' : 'shrink', price: amount, url: SOURCES[1].url, note: `自動取得・ページ更新日 ${cells.find((cell) => /^\d{1,2}\/\d{1,2}$/.test(cell)) ?? '未表示'}`, checkedAt })
+  }
+  return out
+}
+
+async function fetchSource(url: string) {
+  const response = await fetch(url, { headers: { 'User-Agent': 'KaitoriSquarePriceMonitor/1.0 (+https://kaitorisquare.com)', Accept: 'text/html' }, signal: AbortSignal.timeout(20000), cache: 'no-store' })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.text()
+}
+
+export async function collectBoxPrices(db: SupabaseClient, tenantId: string) {
+  const [subcategoryResult, categoryResult, productResult] = await Promise.all([
+    db.from('subcategories').select('id,name,category_id,sort_order').eq('tenant_id', tenantId),
+    db.from('categories').select('id,name,sort_order').eq('tenant_id', tenantId),
+    db.from('products').select('id,name,model_number,set_number,category_id,subcategory_id,is_active').eq('tenant_id', tenantId).eq('is_active', true),
+  ])
+  if (subcategoryResult.error || categoryResult.error || productResult.error) throw new Error('商品マスタを読み込めませんでした')
+  const categoryNames = new Map((categoryResult.data ?? []).map((item) => [item.id, item.name]))
+  const subcategories = new Map((subcategoryResult.data ?? []).map((item) => [item.id, item.name]))
+  const products = (productResult.data ?? []).filter((product) => /BOX|ボックス|拡張パック|ハイクラスパック|ブースター/i.test(subcategories.get(product.subcategory_id ?? '') ?? '') || /\bBOX\b|ボックス/i.test(product.name)).map((product) => ({ ...product, category_name: categoryNames.get(product.category_id ?? '') ?? '' }))
+  const pokemonProducts = products.filter((product) => /ポケモン|ポケカ/i.test(product.category_name))
+  const checkedAt = new Date().toISOString()
+  const results = await Promise.all(SOURCES.map(async (source) => {
+    try {
+      const html = await fetchSource(source.url)
+      const observations = source.id === 'homura' ? parseHomura(html, pokemonProducts, checkedAt) : parseOtachu(html, pokemonProducts, checkedAt)
+      return { sourceId: source.id, observations, error: null }
+    } catch (error) {
+      return { sourceId: source.id, observations: [], error: error instanceof Error ? error.message : String(error) }
+    }
+  }))
+  const observations = results.flatMap((result) => result.observations)
+  let saved = 0
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(new Date(checkedAt))
+  for (const observation of observations) {
+    const key = `box_comparison_v1:${tenantId}:${observation.productId}:${observation.sourceId}:${observation.condition}:${day}`
+    const { data: existing, error: lookupError } = await db.from('app_settings').select('key').eq('key', key).maybeSingle()
+    if (lookupError) continue
+    const value = JSON.stringify(observation)
+    const result = existing
+      ? await db.from('app_settings').update({ value }).eq('key', key)
+      : await db.from('app_settings').insert({ key, value, description: 'BOX他社買取価格・自動取得' })
+    if (!result.error) saved += 1
+  }
+  return { fetchedAt: checkedAt, attemptedSources: SOURCES.map((source) => ({ ...source, name: BOX_PRICE_SOURCES.find((item) => item.id === source.id)?.name })), saved, matched: observations.length, sources: results.map(({ sourceId, observations: items, error }) => ({ sourceId, matched: items.length, error })) }
+}
