@@ -119,7 +119,7 @@ export default function BoxPriceComparisonPage() {
     <main className="space-y-5 p-4 md:p-6">
       <section className="rounded-lg border bg-muted/20 p-4 text-sm">
         <p className="font-semibold">価格の見方</p>
-        <p className="mt-1 text-muted-foreground">公開HTMLから機械的に取得できる店舗は毎日9時（日本時間）に更新します。取得対象は買取ホムラ・おたちゅう。です。ほかの店舗は手入力で記録できます。価格は条件別・確認日付きで保存します。</p>
+        <p className="mt-1 text-muted-foreground">公開ページから取得できる店舗は毎日9時（日本時間）に更新します。現在は買取ホムラ・おたちゅう。・買取BASE・トレカプロ・森森買取が対象です。森森買取は法人／大口向けの掲載価格で、状態条件は未確認として記録します。ほかの店舗は手入力で記録できます。</p>
       </section>
 
       <details className="rounded-lg border">
