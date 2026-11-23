@@ -149,6 +149,13 @@ export function formatIntakeTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' })
 }
 
+/** 受付の日付と時刻（「11/24 14:05」）。日をまたいで残っている受付を見分けるため、日付も出す */
+export function formatIntakeDateTime(iso: string): string {
+  const d = new Date(iso)
+  const date = d.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Tokyo' })
+  return `${date} ${formatIntakeTime(iso)}`
+}
+
 // ---------------------------------------------------------------------------
 // 本人確認・申込書・台帳・レジ（段階 1 後半）
 // ---------------------------------------------------------------------------

@@ -14,7 +14,7 @@ import {
   type OpenIntake,
   type StoreCustomerHit,
 } from '@/actions/pos-buyback'
-import { INTAKE_KINDS, POS_STATUS_LABELS, formatIntakeTime, formatYen, intakeNumberFromOrderNumber, type IntakeKind } from '@/lib/pos-buyback'
+import { INTAKE_KINDS, POS_STATUS_LABELS, formatIntakeDateTime, formatYen, intakeNumberFromOrderNumber, type IntakeKind } from '@/lib/pos-buyback'
 import type { OrderStatus } from '@/types/database'
 
 /**
@@ -203,7 +203,7 @@ export function IntakeScreen({ intakes }: { intakes: OpenIntake[] }) {
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {o.intake_count != null ? `持込 ${o.intake_count} 点 ・ ` : ''}
-                      {formatIntakeTime(o.created_at)} 受付
+                      {formatIntakeDateTime(o.created_at)} 受付
                       {o.item_count > 0 ? ` ・ 明細 ${o.item_count} 点 ${formatYen(o.total_amount)}` : ''}
                     </div>
                   </div>

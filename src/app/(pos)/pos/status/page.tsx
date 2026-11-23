@@ -8,7 +8,7 @@ import { getRegisterSummary } from '@/actions/pos-checkout'
 import { createClient } from '@/lib/supabase/server'
 import { requireTenantId } from '@/lib/tenant'
 import { loadPosOverview, loadStockSummary } from '@/lib/pos-overview'
-import { POS_STATUS_LABELS, formatDateTimeJst, formatIntakeTime, formatYen, intakeNumberFromOrderNumber, todayJst } from '@/lib/pos-buyback'
+import { POS_STATUS_LABELS, formatDateTimeJst, formatIntakeDateTime, formatYen, intakeNumberFromOrderNumber, todayJst } from '@/lib/pos-buyback'
 import { sumDailyRows } from '@/lib/pos-sales'
 import { formatBillCount, spotHourLabel } from '@/lib/pos-register'
 import type { OrderStatus, RegisterSession, RegisterSpotCount } from '@/types/database'
@@ -123,7 +123,7 @@ export default async function PosStatusPage() {
                   <span className="font-mono text-xl font-bold">{intakeNumberFromOrderNumber(o.order_number)}</span>
                   <span className="min-w-0 flex-1 truncate">{o.customer_name || 'お名前未入力'}</span>
                   <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">{POS_STATUS_LABELS[o.status as OrderStatus] ?? o.status}</span>
-                  <span className="whitespace-nowrap text-sm tabular-nums text-muted-foreground">{formatIntakeTime(o.created_at)} 受付</span>
+                  <span className="whitespace-nowrap text-sm tabular-nums text-muted-foreground">{formatIntakeDateTime(o.created_at)} 受付</span>
                   <span className="whitespace-nowrap text-sm tabular-nums">{o.item_count > 0 ? `${o.item_count} 点 ${formatYen(o.total_amount)}` : o.intake_count ? `約 ${o.intake_count} 点` : '査定前'}</span>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </Link>
