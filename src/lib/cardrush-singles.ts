@@ -50,10 +50,9 @@ export function matchRush(p: SingleProduct, quotes: RushQuote[], percent: number
   Object.assign(row, { quote: q.amount, sourceUpdated: q.updated_at, sourceUrl: `https://cardrush.media/pokemon/buying_prices?pack_code=${encodeURIComponent(q.pack_code || code)}&model_number=${encodeURIComponent(model)}` })
   if (!sourceIsFresh(q.updated_at, now)) return { ...row, reason: '本日更新ではないため保留' }
   if (q.amount <= 0) return { ...row, reason: '掲載額0円のため保留' }
-  if (p.price <= 0) return { ...row, reason: '買取価格未設定（0円）のため保留' }
   const proposed = Math.floor(q.amount * percent / 100)
   if (proposed <= 0) return { ...row, reason: '計算結果0円のため保留' }
-  return { ...row, proposed, reason: proposed === p.price ? '価格一致' : '更新可能' }
+  return { ...row, proposed, reason: proposed === p.price ? '価格一致' : p.price <= 0 ? '初回価格設定可能' : '更新可能' }
 }
 export async function fetchRushSeries(code: string): Promise<RushQuote[]> {
   if (!/^[A-Z0-9+-]{1,16}$/.test(code)) throw Error('シリーズコードを確認してください')
@@ -99,7 +98,9 @@ export async function computeAndSaveDailySinglesSnapshot(tenantId: string, perce
     if (!data || data.length < 500) break
   }
 
-  const eligible = products.filter(p=>p.price>0 && isEligibleSingle(p))
+  // 価格未設定（0円）でも、カードラッシュで一意に照合できた当日価格を
+  // 初回価格候補として管理画面に出す。曖昧・古い価格は matchRush 側で保留する。
+  const eligible = products.filter(isEligibleSingle)
   const codes = [...new Set(eligible.map(singleSeriesCode).filter((c) => c !== 'OTHER'))]
   const quotes = new Map<string, RushQuote[]>()
   const errors: string[] = []
