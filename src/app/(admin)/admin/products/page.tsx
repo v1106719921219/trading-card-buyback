@@ -20,6 +20,7 @@ import { AdminHeader } from '@/components/admin/header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
   TableBody,
@@ -192,6 +193,7 @@ export default function ProductsPage() {
   const [bulkAction, setBulkAction] = useState<'show' | 'hide' | null>(null)
   const [bulkUpdating, setBulkUpdating] = useState(false)
   const [defaultBuybackIds, setDefaultBuybackIds] = useState<Map<string, Set<string>> | null>(null)
+  const [defaultBuybackDraftIds, setDefaultBuybackDraftIds] = useState<Map<string, Set<string>> | null>(null)
   const [savingDefaultBuyback, setSavingDefaultBuyback] = useState(false)
   const visibilityLocks = useRef(new Set<string>())
   const visibilityOverrides = useRef(new Map<string, VisibilityRow>())
@@ -256,6 +258,7 @@ export default function ProductsPage() {
           settings.set(row.key, new Set(ids))
         }
         setDefaultBuybackIds(settings)
+        setDefaultBuybackDraftIds(new Map([...settings].map(([key, ids]) => [key, new Set(ids)])))
       } catch {
         toast.error('いつもの買取商品の設定を読み込めませんでした')
       }
@@ -390,12 +393,14 @@ export default function ProductsPage() {
   const defaultBuybackGroups = useMemo(() => DEFAULT_BUYBACK_GROUPS.map(group => {
     const key = `${group.key}_${tenantId}`
     const savedIds = defaultBuybackIds?.get(key)
+    const selectedIds = defaultBuybackDraftIds?.get(key) ?? savedIds
     const groupProducts = products.filter(group.matches)
     const saved = groupProducts.filter(p => savedIds?.has(p.id))
-    const published = groupProducts.filter(p => p.show_in_price_list && canShowProduct(p))
+    const selected = groupProducts.filter(p => selectedIds?.has(p.id))
     const targets = saved.filter(p => !p.show_in_price_list && canShowProduct(p))
-    return { key, label: group.label, published, saved, targets }
-  }), [products, tenantId, defaultBuybackIds])
+    const dirty = saved.length !== selected.length || saved.some(p => !selectedIds?.has(p.id))
+    return { ...group, key, label: group.label, selected, saved, targets, dirty }
+  }), [products, tenantId, defaultBuybackIds, defaultBuybackDraftIds])
   const usualBuybackIds = useMemo(
     () => new Set(defaultBuybackGroups.flatMap(group => group.saved.map(product => product.id))),
     [defaultBuybackGroups],
@@ -1031,9 +1036,21 @@ async function syncToChiba() {
     } finally { setVisibilitySaving(new Set(visibilityLocks.current)) }
   }
 
+  function toggleDefaultBuybackSelection(groupKey: string, productId: string, checked: boolean) {
+    setDefaultBuybackDraftIds(previous => {
+      if (!previous) return previous
+      const next = new Map(previous)
+      const ids = new Set(next.get(groupKey) ?? defaultBuybackIds?.get(groupKey) ?? [])
+      if (checked) ids.add(productId)
+      else ids.delete(productId)
+      next.set(groupKey, ids)
+      return next
+    })
+  }
+
   async function saveDefaultBuyback(group: typeof defaultBuybackGroups[number]) {
-    if (defaultBuybackBusy || !tenantId || !group.published.length) return
-    const ids = group.published.map(product => product.id)
+    if (defaultBuybackBusy || !tenantId || !group.dirty || !defaultBuybackDraftIds) return
+    const ids = [...(defaultBuybackDraftIds.get(group.key) ?? [])]
     setSavingDefaultBuyback(true)
     try {
       const { error } = await supabase.from('app_settings').upsert({
@@ -1043,8 +1060,10 @@ async function syncToChiba() {
         description: `いつもの買取商品（${group.label}）`,
       }, { onConflict: 'tenant_id,key' })
       if (error) throw error
-      setDefaultBuybackIds(previous => new Map(previous).set(group.key, new Set(ids)))
-      toast.success(`表示中の${group.label}${ids.length}件を保存しました`)
+      const savedIds = new Set(ids)
+      setDefaultBuybackIds(previous => new Map(previous ?? []).set(group.key, savedIds))
+      setDefaultBuybackDraftIds(previous => new Map(previous ?? []).set(group.key, new Set(savedIds)))
+      toast.success(`${group.label}の選択${ids.length}件を保存しました`)
     } catch {
       toast.error('いつもの買取商品を保存できませんでした')
     } finally {
@@ -1469,15 +1488,16 @@ async function syncToChiba() {
             いつもの買取商品だけ表示
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground">商品一覧の「いつもの」欄で1件ずつ選び、種類ごとに保存します。選択の保存では価格表の公開状態は変わりません。</p>
         {defaultBuybackGroups.map(group => (
           <div key={group.key} className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" disabled={defaultBuybackBusy || group.published.length === 0} onClick={() => void saveDefaultBuyback(group)}>
-              表示中の{group.label}を保存（{group.published.length}件）
+            <Button variant="outline" size="sm" disabled={defaultBuybackBusy || !group.dirty} onClick={() => void saveDefaultBuyback(group)}>
+              {group.label}の選択を保存（{group.selected.length}件）
             </Button>
             <Button size="sm" disabled={defaultBuybackBusy || group.targets.length === 0} onClick={() => void handleBulkTogglePriceList(true, group.targets)}>
               {group.label}を一括オン（{group.targets.length}件）
             </Button>
-            {defaultBuybackIds !== null && <span className="text-sm text-muted-foreground">保存済み {group.saved.length}件</span>}
+            {defaultBuybackIds !== null && <span className="text-sm text-muted-foreground">保存済み {group.saved.length}件{group.dirty ? '・未保存の変更あり' : ''}</span>}
           </div>
         ))}
       </div>
@@ -1636,6 +1656,7 @@ async function syncToChiba() {
               <TableHead className="hidden lg:table-cell">セット型番</TableHead>
               <TableHead className="hidden sm:table-cell">カテゴリ</TableHead>
               <TableHead className="hidden lg:table-cell">サブカテゴリ</TableHead>
+              <TableHead className="w-28">いつもの</TableHead>
               <TableHead className="text-right">買取価格</TableHead>
               <TableHead className="text-right hidden md:table-cell">相場</TableHead>
               <TableHead className="w-20">価格表</TableHead>
@@ -1646,13 +1667,13 @@ async function syncToChiba() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                   読み込み中...
                 </TableCell>
               </TableRow>
             ) : filteredProducts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                   {catalogLoading ? '該当商品を読み込み中…' : catalogLoadError ? '商品一覧の読み込みを完了できませんでした' : '商品がありません'}
                 </TableCell>
               </TableRow>
@@ -1702,6 +1723,26 @@ async function syncToChiba() {
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
                     {product.subcategory?.name || '-'}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      {defaultBuybackGroups.filter(group => group.matches(product)).map(group => {
+                        const selected = defaultBuybackDraftIds?.get(group.key)?.has(product.id)
+                          ?? defaultBuybackIds?.get(group.key)?.has(product.id)
+                          ?? false
+                        return (
+                          <label key={group.key} className="inline-flex items-center gap-1.5 text-xs whitespace-nowrap">
+                            <Checkbox
+                              checked={selected}
+                              disabled={!catalogReady || savingDefaultBuyback || defaultBuybackIds === null}
+                              onCheckedChange={checked => toggleDefaultBuybackSelection(group.key, product.id, checked === true)}
+                              aria-label={`${product.name}をいつもの${group.label}に${selected ? '含める' : '追加'}`}
+                            />
+                            {group.label}
+                          </label>
+                        )
+                      })}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     {editingPriceId === product.id ? (
