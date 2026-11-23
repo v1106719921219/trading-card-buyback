@@ -376,10 +376,21 @@ export async function confirmAppraisal(orderId: string): Promise<ActionResult<{ 
   const db = await createClient()
   const { order, error: orderError } = await loadOpenOrder(db, user.tenant_id, orderId, ['申込', '検品完了'])
   if (orderError || !order) return { error: orderError ?? '受付が見つかりません' }
-  const { data: items } = await db.from('order_items').select('quantity, unit_price').eq('tenant_id', user.tenant_id).eq('order_id', order.id)
+  const { data: items } = await db.from('order_items').select('id, quantity, unit_price, inspected_quantity').eq('tenant_id', user.tenant_id).eq('order_id', order.id)
   const { count, total } = sumAppraisal(items ?? [])
   if (count === 0) return { error: '明細がありません。商品を追加してください' }
   if (order.status === '申込') {
+    // 検品完了にするには、明細ごとの検品枚数が入っていて、その合計が検品合計と一致している必要がある
+    // （DB のトリガー check_inspection_cost_completion）。店頭は査定した数量がそのまま検品枚数になる
+    const stale = (items ?? []).filter((i) => i.inspected_quantity !== i.quantity)
+    const synced = await Promise.all(
+      stale.map((i) => db.from('order_items').update({ inspected_quantity: i.quantity }).eq('tenant_id', user.tenant_id).eq('order_id', order.id).eq('id', i.id)),
+    )
+    const syncError = synced.find((r) => r.error)?.error
+    if (syncError) {
+      console.error('[pos] confirmAppraisal: inspected_quantity sync failed', { orderId: order.id, code: syncError.code, message: syncError.message })
+      return { error: `${sanitizeError(syncError)}${syncError.code ? `（コード: ${syncError.code}）` : ''}` }
+    }
     const operatorName = (await resolveOperatorName(user.tenant_id, user.display_name ?? ''))?.trim()
     // 査定確定には担当者名が要る（DB のトリガーが空の名前を拒否する）。レジを開局していれば、そこで選んだ名前が入る
     if (!operatorName) return { error: '担当者が決まっていません。左メニューの「レジ」で担当者を選んで開局してから、もう一度押してください' }
