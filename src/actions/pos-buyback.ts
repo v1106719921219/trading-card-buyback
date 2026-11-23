@@ -380,14 +380,22 @@ export async function confirmAppraisal(orderId: string): Promise<ActionResult<{ 
   const { count, total } = sumAppraisal(items ?? [])
   if (count === 0) return { error: '明細がありません。商品を追加してください' }
   if (order.status === '申込') {
-    const operatorName = await resolveOperatorName(user.tenant_id, user.display_name)
+    const operatorName = (await resolveOperatorName(user.tenant_id, user.display_name ?? ''))?.trim()
+    // 査定確定には担当者名が要る（DB のトリガーが空の名前を拒否する）。レジを開局していれば、そこで選んだ名前が入る
+    if (!operatorName) return { error: '担当者が決まっていません。左メニューの「レジ」で担当者を選んで開局してから、もう一度押してください' }
     const { error: updateError } = await db
       .from('orders')
       .update({ status: '検品完了', inspected_by: user.id, inspected_by_name: operatorName, inspected_total_amount: total })
       .eq('tenant_id', user.tenant_id)
       .eq('id', order.id)
       .eq('status', '申込')
-    if (updateError) return { error: sanitizeError(updateError) }
+    if (updateError) {
+      // 原因を追えるようにサーバーのログへ残す。DB のルールが理由を返したとき（P0001）は、その文言を画面に出す
+      console.error('[pos] confirmAppraisal failed', { orderId: order.id, code: updateError.code, message: updateError.message, details: updateError.details })
+      if (updateError.code === 'P0001' && updateError.message) return { error: `査定を確定できませんでした: ${updateError.message}` }
+      // それ以外は中身を出さず、原因を特定するためのコードだけ添える
+      return { error: `${sanitizeError(updateError)}${updateError.code ? `（コード: ${updateError.code}）` : ''}` }
+    }
   }
   for (const p of posPaths(order.id)) revalidatePath(p)
   return { total }
