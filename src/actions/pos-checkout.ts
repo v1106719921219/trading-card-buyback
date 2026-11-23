@@ -17,7 +17,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requirePosUser } from '@/lib/pos-auth'
 import { resolveOperatorName } from '@/lib/pos-operator'
-import { cashCountTotal, cashMovementCategory, isEmptyCashCount, normalizeCashCount, planClose, type CashMovementCategory } from '@/lib/pos-register'
+import { billCountTotal, cashCountTotal, cashMovementCategory, isEmptyCashCount, isSpotHour, normalizeBillCount, normalizeCashCount, planClose, type CashMovementCategory } from '@/lib/pos-register'
 import { getInspectorOptions } from '@/actions/inspection'
 import { sanitizeImage } from '@/lib/safe-image'
 import { jstToday } from '@/lib/payment-display'
@@ -113,6 +113,8 @@ const identitySchema = z.object({
   birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '生年月日を入力してください'),
   occupation: z.string().trim().min(1, '職業を入力してください').max(60),
   front_image: z.string().max(14_000_100).nullable(),
+  // 書類の原本を目視で確認した（撮影はしない。2026-11-23 決定）。書類の提示のときは必須
+  visually_confirmed: z.boolean().optional(),
   handwritten_image: z.string().max(14_000_100).nullable(),
   // 18 歳未満のときだけ使う（保護者同意）。成人のときは無視する
   guardian_name: z.string().trim().max(100).nullable().optional(),
@@ -160,6 +162,7 @@ export async function saveIdentityCheck(orderId: string, input: IdentityInput): 
   if (minor && v.guardian_image && !guardianDoc?.photoAllowed) return { error: guardianDoc ? `${guardianDoc.label}は撮影・保存できません` : '保護者の書類を撮影するときは書類の種類を選んでください' }
   const docType = v.method === 'id_document' ? IDENTITY_DOCUMENT_TYPES.find((d) => d.value === v.document_type) : null
   if (v.method === 'id_document' && !docType) return { error: '本人確認書類の種類を選んでください' }
+  if (v.method === 'id_document' && !v.visually_confirmed) return { error: '書類の原本を目視で確認し、チェックを入れてください' }
   if (v.method === 'id_document' && v.front_image && !docType?.photoAllowed) return { error: `${docType?.label}は撮影・保存できません。目視で確認して入力してください` }
   if (v.method === 'handwritten' && !v.handwritten_image) return { error: '面前で手書きした文書を撮影してください' }
 
@@ -262,7 +265,7 @@ export async function saveIdentityCheck(orderId: string, input: IdentityInput): 
       actor_id: user.id,
       action: 'store_identity_checked',
       record_id: orderId,
-      details: { method: v.method, document_type: v.document_type, age, photo: !!frontPath, guardian: minor },
+      details: { method: v.method, document_type: v.document_type, age, photo: !!frontPath, visually_confirmed: v.method === 'id_document', guardian: minor },
     })
   } catch (e) {
     if (uploaded.length) await admin.storage.from(BUCKET).remove(uploaded).catch(() => {})
@@ -662,6 +665,50 @@ async function computeExpected(tenantId: string, session: { id: string; opened_a
     movements: moves,
     expected: expectedRegisterCash({ openingFloat: session.opening_float, salesCash, buybackPaid, movements: moves }),
   }
+}
+
+/**
+ * 途中点検。営業中に時間帯ごとに札だけ数えて記録する（正式な精算は営業後のレジ締め）。
+ * 硬貨を数えないので差額は判定しない。その時点の理論残高を参考として一緒に残す。
+ * 直すときは同じ時間帯でもう一度記録する（前の記録は消さない）。
+ */
+export async function addSpotCount(
+  sessionId: string,
+  input: { hour: number; bills: unknown; note?: string },
+): Promise<ActionResult<{ amount: number }>> {
+  const { user, error } = await requirePosUser()
+  if (error || !user) return { error }
+  if (!uuid.safeParse(sessionId).success || !input || !isSpotHour(input.hour)) return { error: '不正なリクエストです' }
+  const counted = normalizeBillCount(input.bills)
+  if (!counted.ok) return { error: counted.error }
+  const amount = billCountTotal(counted.bills)
+  if (amount <= 0) return { error: '札の枚数を入力してください' }
+  const note = (input.note ?? '').trim().slice(0, 200)
+  const db = await createClient()
+  const { data: session } = await db
+    .from('register_sessions')
+    .select('id, opened_at, opening_float, operator_name')
+    .eq('tenant_id', user.tenant_id)
+    .eq('id', sessionId)
+    .is('closed_at', null)
+    .maybeSingle()
+  if (!session) return { error: '開局中のレジが見つかりません' }
+  const { expected } = await computeExpected(user.tenant_id, session)
+  const { error: insErr } = await db.from('register_spot_counts').insert({
+    tenant_id: user.tenant_id,
+    register_session_id: sessionId,
+    slot_hour: input.hour,
+    bills: counted.bills,
+    amount,
+    expected_cash: expected,
+    note: note || null,
+    counted_by_name: session.operator_name ?? null,
+    created_by: user.id,
+  })
+  if (insErr) return { error: sanitizeError(insErr) }
+  revalidatePath('/pos/register')
+  revalidatePath('/pos/status')
+  return { amount }
 }
 
 export async function getRegisterSummary(sessionId: string): Promise<ActionResult<{ expected: number; buybackPaid: number; salesCash: number }>> {

@@ -10,7 +10,8 @@ import { requireTenantId } from '@/lib/tenant'
 import { loadPosOverview, loadStockSummary } from '@/lib/pos-overview'
 import { POS_STATUS_LABELS, formatDateTimeJst, formatIntakeTime, formatYen, intakeNumberFromOrderNumber, todayJst } from '@/lib/pos-buyback'
 import { sumDailyRows } from '@/lib/pos-sales'
-import type { OrderStatus, RegisterSession } from '@/types/database'
+import { formatBillCount, spotHourLabel } from '@/lib/pos-register'
+import type { OrderStatus, RegisterSession, RegisterSpotCount } from '@/types/database'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +33,13 @@ export default async function PosStatusPage() {
     supabase.from('register_sessions').select('*').eq('tenant_id', tenantId).is('closed_at', null).order('opened_at', { ascending: false }).limit(1).maybeSingle(),
   ])
   const session = (sessionRow as RegisterSession | null) ?? null
-  const register = session ? await getRegisterSummary(session.id) : null
+  const [register, spotRes] = session
+    ? await Promise.all([
+        getRegisterSummary(session.id),
+        supabase.from('register_spot_counts').select('*').eq('tenant_id', tenantId).eq('register_session_id', session.id).order('created_at', { ascending: true }),
+      ])
+    : [null, null]
+  const spotCounts = (spotRes?.data ?? []) as RegisterSpotCount[]
   const totals = 'error' in overview ? null : sumDailyRows(overview.rows)
   const intakes = open.intakes ?? []
 
@@ -70,6 +77,32 @@ export default async function PosStatusPage() {
           <Tile label="店頭在庫" value={`${stock.storeCount} 点`} sub={`売価合計 ${formatYen(stock.storeValue)}`} href="/pos/stock?tab=store" />
           <Tile label="売価未設定" value={`${stock.unpricedCount} 件`} sub="売価を付けるまで販売できません" href="/pos/stock?tab=store" warn={stock.unpricedCount > 0} />
           <Tile label="在庫の仕入原価" value={formatYen(stock.storeCost)} sub={stock.staleCount > 0 ? `60 日以上 ${stock.staleCount} 件` : '店頭在庫の合計'} href="/pos/analytics" />
+        </section>
+      ) : null}
+
+      {session ? (
+        <section className="rounded-2xl border bg-card">
+          <div className="flex items-center justify-between px-4 py-3">
+            <h2 className="font-bold">途中点検（札） {spotCounts.length > 0 ? `${spotCounts.length} 回` : ''}</h2>
+            <Link href="/pos/register" className="text-sm underline underline-offset-4">
+              レジへ
+            </Link>
+          </div>
+          {spotCounts.length === 0 ? (
+            <p className="border-t px-4 py-4 text-center text-sm text-muted-foreground">今日の点検はまだありません</p>
+          ) : (
+            <ul className="divide-y border-t text-sm">
+              {spotCounts.map((c) => (
+                <li key={c.id} className="flex flex-wrap items-center gap-x-4 px-4 py-2">
+                  <span className="w-12 font-medium">{spotHourLabel(c.slot_hour)}</span>
+                  <span className="text-xs text-muted-foreground">{formatDateTimeJst(c.created_at)} 記録{c.counted_by_name ? ` ・ ${c.counted_by_name}` : ''}</span>
+                  <span className="flex-1 text-xs text-muted-foreground">{[formatBillCount(c.bills), c.note ?? ''].filter(Boolean).join(' ／ ')}</span>
+                  <span className="whitespace-nowrap tabular-nums">札 {formatYen(c.amount)}</span>
+                  <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{c.expected_cash != null ? `理論残高 ${formatYen(c.expected_cash)}（硬貨込み）` : ''}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       ) : null}
 

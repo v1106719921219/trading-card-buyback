@@ -39,7 +39,7 @@ async function fileToJpegDataUrl(file: File, maxEdge = 1600): Promise<string> {
 
 /**
  * 本人確認（docs/pos/design.md 4 章 #5、3.1 節 4）。
- * 書類の種類 → 表面の撮影（任意）→ 氏名・住所・生年月日・職業 → 年齢の自動判定。
+ * 書類の種類 → 目視で確認（撮影はしない。2026-11-23 決定）→ 氏名・住所・生年月日・職業 → 年齢の自動判定。
  * 18 歳未満は保護者（親権者）の同席が必要。保護者の氏名・続柄・同意署名を記録すれば進める（山口県青少年健全育成条例 10 条）。
  * 保護者がいなければ「お断り」にする。リピーターは前回の内容を呼び出して確認だけにする。
  */
@@ -63,27 +63,25 @@ export function IdentityScreen({
   const [address, setAddress] = useState(src?.address ?? '')
   const [birth, setBirth] = useState(src?.birth_date ?? '')
   const [occupation, setOccupation] = useState(src?.occupation ?? '')
-  const [frontImage, setFrontImage] = useState<string | null>(null)
+  // 書類は撮影せず、目視で確かめたことを記録する
+  const [visuallyConfirmed, setVisuallyConfirmed] = useState(false)
   const [handImage, setHandImage] = useState<string | null>(null)
-  const frontInput = useRef<HTMLInputElement>(null)
   const handInput = useRef<HTMLInputElement>(null)
 
   // 保護者同意（18 歳未満のときだけ使う）
   const [guardianName, setGuardianName] = useState(existing?.guardian_name ?? '')
   const [guardianRelation, setGuardianRelation] = useState(existing?.guardian_relation ?? '')
   const [guardianDocType, setGuardianDocType] = useState<string>(existing?.guardian_document_type ?? '')
-  const [guardianImage, setGuardianImage] = useState<string | null>(null)
   const [guardianSignature, setGuardianSignature] = useState<string | null>(null)
-  const guardianInput = useRef<HTMLInputElement>(null)
 
   const doc = IDENTITY_DOCUMENT_TYPES.find((d) => d.value === docType)
-  const guardianDoc = IDENTITY_DOCUMENT_TYPES.find((d) => d.value === guardianDocType)
   const age = birth ? calcAge(birth) : null
   const minor = age !== null && isMinor(age)
   const canReuse = !!customer?.last_verified_at && !existing
   const guardianCheck = age === null ? { ok: false as const, error: '' } : validateGuardianConsent(age, { guardian_name: guardianName, guardian_relation: guardianRelation, guardian_signature: guardianSignature })
   const baseFilled = !!name && !!address && !!birth && !!occupation
-  const canSubmit = baseFilled && age !== null && (!minor || guardianCheck.ok)
+  const confirmed = method === 'handwritten' ? !!handImage : visuallyConfirmed
+  const canSubmit = baseFilled && confirmed && age !== null && (!minor || guardianCheck.ok)
 
   function reuse() {
     if (!customer) return
@@ -115,12 +113,13 @@ export function IdentityScreen({
         address,
         birth_date: birth,
         occupation,
-        front_image: method === 'id_document' ? frontImage : null,
+        front_image: null,
+        visually_confirmed: method === 'id_document' ? visuallyConfirmed : false,
         handwritten_image: method === 'handwritten' ? handImage : null,
         guardian_name: minor ? guardianName : null,
         guardian_relation: minor ? guardianRelation : null,
         guardian_document_type: minor && guardianDocType ? guardianDocType : null,
-        guardian_image: minor ? guardianImage : null,
+        guardian_image: null,
         guardian_signature: minor ? guardianSignature : null,
       })
       if (res.error) {
@@ -182,26 +181,15 @@ export function IdentityScreen({
                   ))}
                 </div>
                 {doc?.note ? <p className="mt-2 text-xs text-amber-700">{doc.note}</p> : null}
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <input ref={frontInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onPick(e, setFrontImage)} />
-                  <Button type="button" variant="outline" onClick={() => frontInput.current?.click()} disabled={!doc?.photoAllowed || pending} className="h-11">
-                    <Camera className="h-4 w-4" />
-                    表面を撮影（任意）
-                  </Button>
-                  {frontImage ? (
-                    <div className="flex items-center gap-2">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={frontImage} alt="表面" className="h-16 rounded border object-cover" />
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setFrontImage(null)}>
-                        取消
-                      </Button>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">
-                      {doc?.photoAllowed ? '撮らなくても進めます。裏面は撮影しません。' : 'この書類は撮影しません。目視で確認して入力してください。'}
+                <label className="mt-4 flex items-start gap-3 rounded-xl border bg-muted/30 p-3 text-sm">
+                  <input type="checkbox" checked={visuallyConfirmed} onChange={(e) => setVisuallyConfirmed(e.target.checked)} disabled={pending} className="mt-0.5 h-6 w-6 shrink-0" />
+                  <span>
+                    <span className="font-medium">書類の原本を目視で確認しました</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      顔写真と本人、氏名・住所・生年月日が下の入力内容と合っていること、有効期限内であることを確かめてください。書類の撮影・コピーはしません。
                     </span>
-                  )}
-                </div>
+                  </span>
+                </label>
               </>
             ) : (
               <div className="mt-4 space-y-2 text-sm">
@@ -286,31 +274,12 @@ export function IdentityScreen({
                 <div className="text-sm sm:col-span-2">
                   <span className="text-muted-foreground">保護者の本人確認書類（任意。提示があれば種類を選ぶ）</span>
                   <div className="mt-1 flex flex-wrap gap-2">
-                    <Chip active={guardianDocType === ''} onClick={() => { setGuardianDocType(''); setGuardianImage(null) }} label="提示なし" />
+                    <Chip active={guardianDocType === ''} onClick={() => setGuardianDocType('')} label="提示なし" />
                     {IDENTITY_DOCUMENT_TYPES.map((d) => (
                       <Chip key={d.value} active={guardianDocType === d.value} onClick={() => setGuardianDocType(d.value)} label={d.label} />
                     ))}
                   </div>
-                  {guardianDocType ? (
-                    <div className="mt-3 flex flex-wrap items-center gap-3">
-                      <input ref={guardianInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onPick(e, setGuardianImage)} />
-                      <Button type="button" variant="outline" onClick={() => guardianInput.current?.click()} disabled={!guardianDoc?.photoAllowed || pending} className="h-11">
-                        <Camera className="h-4 w-4" />
-                        保護者の書類の表面を撮影（任意）
-                      </Button>
-                      {guardianImage ? (
-                        <div className="flex items-center gap-2">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={guardianImage} alt="保護者の書類" className="h-16 rounded border object-cover" />
-                          <Button type="button" variant="ghost" size="sm" onClick={() => setGuardianImage(null)}>
-                            取消
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{guardianDoc?.photoAllowed ? '裏面は撮影しません。' : 'この書類は撮影しません。'}</span>
-                      )}
-                    </div>
-                  ) : null}
+                  {guardianDocType ? <p className="mt-2 text-xs text-muted-foreground">保護者の書類も目視で確認します。撮影はしません。</p> : null}
                 </div>
               </div>
 
