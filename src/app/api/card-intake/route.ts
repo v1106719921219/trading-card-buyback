@@ -48,6 +48,18 @@ export async function GET(req:NextRequest){
  });
  const reduction=resolved.reduce((s,i)=>s+i._reduction,0);
  const costAllocationComplete=resolved.every(i=>i._bandsOk)&&reduction===o.inspection_discount;
- return {id:o.id,number:o.order_number,customer_name:o.customer_name??'',status:o.status,arrival_date:o.arrival_date,purchase_date:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(o.created_at)),updated_at:o.updated_at,discount:o.inspection_discount,cost_allocation_complete:costAllocationComplete,blocked:Boolean(o.return_status||o.inspection_status),items:resolved.map(({_reduction,_bandsOk,...i})=>i)};
+ // BB-2245: owner approved Tokyo intake excluding the one returned Morpeko (2026-11-22).
+ // Keep the return record; any changed quantity/cost or inspection issue remains blocked.
+ const approvedPartialReturn=!prelabel&&location==='tokyo'&&o.id==='321e27b4-5142-4d5a-89d6-e826ea23cf8f'
+  &&o.order_number==='BB-2245'&&['振込済','振込確認済'].includes(o.status)
+  &&['返送待ち','返送済'].includes(o.return_status??'')&&!o.inspection_status&&costAllocationComplete
+  &&o.inspection_discount===100100&&items.length===105&&items.length===o.order_items.length
+  &&items.every(i=>Number.isSafeInteger(i.inspected_quantity)&&i.inspected_quantity!>=0&&Number.isSafeInteger(i.returned_quantity??0)&&(i.returned_quantity??0)>=0&&(i.returned_quantity??0)<=i.inspected_quantity!)
+  &&items.filter(i=>(i.returned_quantity??0)>0).length===1
+  &&items.some(i=>i.id==='2ca426bb-5e17-496d-8b9f-fa9a056f6060'&&i.inspected_quantity===6&&i.returned_quantity===1)
+  &&resolved.reduce((sum,i)=>sum+(i.quantity??0),0)===592
+  &&resolved.reduce((sum,i)=>sum+(i.unit_costs??[]).reduce((s,c)=>s+c,0),0)===2449200;
+
+ return {id:o.id,number:o.order_number,customer_name:o.customer_name??'',status:o.status,arrival_date:o.arrival_date,purchase_date:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(o.created_at)),updated_at:o.updated_at,discount:o.inspection_discount,cost_allocation_complete:costAllocationComplete,blocked:Boolean(o.inspection_status||(o.return_status&&!approvedPartialReturn)),items:resolved.map(({_reduction,_bandsOk,...i})=>i)};
  });return reply({prelabel,orders,total:count??0,arrival_date:arrival,inspected_from:inspectedFrom,inspected_on:inspectedOn});
 }
