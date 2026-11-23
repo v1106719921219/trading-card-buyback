@@ -7,30 +7,39 @@ import { Lock, Unlock, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { addCashMovement, changeRegisterOperator, closeRegister, openRegister } from '@/actions/pos-checkout'
+import { addCashMovement, addSpotCount, changeRegisterOperator, closeRegister, openRegister } from '@/actions/pos-checkout'
 import { formatDateTimeJst, formatYen } from '@/lib/pos-buyback'
 import {
+  BILL_DENOMINATIONS,
   CASH_MOVEMENT_CATEGORIES,
   EMPTY_CASH_COUNT,
+  billCountTotal,
   cashCountTotal,
   cashMovementLabel,
+  currentSpotHour,
+  formatBillCount,
   formatCashCount,
   isEmptyCashCount,
+  spotHourLabel,
+  type BillCount,
   type CashCount,
   type CashMovementCategory,
 } from '@/lib/pos-register'
 import { CashCounter } from '@/components/pos/cash-counter'
-import type { CashMovement, RegisterSession } from '@/types/database'
+import type { CashMovement, RegisterSession, RegisterSpotCount } from '@/types/database'
 
 /**
  * レジ（docs/pos/design.md 4 章 #10、3.3 節）。
  * 開局（釣銭準備金。前回の締めで残した額を入れておく）
  * → 入出金（釣銭の追加・売上金の回収・経費。棒金や札の内訳も残せる）
+ * → 途中点検（営業中に 1 時間おきに札だけ数える。差額は判定しない）
  * → 閉局（金種を数えて理論残高と突合、翌日に残す額と回収する額に分ける）。
  */
 export function RegisterScreen({
   session,
   movements,
+  spotCounts,
+  recentSpotCounts,
   summary,
   recent,
   canClose,
@@ -39,6 +48,10 @@ export function RegisterScreen({
 }: {
   session: RegisterSession | null
   movements: CashMovement[]
+  /** 開局中のレジの途中点検（新しい順） */
+  spotCounts: RegisterSpotCount[]
+  /** 最近の締めに付ける途中点検 */
+  recentSpotCounts: RegisterSpotCount[]
   summary: { expected: number; buybackPaid: number; salesCash: number } | null
   recent: RegisterSession[]
   canClose: boolean
@@ -58,6 +71,10 @@ export function RegisterScreen({
   const [reason, setReason] = useState('')
   const [moveBreakdown, setMoveBreakdown] = useState(false)
   const [moveCount, setMoveCount] = useState<CashCount>(EMPTY_CASH_COUNT)
+  // 途中点検
+  const [spotHour, setSpotHour] = useState(() => currentSpotHour())
+  const [spotBills, setSpotBills] = useState<BillCount>({})
+  const [spotNote, setSpotNote] = useState('')
   // 閉局
   const [byDenomination, setByDenomination] = useState(true)
   const [closeCount, setCloseCount] = useState<CashCount>(EMPTY_CASH_COUNT)
@@ -124,6 +141,33 @@ export function RegisterScreen({
       setAmount('')
       setReason('')
       setMoveCount(EMPTY_CASH_COUNT)
+      router.refresh()
+    })
+  }
+
+  const spotTotal = billCountTotal(spotBills)
+
+  function setSpotBill(denomination: number, raw: string) {
+    const digits = raw.replace(/[^0-9]/g, '').slice(0, 5)
+    const next = { ...spotBills }
+    if (digits === '' || Number(digits) === 0) delete next[String(denomination)]
+    else next[String(denomination)] = Number(digits)
+    setSpotBills(next)
+  }
+
+  function spot() {
+    if (!session) return
+    if (spotTotal <= 0) return toast.error('札の枚数を入力してください')
+    startTransition(async () => {
+      const res = await addSpotCount(session.id, { hour: spotHour, bills: spotBills, note: spotNote })
+      if (res.error) {
+        toast.error(res.error)
+        return
+      }
+      toast.success(`${spotHourLabel(spotHour)}の点検 ${formatYen(res.amount ?? spotTotal)} を記録しました`)
+      setSpotBills({})
+      setSpotNote('')
+      setSpotHour(currentSpotHour())
       router.refresh()
     })
   }
@@ -285,6 +329,72 @@ export function RegisterScreen({
           </section>
 
           <section className="rounded-2xl border bg-card p-4">
+            <h2 className="font-bold">途中点検（札だけ数える）</h2>
+            <p className="mt-1 text-xs text-muted-foreground">営業中、1 時間おきに札の枚数だけ数えて記録します。硬貨は数えないので差額は出しません。正式な精算は営業後の「閉局」で行います。</p>
+            <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
+              <label className="text-sm">
+                <span className="text-muted-foreground">時間帯</span>
+                <select
+                  value={spotHour}
+                  onChange={(e) => setSpotHour(Number(e.target.value))}
+                  disabled={pending}
+                  className="mt-1 block h-11 rounded-md border bg-background px-3 text-base"
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={h}>
+                      {spotHourLabel(h)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {BILL_DENOMINATIONS.map((d) => (
+                <label key={d} className="text-sm">
+                  <span className="text-muted-foreground">{d.toLocaleString('ja-JP')} 円札</span>
+                  <span className="mt-1 flex items-center gap-1">
+                    <input
+                      value={spotBills[String(d)] ? String(spotBills[String(d)]) : ''}
+                      onChange={(e) => setSpotBill(d, e.target.value)}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder="0"
+                      disabled={pending}
+                      className="h-11 w-16 rounded-md border bg-background px-2 text-right text-base tabular-nums disabled:opacity-60"
+                    />
+                    <span className="text-xs text-muted-foreground">枚</span>
+                  </span>
+                </label>
+              ))}
+              <div className="text-sm">
+                <span className="text-muted-foreground">札の合計</span>
+                <div className="mt-1 flex h-11 items-center text-lg font-bold tabular-nums">{formatYen(spotTotal)}</div>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <label className="min-w-[200px] flex-1 text-sm">
+                <span className="text-muted-foreground">メモ（任意）</span>
+                <Input value={spotNote} onChange={(e) => setSpotNote(e.target.value)} maxLength={200} className="mt-1 h-11" />
+              </label>
+              <Button type="button" variant="outline" onClick={spot} disabled={pending} className="h-11">
+                点検を記録
+              </Button>
+            </div>
+            {spotCounts.length > 0 ? (
+              <ul className="mt-3 divide-y text-sm">
+                {spotCounts.map((c) => (
+                  <li key={c.id} className="flex flex-wrap items-center gap-x-3 py-1.5">
+                    <span className="w-12 font-medium">{spotHourLabel(c.slot_hour)}</span>
+                    <span className="text-xs text-muted-foreground">{formatDateTimeJst(c.created_at)} 記録{c.counted_by_name ? ` ・ ${c.counted_by_name}` : ''}</span>
+                    <span className="flex-1 text-xs text-muted-foreground">{[formatBillCount(c.bills), c.note ?? ''].filter(Boolean).join(' ／ ')}</span>
+                    <span className="tabular-nums">{formatYen(c.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-xs text-muted-foreground">今日の点検はまだありません。</p>
+            )}
+          </section>
+
+          <section className="rounded-2xl border bg-card p-4">
             <div className="mb-2 flex flex-wrap items-center gap-3">
               <h2 className="mr-auto font-bold">閉局（レジ締め）</h2>
               <button type="button" onClick={() => setByDenomination((v) => !v)} className="text-xs text-muted-foreground underline underline-offset-4">
@@ -366,6 +476,10 @@ export function RegisterScreen({
               <tbody>
                 {recent.map((s) => {
                   const detail = [s.counted_denominations ? formatCashCount(s.counted_denominations) : '', s.notes ?? ''].filter(Boolean).join(' ／ ')
+                  const spots = recentSpotCounts
+                    .filter((c) => c.register_session_id === s.id)
+                    .map((c) => `${spotHourLabel(c.slot_hour)} ${formatYen(c.amount)}`)
+                    .join('、')
                   return (
                     <tr key={s.id} className="border-t align-top">
                       <td className="py-1">{formatDateTimeJst(s.opened_at)}</td>
@@ -373,6 +487,7 @@ export function RegisterScreen({
                       <td className="py-1">
                         {s.closed_at ? formatDateTimeJst(s.closed_at) : '—'}
                         {detail ? <div className="text-xs text-muted-foreground">{detail}</div> : null}
+                        {spots ? <div className="text-xs text-muted-foreground">途中点検（札）: {spots}</div> : null}
                       </td>
                       <td className="py-1 text-right tabular-nums">{formatYen(s.opening_float)}</td>
                       <td className="py-1 text-right tabular-nums">{s.expected_cash != null ? formatYen(s.expected_cash) : '—'}</td>

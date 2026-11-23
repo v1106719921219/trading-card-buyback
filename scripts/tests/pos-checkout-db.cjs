@@ -34,6 +34,7 @@ INSERT INTO orders(id,tenant_id,status,customer_name) VALUES('${order}','${A}','
 await db.exec(fs.readFileSync('supabase/migrations/20261107000002_store_buyback_intake.sql','utf8'));
 await db.exec(fs.readFileSync('supabase/migrations/20261107000003_store_buyback_checkout.sql','utf8'));
 await db.exec(fs.readFileSync('supabase/migrations/20261108000002_store_guardian_consent.sql','utf8'));
+await db.exec(fs.readFileSync('supabase/migrations/20261123000001_register_spot_counts.sql','utf8'));
 
 await test('本人確認: スタッフは自テナントの受付にだけ記録できる。取消は manager の MFA が要る',async()=>{
  await session('authenticated',staff);
@@ -85,6 +86,13 @@ await test('レジ: スタッフが開局・入出金・締めまででき、同
  assert.equal((await db.query('SELECT operator_name FROM register_sessions WHERE id=$1',[s.rows[0].id])).rows[0].operator_name,'小林');
  await fails("INSERT INTO register_sessions(tenant_id,opened_by,opening_float) VALUES($1,$2,50000)",[A,staff]);
  await db.query("INSERT INTO cash_movements(tenant_id,register_session_id,kind,amount,reason,created_by) VALUES($1,$2,'in',10000,'釣銭補充',$3)",[A,s.rows[0].id,staff]);
+ // 途中点検（札だけ）: 開局中のレジにスタッフが記録できる。時間帯は 0〜23、他テナント名義では書けない
+ await db.query("INSERT INTO register_spot_counts(tenant_id,register_session_id,slot_hour,bills,amount,created_by) VALUES($1,$2,13,'{\"10000\":3}',30000,$3)",[A,s.rows[0].id,staff]);
+ await fails("INSERT INTO register_spot_counts(tenant_id,register_session_id,slot_hour,bills,amount) VALUES($1,$2,24,'{}',0)",[A,s.rows[0].id]);
+ await fails("INSERT INTO register_spot_counts(tenant_id,register_session_id,slot_hour,bills,amount) VALUES($1,$2,13,'{}',1000)",[B,s.rows[0].id]);
+ await fails("UPDATE register_spot_counts SET amount=1 WHERE register_session_id=$1",[s.rows[0].id]);
+ await fails("DELETE FROM register_spot_counts WHERE register_session_id=$1",[s.rows[0].id]);
+ assert.equal((await db.query('SELECT count(*)::int n FROM register_spot_counts')).rows[0].n,1);
  await fails("INSERT INTO cash_movements(tenant_id,register_session_id,kind,amount,reason) VALUES($1,$2,'out',0,'x')",[A,s.rows[0].id]);
  await session('authenticated',other);
  await db.query("UPDATE register_sessions SET closed_at=now() WHERE id=$1",[s.rows[0].id]); // 他テナントは RLS で 0 行
@@ -94,6 +102,7 @@ await test('レジ: スタッフが開局・入出金・締めまででき、同
  assert.notEqual((await db.query('SELECT closed_at FROM register_sessions WHERE id=$1',[s.rows[0].id])).rows[0].closed_at,null);
  await session('authenticated',staff);
  await fails("INSERT INTO cash_movements(tenant_id,register_session_id,kind,amount,reason) VALUES($1,$2,'in',1,'締め後')",[A,s.rows[0].id]);
+ await fails("INSERT INTO register_spot_counts(tenant_id,register_session_id,slot_hour,bills,amount) VALUES($1,$2,14,'{}',1000)",[A,s.rows[0].id]); // 締めた後は点検を足せない
  await db.query("INSERT INTO register_sessions(tenant_id,opened_by,opening_float) VALUES($1,$2,50000)",[A,staff]); // 締めた後は次を開ける
 });
 await test('ストレージ: 非公開バケット store-documents が作られる',async()=>{

@@ -158,10 +158,10 @@ export type IdentityMethod = 'id_document' | 'handwritten'
 /** 店頭で受け付ける本人確認書類（docs/pos/design.md 5.2 節）。保険証は記号・番号を保存しないため撮影不可 */
 export const IDENTITY_DOCUMENT_TYPES: { value: string; label: string; photoAllowed: boolean; note?: string }[] = [
   { value: 'drivers_license', label: '運転免許証', photoAllowed: true },
-  { value: 'mynumber_card', label: 'マイナンバーカード', photoAllowed: true, note: '表面のみ。裏面は撮影・保存しない' },
+  { value: 'mynumber_card', label: 'マイナンバーカード', photoAllowed: true, note: '表面だけを確認する。裏面（個人番号）は見ない・控えない' },
   { value: 'passport', label: 'パスポート', photoAllowed: true },
   { value: 'residence_card', label: '在留カード', photoAllowed: true },
-  { value: 'health_insurance', label: '健康保険証', photoAllowed: false, note: '記号・番号を保存できないため撮影はしない' },
+  { value: 'health_insurance', label: '健康保険証', photoAllowed: false, note: '記号・番号は控えない' },
   { value: 'other', label: 'その他', photoAllowed: true },
 ]
 

@@ -127,3 +127,53 @@ export function cashMovementCategory(value: unknown): (typeof CASH_MOVEMENT_CATE
 export function cashMovementLabel(m: { kind: 'in' | 'out'; category?: string | null }): string {
   return cashMovementCategory(m.category)?.label ?? (m.kind === 'in' ? '入金' : '出金')
 }
+
+// ---------------------------------------------------------------------------
+// 途中点検（営業中に 1 時間おきに札だけ数える）
+// ---------------------------------------------------------------------------
+
+/** 札の枚数。{ 額面: 枚数 } */
+export type BillCount = Record<string, number>
+
+export function billCountTotal(bills: BillCount | null | undefined): number {
+  if (!bills) return 0
+  return BILL_DENOMINATIONS.reduce((sum, d) => sum + d * (bills[String(d)] ?? 0), 0)
+}
+
+/** 画面から来た札の枚数を検証して整える。0 の項目は落とす。硬貨・知らない額面・負の数・小数は受け付けない */
+export function normalizeBillCount(input: unknown): { ok: true; bills: BillCount } | { ok: false; error: string } {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) return { ok: false, error: '札の枚数の入力が正しくありません' }
+  const out: BillCount = {}
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    const denomination = Number(key)
+    if (!(BILL_DENOMINATIONS as readonly number[]).includes(denomination)) return { ok: false, error: '途中点検で数えるのは札だけです' }
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0 || value > MAX_PIECES) {
+      return { ok: false, error: `${denomination.toLocaleString('ja-JP')} 円札の枚数を 0 以上の整数で入力してください` }
+    }
+    if (value > 0) out[String(denomination)] = value
+  }
+  if (billCountTotal(out) > MAX_CASH) return { ok: false, error: '金額が大きすぎます' }
+  return { ok: true, bills: out }
+}
+
+/** 「1万×3 5千×1 1千×12」のような 1 行の表記 */
+export function formatBillCount(bills: BillCount | null | undefined): string {
+  if (!bills) return ''
+  return BILL_DENOMINATIONS.filter((d) => (bills[String(d)] ?? 0) > 0)
+    .map((d) => `${d >= 10000 ? `${d / 10000}万` : `${d / 1000}千`}×${bills[String(d)]}`)
+    .join(' ')
+}
+
+/** いまの時間帯（日本時間の「時」）。途中点検の時間帯の初期値 */
+export function currentSpotHour(now: Date = new Date()): number {
+  return (now.getUTCHours() + 9) % 24
+}
+
+export function isSpotHour(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 23
+}
+
+/** 「13 時」 */
+export function spotHourLabel(hour: number): string {
+  return `${hour} 時`
+}

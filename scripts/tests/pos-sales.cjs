@@ -148,4 +148,21 @@ assert.equal(pr.cashMovementLabel({ kind: 'in', category: 'change' }), '釣銭�
 assert.equal(pr.cashMovementLabel({ kind: 'out', category: null }), '出金');
 same(pr.CASH_MOVEMENT_CATEGORIES.filter(c => c.kind === 'in').map(c => c.value), ['change', 'other_in']);
 
+// 途中点検: 札だけを数える
+assert.equal(pr.billCountTotal({ 10000: 3, 5000: 1, 1000: 12 }), 47000);
+assert.equal(pr.billCountTotal(null), 0);
+same(pr.normalizeBillCount({ 10000: 3, 5000: 0, 1000: 12 }), { ok: true, bills: { 1000: 12, 10000: 3 } });
+assert.equal(pr.normalizeBillCount({ 500: 1 }).ok, false); // 硬貨は対象外
+assert.equal(pr.normalizeBillCount({ 10000: -1 }).ok, false);
+assert.equal(pr.normalizeBillCount({ 10000: 1.5 }).ok, false);
+assert.equal(pr.normalizeBillCount({ 10000: '3' }).ok, false);
+assert.equal(pr.normalizeBillCount(null).ok, false);
+assert.equal(pr.normalizeBillCount([1]).ok, false);
+assert.equal(pr.formatBillCount({ 10000: 3, 5000: 1, 1000: 12 }), '1万×3 5千×1 1千×12');
+assert.equal(pr.formatBillCount({}), '');
+assert.equal(pr.currentSpotHour(new Date('2026-11-23T04:30:00Z')), 13); // 日本時間 13:30
+assert.equal(pr.currentSpotHour(new Date('2026-11-23T15:00:00Z')), 0);  // 日本時間 0:00
+assert.equal(pr.isSpotHour(23), true); assert.equal(pr.isSpotHour(24), false); assert.equal(pr.isSpotHour(1.5), false); assert.equal(pr.isSpotHour('13'), false);
+assert.equal(pr.spotHourLabel(13), '13 時');
+
 console.log('pos-sales: all passed');

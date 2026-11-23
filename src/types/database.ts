@@ -397,6 +397,24 @@ export interface RegisterSession {
   created_at: string
 }
 
+/** 営業中の途中点検（時間帯ごとに札だけ数えた記録） */
+export interface RegisterSpotCount {
+  id: string
+  tenant_id: string
+  register_session_id: string
+  /** 時間帯（日本時間の「時」） */
+  slot_hour: number
+  /** 札の枚数。{ 額面: 枚数 } */
+  bills: Record<string, number>
+  amount: number
+  /** 記録した時点の理論残高（硬貨を含む。参考値） */
+  expected_cash: number | null
+  note: string | null
+  counted_by_name: string | null
+  created_by: string | null
+  created_at: string
+}
+
 export interface CashMovement {
   id: string
   tenant_id: string
