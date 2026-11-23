@@ -27,6 +27,7 @@ export default function BoxPriceComparisonPage() {
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [collecting, setCollecting] = useState(false)
   const [ownPrices, setOwnPrices] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
 
@@ -81,6 +82,19 @@ export default function BoxPriceComparisonPage() {
     finally { setSaving(false) }
   }
 
+  async function collectPrices() {
+    setCollecting(true)
+    try {
+      const response = await fetch('/api/admin/box-price-comparison/collect', { method: 'POST' })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || '自動取得に失敗しました')
+      const errors = (result.sources ?? []).filter((item: { error: string | null }) => item.error)
+      toast.success(`${result.saved}件の他社価格を自動取得しました${errors.length ? `（取得できない店舗 ${errors.length}件）` : ''}`)
+      await load()
+    } catch (cause) { toast.error(cause instanceof Error ? cause.message : String(cause)) }
+    finally { setCollecting(false) }
+  }
+
   async function saveOwnPrice(product: Product) {
     if (!data?.canEdit) return
     const price = Number(ownPrices[product.id])
@@ -105,7 +119,7 @@ export default function BoxPriceComparisonPage() {
     <main className="space-y-5 p-4 md:p-6">
       <section className="rounded-lg border bg-muted/20 p-4 text-sm">
         <p className="font-semibold">価格の見方</p>
-        <p className="mt-1 text-muted-foreground">リンク先で当日の価格・受付状況を確認して記録します。条件が異なる価格は分けて保存し、過去日の記録も残ります。サイト側の数量条件やLINE限定価格などはメモに記録してください。</p>
+        <p className="mt-1 text-muted-foreground">公開ページから取得できる店舗は毎日9時（日本時間）に更新します。現在は買取EXPO・買取ホムラ・おたちゅう。・買取BASE・トレカプロ・森森買取が対象です。買取EXPOはポケモン・ワンピース等のカテゴリ、シュリンク付き・シュリンクなし・カートン別に取得し、受付締切の商品は除外します。森森買取は法人／大口向けの掲載価格で、状態条件は未確認として記録します。ほかの店舗は手入力で記録できます。</p>
       </section>
 
       <details className="rounded-lg border">
@@ -139,6 +153,7 @@ export default function BoxPriceComparisonPage() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
         <Input className="max-w-sm" placeholder="BOX名・型番で検索" value={query} onChange={(event) => setQuery(event.target.value)} />
+        {data?.canEdit && <Button variant="outline" onClick={() => void collectPrices()} disabled={collecting || loading}>{collecting ? '自動取得中…' : '対応店から今すぐ取得'}</Button>}
         <Button variant="outline" onClick={() => void load()} disabled={loading}>最新データを再読み込み</Button>
         <span className="text-sm text-muted-foreground">{visibleProducts.length}商品</span>
         {loading && <span role="status" className="text-sm">読み込み中…</span>}
