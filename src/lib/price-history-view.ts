@@ -1,4 +1,8 @@
 export type PriceHistoryPoint = { product_id: string; old_price: number; new_price: number; changed_at: string }
+/** 全角英数字を半角に正規化してから小文字化する（検索の全角/半角ゆれ対策） */
+export function normalizeSearchText(s: string) {
+  return s.replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).toLowerCase()
+}
 export function jstDate(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
 }

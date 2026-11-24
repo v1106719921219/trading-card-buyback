@@ -35,7 +35,7 @@ import {
   ResponsiveContainer,
   LabelList,
 } from 'recharts'
-import { jstDate, pricesAtJstDate } from '@/lib/price-history-view'
+import { jstDate, pricesAtJstDate, normalizeSearchText } from '@/lib/price-history-view'
 import type { Category, Subcategory, Product } from '@/types/database'
 
 type HistoryWithRelations = { id: string; product_id: string; old_price: number; new_price: number; changed_at: string }
@@ -231,7 +231,7 @@ export default function PriceHistoryPage() {
     return displayProducts.filter((p) => {
       if (filterCategory !== 'all' && p.category_id !== filterCategory) return false
       if (filterSubcategory !== 'all' && p.subcategory_id !== filterSubcategory) return false
-      if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
+      if (search && !normalizeSearchText(p.name).includes(normalizeSearchText(search))) return false
       return true
     })
   }, [displayProducts, filterCategory, filterSubcategory, search])
@@ -340,9 +340,9 @@ export default function PriceHistoryPage() {
 
       {/* 買取実績グラフ */}
       {(() => {
-        const buybackSearch = selectedBuybackProduct.toLowerCase()
+        const buybackSearch = normalizeSearchText(selectedBuybackProduct)
         const suggestions = buybackSearch.length >= 1
-          ? products.filter((p) => p.name.toLowerCase().includes(buybackSearch)).slice(0, 10)
+          ? products.filter((p) => normalizeSearchText(p.name).includes(buybackSearch)).slice(0, 10)
           : []
         const hasExactMatch = products.some((p) => p.name === selectedBuybackProduct)
 
