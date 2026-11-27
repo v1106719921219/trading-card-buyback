@@ -26,6 +26,7 @@ export function singleSeriesCode(p: { set_number: string | null; name: string })
   return 'OTHER'
 }
 export const MEGA_SERIES = [
+  { code: 'M7', name: 'ハドウシーカー' },
   { code: 'M6A', name: '30th CELEBRATION' },
   { code: 'M6', name: 'ストームエメラルダ' },
   { code: 'M5', name: 'アビスアイ' },
