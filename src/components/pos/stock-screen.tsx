@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Search } from 'lucide-react'
+import { ClipboardList, Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { addManualInventory, adjustInventory, allocateInventory, setInventorySalePrice } from '@/actions/pos-sales'
@@ -71,6 +71,12 @@ export function StockScreen({
             </Button>
           </>
         ) : null}
+        <Button asChild variant="outline" className="h-10">
+          <Link href="/pos/stock/stocktake">
+            <ClipboardList className="h-4 w-4" />
+            棚卸し
+          </Link>
+        </Button>
         <Button type="button" onClick={() => setAdding((v) => !v)} className="h-10">
           <Plus className="h-4 w-4" />
           手入力で入庫
@@ -111,7 +117,7 @@ export function StockScreen({
         </ul>
       )}
       <p className="text-xs text-muted-foreground">
-        最大 300 件まで表示します。ラベル印刷・棚卸しモード・本部からの入庫・開封入庫は、機材と運用が決まり次第ここに足します。
+        最大 300 件まで表示します。まとめて数え直すときは「棚卸し」を使ってください。ラベル印刷・本部からの入庫・開封入庫は、機材と運用が決まり次第ここに足します。
       </p>
     </div>
   )

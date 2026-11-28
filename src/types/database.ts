@@ -263,6 +263,46 @@ export interface InventoryItem {
   updated_at: string
 }
 
+/** 棚卸し（docs/pos/design.md 6.4 節） */
+export interface Stocktake {
+  id: string
+  tenant_id: string
+  status: 'open' | 'confirmed' | 'cancelled'
+  note: string | null
+  started_by_name: string | null
+  started_at: string
+  closed_by_name: string | null
+  closed_at: string | null
+  line_count: number
+  counted_count: number
+  diff_count: number
+  diff_quantity: number
+  diff_cost: number
+}
+
+export interface StocktakeLine {
+  id: string
+  tenant_id: string
+  stocktake_id: string
+  kind: 'item' | 'band'
+  inventory_item_id: string | null
+  price_band_id: string | null
+  position: number
+  name: string
+  detail: string | null
+  barcode: string | null
+  allocation: string | null
+  unit_cost: number
+  sale_price: number | null
+  expected_quantity: number
+  counted_quantity: number | null
+  reason: string | null
+  counted_by_name: string | null
+  counted_at: string | null
+  applied_diff: number | null
+  has_diff: boolean
+}
+
 /** 店頭販売 */
 export interface Sale {
   id: string
